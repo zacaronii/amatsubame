@@ -1,0 +1,77 @@
+---
+title: Amatsubame
+description: Japanese immersion apps for your own Kavita, Jellyfin and Audiobookshelf servers, with one dictionary lookup and Anki mining.
+template: splash
+hero:
+  tagline: Japanese immersion for your own media. Read, watch and listen from your own servers, tap any word to look it up, and send it to Anki.
+  image:
+    file: ../../assets/yomu.png
+  actions:
+    - text: Get started
+      link: /getting-started/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/zacaronii/amatsubame
+      icon: external
+      variant: minimal
+---
+
+import { Image } from 'astro:assets';
+import yomu from '../../assets/yomu.png';
+import miru from '../../assets/miru.png';
+import kiku from '../../assets/kiku.png';
+import hiku from '../../assets/hiku.png';
+
+## The apps
+
+<div class="app-grid">
+	<a class="app-card" href="/yomu/" style="--app-color: var(--amatsubame-yomu)">
+		<Image src={yomu} alt="" width={56} height={56} class="app-icon" />
+		<div>
+			<p class="name">Yomu<span class="kanji">読む</span></p>
+			<p class="line">Manga and books from Kavita, with text recognition on manga pages and read-along audio.</p>
+		</div>
+	</a>
+	<a class="app-card" href="/miru/" style="--app-color: var(--amatsubame-miru)">
+		<Image src={miru} alt="" width={56} height={56} class="app-icon" />
+		<div>
+			<p class="name">Miru<span class="kanji">見る</span></p>
+			<p class="line">Shows and films from Jellyfin, with Japanese subtitles you can tap.</p>
+		</div>
+	</a>
+	<a class="app-card" href="/kiku/" style="--app-color: var(--amatsubame-kiku)">
+		<Image src={kiku} alt="" width={56} height={56} class="app-icon" />
+		<div>
+			<p class="name">Kiku<span class="kanji">聞く</span></p>
+			<p class="line">Podcasts and audiobooks from Audiobookshelf, with transcripts from Kaku.</p>
+		</div>
+	</a>
+	<a class="app-card" href="/hiku/" style="--app-color: var(--amatsubame-hiku)">
+		<Image src={hiku} alt="" width={56} height={56} class="app-icon" />
+		<div>
+			<p class="name">Hiku<span class="kanji">引く</span></p>
+			<p class="line">A Safari extension: the same popup dictionary on any web page.</p>
+		</div>
+	</a>
+</div>
+
+And **Kaku** (書く), a small server you can run on a machine with an NVIDIA GPU. It transcribes your
+Audiobookshelf podcasts and audiobooks with Whisper so Kiku can show them line by line, and can make
+Japanese subtitles for Miru when none exist.
+
+## How it fits together
+
+- **Your media stays on your servers.** The apps stream from Kavita, Jellyfin and Audiobookshelf.
+  Downloads for offline use happen when you ask for them, or when you turn on automatic downloads.
+- **One lookup everywhere.** Every app uses the same dictionaries and the same popup, so a word looks
+  the same in a manga, a subtitle, a podcast transcript or a web page.
+- **Anki in one tap.** Cards go to your Anki through AnkiConnect, with the sentence, a picture or audio
+  clip, and the word's reading and pitch. Words you already know get marked as you read.
+- **Set up once.** The first launch walks through connecting your server, choosing libraries and
+  installing the recommended dictionaries.
+
+The apps run on iOS, iPadOS and macOS 26. They aren't on the App Store: you build them from source
+with Xcode. [Getting started](/getting-started/) explains how.
+
+The name is the Japanese for the Pacific swift, 雨燕 (*amatsubame*), the bird in the icons. Swifts
+hardly ever land.

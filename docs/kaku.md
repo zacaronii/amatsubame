@@ -69,7 +69,7 @@ Kaku needs a machine with an NVIDIA GPU and Docker with the NVIDIA Container Too
    - `KAKU_PORT` (default 8000) and `TZ`.
 2. `docker compose up -d --build`. The database and transcripts go in `./data`, the Whisper model cache in `./models` (about 3 GB, downloaded on the first job).
 3. Switch on your Japanese libraries: libraries start off, so English ones are never transcribed by accident. `GET /libraries` lists them; `PUT /libraries` with `{"enabled": [ids]}` sets them. Kaku then queues their backlog.
-4. In each app: Settings ▸ Servers ▸ Kaku, with Kaku's address and the token.
+4. In each app, Kaku's address and the token: Kiku in Settings ▸ Listening ▸ Transcripts, Yomu in Settings ▸ Reading ▸ Read-Along ▸ Kaku, Miru in Settings ▸ Watching ▸ Subtitles ▸ Kaku.
 
 - **Reaching it:** the compose file only publishes a plain-HTTP port. Before using it away from home, put it behind HTTPS (a reverse proxy) or a VPN such as Tailscale: the token is sent with every request, and nothing else protects the API.
 - **Health check:** the image's Docker health check calls `/health` every minute, so a proxy that waits for healthy containers routes Kaku about a minute after it starts.

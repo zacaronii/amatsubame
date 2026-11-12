@@ -38,9 +38,11 @@ up once.
     open Amatsubame.xcodeproj
 
 Pick a scheme (`Yomu`, `Miru`, `Kiku` or `Hiku`) and run it. Simulator builds need no signing. To run
-on your own devices, create `Config/Signing.local.xcconfig` (gitignored) with your team:
+on your own devices, create `Config/Signing.local.xcconfig` (gitignored) with your team and a
+bundle ID prefix of your own (the default `com.amatsubame.*` IDs are registered to another team):
 
     DEVELOPMENT_TEAM = ABCDE12345
+    BUNDLE_ID_PREFIX = com.yourname.amatsubame
 
 Sharing the setup between the apps (an App Group) needs a paid Apple Developer Program team on devices;
 without it each app keeps its own setup.
@@ -56,7 +58,7 @@ its [README](Server/kaku/README.md) to run it and [docs/kaku.md](docs/kaku.md) f
 
 ## Documentation
 
-User documentation is at [amatsubame.com](https://amatsubame.com). Developer notes are in
+User guides are at [amatsubame.com](https://amatsubame.com) (source in [`site/`](site)). Developer notes are in
 [`docs/`](docs): one file per app ([yomu](docs/yomu.md), [miru](docs/miru.md), [kiku](docs/kiku.md),
 [hiku](docs/hiku.md), [kaku](docs/kaku.md)), the shared pieces ([shared.md](docs/shared.md)), and the
 original plans ([PLAN.md](docs/PLAN.md), [AUDIO_PLAN.md](docs/AUDIO_PLAN.md),

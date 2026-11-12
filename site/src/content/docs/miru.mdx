@@ -1,0 +1,188 @@
+---
+title: Miru
+description: Watch anime and films from your Jellyfin server with Japanese subtitles you can tap, a searchable history of every line, and cards with a picture and audio clip.
+---
+
+import { Image } from 'astro:assets';
+import icon from '../../assets/miru.png';
+
+<div class="app-header" style="--app-color: var(--amatsubame-miru)">
+	<Image src={icon} alt="" width={72} height={72} class="app-icon" />
+	<p>見る · Shows and films from Jellyfin</p>
+</div>
+
+Miru plays the videos on your own [Jellyfin](https://jellyfin.org) server through mpv, so it handles
+the files anime fansubs and Blu-ray rips come in. Japanese subtitles are drawn by Miru itself: tap any
+word for the dictionary popup, and mine it to Anki with a picture and the line's audio. Every line you
+watch is kept in **Lines**, where you can read and search it later.
+
+## What you need
+
+- A Jellyfin server and a user account on it.
+- Japanese subtitles: text subtitles in your Jellyfin library (SRT, ASS and the like, separate or
+  inside the video), or a free [Jimaku](https://jimaku.cc) account to find them, or
+  [Kaku](/kaku/) to make them from the audio.
+- Optional, for mining: Anki with AnkiConnect. See [Lookup and Anki](/lookup-and-anki/).
+
+## Connecting Jellyfin
+
+The first time you open Miru, setup asks for your server address (for example
+`https://jellyfin.example.com`), your username and your password. The password is only used to sign
+in: Miru keeps a sign-in token, never the password. Then it shows your Jellyfin libraries and asks
+which ones are Japanese. [Getting started](/getting-started/) covers the rest of setup.
+
+Later you'll find the server in **Settings → Jellyfin** (with **Sign Out** and **Test Connection**),
+and the libraries in **Settings → Libraries**.
+
+## Browsing
+
+Miru has four tabs: **Watch**, **Lines**, **Stats** and **Settings**.
+
+- **Watch** opens with **Continue Watching**, **Next Up**, what's **On This Device**, and each
+  library's recently added titles. Search finds shows and movies by name.
+- A show's page lists its episodes, with a filter: **All**, **Unwatched** or **Downloaded**.
+- **Japanese audio only:** in **Settings → Playback**, turn this on for a library to hide movies and
+  shows without a Japanese audio track. Episodes with several audio tracks always start on the
+  Japanese one.
+- On iPad and Mac, your libraries are also listed in the sidebar under the tabs.
+
+## Watching
+
+Playback picks up where you left off, here or on any other Jellyfin app.
+
+On iPhone and iPad:
+
+- Tap to show the controls, or tap with two fingers to pause without them.
+- Double-tap the left or right side to skip back or forward.
+- Drag sideways to scrub, with a preview of the picture.
+- Drag up or down along an edge to change the brightness or volume.
+
+On the Mac, click to show the controls and double-click for full screen. The video plays in the main
+window; Escape closes it.
+
+When an episode ends, an **Up Next** card counts down to the next one (pause to hold it, or cancel
+it). After a movie or a show's last episode, Miru suggests something similar under **You might like**.
+
+The screen stays on while a video plays, and the sound keeps going when you leave the app.
+
+### Tapping subtitles
+
+Japanese subtitles show as text you can tap. Tapping a word pauses the video and opens the
+dictionary popup; closing it plays again. The popup's **Add to Anki** makes a card with:
+
+- the subtitle line as the sentence,
+- the line's audio, cut from the video,
+- a picture: a **Screenshot** or an **Animated** GIF of the line, chosen under **Card Picture** in
+  **Settings → Anki**,
+- the show and episode, and the time.
+
+Words you haven't mined yet, and words you're still learning, are underlined (see
+[word marks](/lookup-and-anki/)). If the episode has English subtitles too, they can show at the top
+of the picture (the **E** key on a keyboard).
+
+### Skipping intros
+
+When Jellyfin knows where an episode's intro, recap, credits or preview is (for example from an
+intro-detection plugin on your server), a **Skip Intro** (or Skip Recap, Skip Credits…) button
+appears at that moment. To skip intros and recaps without the button, turn on **Skip Intros
+Automatically** in **Settings → Playback**.
+
+### Now Playing and AirPods
+
+Miru shows on the Lock Screen and in Control Center, where you can pause and scrub. With AirPods:
+
+- **Press** to play or pause.
+- **Double-press** to go to the next line.
+- **Triple-press** to go back to the line before the one on screen, to hear it again.
+
+The media keys on a Mac keyboard work too.
+
+## Subtitles
+
+The subtitles button in the player opens the **Subtitles** sheet: the Japanese tracks Jellyfin has,
+the file you picked, and the timing.
+
+### Jimaku
+
+[Jimaku](https://jimaku.cc) has Japanese subtitles for most anime. Make a free account there, create
+an API key on its Account page, and enter it in **Settings → Subtitles → Jimaku**. Then **Find on Jimaku…** in the
+Subtitles sheet searches for the show and lists its files. (When an episode has no Japanese
+subtitles at all, the player shows a **Find Subtitles** button that does the same.) The file you pick is kept on your device for that episode and wins over Jellyfin's
+own tracks.
+
+Nothing goes to your Jellyfin server unless you ask: **Save to Jellyfin…** in the Subtitles sheet
+(after a confirmation) adds the file, with your timing, next to the episode on your server.
+
+### Transcribing with Kaku
+
+For an episode nobody has subtitled, [Kaku](/kaku/) can make Japanese subtitles from the audio. Set
+up Kaku in **Settings → Subtitles → Kaku**, then in the Subtitles sheet choose **Transcribe with
+Kaku**, or **Transcribe the Rest of the Season** for the later episodes too. The sheet shows Kaku's
+progress or your place in its queue.
+
+The result is labelled "From Kaku" and works like a Jimaku file: you can tap it, sync it, save it to
+Jellyfin, and watch with it offline. When you open an episode that has no Japanese subtitles, Miru
+checks Kaku and uses a finished transcript by itself.
+
+### Fixing the timing
+
+Subtitles from elsewhere are often a little early or late. In the Subtitles sheet's **Timing**
+section:
+
+- Nudge them by 1 second or 0.1 second at a time, or **Reset**.
+- **Auto-Sync to the Audio** lines the whole file up for you: against the video's own subtitle
+  tracks if it has any, or else by listening to the speech in the audio.
+
+Retiming keeps a copy on your device; Jellyfin gets it only when you save.
+
+## Lines
+
+**Lines** is a history of what you've watched, with the Japanese subtitles of each episode. It
+includes episodes watched in any Jellyfin app on any device, not just Miru.
+
+- Open an episode to read its lines. Tap a word to look it up, or use **Play from Here** to jump into
+  the video at that line.
+- **Search** finds a word or phrase across every saved episode; inside an episode, search just that
+  one.
+- **Watching Now** shows what another device is playing from your libraries, with its subtitles
+  following along live. Tap words as they go by, scroll back, and **Follow** to catch up. You can
+  also pause and resume that device from here.
+
+## Keyboard shortcuts
+
+With a keyboard on the Mac or iPad, most of mpv's familiar keys work: Space to pause, ← and → to
+seek, ↑ and ↓ for the previous and next line, **[** and **]** for speed, **Z** and **X** to move the
+subtitles, **S** to skip an intro, **A** to look up the current line, and more. Press **?** over the
+video, or open **Settings → Keyboard Shortcuts**, for the full list.
+
+## Downloads
+
+On a show's page, download single episodes or several at once. Each is the original file, often 1–2
+GB, together with its subtitles. Downloads wait for Wi-Fi unless **Download over Cellular** is on in
+**Settings → Downloads**. Nothing downloads unless you ask.
+
+Downloaded episodes play offline, with lookups and mining. Manage them in **Settings → Storage**,
+which also holds the saved subtitles Lines uses.
+
+## Progress sync
+
+While you watch, Miru reports to Jellyfin as any Jellyfin app does: your place, pauses and the
+episode you're on, so Jellyfin's resume points and "watched" marks stay right. If you
+watched further on another device meanwhile, Miru moves there when you come back. Reports made
+offline are sent later.
+
+## Stats
+
+The **Stats** tab shows your watching time by week, month or all time, with lookups, cards mined and
+your streak. Only time that actually played counts, not seeking. Your
+[kechimochi](https://github.com/Morgawr/kechimochi) log can show there too (**Settings → Stats**).
+
+## Settings
+
+- **Watching:** Jellyfin, Libraries, Subtitles (Jimaku and Kaku), Playback (skip intros, Japanese
+  audio only), Downloads, and Keyboard Shortcuts on iPad and Mac.
+- **Lookup and Mining:** dictionaries, word audio sources and Anki, including the card picture. See
+  [Lookup and Anki](/lookup-and-anki/).
+- **Stats:** the kechimochi address.
+- **Storage**, **Advanced** (sharing the setup with your other apps, things waiting to sync, Run
+  Setup Again, Export Logs) and **About**.

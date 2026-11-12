@@ -1,0 +1,142 @@
+---
+title: Kiku
+description: Listen to Japanese podcasts and audiobooks from your Audiobookshelf server, with tappable transcripts from Kaku and marks to mine later.
+---
+
+import { Image } from 'astro:assets';
+import icon from '../../assets/kiku.png';
+
+<div class="app-header" style="--app-color: var(--amatsubame-kiku)">
+	<Image src={icon} alt="" width={72} height={72} class="app-icon" />
+	<p>聞く · Podcasts and audiobooks from Audiobookshelf</p>
+</div>
+
+Kiku plays the podcasts and audiobooks on your own
+[Audiobookshelf](https://www.audiobookshelf.org) server. With [Kaku](/kaku/) running, each episode
+comes with a transcript that follows along line by line: tap any word to look it up and send it to
+Anki with the line's audio. When your hands are busy, mark the moment with your AirPods and mine it
+later.
+
+## What you need
+
+- An Audiobookshelf server, version 2.26.0 or later.
+- [Kaku](/kaku/) for transcripts. Without it, episodes still play, just without their text.
+- Optional, for mining: Anki with AnkiConnect. See [Lookup and Anki](/lookup-and-anki/).
+
+## Connecting Audiobookshelf
+
+The first time you open Kiku, setup asks for your server address (for example
+`https://audiobookshelf.example.com`) and lets you sign in with your **Password** or an **API Key**
+from Audiobookshelf. Then it shows your libraries and asks which ones are Japanese. Setup also offers
+Kaku as a recommended extra. [Getting started](/getting-started/) covers the rest.
+
+Later, the server is in **Settings → Audiobookshelf**, Kaku in **Settings → Transcripts**, and the
+libraries in **Settings → Libraries**. Turn off a library you don't listen to in Japanese.
+
+## Listening
+
+Kiku has four tabs: **Listen**, **Marks**, **Stats** and **Settings**.
+
+- **Listen** starts with **Today**: your listening time today and your streak (tap it for Stats).
+  Below it are **Continue Listening**, your **Downloaded** episodes and **New Episodes** from
+  your shows, with a link to the whole **Library** (filter it by **All**, **Podcasts**,
+  **Audiobooks** or **Downloaded**). Search finds shows, books and episodes.
+- A show's page lists its episodes (**All**, **Unplayed** or **Downloaded**), with **Play Latest**
+  or **Resume**.
+- A book's page shows the author and narrator, its chapters, and **Play** or **Resume**. Kiku plays
+  audiobooks that are a single file; a book split into several files says so on its page.
+- If Audiobookshelf can't be reached, the library from the last time it loaded still shows, and
+  downloaded episodes play.
+
+### The player
+
+The player shows the transcript, with the line being spoken highlighted and kept in view.
+
+- The buttons either side of play jump to the previous or next **line** (or skip by seconds when
+  there's no transcript). The speed button is beside them.
+- Tap a line's time to play from there. Scrolling the transcript yourself stops following;
+  **Back to Now** picks it up again.
+- The speech-bubble button hides the transcript and shows the artwork, with the current line small
+  underneath; tap that line to bring the transcript back. Kiku remembers your choice.
+- The **⋯** menu has the **Sleep Timer** (15 to 60 minutes, or **End of Episode**), **Share**,
+  **Stop Playing**, and for books **Chapters**, **Previous Chapter** and **Next Chapter**.
+
+Kiku shows on the Lock Screen and in Control Center. Their skip buttons (and your AirPods' or car's)
+jump by the intervals you set in **Settings → Playback**: 10 to 60 seconds back and forward.
+
+### Transcripts from Kaku
+
+When you open an episode, Kiku asks Kaku for its transcript. If Kaku has it, it appears at once. If
+Kaku is still working, the player shows how far along it is, or your place in Kaku's queue, and
+opening the episode moves it up. Transcripts you've played or downloaded are saved on your device,
+so they work offline.
+
+### Looking words up
+
+Tap any word in the transcript. Playback pauses, and a sheet shows the line (with a button to hear
+its clip) above the dictionary popup. Close it and playback carries on. A card mined here gets:
+
+- the line as the sentence,
+- the line's audio clip (cut on your device for downloaded episodes, or by Kaku while streaming),
+- the episode's cover as the picture,
+- the show, episode and time.
+
+## Marks
+
+Sometimes you hear something you want to mine but can't stop to look. Mark it, and come back later.
+Kiku saves where you were in the episode; nothing is recorded.
+
+Ways to mark:
+
+- The **bookmark** button in the player.
+- **Triple-press your AirPods** (the previous-track command, so a car's previous-track button works
+  too). A short chime confirms it, since you're not looking.
+- The **Mark What I Just Heard** action in the Shortcuts app. Put it on the **Action Button**, Back
+  Tap or a Siri phrase of your own: it marks whatever Kiku is playing without opening the app, and
+  answers "Marked 13:21".
+
+(A double press of your AirPods goes to the next line, as in Miru.)
+
+The **Marks** tab lists your marks by episode. Each one plays the 15 seconds before the mark and
+shows the line it's likely about, with one line either side. Tap a word to look it up and mine that
+line just as in the player. A mined mark shows what you mined for a day and then goes away; **Clear**
+removes one you don't need. If an episode's transcript isn't ready yet, its marks say
+**Transcribing** and fill in when Kaku finishes.
+
+The search at the top of Marks looks through your marks and the transcripts of every episode you've
+played, on your device, so it works offline too.
+
+## Read in Yomu
+
+If [Yomu](/yomu/) has the same book paired for read-along, **Read in Yomu** (on the book's page, and
+in the player's **⋯** menu) pauses Kiku, saves your place, and opens the book in Yomu at the sentence
+you were listening to. Yomu tells you if that book isn't paired yet.
+
+## Downloads
+
+Download an episode or a book from its page to listen offline. The audio, cover and transcript all
+come along. Downloads wait for Wi-Fi unless **Download over Cellular** is on in **Settings →
+Downloads**; nothing downloads unless you ask. **Settings → Storage** lists what's on the device by
+show, and the saved transcripts.
+
+## Progress sync
+
+Your place is saved on the device and sent to Audiobookshelf every 15 seconds while playing, and when
+you pause, so the Audiobookshelf web app and other players stay in step. Kiku resumes from whichever
+is newer, your device or the server. Progress made offline is sent later.
+
+## Stats
+
+The **Stats** tab shows your listening time by week, month or all time (only real playback counts,
+not seeking), along with lookups, cards mined and your streak. Your
+[kechimochi](https://github.com/Morgawr/kechimochi) log can show there too (**Settings → Stats**).
+
+## Settings
+
+- **Listening:** Audiobookshelf, Libraries, Transcripts (Kaku), Playback (Lock Screen skip
+  intervals) and Downloads.
+- **Lookup and Mining:** dictionaries, word audio sources and Anki. See
+  [Lookup and Anki](/lookup-and-anki/).
+- **Stats:** the kechimochi address.
+- **Storage**, **Advanced** (sharing the setup with your other apps, things waiting to sync, Run
+  Setup Again, Export Logs) and **About**.

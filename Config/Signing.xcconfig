@@ -1,4 +1,8 @@
-// Signing for every target. Put your Apple developer team in Config/Signing.local.xcconfig
-// (gitignored), e.g. DEVELOPMENT_TEAM = ABCDE12345. Simulator builds need no team.
+// Signing for every target. Put your own values in Config/Signing.local.xcconfig (gitignored):
+//   DEVELOPMENT_TEAM = ABCDE12345
+//   BUNDLE_ID_PREFIX = com.yourname.amatsubame
+// Simulator builds need neither. A different prefix is needed for devices, since the default bundle
+// IDs are registered to another team.
 DEVELOPMENT_TEAM =
+BUNDLE_ID_PREFIX = com.amatsubame
 #include? "Signing.local.xcconfig"

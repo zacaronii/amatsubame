@@ -6,7 +6,8 @@ import SwiftUI
 /// the Mac), and a way to open its settings.
 @MainActor @Observable
 final class ExtensionState {
-    static let identifier = "com.amatsubame.hiku.extension"
+    /// The extension's bundle ID: the app's, plus `.extension` (project.yml).
+    static let identifier = (Bundle.main.bundleIdentifier ?? "com.amatsubame.hiku") + ".extension"
 
     enum State: Equatable {
         /// This iOS doesn't say: the steps are all there is.

@@ -64,7 +64,7 @@ targets:
       base:
         PRODUCT_NAME: Yomu
         PRODUCT_MODULE_NAME: Yomu
-        PRODUCT_BUNDLE_IDENTIFIER: com.amatsubame.yomu
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).yomu
         CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Shared/SharedSetup.entitlements
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         TARGETED_DEVICE_FAMILY: "1,2"
@@ -98,7 +98,7 @@ targets:
       - path: YomuTests
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.amatsubame.yomu.tests
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).yomu.tests
         GENERATE_INFOPLIST_FILE: YES
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Yomu.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Yomu"
         BUNDLE_LOADER: "$(TEST_HOST)"
@@ -116,7 +116,7 @@ targets:
       - path: SharedUITests
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.amatsubame.yomu.uitests
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).yomu.uitests
         GENERATE_INFOPLIST_FILE: YES
         TEST_TARGET_NAME: Yomu
     dependencies:
@@ -134,7 +134,7 @@ targets:
       base:
         PRODUCT_NAME: Miru
         PRODUCT_MODULE_NAME: Miru
-        PRODUCT_BUNDLE_IDENTIFIER: com.amatsubame.miru
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).miru
         CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Shared/SharedSetup.entitlements
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         TARGETED_DEVICE_FAMILY: "1,2"
@@ -171,7 +171,7 @@ targets:
       base:
         PRODUCT_NAME: Kiku
         PRODUCT_MODULE_NAME: Kiku
-        PRODUCT_BUNDLE_IDENTIFIER: com.amatsubame.kiku
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).kiku
         CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Shared/SharedSetup.entitlements
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         TARGETED_DEVICE_FAMILY: "1,2"
@@ -204,7 +204,7 @@ targets:
       base:
         PRODUCT_NAME: Hiku
         PRODUCT_MODULE_NAME: Hiku
-        PRODUCT_BUNDLE_IDENTIFIER: com.amatsubame.hiku
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).hiku
         CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Shared/SharedSetup.entitlements
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         TARGETED_DEVICE_FAMILY: "1,2"
@@ -232,7 +232,7 @@ targets:
       - path: HikuUITests
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.amatsubame.hiku.uitests
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).hiku.uitests
         GENERATE_INFOPLIST_FILE: YES
         TEST_TARGET_NAME: Hiku
     dependencies:
@@ -261,7 +261,7 @@ targets:
       base:
         PRODUCT_NAME: Hiku Extension
         PRODUCT_MODULE_NAME: HikuExtension
-        PRODUCT_BUNDLE_IDENTIFIER: com.amatsubame.hiku.extension
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).hiku.extension
         CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Shared/SharedSetup.entitlements
         TARGETED_DEVICE_FAMILY: "1,2"
         CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: HikuExtension/HikuExtension-macOS.entitlements
@@ -304,7 +304,7 @@ targets:
       - path: MiruTests
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.amatsubame.miru.tests
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).miru.tests
         GENERATE_INFOPLIST_FILE: YES
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Miru.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Miru"
         BUNDLE_LOADER: "$(TEST_HOST)"
@@ -324,7 +324,7 @@ targets:
       - path: SharedUITests
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.amatsubame.miru.uitests
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).miru.uitests
         GENERATE_INFOPLIST_FILE: YES
         TEST_TARGET_NAME: Miru
     dependencies:
@@ -338,7 +338,7 @@ targets:
       - path: KikuTests
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.amatsubame.kiku.tests
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).kiku.tests
         GENERATE_INFOPLIST_FILE: YES
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Kiku.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Kiku"
         BUNDLE_LOADER: "$(TEST_HOST)"
@@ -358,7 +358,7 @@ targets:
       - path: SharedUITests
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.amatsubame.kiku.uitests
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).kiku.uitests
         GENERATE_INFOPLIST_FILE: YES
         TEST_TARGET_NAME: Kiku
     dependencies:

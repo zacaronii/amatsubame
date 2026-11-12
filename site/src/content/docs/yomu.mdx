@@ -1,0 +1,184 @@
+---
+title: Yomu
+description: Read manga and light novels from your Kavita server, tap any word to look it up, and listen along with the audiobook.
+---
+
+import { Image } from 'astro:assets';
+import icon from '../../assets/yomu.png';
+
+<div class="app-header" style="--app-color: var(--amatsubame-yomu)">
+	<Image src={icon} alt="" width={72} height={72} class="app-icon" />
+	<p>読む · Manga and books from Kavita</p>
+</div>
+
+Yomu is a reader for the manga and EPUB books on your own [Kavita](https://www.kavitareader.com)
+server. In manga it finds the speech bubbles and reads them on your device, so you can tap a word in a
+picture just like a word in a book. In books you tap the text itself. Either way you get the same
+dictionary popup as the other apps, and one tap sends the word to Anki.
+
+## What you need
+
+- A Kavita server with your manga and books, and an **auth key** for your Kavita user (in Kavita:
+  User Settings → Auth Keys).
+- Optional, for read-along: an [Audiobookshelf](https://www.audiobookshelf.org) server with the
+  audiobook, and [Kaku](/kaku/) for its transcript.
+- Optional, for mining: Anki with AnkiConnect. See [Lookup and Anki](/lookup-and-anki/).
+
+## Connecting Kavita
+
+The first time you open Yomu, setup asks for your server address (for example
+`https://kavita.example.com`) and your auth key, then shows your Kavita libraries and asks which ones
+are Japanese. Only those show in Yomu. The rest of setup covers dictionaries, Anki and a few optional
+extras; [Getting started](/getting-started/) walks through it.
+
+Later you can change the server in **Settings → Kavita** (with **Test Connection** and **Remove
+Server**), and pick libraries again in **Settings → Libraries**. A turned-off library is hidden from
+the Library tab and Continue Reading.
+
+## The Library
+
+Yomu has four tabs: **Library**, **Dictionary**, **Stats** and **Settings**.
+
+- **Library** opens with **Continue Reading** (series you've started and haven't finished), then a row
+  per library with its newest series and **See All**. A library's page has a filter at the top:
+  **All**, **Reading** or **Downloaded**.
+- A series page shows its **Volumes** (as a grid or a list), **Chapters** and **Specials**, how far
+  you've read each one, and a button to start or continue reading.
+- On iPad and Mac, your libraries are also listed in the sidebar under the tabs.
+- **Dictionary** is a plain dictionary search. You can type in kana, kanji or romaji.
+
+## Reading manga
+
+Open a volume and swipe, or tap the left or right third of the page, to turn pages. A tap in the
+middle shows the controls, with the page slider and the **Aa** button for the reader's settings. Pinch to zoom in (up to 4×). On a keyboard, the arrow keys turn pages, and on the Mac the
+**Reader** menu has Next Page and Previous Page (Page Down and Page Up).
+
+The **Aa** settings are kept per series. **Use for All Series** makes them the default for the others.
+
+- **Mode:** **Paged** or **Long strip** (one continuous scroll, with a **Page width** setting).
+- **Direction:** **Right to left** or **Left to right**.
+- **Two-Page Spreads:** **Automatic** (when the screen is wide enough), **On** or **Off**, and
+  **Show Cover Alone** so the pages pair up the way the book was printed.
+
+When a chapter ends, Yomu offers to read the next one.
+
+### Text recognition on manga
+
+To look words up in manga, Yomu first needs its text recognition models. Download them once in
+**Settings → Manga Text Recognition → Download Models**. They find the speech bubbles and read them
+on your device; nothing is sent anywhere.
+
+Then:
+
+- **Tap text on a page** to look it up.
+- **Long-press and drag** to draw a box over any area (a sign, a sound effect, text the detector
+  missed) and read just that.
+- In the **Aa** settings, **Show text boxes** outlines what was found, and **OCR pages ahead** sets
+  how many pages Yomu reads before you reach them, so the popup is instant.
+
+Downloaded volumes can be read ahead of time too: **Settings → Downloads → Read Text on Downloaded
+Pages**. Then lookups in them work instantly, even offline.
+
+## Reading books
+
+EPUB books open in a reader built for Japanese: vertical text, right-to-left pages, and furigana.
+Swipe, or tap near the left or right edge, to turn the page. A tap in the middle shows the controls,
+with **Contents** for the table of contents and **Aa** for settings.
+
+**Aa** settings are kept per series, and **Use for All Books** makes them the default:
+
+- **Theme:** System, Light, Sepia or Dark.
+- **Text:** the font (the book's own, 明朝 or ゴシック), size, line spacing and side margins.
+- **Layout:** **Paged** or **Scrolling**, and the **Text direction**: **As in book**, **Vertical** or
+  **Horizontal**.
+- **Furigana:** **From book** or **Hidden**.
+- **Mark words by Anki state:** underlines words you haven't mined and words you're still learning;
+  words you know stay plain.
+- **Progress text:** **Always**, **With controls** or **Hidden**, plus a thin **Progress bar** along
+  the bottom of the screen. The text shows the percentage and characters read of the whole book, and
+  the time left at your reading speed.
+
+Tap a word to look it up. While the controls are showing, the first tap only hides them, and the next
+one looks up.
+
+### Character counts
+
+Kavita's word counts don't work for Japanese, so Yomu counts characters itself: letters only (kana,
+kanji and so on), without punctuation, spaces or furigana. The counts appear on series tiles, the
+series page and Continue Reading, and feed the time-left estimate and Stats.
+
+A book is counted when you open it. To count your whole library ahead of time, go to **Settings →
+Storage → Character Counts** and tap **Count Characters**. It covers light novel libraries, and
+books Kavita marks as Japanese in other book libraries. Until a volume is counted, Yomu shows an
+estimate with a "~" in front.
+
+## Read-along
+
+Read-along plays an audiobook while you read the same book: the sentence being spoken lights up and
+the pages turn with it. It needs both servers: Audiobookshelf has the audio, and Kaku has its
+transcript. Set them up in **Settings → Read-Along**.
+
+To pair a book with its audiobook:
+
+1. Open the series page of an EPUB series. It has a **Read-Along** section.
+2. From its menu, choose **Pair with an Audiobook…**. Audiobooks with a matching title are
+   suggested; you can also search by title or author.
+3. Choose **Get Ready**. Yomu matches the book's text with Kaku's transcript on your device, which
+   takes about a minute. If Kaku hasn't transcribed the audiobook yet, Yomu asks it to start; come
+   back and get it ready again when it's done.
+
+The section then shows how many of the book's sentences matched (front matter, contents pages and
+afterwords usually aren't narrated). The same menu has **Download Audio** for listening offline,
+**Match Again**, **Pair with Another Book…** and **Unpair**.
+
+In the reader:
+
+- An audio bar with play and pause, previous and next sentence, and speed comes and goes with the
+  controls.
+- Turning or scrolling pages yourself stops following the audio and shows **Follow Audio** to jump
+  back.
+- Looking up a word pauses the audio and offers **From Here**, to keep listening from that sentence.
+  A card mined while reading along gets the sentence's audio.
+- The headphones button in the top bar turns read-along off for that volume (plain reading), and on
+  again from the page you're on.
+- The screen doesn't dim while the audio plays.
+
+Your place goes to both Kavita and Audiobookshelf. If you listened further in [Kiku](/kiku/) since,
+the book opens at that sentence. Kiku's **Read in Yomu** opens the paired book straight at the
+sentence you were listening to.
+
+## Downloads and offline reading
+
+On a series page, download single volumes or the whole series. Nothing downloads unless you ask, or
+unless you turn on automatic downloads:
+
+- **Settings → Downloads → Automatic Downloads** works per library. Once you start a series, the
+  volume you're reading and the next few (**Download Ahead**) download by themselves.
+  **Remove Finished Volumes** removes volumes from the device once you've read them to the end.
+- Downloads wait for Wi-Fi unless **Download over Cellular** is on.
+
+When you're offline, or Kavita can't be reached, the Library shows only the series you've
+downloaded. **Settings → Storage** shows what's on the device (downloads, dictionaries, text
+recognition models and the cache) and lets you remove downloads or clear the cache.
+
+## Progress sync
+
+Your reading position goes back to Kavita, so other Kavita apps and the web reader pick up where you
+stopped. If you read offline, the progress waits and is sent when Kavita is reachable again; the
+status card at the top of Settings shows anything still waiting, with **Sync Now**.
+
+## Stats
+
+The **Stats** tab shows your reading by week, month or all time: characters read in books, pages read
+in manga, lookups, cards mined and your streak. If you keep an immersion log in
+[kechimochi](https://github.com/Morgawr/kechimochi), add its address in **Settings → Stats** and the
+Stats tab can show it too. Yomu never sends anything to it.
+
+## Settings
+
+- **Reading:** Kavita, Libraries, Downloads, Manga Text Recognition and Read-Along.
+- **Lookup and Mining:** dictionaries, word audio sources, Anki, and word marks in books (manga
+  pages aren't marked). See [Lookup and Anki](/lookup-and-anki/).
+- **Stats:** the kechimochi address.
+- **Storage**, **Advanced** (sharing the setup with your other apps, things waiting to sync, Run
+  Setup Again, Export Logs) and **About**.

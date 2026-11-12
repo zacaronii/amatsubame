@@ -1,0 +1,92 @@
+---
+title: Hiku
+description: A Safari extension for iPhone, iPad and Mac that brings the same dictionary popup and Anki mining to any web page.
+---
+
+import { Image } from 'astro:assets';
+import icon from '../../assets/hiku.png';
+
+<div class="app-header" style="--app-color: var(--amatsubame-hiku)">
+	<Image src={icon} alt="" width={72} height={72} class="app-icon" />
+	<p>引く · Look words up on any web page in Safari</p>
+</div>
+
+Hiku is a Safari extension. Turn it on, tap Japanese text on any web page, and you get the same
+dictionary popup as in Yomu, Miru and Kiku, with **Add to Anki** right there. It works in Safari on
+iPhone, iPad and Mac.
+
+Hiku comes as a small app with the extension inside it. The app is where you check that the
+extension is on and, when your apps share their setup, where its dictionaries and Anki settings live.
+
+## Turning it on
+
+Install Hiku, then turn the extension on in Safari's settings.
+
+On iPhone and iPad:
+
+1. Open the Settings app, then **Apps → Safari → Extensions**.
+2. Tap **Hiku** and turn it on.
+3. Under **Permissions**, allow it on all websites (or the ones you read).
+
+On the Mac:
+
+1. Open **Safari → Settings → Extensions**.
+2. Turn on **Hiku** and allow it on the websites you read.
+
+The Hiku app shows whether the extension is on. If it's off, **Open Safari Settings** takes you
+straight to the right place (on iOS 26.2 and later, and on the Mac). The same steps are in the app
+under **How to Turn It On**.
+
+## Looking words up
+
+Tap Japanese text on a page and the popup opens beside it, for the word that starts where you
+tapped. Everything you know from the other apps is there: definitions from your dictionaries,
+readings, pitch accent, frequency, and word audio. See [Lookup and Anki](/lookup-and-anki/) for
+what's in the popup.
+
+- While the popup is open, a tap anywhere on the page closes it (even on a link, so you don't follow
+  it by accident).
+- **Add to Anki** makes a card with the sentence from the page. For a few seconds you can **Undo**
+  it; then it goes to Anki.
+
+### The extension's menu
+
+Open Hiku from Safari's extensions menu (the puzzle piece in the address bar) for its settings:
+
+- **Tap to look up:** turns tapping on or off.
+- **Japanese text only** (on by default): taps on English, numbers and punctuation look nothing up,
+  so ordinary taps on a page still work as usual.
+- Which dictionaries the extension is using.
+- **Anki:** when Hiku keeps its own setup, this is where you enter your AnkiConnect address, the API
+  key if you use one, and the deck, then **Check and Save**. When the apps share their setup, it
+  says AnkiConnect is set in the Hiku app instead.
+
+## Word marks
+
+If you mine to Anki, Hiku underlines words on web pages the way Yomu marks its books: words not yet
+in your mining deck get a line in Hiku's colour, words you're still learning a dotted grey line, and
+words you know stay plain. The marks are drawn over the page, so the page itself isn't changed. The
+**Mark Words by Anki State** setting, under Lookup and Mining, turns them off. More about word
+marks in [Lookup and Anki](/lookup-and-anki/).
+
+## The Hiku app
+
+What the Hiku app shows depends on whether your apps share their setup (see
+[Getting started](/getting-started/)):
+
+- **Shared setup:** Hiku uses the dictionaries, word audio sources and AnkiConnect settings you set
+  up in Yomu, Miru or Kiku, and its app has the same **Lookup and Mining** settings as theirs, plus
+  **Setup** (shared, or Hiku's own) and **About**. Change something here and it changes in the other
+  apps too.
+- **Its own setup:** the extension uses the dictionaries built into it, and you set up Anki in the
+  extension's menu in Safari. The app then only shows the extension's status, the steps to turn it
+  on, and its version.
+
+## Settings
+
+- **Safari:** whether the extension is on, **How to Turn It On** and **Use It in Safari**.
+- **Lookup and Mining** (shared setup): dictionaries, word audio sources and Anki. See
+  [Lookup and Anki](/lookup-and-anki/).
+- **Setup** and **About**.
+- In Safari, the extension's own menu: **Tap to look up**, **Japanese text only**, and Anki when
+  Hiku keeps its own setup.

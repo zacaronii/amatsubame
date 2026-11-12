@@ -35,3 +35,8 @@ Private/
 
 # Signing team (Config/Signing.local.xcconfig)
 Config/*.local.xcconfig
+
+# Docs site (site/)
+site/node_modules/
+site/dist/
+site/.astro/

@@ -1,0 +1,87 @@
+/* The site's accent is the teal at the foot of the icons' rain; each app keeps its own colour
+   on its card and guide. */
+:root {
+	--sl-color-accent-low: #0b2f35;
+	--sl-color-accent: #1aa3b3;
+	--sl-color-accent-high: #b5ecf2;
+	--amatsubame-yomu: #3fc98f;
+	--amatsubame-miru: #aa5cc3;
+	--amatsubame-kiku: #f79a3e;
+	--amatsubame-hiku: #ee4f6b;
+}
+
+:root[data-theme='light'] {
+	--sl-color-accent-low: #c9eff3;
+	--sl-color-accent: #0a7f8e;
+	--sl-color-accent-high: #063f47;
+}
+
+/* App icons in cards and page headers: the iOS squircle. */
+.app-icon {
+	border-radius: 22.5%;
+	box-shadow: 0 2px 8px rgb(0 0 0 / 0.18);
+}
+
+.app-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+	gap: 1rem;
+}
+
+.app-card {
+	display: flex;
+	gap: 1rem;
+	align-items: flex-start;
+	padding: 1rem;
+	border: 1px solid var(--sl-color-gray-5);
+	border-top: 4px solid var(--app-color, var(--sl-color-accent));
+	border-radius: 0.75rem;
+	text-decoration: none;
+	color: inherit;
+}
+
+.app-card:hover {
+	border-color: var(--app-color, var(--sl-color-accent));
+}
+
+.app-card img {
+	flex: none;
+	width: 3.5rem;
+	height: 3.5rem;
+}
+
+.app-card .name {
+	margin: 0;
+	font-size: var(--sl-text-h4);
+	font-weight: 600;
+	color: var(--sl-color-white);
+}
+
+.app-card .kanji {
+	margin-inline-start: 0.4rem;
+	font-weight: 400;
+	color: var(--sl-color-gray-3);
+}
+
+.app-card .line {
+	margin: 0.25rem 0 0;
+	color: var(--sl-color-gray-2);
+	font-size: var(--sl-text-sm);
+}
+
+.app-header {
+	display: flex;
+	gap: 1rem;
+	align-items: center;
+	margin-bottom: 1rem;
+}
+
+.app-header img {
+	width: 4.5rem;
+	height: 4.5rem;
+}
+
+.app-header p {
+	margin: 0;
+	color: var(--sl-color-gray-2);
+}
