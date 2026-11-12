@@ -80,6 +80,18 @@ struct AnimatedClipContext: MiningContext {
         return data as Data
     }
 
+    /// Without Anki there are no mined words, so every word would be marked: marks wait for it.
+    @Test func wordMarksWaitForAnki() {
+        #expect(service.marksWordsSetting, "on by default")
+        #expect(!service.marksWords, "but off until Anki is connected")
+        let before = service.revision
+        service.ankiConnected = true
+        #expect(service.marksWords)
+        #expect(service.revision > before, "marked text redraws")
+        service.setMarksWords(false)
+        #expect(!service.marksWords && !service.marksWordsSetting)
+    }
+
     @Test func cardMatchesTheLapisFormat() {
         let card = MiningService.card(for: Self.hisshi, sentence: "なんだかすごく必死だった。", miscInfo: "Midnight Bridge — Ch. 1, p. 3",
                                       settings: .default, allowDuplicate: false)

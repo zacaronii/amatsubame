@@ -187,6 +187,7 @@ public final class CommonEnvironment {
 
     private func mergeAccounts() {
         serverAccounts = ownAccounts.merging(sharedAccounts) { _, shared in shared }
+        mining.ankiConnected = serverAccounts[.anki] != nil
     }
 
     // MARK: Shared setup

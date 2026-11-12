@@ -244,6 +244,7 @@ public final class DictionaryLibrary: Sendable {
         defer { hd_import_result_free(result) }
         guard hd_import_result_success(result) != 0 else {
             let message = hd_import_result_error(result).map { String(cString: $0) } ?? ""
+            if message == "empty dictionary" { throw DictionaryError.empty }
             throw DictionaryError.importFailed(message.isEmpty ? "Is this a Yomitan dictionary zip?" : message)
         }
         return ImportSummary(

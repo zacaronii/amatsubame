@@ -101,7 +101,8 @@ show **Auto**.
 With **Mark Words by Anki State** on (in Settings ▸ Lookup and Mining), the apps underline words by
 where they stand in your Anki mining deck: words you haven't mined, and words you're still learning,
 are underlined; words you know stay plain. A word counts as known once its card's interval is 21 days
-or more. Cards waiting to be sent count as learning.
+or more. Cards waiting to be sent count as learning. Marks need Anki: until AnkiConnect is connected
+they stay off, since every word would otherwise look unmined.
 
 Marks show in Yomu's books (not on manga pages), Miru's subtitles, Kiku's transcripts and web pages
 in Hiku. The apps refresh them from Anki when they open and every 30 minutes after that.

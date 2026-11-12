@@ -109,7 +109,10 @@ public final class BrowserService {
     /// Word marks for page paragraphs, as Yomu marks books (Settings ▸ Lookup ▸ word marks):
     /// per text, `[UTF-16 offset, length, "km-new" | "km-learning"]`; known words aren't marked.
     func marks(_ texts: [String]) async -> [String: Any] {
-        guard (try? common.ankiSettings.settings().marksWords) ?? true else { return ["marks": [], "off": true] }
+        // Off until Anki is connected: with no mined words, every word would be marked.
+        guard (try? common.ankiSettings.settings().marksWords) ?? true, (try? common.accounts.account(.anki)) != nil else {
+            return ["marks": [], "off": true]
+        }
         if minedWordsRefreshed.map({ Date.now.timeIntervalSince($0) > 600 }) ?? true {
             minedWordsRefreshed = .now
             await common.refreshMinedWords()

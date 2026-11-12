@@ -11,12 +11,25 @@ public struct WordMarksToggle: View {
 
     public var body: some View {
         let mining = environment.mining
-        Toggle("Mark Words by Anki State", systemImage: "underline", isOn: Binding {
+        Toggle(isOn: Binding {
             _ = mining.revision // redraw when the setting changes
             return mining.marksWords
         } set: {
             mining.setMarksWords($0)
-        })
+        }) {
+            Label {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Mark Words by Anki State")
+                    if !mining.ankiConnected {
+                        Text("Connect Anki to mark words").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            } icon: {
+                Image(systemName: "underline")
+            }
+        }
+        // Off until Anki is connected: with no mined words, every word would be marked.
+        .disabled(!mining.ankiConnected)
         .accessibilityIdentifier("lookup.marksWords")
     }
 }

@@ -190,14 +190,23 @@ public final class MiningService {
         (try? minedWords.marks()) ?? .empty
     }
 
-    /// Whether word marks are on (Settings ▸ Lookup), read once and kept with the setting.
-    public var marksWords: Bool {
+    /// Whether words are marked: the setting is on and Anki is connected. Without Anki there are
+    /// no mined words, so every word would look unmined and be underlined.
+    public var marksWords: Bool { ankiConnected && marksWordsSetting }
+
+    /// Settings ▸ Lookup's switch, read once and kept with the setting.
+    public var marksWordsSetting: Bool {
         if let cachedMarksWords { return cachedMarksWords }
         let value = (try? settingsStore.settings().marksWords) ?? true
         cachedMarksWords = value
         return value
     }
     @ObservationIgnored private var cachedMarksWords: Bool?
+
+    /// Whether an AnkiConnect account is set up (kept current by the app's environment).
+    public var ankiConnected = false {
+        didSet { if ankiConnected != oldValue { revision += 1 } }
+    }
 
     /// Turns word marks on or off; marked text redraws.
     public func setMarksWords(_ on: Bool) {

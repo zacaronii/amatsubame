@@ -149,9 +149,28 @@ public final class DictionaryUpdater {
         if downloaded { try? await library.updateSettings { $0.lastUpdateCheck = Date() } }
     }
 
+    /// The entry's latest release; when that has no entries (a broken release), the same file from
+    /// the releases before it.
     private func install(_ entry: RecommendedDictionary) async throws {
+        do {
+            try await install(entry, from: entry.downloadURL)
+        } catch DictionaryError.empty {
+            for url in await earlierReleases(of: entry.downloadURL) {
+                do {
+                    try await install(entry, from: url)
+                    AppLog.info(.dictionaries, "\(entry.name): the latest release is empty, installed \(url.absoluteString)")
+                    return
+                } catch DictionaryError.empty {
+                    continue
+                }
+            }
+            throw DictionaryError.empty
+        }
+    }
+
+    private func install(_ entry: RecommendedDictionary, from url: URL) async throws {
         items[entry.id] = .downloading(nil)
-        let zip = try await FileDownload.download(entry.downloadURL, into: downloads, session: session) { [weak self] written, expected in
+        let zip = try await FileDownload.download(url, into: downloads, session: session) { [weak self] written, expected in
             let fraction = expected.map { Double(written) / Double($0) }
             Task { @MainActor in self?.items[entry.id] = .downloading(fraction) }
         }
@@ -169,6 +188,29 @@ public final class DictionaryUpdater {
             // Imported separately under the same name: it counts as installed.
         }
         try? await lookup.reload()
+    }
+
+    /// For a GitHub `releases/latest/download/<file>` address: the same file in the three releases
+    /// before the latest, newest first (from GitHub's releases API). Empty for other addresses.
+    func earlierReleases(of url: URL) async -> [URL] {
+        let parts = url.pathComponents
+        guard url.host() == "github.com", parts.count == 7, parts[3] == "releases", parts[4] == "latest", parts[5] == "download",
+              let api = URL(string: "https://api.github.com/repos/\(parts[1])/\(parts[2])/releases?per_page=6") else { return [] }
+        struct Release: Decodable {
+            struct Asset: Decodable {
+                let name: String
+                let browser_download_url: URL
+            }
+            let draft: Bool
+            let prerelease: Bool
+            let assets: [Asset]
+        }
+        var request = URLRequest(url: api)
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        guard let (data, response) = try? await session.data(for: request), (response as? HTTPURLResponse)?.statusCode == 200,
+              let releases = try? JSONDecoder().decode([Release].self, from: data) else { return [] }
+        return releases.filter { !$0.draft && !$0.prerelease }.dropFirst().prefix(3)
+            .compactMap { $0.assets.first { $0.name == parts[6] }?.browser_download_url }
     }
 
     // MARK: Updates
@@ -249,6 +291,13 @@ public final class DictionaryUpdater {
             source.undeliveredRevision = revision
             try await library.saveSource(source)
             AppLog.info(.dictionaries, "\(record.title): the download was still \(record.revision ?? "?"), not \(revision)")
+            return nil
+        } catch DictionaryError.empty {
+            // A broken release with no entries: the working dictionary stays, and this revision
+            // isn't fetched again.
+            source.undeliveredRevision = revision
+            try await library.saveSource(source)
+            AppLog.error(.dictionaries, "\(record.title): revision \(revision) has no entries; keeping \(record.revision ?? "the installed one")")
             return nil
         }
     }
