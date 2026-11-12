@@ -173,10 +173,15 @@ struct SetupDictionariesStep: View {
                 .onChange(of: autoUpdate) { _, on in updater.autoUpdate = on }
                 .accessibilityIdentifier("setup.autoUpdate")
             }
+        } footer: {
+            // Under the button, so it stays in view however long the page gets (an error line
+            // used to push it under Continue).
             NavigationLink("Have your own dictionaries? Import Yomitan zips from Files.") {
                 DictionariesView()
             }
             .font(.footnote)
+            .multilineTextAlignment(.center)
+            .accessibilityIdentifier("setup.importDictionaries")
         }
         .onAppear {
             refresh()

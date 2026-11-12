@@ -469,6 +469,8 @@ struct BookSettingsSheet: View {
                         } set: {
                             mining.setMarksWords($0)
                         })
+                        // Off until Anki is connected: with no mined words, every word would be marked.
+                        .disabled(!mining.ankiConnected)
                         .accessibilityIdentifier("settings.marksWords")
                     }
                     Picker("Furigana", selection: $model.settings.furigana) {

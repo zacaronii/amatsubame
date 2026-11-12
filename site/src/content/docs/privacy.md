@@ -64,6 +64,7 @@ A few things come from public services. Each is contacted only for the reason gi
 | --- | --- | --- |
 | `assets.languagepod101.com` | All apps | Word audio from JapanesePod101, the built-in audio source (on unless you turn it off in Audio Sources). The word and its reading are sent when you play a word's audio, or make a card whose fields include word audio. |
 | `github.com` | All apps | Downloading the recommended Jitendex, JMnedict, KANJIDIC and Kanjium dictionaries, from their publishers' GitHub releases (GitHub serves the files from its own download servers). |
+| `api.github.com` | All apps | Only when the newest release of a recommended dictionary turns out to have no entries: GitHub's list of that project's releases, to install the previous one instead. Nothing about you is sent. |
 | `api.jiten.moe` | All apps | Downloading the Jiten frequency dictionary. |
 | Dictionary update addresses | All apps | Checking for new versions of a dictionary that names its own update address, weekly on Wi-Fi while updates are on. For the recommended set these are their publishers' addresses. |
 | An address you type | All apps | **Import from URL…** downloads a dictionary from the address you give. |

@@ -102,6 +102,57 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
         #expect(try library.dictionaries().first?.revision == "1")
     }
 
+    /// A zip with only its index, like a broken release.
+    func empty(_ title: String, revision: String) throws -> Data {
+        try TestDictionaryBuilder(title: title, revision: revision).zipData()
+    }
+
+    @Test func anEmptyUpdateKeepsTheWorkingDictionary() async throws {
+        let library = library()
+        let old = try await library.importDictionary(at: try terms("Freq", revision: "1")).dictionary
+        try await library.saveSource(DictionarySource(dictionaryId: old.id, indexUrl: index, isUpdatable: true))
+        let updater = updater(library)
+        serve(revision: "2", zip: try empty("Freq", revision: "2"))
+        await updater.checkForUpdates()
+        let now = try #require(try library.dictionaries().first)
+        #expect(now.revision == "1" && now.termCount == 1, "the working dictionary stays")
+        #expect(try library.sources()[old.id]?.undeliveredRevision == "2")
+        StubURLProtocol.requests = []
+        await updater.checkForUpdates()
+        #expect(StubURLProtocol.requests == [index], "the empty release isn't downloaded again")
+    }
+
+    @Test func anEmptyLatestReleaseFallsBackToThePreviousOne() async throws {
+        let library = library()
+        let updater = updater(library)
+        let entry = try #require(RecommendedDictionaries.entry("jmnedict"))
+        let previous = "https://github.com/yomidevs/jmdict-yomitan/releases/download/2026-11-05/JMnedict.zip"
+        let releases = """
+        [{"draft": false, "prerelease": false, "assets": [{"name": "JMnedict.zip", "browser_download_url": "https://github.com/yomidevs/jmdict-yomitan/releases/download/2026-11-12/JMnedict.zip"}]},
+         {"draft": false, "prerelease": false, "assets": [{"name": "KANJIDIC_english.zip", "browser_download_url": "https://example.com/k.zip"},
+                                                         {"name": "JMnedict.zip", "browser_download_url": "\(previous)"}]}]
+        """
+        var names = TestDictionaryBuilder(title: "JMnedict [2026-11-05]", revision: "2026-11-05")
+        names.terms = [.init("東京", "とうきょう")]
+        StubURLProtocol.requests = []
+        StubURLProtocol.responses = [
+            entry.downloadURL.absoluteString: try empty("JMnedict [2026-11-12]", revision: "2026-11-12"),
+            "https://api.github.com/repos/yomidevs/jmdict-yomitan/releases?per_page=6": Data(releases.utf8),
+            previous: try names.zipData(),
+        ]
+        await updater.installRecommended(["jmnedict"])
+        #expect(updater.items["jmnedict"] == .installed)
+        #expect(try library.dictionaries().map(\.title) == ["JMnedict [2026-11-05]"])
+        #expect(updater.installedRecommended() == ["jmnedict"])
+    }
+
+    @Test func onlyGitHubLatestAddressesHaveEarlierReleases() async {
+        let updater = updater(library())
+        StubURLProtocol.requests = []
+        #expect(await updater.earlierReleases(of: URL(string: "https://api.jiten.moe/api/frequency-list/download")!).isEmpty)
+        #expect(StubURLProtocol.requests.isEmpty)
+    }
+
     @Test func importedDictionariesThatDontUpdateAreLeftAlone() async throws {
         let library = library()
         _ = try await library.importDictionary(at: try terms("Mine", revision: "1"))
