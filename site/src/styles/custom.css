@@ -1,9 +1,9 @@
-/* The site's accent is the teal at the foot of the icons' rain; each app keeps its own colour
-   on its card and guide. */
+/* The brand colour: a rain-sky indigo (amatsubame, the "rain swallow"), apart from the four app
+   colours, which each app keeps on its card and guide. */
 :root {
-	--sl-color-accent-low: #0b2f35;
-	--sl-color-accent: #1aa3b3;
-	--sl-color-accent-high: #b5ecf2;
+	--sl-color-accent-low: #1f2547;
+	--sl-color-accent: #8c97f5;
+	--sl-color-accent-high: #dfe3ff;
 	--amatsubame-yomu: #3fc98f;
 	--amatsubame-miru: #aa5cc3;
 	--amatsubame-kiku: #f79a3e;
@@ -11,9 +11,16 @@
 }
 
 :root[data-theme='light'] {
-	--sl-color-accent-low: #c9eff3;
-	--sl-color-accent: #0a7f8e;
-	--sl-color-accent-high: #063f47;
+	--sl-color-accent-low: #e3e6ff;
+	--sl-color-accent: #3d4bc4;
+	--sl-color-accent-high: #1f2547;
+}
+
+/* The swift in the hero: smaller on phones, so the title and buttons stay in view. */
+@media (max-width: 50rem) {
+	.hero > img {
+		width: min(45%, 10rem);
+	}
 }
 
 /* App icons in cards and page headers: the iOS squircle. */
@@ -22,10 +29,27 @@
 	box-shadow: 0 2px 8px rgb(0 0 0 / 0.18);
 }
 
+/* Two by two, four across on wide screens, one column on phones. */
 .app-grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+	grid-template-columns: 1fr;
 	gap: 1rem;
+}
+
+@media (min-width: 40rem) {
+	.app-grid {
+		grid-template-columns: repeat(2, 1fr);
+	}
+}
+
+@media (min-width: 72rem) {
+	.app-grid {
+		grid-template-columns: repeat(4, 1fr);
+	}
+
+	.app-card {
+		flex-direction: column;
+	}
 }
 
 .app-card {
