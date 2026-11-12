@@ -75,6 +75,9 @@ Amatsubame stands on the work of many people. Thank you to:
 - [Yomitan](https://github.com/yomidevs/yomitan): its dictionary format, deinflection rules and popup
   design shaped how lookup works here.
 - [Jiten](https://jiten.moe): its underlines on known words inspired the word marks in every app.
+- [Nagare](https://github.com/bpwhelan/Nagare): its mineable stream of subtitles inspired Miru's
+  Lines, the running list of lines (from Miru or another Jellyfin player) you can scroll back
+  through, look up and mine.
 - [nemu-ocr-coreml](https://huggingface.co/nemu-pm/nemu-ocr-coreml): the manga text detection and
   recognition models.
 - [mpv](https://mpv.io), [FFmpeg](https://ffmpeg.org) and [MPVKit](https://github.com/mpvkit/MPVKit):
