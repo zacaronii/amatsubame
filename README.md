@@ -63,6 +63,34 @@ original plans ([PLAN.md](docs/PLAN.md), [AUDIO_PLAN.md](docs/AUDIO_PLAN.md),
 [NAMING.md](docs/NAMING.md)). [CLAUDE.md](CLAUDE.md) holds the project's rules and commands for
 contributors and coding agents.
 
+## Acknowledgements
+
+Amatsubame stands on the work of many people. Thank you to:
+
+**Built on and inspired by**
+- [hoshidicts](https://github.com/Manhhao/hoshidicts) by Manhhao: the dictionary engine behind every
+  lookup. Manhhao's Hoshi Reader was an inspiration too.
+- [Yomitan](https://github.com/yomidevs/yomitan): its dictionary format, deinflection rules and popup
+  design shaped how lookup works here.
+- [Jiten](https://jiten.moe): its underlines on known words inspired the word marks in every app.
+- [nemu-ocr-coreml](https://huggingface.co/nemu-pm/nemu-ocr-coreml): the manga text detection and
+  recognition models.
+- [mpv](https://mpv.io), [FFmpeg](https://ffmpeg.org) and [MPVKit](https://github.com/mpvkit/MPVKit):
+  video playback in Miru.
+- [faster-whisper](https://github.com/SYSTRAN/faster-whisper) and OpenAI's
+  [Whisper](https://github.com/openai/whisper): Kaku's transcripts.
+- [GRDB.swift](https://github.com/groue/GRDB.swift), [ZIPFoundation](https://github.com/weichsel/ZIPFoundation)
+  and [libfvad](https://github.com/dpirch/libfvad), along with the libraries listed in
+  [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+**Works with**
+- [Kavita](https://www.kavitareader.com), [Jellyfin](https://jellyfin.org) and
+  [Audiobookshelf](https://www.audiobookshelf.org), the self-hosted servers the apps read from.
+- [AnkiConnect](https://ankiweb.net/shared/info/2055492159) and the
+  [Lapis](https://github.com/donkuri/lapis) note type, for mining cards.
+- [Jimaku](https://jimaku.cc) for Japanese subtitles, and
+  [kechimochi](https://github.com/Morgawr/kechimochi) for immersion tracking.
+
 ## License
 
 The apps are licensed under the [GNU General Public License v3.0](LICENSE): they link the GPL-3.0
