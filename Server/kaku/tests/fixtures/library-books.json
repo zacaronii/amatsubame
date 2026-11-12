@@ -1,0 +1,31 @@
+{
+  "results": [
+    {
+      "id": "book-1",
+      "ino": "300",
+      "libraryId": "lib-2",
+      "folderId": "folder-2",
+      "mediaType": "book",
+      "isMissing": false,
+      "isInvalid": false,
+      "addedAt": 1793900000000,
+      "updatedAt": 1793900000000,
+      "numFiles": 3,
+      "media": {
+        "id": "media-2",
+        "metadata": {
+          "title": "テストの本",
+          "authorName": "著者",
+          "narratorName": "朗読者"
+        },
+        "duration": 5400.5,
+        "numTracks": 2,
+        "numAudioFiles": 2,
+        "numChapters": 2
+      }
+    }
+  ],
+  "total": 1,
+  "limit": 100,
+  "page": 0
+}

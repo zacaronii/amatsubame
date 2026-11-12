@@ -1,0 +1,431 @@
+name: Amatsubame
+options:
+  bundleIdPrefix: com.amatsubame
+  deploymentTarget:
+    iOS: "26.0"
+    macOS: "26.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+configFiles:
+  Debug: Config/Signing.xcconfig
+  Release: Config/Signing.xcconfig
+
+settings:
+  base:
+    # The App Group for the shared setup (Shared/SharedSetup.entitlements) is on for simulator
+    # builds only: signing it for devices needs a paid developer membership. With one, add
+    # CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*] next to each [sdk=iphonesimulator*] line.
+    SWIFT_VERSION: "6.0"
+    CODE_SIGN_STYLE: Automatic
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    SWIFT_APPROACHABLE_CONCURRENCY: YES
+
+packages:
+  AppCommon:
+    path: Packages/AppCommon
+  Core:
+    path: Packages/Core
+  KavitaKit:
+    path: Packages/KavitaKit
+  JellyfinKit:
+    path: Packages/JellyfinKit
+  Anki:
+    path: Packages/Anki
+  Readers:
+    path: Packages/Readers
+  Dictionary:
+    path: Packages/Dictionary
+  Lookup:
+    path: Packages/Lookup
+  OCR:
+    path: Packages/OCR
+  Player:
+    path: Packages/Player
+  JimakuKit:
+    path: Packages/JimakuKit
+  Browser:
+    path: Packages/Browser
+  AudiobookshelfKit:
+    path: Packages/AudiobookshelfKit
+  KechimochiKit:
+    path: Packages/KechimochiKit
+
+targets:
+  Yomu:
+    type: application
+    supportedDestinations: [iOS, macOS]
+    platform: auto
+    sources:
+      - path: Yomu
+    settings:
+      base:
+        PRODUCT_NAME: Yomu
+        PRODUCT_MODULE_NAME: Yomu
+        PRODUCT_BUNDLE_IDENTIFIER: com.amatsubame.yomu
+        CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Shared/SharedSetup.entitlements
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Yomu/Resources/Yomu-macOS.entitlements
+        ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: Yomu/Resources/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Yomu
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortraitUpsideDown"
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
+    dependencies:
+      - package: AppCommon
+      - package: Core
+      - package: KavitaKit
+      - package: AudiobookshelfKit
+      - package: Anki
+      - package: Readers
+      - package: Dictionary
+      - package: Lookup
+      - package: OCR
+
+  YomuTests:
+    type: bundle.unit-test
+    supportedDestinations: [iOS, macOS]
+    platform: auto
+    sources:
+      - path: YomuTests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.amatsubame.yomu.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Yomu.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Yomu"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        TEST_HOST[sdk=macosx*]: "$(BUILT_PRODUCTS_DIR)/Yomu.app/Contents/MacOS/Yomu"
+    dependencies:
+      - target: Yomu
+      - package: Core
+
+  YomuUITests:
+    type: bundle.ui-testing
+    supportedDestinations: [iOS]
+    platform: auto
+    sources:
+      - path: YomuUITests
+      - path: SharedUITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.amatsubame.yomu.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Yomu
+    dependencies:
+      - target: Yomu
+      - package: Dictionary
+        product: DictionaryTestSupport
+
+  Miru:
+    type: application
+    supportedDestinations: [iOS, macOS]
+    platform: auto
+    sources:
+      - path: Miru
+    settings:
+      base:
+        PRODUCT_NAME: Miru
+        PRODUCT_MODULE_NAME: Miru
+        PRODUCT_BUNDLE_IDENTIFIER: com.amatsubame.miru
+        CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Shared/SharedSetup.entitlements
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Miru/Resources/Miru-macOS.entitlements
+        ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: Miru/Resources/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Miru
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortraitUpsideDown"
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
+    dependencies:
+      - package: AppCommon
+      - package: Core
+      - package: JellyfinKit
+      - package: Anki
+      - package: Dictionary
+      - package: Lookup
+      - package: Player
+        product: PlayerKit
+      - package: JimakuKit
+      - package: AudiobookshelfKit
+
+  Kiku:
+    type: application
+    supportedDestinations: [iOS, macOS]
+    platform: auto
+    sources:
+      - path: Kiku
+    settings:
+      base:
+        PRODUCT_NAME: Kiku
+        PRODUCT_MODULE_NAME: Kiku
+        PRODUCT_BUNDLE_IDENTIFIER: com.amatsubame.kiku
+        CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Shared/SharedSetup.entitlements
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Kiku/Resources/Kiku-macOS.entitlements
+        ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: Kiku/Resources/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Kiku
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortraitUpsideDown"
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
+    dependencies:
+      - package: AppCommon
+      - package: Core
+      - package: AudiobookshelfKit
+      - package: Anki
+      - package: Dictionary
+      - package: Lookup
+
+  Hiku:
+    type: application
+    supportedDestinations: [iOS, macOS]
+    platform: auto
+    sources:
+      - path: Hiku
+    settings:
+      base:
+        PRODUCT_NAME: Hiku
+        PRODUCT_MODULE_NAME: Hiku
+        PRODUCT_BUNDLE_IDENTIFIER: com.amatsubame.hiku
+        CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Shared/SharedSetup.entitlements
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Hiku/Resources/Hiku-macOS.entitlements
+        ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Hiku
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
+    dependencies:
+      - target: HikuExtension
+      - package: AppCommon
+      - package: Core
+      - package: Browser
+        product: BrowserKit
+
+  HikuUITests:
+    type: bundle.ui-testing
+    supportedDestinations: [iOS]
+    platform: auto
+    sources:
+      - path: HikuUITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.amatsubame.hiku.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Hiku
+    dependencies:
+      - target: Hiku
+
+  # The Safari Web Extension (Hiku). Its web files are in HikuExtension/Resources;
+  # the shared tap script comes from Packages/Lookup, and dev builds carry the gitignored
+  # dictionaries until the App Group lets Hiku manage them.
+  HikuExtension:
+    type: app-extension
+    supportedDestinations: [iOS, macOS]
+    platform: auto
+    sources:
+      - path: HikuExtension
+        excludes:
+          - "*.entitlements"
+          - Info.plist
+    info:
+      path: HikuExtension/Info.plist
+      properties:
+        CFBundleDisplayName: Hiku
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.Safari.web-extension
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).SafariWebExtensionHandler
+    settings:
+      base:
+        PRODUCT_NAME: Hiku Extension
+        PRODUCT_MODULE_NAME: HikuExtension
+        PRODUCT_BUNDLE_IDENTIFIER: com.amatsubame.hiku.extension
+        CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Shared/SharedSetup.entitlements
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: HikuExtension/HikuExtension-macOS.entitlements
+        ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
+        GENERATE_INFOPLIST_FILE: NO
+        # The copy step reads the repo's Dictionaries/ folder, which may not exist.
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+        SKIP_INSTALL: YES
+    postCompileScripts:
+      - name: Copy shared tap script and dev dictionaries
+        script: |
+          set -e
+          DEST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}"
+          mkdir -p "$DEST/Dictionaries"
+          cp "${SRCROOT}/Packages/Lookup/Sources/Lookup/Web/TextTapBridge.js" "$DEST/"
+          # Local dictionaries for development (gitignored, never committed), until the App Group,
+          # prebuilt on the Mac (scripts/prebuild-extension-dictionaries.sh); plain zips if that fails.
+          rm -rf "$DEST/Dictionaries/"*
+          if "${SRCROOT}/scripts/prebuild-extension-dictionaries.sh" && ls -d "${SRCROOT}/Dictionaries/Prebuilt/"*.hoshidict >/dev/null 2>&1; then
+            for package in "${SRCROOT}/Dictionaries/Prebuilt/"*.hoshidict; do
+              rsync -a --exclude source.txt "$package" "$DEST/Dictionaries/"
+            done
+          else
+            echo "warning: prebuilding the extension's dictionaries failed; bundling the zips"
+            SOURCE="${SRCROOT}/Dictionaries"
+            if [ -d "$SOURCE/Extension" ]; then SOURCE="$SOURCE/Extension"; fi
+            for zip in "$SOURCE"/*.zip; do
+              if [ -f "$zip" ]; then cp "$zip" "$DEST/Dictionaries/"; fi
+            done
+          fi
+    dependencies:
+      - package: Browser
+        product: BrowserKit
+
+  MiruTests:
+    type: bundle.unit-test
+    supportedDestinations: [iOS, macOS]
+    platform: auto
+    sources:
+      - path: MiruTests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.amatsubame.miru.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Miru.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Miru"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        TEST_HOST[sdk=macosx*]: "$(BUILT_PRODUCTS_DIR)/Miru.app/Contents/MacOS/Miru"
+    dependencies:
+      - target: Miru
+      - package: AppCommon
+      - package: Core
+      - package: JellyfinKit
+
+  MiruUITests:
+    type: bundle.ui-testing
+    supportedDestinations: [iOS]
+    platform: auto
+    sources:
+      - path: MiruUITests
+      - path: SharedUITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.amatsubame.miru.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Miru
+    dependencies:
+      - target: Miru
+
+  KikuTests:
+    type: bundle.unit-test
+    supportedDestinations: [iOS, macOS]
+    platform: auto
+    sources:
+      - path: KikuTests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.amatsubame.kiku.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Kiku.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Kiku"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        TEST_HOST[sdk=macosx*]: "$(BUILT_PRODUCTS_DIR)/Kiku.app/Contents/MacOS/Kiku"
+    dependencies:
+      - target: Kiku
+      - package: AppCommon
+      - package: Core
+      - package: AudiobookshelfKit
+
+  KikuUITests:
+    type: bundle.ui-testing
+    supportedDestinations: [iOS]
+    platform: auto
+    sources:
+      - path: KikuUITests
+      - path: SharedUITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.amatsubame.kiku.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Kiku
+    dependencies:
+      - target: Kiku
+
+schemes:
+  Kiku:
+    build:
+      targets:
+        Kiku: all
+    test:
+      gatherCoverageData: false
+      targets:
+        - KikuTests
+        - KikuUITests
+        - package: AudiobookshelfKit/AudiobookshelfKitTests
+    run:
+      config: Debug
+    archive:
+      config: Release
+  Hiku:
+    build:
+      targets:
+        Hiku: all
+        HikuExtension: all
+    test:
+      gatherCoverageData: false
+      targets:
+        - HikuUITests
+        - package: Browser/BrowserKitTests
+    run:
+      config: Debug
+    archive:
+      config: Release
+  Miru:
+    build:
+      targets:
+        Miru: all
+    test:
+      gatherCoverageData: false
+      targets:
+        - MiruTests
+        - MiruUITests
+        - package: AppCommon/AppCommonTests
+        - package: JellyfinKit/JellyfinKitTests
+    run:
+      config: Debug
+    archive:
+      config: Release
+  Yomu:
+    build:
+      targets:
+        Yomu: all
+    test:
+      gatherCoverageData: false
+      targets:
+        - YomuTests
+        - YomuUITests
+        - package: AppCommon/AppCommonTests
+        - package: Core/CoreTests
+        - package: KavitaKit/KavitaKitTests
+        - package: Anki/AnkiTests
+        - package: Readers/ReadersTests
+        - package: Dictionary/DictionaryTests
+        - package: Lookup/LookupTests
+        - package: OCR/OCRTests
+    run:
+      config: Debug
+    archive:
+      config: Release

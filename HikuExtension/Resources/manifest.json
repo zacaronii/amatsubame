@@ -1,0 +1,58 @@
+{
+  "manifest_version": 3,
+  "name": "Hiku",
+  "description": "Tap Japanese text to look it up and mine it to Anki.",
+  "icons": {
+    "48": "icon-48.png",
+    "64": "icon-64.png",
+    "96": "icon-96.png",
+    "128": "icon-128.png",
+    "256": "icon-256.png",
+    "512": "icon-512.png"
+  },
+  "version": "0.1.0",
+  "background": {
+    "scripts": [
+      "background.js"
+    ],
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "js": [
+        "TextTapBridge.js",
+        "content.js",
+        "marks.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "action": {
+    "default_popup": "action.html",
+    "default_icon": {
+      "48": "icon-48.png",
+      "64": "icon-64.png",
+      "96": "icon-96.png",
+      "128": "icon-128.png"
+    }
+  },
+  "permissions": [
+    "nativeMessaging",
+    "storage"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "popup-frame.html",
+        "popup-frame.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,165 @@
+{
+ "id": 34,
+ "summary": "<div>\n<p>空の庭に住む少女の物語です。</p></div>",
+ "genres": [
+  {
+   "id": 33,
+   "title": "Action"
+  },
+  {
+   "id": 30,
+   "title": "Adventure"
+  },
+  {
+   "id": 49,
+   "title": "Comedy"
+  },
+  {
+   "id": 12,
+   "title": "Fantasy"
+  },
+  {
+   "id": 44,
+   "title": "Slice of Life"
+  }
+ ],
+ "tags": [
+  {
+   "id": 259,
+   "title": "Fantasy World"
+  },
+  {
+   "id": 306,
+   "title": "Magic"
+  },
+  {
+   "id": 924,
+   "title": "Light Novel"
+  }
+ ],
+ "writers": [
+  {
+   "id": 397,
+   "name": "山田そら",
+   "coverImageLocked": false,
+   "primaryColor": null,
+   "secondaryColor": null,
+   "coverImage": null,
+   "aliases": [],
+   "description": null,
+   "asin": null,
+   "aniListId": 0,
+   "malId": 0,
+   "hardcoverId": null,
+   "webLinks": [],
+   "roles": []
+  }
+ ],
+ "coverArtists": [
+  {
+   "id": 834,
+   "name": "絵描き太郎",
+   "coverImageLocked": false,
+   "primaryColor": null,
+   "secondaryColor": null,
+   "coverImage": null,
+   "aliases": [],
+   "description": null,
+   "asin": null,
+   "aniListId": 0,
+   "malId": 0,
+   "hardcoverId": null,
+   "webLinks": [],
+   "roles": []
+  }
+ ],
+ "publishers": [
+  {
+   "id": 398,
+   "name": "空色出版",
+   "coverImageLocked": false,
+   "primaryColor": null,
+   "secondaryColor": null,
+   "coverImage": null,
+   "aliases": [],
+   "description": null,
+   "asin": null,
+   "aniListId": 0,
+   "malId": 0,
+   "hardcoverId": null,
+   "webLinks": [],
+   "roles": []
+  }
+ ],
+ "characters": [
+  {
+   "id": 438,
+   "name": "Character A",
+   "coverImageLocked": true,
+   "primaryColor": "#66747F",
+   "secondaryColor": "#4B4E56",
+   "coverImage": "person438.webp",
+   "aliases": [],
+   "description": "<p>A description.</p>",
+   "asin": null,
+   "aniListId": 0,
+   "malId": 0,
+   "hardcoverId": null,
+   "webLinks": [],
+   "roles": []
+  },
+  {
+   "id": 439,
+   "name": "Character B",
+   "coverImageLocked": true,
+   "primaryColor": "#B3715D",
+   "secondaryColor": "#C59C91",
+   "coverImage": "person439.webp",
+   "aliases": [],
+   "description": null,
+   "asin": null,
+   "aniListId": 0,
+   "malId": 0,
+   "hardcoverId": null,
+   "webLinks": [],
+   "roles": []
+  }
+ ],
+ "pencillers": [],
+ "inkers": [],
+ "imprints": [],
+ "colorists": [],
+ "letterers": [],
+ "editors": [],
+ "translators": [],
+ "teams": [],
+ "locations": [],
+ "ageRating": 0,
+ "releaseYear": 2015,
+ "language": "ja",
+ "maxCount": 2,
+ "totalCount": 0,
+ "publicationStatus": 0,
+ "webLinks": "",
+ "languageLocked": false,
+ "summaryLocked": false,
+ "ageRatingLocked": false,
+ "publicationStatusLocked": true,
+ "genresLocked": true,
+ "tagsLocked": true,
+ "writerLocked": false,
+ "characterLocked": true,
+ "coloristLocked": false,
+ "editorLocked": false,
+ "inkerLocked": false,
+ "imprintLocked": false,
+ "lettererLocked": false,
+ "pencillerLocked": false,
+ "publisherLocked": false,
+ "translatorLocked": false,
+ "teamLocked": false,
+ "locationLocked": false,
+ "coverArtistLocked": true,
+ "releaseYearLocked": false,
+ "seriesId": 34
+}

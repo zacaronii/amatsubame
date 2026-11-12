@@ -1,0 +1,116 @@
+{
+ "Items": [
+  {
+   "Name": "\"Example Idol Show\"",
+   "Id": "fa4e000000000000000000000000002d",
+   "PremiereDate": "2030-01-07T00:00:00.0000000Z",
+   "OfficialRating": "TV-14",
+   "ChannelId": null,
+   "CommunityRating": 8.61,
+   "ProductionYear": 2023,
+   "IsFolder": true,
+   "Type": "Series",
+   "UserData": {
+    "PlayedPercentage": 14.705882352941178,
+    "UnplayedItemCount": 29,
+    "PlaybackPositionTicks": 0,
+    "PlayCount": 0,
+    "IsFavorite": false,
+    "Played": false,
+    "Key": "shoko://series/1",
+    "ItemId": "fa4e000000000000000000000000002d"
+   },
+   "ChildCount": 3,
+   "Status": "Ended",
+   "AirDays": [
+    "Wednesday"
+   ],
+   "PrimaryImageAspectRatio": 0.7079646017699115,
+   "ImageTags": {
+    "Primary": "fa4e000000000000000000000000002f",
+    "Logo": "fa4e0000000000000000000000000041"
+   },
+   "BackdropImageTags": [
+    "fa4e000000000000000000000000002e"
+   ],
+   "MediaType": "Unknown",
+   "EndDate": "2030-01-14T00:00:00.0000000Z"
+  },
+  {
+   "Name": "Example Action Show",
+   "Id": "fa4e0000000000000000000000000042",
+   "PremiereDate": "2030-01-01T00:00:00.0000000Z",
+   "OfficialRating": "TV-MA",
+   "ChannelId": null,
+   "CommunityRating": 5.63,
+   "ProductionYear": 2014,
+   "IsFolder": true,
+   "Type": "Series",
+   "UserData": {
+    "PlayedPercentage": 0,
+    "UnplayedItemCount": 24,
+    "PlaybackPositionTicks": 0,
+    "PlayCount": 0,
+    "IsFavorite": false,
+    "Played": false,
+    "Key": "fa4e0000-0000-0000-0000-000000000042",
+    "ItemId": "fa4e0000000000000000000000000042"
+   },
+   "ChildCount": 1,
+   "Status": "Ended",
+   "AirDays": [
+    "Monday"
+   ],
+   "PrimaryImageAspectRatio": 0.7246376811594203,
+   "ImageTags": {
+    "Primary": "fa4e0000000000000000000000000043",
+    "Logo": "fa4e0000000000000000000000000044"
+   },
+   "BackdropImageTags": [
+    "fa4e0000000000000000000000000045"
+   ],
+   "MediaType": "Unknown",
+   "EndDate": "2030-01-02T00:00:00.0000000Z"
+  },
+  {
+   "Name": "Example Fantasy Romance",
+   "Id": "fa4e0000000000000000000000000046",
+   "PremiereDate": "2030-01-11T00:00:00.0000000Z",
+   "OfficialRating": "TV-14",
+   "ChannelId": null,
+   "CommunityRating": 4.74,
+   "ProductionYear": 2025,
+   "IsFolder": true,
+   "Type": "Series",
+   "UserData": {
+    "Rating": 10,
+    "PlayedPercentage": 0,
+    "UnplayedItemCount": 6,
+    "PlaybackPositionTicks": 0,
+    "PlayCount": 0,
+    "IsFavorite": false,
+    "Likes": true,
+    "Played": false,
+    "Key": "shoko://series/2",
+    "ItemId": "fa4e0000000000000000000000000046"
+   },
+   "ChildCount": 1,
+   "Status": "Ended",
+   "AirDays": [
+    "Friday"
+   ],
+   "PrimaryImageAspectRatio": 0.7092198581560284,
+   "ImageTags": {
+    "Primary": "fa4e0000000000000000000000000047",
+    "Logo": "fa4e0000000000000000000000000048"
+   },
+   "BackdropImageTags": [
+    "fa4e0000000000000000000000000049"
+   ],
+   "MediaType": "Unknown",
+   "EndDate": "2030-01-12T00:00:00.0000000Z"
+  }
+ ],
+ "TotalRecordCount": 162,
+ "StartIndex": 0
+}

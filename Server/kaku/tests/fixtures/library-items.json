@@ -1,0 +1,26 @@
+{
+  "results": [
+    {
+      "id": "item-1",
+      "ino": "100",
+      "libraryId": "lib-1",
+      "folderId": "folder-1",
+      "mediaType": "podcast",
+      "isMissing": false,
+      "isInvalid": false,
+      "addedAt": 1780000000000,
+      "updatedAt": 1793830000000,
+      "numFiles": 2,
+      "media": {
+        "id": "media-1",
+        "metadata": {
+          "title": "テストポッドキャスト"
+        },
+        "numEpisodes": 2
+      }
+    }
+  ],
+  "total": 1,
+  "limit": 100,
+  "page": 0
+}

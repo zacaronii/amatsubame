@@ -1,0 +1,117 @@
+{
+ "id": "book-1",
+ "ino": "300",
+ "libraryId": "lib-books",
+ "folderId": "folder-1",
+ "path": "/audiobooks/book",
+ "relPath": "book",
+ "isFile": false,
+ "mtimeMs": 0,
+ "ctimeMs": 0,
+ "birthtimeMs": 0,
+ "addedAt": 1792000000000,
+ "updatedAt": 1792000000000,
+ "isMissing": false,
+ "isInvalid": false,
+ "mediaType": "book",
+ "numFiles": 2,
+ "size": 188420037,
+ "media": {
+  "id": "media-book",
+  "libraryItemId": "book-1",
+  "coverPath": "/metadata/cover.jpg",
+  "tags": [],
+  "metadata": {
+   "title": "テストの本",
+   "subtitle": null,
+   "authors": [
+    {
+     "id": "author-1",
+     "name": "著者"
+    }
+   ],
+   "narrators": [
+    "朗読者"
+   ],
+   "series": [],
+   "genres": [],
+   "publishedYear": null,
+   "publishedDate": null,
+   "publisher": null,
+   "description": "あらすじ",
+   "isbn": null,
+   "asin": null,
+   "language": null,
+   "explicit": false,
+   "abridged": false,
+   "authorName": "著者",
+   "authorNameLF": "著者",
+   "narratorName": "朗読者",
+   "seriesName": "",
+   "titleIgnorePrefix": "テストの本",
+   "descriptionPlain": "あらすじ"
+  },
+  "chapters": [
+   {
+    "id": 0,
+    "start": 0,
+    "end": 20.943991,
+    "title": "第0章"
+   },
+   {
+    "id": 1,
+    "start": 20.943991,
+    "end": 281.703991,
+    "title": "第1章"
+   },
+   {
+    "id": 2,
+    "start": 281.703991,
+    "end": 3687.884989,
+    "title": "第2章"
+   }
+  ],
+  "duration": 23652.206667,
+  "size": 188420037,
+  "numTracks": 1,
+  "numAudioFiles": 1,
+  "numChapters": 3,
+  "ebookFile": null,
+  "tracks": [
+   {
+    "index": 1,
+    "startOffset": 0,
+    "duration": 23652.206667,
+    "title": "book.m4b",
+    "contentUrl": "/api/items/book-1/file/310",
+    "mimeType": "audio/mp4",
+    "codec": "aac",
+    "metadata": {
+     "filename": "book.m4b",
+     "ext": ".m4b",
+     "path": "/audiobooks/book/book.m4b",
+     "relPath": "book.m4b",
+     "size": 188420037
+    },
+    "ino": "310"
+   }
+  ],
+  "audioFiles": [
+   {
+    "index": 1,
+    "ino": "310",
+    "duration": 23652.206667,
+    "mimeType": "audio/mp4",
+    "codec": "aac",
+    "format": "QuickTime / MOV",
+    "metadata": {
+     "filename": "book.m4b",
+     "ext": ".m4b",
+     "path": "/audiobooks/book/book.m4b",
+     "relPath": "book.m4b",
+     "size": 188420037
+    }
+   }
+  ]
+ }
+}

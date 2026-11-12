@@ -1,0 +1,25 @@
+{
+  "libraries": [
+    {
+      "id": "lib-0",
+      "name": "Books",
+      "mediaType": "book",
+      "displayOrder": 1,
+      "folders": []
+    },
+    {
+      "id": "lib-1",
+      "name": "Podcasts",
+      "mediaType": "podcast",
+      "displayOrder": 2,
+      "folders": []
+    },
+    {
+      "id": "lib-2",
+      "name": "Japanese Books",
+      "mediaType": "book",
+      "displayOrder": 3,
+      "folders": []
+    }
+  ]
+}

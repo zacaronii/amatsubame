@@ -1,0 +1,58 @@
+[
+  {
+    "width": 1650,
+    "height": 2250,
+    "pageNumber": 0,
+    "fileName": "cover_000.webp",
+    "isWide": false
+  },
+  {
+    "width": 1650,
+    "height": 2250,
+    "pageNumber": 1,
+    "fileName": "p_001.webp",
+    "isWide": false
+  },
+  {
+    "width": 1650,
+    "height": 2250,
+    "pageNumber": 2,
+    "fileName": "p_002.webp",
+    "isWide": false
+  },
+  {
+    "width": 1650,
+    "height": 2250,
+    "pageNumber": 3,
+    "fileName": "p_003.webp",
+    "isWide": false
+  },
+  {
+    "width": 1650,
+    "height": 2250,
+    "pageNumber": 4,
+    "fileName": "p_004.webp",
+    "isWide": false
+  },
+  {
+    "width": 1650,
+    "height": 2250,
+    "pageNumber": 5,
+    "fileName": "p_005.webp",
+    "isWide": false
+  },
+  {
+    "width": 1650,
+    "height": 2250,
+    "pageNumber": 6,
+    "fileName": "p_006.webp",
+    "isWide": false
+  },
+  {
+    "width": 1650,
+    "height": 2250,
+    "pageNumber": 7,
+    "fileName": "p_007.webp",
+    "isWide": false
+  }
+]

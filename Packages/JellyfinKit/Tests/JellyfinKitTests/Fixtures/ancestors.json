@@ -1,0 +1,242 @@
+[
+ {
+  "Name": "Example Romance Show (2026)",
+  "Id": "fa4e0000000000000000000000000001",
+  "Etag": "fa4e0000000000000000000000000002",
+  "DateCreated": "2030-01-28T14:36:50.4255488Z",
+  "DateLastMediaAdded": "0001-01-01T00:00:00.0000000Z",
+  "CanDelete": true,
+  "CanDownload": false,
+  "SortName": "s0000000002  example romance show (0000002026)",
+  "ForcedSortName": "S2 - Example Romance Show (2026)",
+  "PremiereDate": "2030-01-18T00:00:00.0000000Z",
+  "ProductionLocations": [
+   "Japan"
+  ],
+  "EnableMediaSourceDisplay": true,
+  "ChannelId": null,
+  "Overview": "A description.",
+  "Genres": [
+   "Original Work"
+  ],
+  "CommunityRating": 8.38,
+  "PlayAccess": "Full",
+  "ProductionYear": 2026,
+  "IndexNumber": 2,
+  "RemoteTrailers": [],
+  "IsFolder": true,
+  "ParentId": "fa4e0000000000000000000000000003",
+  "Type": "Season",
+  "GenreItems": [
+   {
+    "Name": "Original Work",
+    "Id": "fa4e0000000000000000000000000004"
+   }
+  ],
+  "ParentBackdropItemId": "fa4e0000000000000000000000000003",
+  "ParentBackdropImageTags": [
+   "fa4e0000000000000000000000000005"
+  ],
+  "LocalTrailerCount": 0,
+  "UserData": {
+   "PlayedPercentage": 30.76923076923077,
+   "UnplayedItemCount": 9,
+   "PlaybackPositionTicks": 0,
+   "PlayCount": 0,
+   "IsFavorite": false,
+   "Played": false,
+   "Key": "shoko://series/4002",
+   "ItemId": "fa4e0000000000000000000000000001"
+  },
+  "RecursiveItemCount": 13,
+  "ChildCount": 13,
+  "SeriesName": "Example Romance Show",
+  "SeriesId": "fa4e0000000000000000000000000003",
+  "SpecialFeatureCount": 0,
+  "DisplayPreferencesId": "fa4e0000000000000000000000000006",
+  "Tags": ["Comedy", "Romance"],
+  "PrimaryImageAspectRatio": 0.7366482504604052,
+  "SeriesPrimaryImageTag": "fa4e0000000000000000000000000007",
+  "ImageTags": {
+   "Logo": "fa4e0000000000000000000000000008",
+   "Primary": "fa4e0000000000000000000000000009"
+  },
+  "BackdropImageTags": [],
+  "SeriesStudio": "Example Network",
+  "LocationType": "FileSystem",
+  "MediaType": "Unknown",
+  "EndDate": "2030-01-22T00:00:00.0000000Z",
+  "LockedFields": [],
+  "LockData": false
+ },
+ {
+  "Name": "Example Romance Show",
+  "Id": "fa4e0000000000000000000000000003",
+  "Etag": "fa4e000000000000000000000000000a",
+  "DateCreated": "2030-01-27T14:36:48.9021859Z",
+  "DateLastMediaAdded": "2030-01-25T03:17:15.3668931Z",
+  "CanDelete": true,
+  "CanDownload": false,
+  "SortName": "example romance show",
+  "PremiereDate": "2030-01-13T00:00:00.0000000Z",
+  "ProductionLocations": [
+   "Japan"
+  ],
+  "EnableMediaSourceDisplay": true,
+  "OfficialRating": "TV-Y7",
+  "ChannelId": null,
+  "Overview": "A description.",
+  "Genres": [
+   "Adapted From A Manga",
+   "Comedy",
+   "Romance",
+   "Shounen",
+   "Original Work"
+  ],
+  "CommunityRating": 8.16,
+  "PlayAccess": "Full",
+  "ProductionYear": 2026,
+  "RemoteTrailers": [],
+  "IsFolder": true,
+  "ParentId": "fa4e000000000000000000000000000b",
+  "Type": "Series",
+  "GenreItems": [
+   {
+    "Name": "Adapted From A Manga",
+    "Id": "fa4e000000000000000000000000000c"
+   },
+   {
+    "Name": "Comedy",
+    "Id": "fa4e000000000000000000000000000d"
+   },
+   {
+    "Name": "Romance",
+    "Id": "fa4e000000000000000000000000000e"
+   },
+   {
+    "Name": "Shounen",
+    "Id": "fa4e000000000000000000000000000f"
+   },
+   {
+    "Name": "Original Work",
+    "Id": "fa4e0000000000000000000000000004"
+   }
+  ],
+  "LocalTrailerCount": 0,
+  "UserData": {
+   "PlayedPercentage": 62.5,
+   "UnplayedItemCount": 9,
+   "PlaybackPositionTicks": 0,
+   "PlayCount": 0,
+   "IsFavorite": false,
+   "Played": false,
+   "Key": "shoko://series/4",
+   "ItemId": "fa4e0000000000000000000000000003"
+  },
+  "RecursiveItemCount": 24,
+  "ChildCount": 2,
+  "SpecialFeatureCount": 0,
+  "DisplayPreferencesId": "fa4e0000000000000000000000000010",
+  "Status": "Ended",
+  "AirDays": [
+   "Sunday"
+  ],
+  "Tags": ["Comedy", "Romance"],
+  "PrimaryImageAspectRatio": 0.7054673721340388,
+  "ImageTags": {
+   "Logo": "fa4e0000000000000000000000000011",
+   "Primary": "fa4e0000000000000000000000000007"
+  },
+  "BackdropImageTags": [
+   "fa4e0000000000000000000000000005"
+  ],
+  "LocationType": "FileSystem",
+  "MediaType": "Unknown",
+  "EndDate": "2030-01-22T00:00:00.0000000Z",
+  "LockedFields": [],
+  "LockData": false
+ },
+ {
+  "Name": "Anime",
+  "Id": "fa4e0000000000000000000000000012",
+  "Etag": "fa4e0000000000000000000000000013",
+  "DateCreated": "2030-01-26T14:16:36.6747529Z",
+  "DateLastMediaAdded": "0001-01-01T00:00:00.0000000Z",
+  "CanDelete": false,
+  "CanDownload": false,
+  "SortName": "anime",
+  "EnableMediaSourceDisplay": true,
+  "ChannelId": null,
+  "Genres": [],
+  "PlayAccess": "Full",
+  "RemoteTrailers": [],
+  "IsFolder": true,
+  "ParentId": "fa4e0000000000000000000000000014",
+  "Type": "CollectionFolder",
+  "GenreItems": [],
+  "LocalTrailerCount": 0,
+  "UserData": {
+   "PlaybackPositionTicks": 0,
+   "PlayCount": 0,
+   "IsFavorite": false,
+   "Played": false,
+   "Key": "fa4e0000-0000-0000-0000-000000000012",
+   "ItemId": "fa4e0000000000000000000000000012"
+  },
+  "ChildCount": 162,
+  "SpecialFeatureCount": 0,
+  "DisplayPreferencesId": "fa4e0000000000000000000000000012",
+  "Tags": ["Comedy", "Romance"],
+  "PrimaryImageAspectRatio": 1.7777777777777777,
+  "CollectionType": "tvshows",
+  "ImageTags": {
+   "Primary": "fa4e0000000000000000000000000015"
+  },
+  "BackdropImageTags": [],
+  "LocationType": "FileSystem",
+  "MediaType": "Unknown",
+  "LockedFields": [],
+  "LockData": false
+ },
+ {
+  "Name": "Media Folders",
+  "Id": "fa4e0000000000000000000000000014",
+  "Etag": "fa4e0000000000000000000000000016",
+  "DateCreated": "2030-01-15T18:37:09.7188496Z",
+  "DateLastMediaAdded": "0001-01-01T00:00:00.0000000Z",
+  "CanDelete": false,
+  "CanDownload": false,
+  "SortName": "media folders",
+  "EnableMediaSourceDisplay": true,
+  "ChannelId": null,
+  "Genres": [],
+  "PlayAccess": "Full",
+  "RemoteTrailers": [],
+  "IsFolder": true,
+  "ParentId": null,
+  "Type": "UserRootFolder",
+  "GenreItems": [],
+  "LocalTrailerCount": 0,
+  "UserData": {
+   "PlaybackPositionTicks": 0,
+   "PlayCount": 0,
+   "IsFavorite": false,
+   "Played": false,
+   "Key": "fa4e0000-0000-0000-0000-000000000014",
+   "ItemId": "fa4e0000000000000000000000000014"
+  },
+  "ChildCount": 3,
+  "SpecialFeatureCount": 0,
+  "DisplayPreferencesId": "fa4e0000000000000000000000000017",
+  "Tags": ["Comedy", "Romance"],
+  "PrimaryImageAspectRatio": 1.7777777777777777,
+  "ImageTags": {
+   "Primary": "fa4e0000000000000000000000000018"
+  },
+  "BackdropImageTags": [],
+  "LocationType": "FileSystem",
+  "MediaType": "Unknown",
+  "LockedFields": [],
+  "LockData": false
+ }
+]

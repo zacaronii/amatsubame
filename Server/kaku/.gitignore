@@ -1,0 +1,6 @@
+# Secrets, the database, transcripts and the model cache stay on the server.
+.env
+data/
+models/
+__pycache__/
+.pytest_cache/

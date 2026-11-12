@@ -1,0 +1,70 @@
+{
+ "Items": [
+  {
+   "Name": "Pilot",
+   "Id": "jf-english-1",
+   "DateCreated": "2026-11-01T10:00:00.0000000Z",
+   "Type": "Episode",
+   "SeriesName": "Test Drama",
+   "SeriesId": "series-1",
+   "SeasonId": "season-1",
+   "ParentIndexNumber": 2,
+   "IndexNumber": 2,
+   "RunTimeTicks": 34947000000,
+   "MediaSources": [
+    {
+     "Protocol": "File",
+     "Id": "source-english-1",
+     "Type": "Default",
+     "Container": "mkv",
+     "Size": 3800000000,
+     "Name": "Pilot",
+     "RunTimeTicks": 34947000000,
+     "MediaStreams": [
+      {
+       "Codec": "subrip",
+       "Language": "eng",
+       "IsDefault": false,
+       "IsExternal": true,
+       "Type": "Subtitle",
+       "Index": 0
+      },
+      {
+       "Codec": "h264",
+       "IsDefault": true,
+       "IsExternal": false,
+       "Type": "Video",
+       "Index": 1
+      },
+      {
+       "Codec": "eac3",
+       "Language": "eng",
+       "IsDefault": true,
+       "IsExternal": false,
+       "Type": "Audio",
+       "Index": 2
+      },
+      {
+       "Codec": "subrip",
+       "Language": "eng",
+       "IsDefault": false,
+       "IsExternal": false,
+       "Type": "Subtitle",
+       "Index": 3
+      },
+      {
+       "Codec": "subrip",
+       "Language": "eng",
+       "Title": "SDH",
+       "IsDefault": false,
+       "IsExternal": false,
+       "Type": "Subtitle",
+       "Index": 4
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "TotalRecordCount": 1
+}

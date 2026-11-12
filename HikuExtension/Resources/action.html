@@ -1,0 +1,31 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { color-scheme: light dark; font: 15px -apple-system, sans-serif; }
+  body { margin: 16px; min-width: 280px; }
+  label.row { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-weight: 600; }
+  .note { margin-top: 8px; opacity: .7; font-size: 13px; }
+  h2 { font-size: 13px; text-transform: uppercase; opacity: .6; margin: 20px 0 8px; }
+  input[type=text], input[type=password], select { width: 100%; box-sizing: border-box; font: inherit; padding: 8px;
+    margin: 4px 0 8px; border-radius: 8px; border: 1px solid rgba(128,128,128,.4); background: transparent; }
+  button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 0; background: #0a84ff; color: #fff; }
+  button:disabled { opacity: .5; }
+  #ankiResult { margin-top: 8px; font-size: 13px; }
+</style>
+<script src="action.js"></script></head>
+<body>
+  <label class="row">Tap to look up <input type="checkbox" id="enabled"></label>
+  <label class="row" style="margin-top: 12px">Japanese text only <input type="checkbox" id="japaneseOnly"></label>
+  <div class="note">Taps on English, numbers and punctuation look nothing up.</div>
+  <div class="note" id="status">Checking dictionaries…</div>
+
+  <h2>Anki</h2>
+  <div id="ankiManaged" class="note" hidden>AnkiConnect is set in the Hiku app.</div>
+  <form id="ankiForm" hidden>
+    <input type="text" id="ankiURL" placeholder="AnkiConnect address, e.g. http://anki.example.ts.net:8765" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <input type="password" id="ankiKey" placeholder="API key (optional)">
+    <select id="ankiDeck" hidden></select>
+    <button type="submit" id="ankiSave">Check and Save</button>
+    <div id="ankiResult"></div>
+  </form>
+</body></html>

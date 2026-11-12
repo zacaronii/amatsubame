@@ -1,0 +1,570 @@
+{
+ "id": "00000000-0000-4000-8000-000000000007",
+ "ino": "1001",
+ "oldLibraryItemId": null,
+ "libraryId": "00000000-0000-4000-8000-000000000003",
+ "folderId": "00000000-0000-4000-8000-000000000004",
+ "path": "/podcasts/show",
+ "relPath": "show",
+ "isFile": false,
+ "mtimeMs": 1768662000000,
+ "ctimeMs": 1768687200000,
+ "birthtimeMs": 0,
+ "addedAt": 1767780000000,
+ "updatedAt": 1769216400000,
+ "isMissing": false,
+ "isInvalid": false,
+ "mediaType": "podcast",
+ "media": {
+  "id": "00000000-0000-4000-8000-000000000008",
+  "metadata": {
+   "title": "Sample Show A",
+   "author": "Host A",
+   "description": "A description.",
+   "releaseDate": "2026-01-01T00:00:00Z",
+   "genres": [
+    "Technology",
+    "Podcasts"
+   ],
+   "feedUrl": "https://example.com/feed.xml",
+   "imageUrl": "https://example.com/cover.jpg",
+   "itunesPageUrl": null,
+   "itunesId": "100000001",
+   "itunesArtistId": "",
+   "explicit": false,
+   "language": "ja",
+   "type": "episodic",
+   "titleIgnorePrefix": "Sample Show A"
+  },
+  "coverPath": "/podcasts/show/cover.jpg",
+  "tags": [],
+  "numEpisodes": 9,
+  "autoDownloadEpisodes": true,
+  "autoDownloadSchedule": "0 * * * *",
+  "lastEpisodeCheck": 1769191200000,
+  "maxEpisodesToKeep": 0,
+  "maxNewEpisodesToDownload": 3,
+  "size": 807508355,
+  "libraryItemId": "00000000-0000-4000-8000-000000000007",
+  "episodes": [
+   {
+    "libraryItemId": "00000000-0000-4000-8000-000000000007",
+    "podcastId": "00000000-0000-4000-8000-000000000008",
+    "id": "00000000-0000-4000-8000-00000000000d",
+    "oldEpisodeId": null,
+    "index": null,
+    "season": "",
+    "episode": "",
+    "episodeType": "",
+    "title": "第1回 サンプルエピソード",
+    "subtitle": "A description.",
+    "description": "A description.",
+    "enclosure": {
+     "url": "https://example.com/episode.mp3",
+     "type": "audio/mpeg",
+     "length": "65379947"
+    },
+    "guid": "guid",
+    "pubDate": "Wed, 07 Jan 2026 03:00:00 +0000",
+    "chapters": [
+     {
+      "start": 0,
+      "end": 511.975,
+      "title": "Chapter 1",
+      "id": 0
+     },
+     {
+      "start": 511.975,
+      "end": 1645.975,
+      "title": "Chapter 2",
+      "id": 1
+     },
+     {
+      "start": 1645.975,
+      "end": 2635.975,
+      "title": "Chapter 3",
+      "id": 2
+     },
+     {
+      "start": 2635.975,
+      "end": 2985.975,
+      "title": "Chapter 4",
+      "id": 3
+     },
+     {
+      "start": 2985.975,
+      "end": 3386.975,
+      "title": "Chapter 5",
+      "id": 4
+     },
+     {
+      "start": 3386.975,
+      "end": 3624.975,
+      "title": "Chapter 6",
+      "id": 5
+     },
+     {
+      "start": 3624.975,
+      "end": 4104.975,
+      "title": "Chapter 7",
+      "id": 6
+     },
+     {
+      "start": 4104.975,
+      "end": 4848.975,
+      "title": "Chapter 8",
+      "id": 7
+     },
+     {
+      "start": 4848.975,
+      "end": 5411.286,
+      "title": "Chapter 9",
+      "id": 8
+     }
+    ],
+    "audioFile": {
+     "index": null,
+     "ino": "1004",
+     "metadata": {
+      "filename": "episode.mp3",
+      "ext": ".mp3"
+     },
+     "addedAt": 1767880800000,
+     "updatedAt": 1767880800000,
+     "trackNumFromMeta": null,
+     "discNumFromMeta": null,
+     "trackNumFromFilename": null,
+     "discNumFromFilename": null,
+     "manuallyVerified": false,
+     "exclude": false,
+     "error": null,
+     "format": "MP2/3 (MPEG audio layer 2/3)",
+     "duration": 5411.330612,
+     "bitRate": 96000,
+     "language": null,
+     "codec": "mp3",
+     "timeBase": "1/14112000",
+     "channels": 1,
+     "channelLayout": "mono",
+     "chapters": [],
+     "embeddedCoverArt": null,
+     "metaTags": {},
+     "mimeType": "audio/mpeg"
+    },
+    "publishedAt": 1767754800000,
+    "addedAt": 1767906000000,
+    "updatedAt": 1768006800000,
+    "audioTrack": {
+     "index": 1,
+     "ino": "1004",
+     "metadata": {
+      "filename": "episode.mp3",
+      "ext": ".mp3"
+     },
+     "addedAt": 1767880800000,
+     "updatedAt": 1767880800000,
+     "trackNumFromMeta": null,
+     "discNumFromMeta": null,
+     "trackNumFromFilename": null,
+     "discNumFromFilename": null,
+     "manuallyVerified": false,
+     "exclude": false,
+     "error": null,
+     "format": "MP2/3 (MPEG audio layer 2/3)",
+     "duration": 5411.330612,
+     "bitRate": 96000,
+     "language": null,
+     "codec": "mp3",
+     "timeBase": "1/14112000",
+     "channels": 1,
+     "channelLayout": "mono",
+     "chapters": [],
+     "embeddedCoverArt": null,
+     "metaTags": {},
+     "mimeType": "audio/mpeg",
+     "startOffset": 0,
+     "title": "第1回 サンプルエピソード.mp3",
+     "contentUrl": "/api/items/00000000-0000-4000-8000-000000000007/file/1004"
+    },
+    "size": 64941988,
+    "duration": 5411.330612
+   },
+   {
+    "libraryItemId": "00000000-0000-4000-8000-000000000007",
+    "podcastId": "00000000-0000-4000-8000-000000000008",
+    "id": "00000000-0000-4000-8000-00000000000e",
+    "oldEpisodeId": null,
+    "index": null,
+    "season": "",
+    "episode": "",
+    "episodeType": "",
+    "title": "第2回 サンプルエピソード",
+    "subtitle": "A description.",
+    "description": "A description.",
+    "enclosure": {
+     "url": "https://example.com/episode.mp3",
+     "type": "audio/mpeg",
+     "length": "52939457"
+    },
+    "guid": "guid",
+    "pubDate": "Tue, 06 Jan 2026 20:00:00 +0000",
+    "chapters": [
+     {
+      "start": 0,
+      "end": 218.975,
+      "title": "Chapter 1",
+      "id": 0
+     },
+     {
+      "start": 218.975,
+      "end": 513.975,
+      "title": "Chapter 2",
+      "id": 1
+     },
+     {
+      "start": 513.975,
+      "end": 903.975,
+      "title": "Chapter 3",
+      "id": 2
+     },
+     {
+      "start": 903.975,
+      "end": 1149.975,
+      "title": "Chapter 4",
+      "id": 3
+     },
+     {
+      "start": 1149.975,
+      "end": 1247.975,
+      "title": "Chapter 5",
+      "id": 4
+     },
+     {
+      "start": 1247.975,
+      "end": 1756.975,
+      "title": "Chapter 6",
+      "id": 5
+     },
+     {
+      "start": 1756.975,
+      "end": 1880.975,
+      "title": "Chapter 7",
+      "id": 6
+     },
+     {
+      "start": 1880.975,
+      "end": 2149.975,
+      "title": "Chapter 8",
+      "id": 7
+     },
+     {
+      "start": 2149.975,
+      "end": 2619.975,
+      "title": "Chapter 9",
+      "id": 8
+     },
+     {
+      "start": 2619.975,
+      "end": 2874.975,
+      "title": "Chapter 10",
+      "id": 9
+     },
+     {
+      "start": 2874.975,
+      "end": 3341.975,
+      "title": "Chapter 11",
+      "id": 10
+     },
+     {
+      "start": 3341.975,
+      "end": 3598.975,
+      "title": "Chapter 12",
+      "id": 11
+     },
+     {
+      "start": 3598.975,
+      "end": 3918.975,
+      "title": "Chapter 13",
+      "id": 12
+     },
+     {
+      "start": 3918.975,
+      "end": 4374.528,
+      "title": "Chapter 14",
+      "id": 13
+     }
+    ],
+    "audioFile": {
+     "index": null,
+     "ino": "1005",
+     "metadata": {
+      "filename": "episode.mp3",
+      "ext": ".mp3"
+     },
+     "addedAt": 1767931200000,
+     "updatedAt": 1767931200000,
+     "trackNumFromMeta": null,
+     "discNumFromMeta": null,
+     "trackNumFromFilename": null,
+     "discNumFromFilename": null,
+     "manuallyVerified": false,
+     "exclude": false,
+     "error": null,
+     "format": "MP2/3 (MPEG audio layer 2/3)",
+     "duration": 4374.582857,
+     "bitRate": 96000,
+     "language": null,
+     "codec": "mp3",
+     "timeBase": "1/14112000",
+     "channels": 1,
+     "channelLayout": "mono",
+     "chapters": [],
+     "embeddedCoverArt": null,
+     "metaTags": {},
+     "mimeType": "audio/mpeg"
+    },
+    "publishedAt": 1767729600000,
+    "addedAt": 1767956400000,
+    "updatedAt": 1768032000000,
+    "audioTrack": {
+     "index": 1,
+     "ino": "1005",
+     "metadata": {
+      "filename": "episode.mp3",
+      "ext": ".mp3"
+     },
+     "addedAt": 1767931200000,
+     "updatedAt": 1767931200000,
+     "trackNumFromMeta": null,
+     "discNumFromMeta": null,
+     "trackNumFromFilename": null,
+     "discNumFromFilename": null,
+     "manuallyVerified": false,
+     "exclude": false,
+     "error": null,
+     "format": "MP2/3 (MPEG audio layer 2/3)",
+     "duration": 4374.582857,
+     "bitRate": 96000,
+     "language": null,
+     "codec": "mp3",
+     "timeBase": "1/14112000",
+     "channels": 1,
+     "channelLayout": "mono",
+     "chapters": [],
+     "embeddedCoverArt": null,
+     "metaTags": {},
+     "mimeType": "audio/mpeg",
+     "startOffset": 0,
+     "title": "第2回 サンプルエピソード.mp3",
+     "contentUrl": "/api/items/00000000-0000-4000-8000-000000000007/file/1005"
+    },
+    "size": 52500185,
+    "duration": 4374.582857
+   },
+   {
+    "libraryItemId": "00000000-0000-4000-8000-000000000007",
+    "podcastId": "00000000-0000-4000-8000-000000000008",
+    "id": "00000000-0000-4000-8000-00000000000f",
+    "oldEpisodeId": null,
+    "index": null,
+    "season": "",
+    "episode": "",
+    "episodeType": "",
+    "title": "第3回 サンプルエピソード",
+    "subtitle": "A description.",
+    "description": "A description.",
+    "enclosure": {
+     "url": "https://example.com/episode.mp3",
+     "type": "audio/mpeg",
+     "length": "99869325"
+    },
+    "guid": "guid",
+    "pubDate": "Mon, 12 Jan 2026 09:00:00 +0000",
+    "chapters": [
+     {
+      "start": 0,
+      "end": 657.975,
+      "title": "Chapter 1",
+      "id": 0
+     },
+     {
+      "start": 657.975,
+      "end": 995.975,
+      "title": "Chapter 2",
+      "id": 1
+     },
+     {
+      "start": 995.975,
+      "end": 1133.975,
+      "title": "Chapter 3",
+      "id": 2
+     },
+     {
+      "start": 1133.975,
+      "end": 1582.975,
+      "title": "Chapter 4",
+      "id": 3
+     },
+     {
+      "start": 1582.975,
+      "end": 2072.975,
+      "title": "Chapter 5",
+      "id": 4
+     },
+     {
+      "start": 2072.975,
+      "end": 3728.975,
+      "title": "Chapter 6",
+      "id": 5
+     },
+     {
+      "start": 3728.975,
+      "end": 4058.975,
+      "title": "Chapter 7",
+      "id": 6
+     },
+     {
+      "start": 4058.975,
+      "end": 4192.975,
+      "title": "Chapter 8",
+      "id": 7
+     },
+     {
+      "start": 4192.975,
+      "end": 4900.975,
+      "title": "Chapter 9",
+      "id": 8
+     },
+     {
+      "start": 4900.975,
+      "end": 5408.975,
+      "title": "Chapter 10",
+      "id": 9
+     },
+     {
+      "start": 5408.975,
+      "end": 5746.975,
+      "title": "Chapter 11",
+      "id": 10
+     },
+     {
+      "start": 5746.975,
+      "end": 6742.975,
+      "title": "Chapter 12",
+      "id": 11
+     },
+     {
+      "start": 6742.975,
+      "end": 6952.975,
+      "title": "Chapter 13",
+      "id": 12
+     },
+     {
+      "start": 6952.975,
+      "end": 7359.975,
+      "title": "Chapter 14",
+      "id": 13
+     },
+     {
+      "start": 7359.975,
+      "end": 7672.975,
+      "title": "Chapter 15",
+      "id": 14
+     },
+     {
+      "start": 7672.975,
+      "end": 8285.347,
+      "title": "Chapter 16",
+      "id": 15
+     }
+    ],
+    "audioFile": {
+     "index": null,
+     "ino": "1006",
+     "metadata": {
+      "filename": "episode.mp3",
+      "ext": ".mp3"
+     },
+     "addedAt": 1768233600000,
+     "updatedAt": 1768233600000,
+     "trackNumFromMeta": null,
+     "discNumFromMeta": null,
+     "trackNumFromFilename": null,
+     "discNumFromFilename": null,
+     "manuallyVerified": false,
+     "exclude": false,
+     "error": null,
+     "format": "MP2/3 (MPEG audio layer 2/3)",
+     "duration": 8285.400816,
+     "bitRate": 96000,
+     "language": null,
+     "codec": "mp3",
+     "timeBase": "1/14112000",
+     "channels": 1,
+     "channelLayout": "mono",
+     "chapters": [],
+     "embeddedCoverArt": null,
+     "metaTags": {},
+     "mimeType": "audio/mpeg"
+    },
+    "publishedAt": 1768208400000,
+    "addedAt": 1768258800000,
+    "updatedAt": 1768284000000,
+    "audioTrack": {
+     "index": 1,
+     "ino": "1006",
+     "metadata": {
+      "filename": "episode.mp3",
+      "ext": ".mp3"
+     },
+     "addedAt": 1768233600000,
+     "updatedAt": 1768233600000,
+     "trackNumFromMeta": null,
+     "discNumFromMeta": null,
+     "trackNumFromFilename": null,
+     "discNumFromFilename": null,
+     "manuallyVerified": false,
+     "exclude": false,
+     "error": null,
+     "format": "MP2/3 (MPEG audio layer 2/3)",
+     "duration": 8285.400816,
+     "bitRate": 96000,
+     "language": null,
+     "codec": "mp3",
+     "timeBase": "1/14112000",
+     "channels": 1,
+     "channelLayout": "mono",
+     "chapters": [],
+     "embeddedCoverArt": null,
+     "metaTags": {},
+     "mimeType": "audio/mpeg",
+     "startOffset": 0,
+     "title": "第3回 サンプルエピソード.mp3",
+     "contentUrl": "/api/items/00000000-0000-4000-8000-000000000007/file/1006"
+    },
+    "size": 99431858,
+    "duration": 8285.400816
+   }
+  ]
+ },
+ "numFiles": 10,
+ "size": 807558338,
+ "lastScan": 1768712400000,
+ "scanVersion": "2.36.1",
+ "libraryFiles": [
+  {
+   "ino": "1007",
+   "metadata": {
+    "filename": "episode.mp3",
+    "ext": ".mp3",
+    "path": "/podcasts/show/episode.mp3",
+    "relPath": "episode.mp3",
+    "size": 1
+   },
+   "isSupplementary": null,
+   "addedAt": 1767805200000,
+   "updatedAt": 1767981600000,
+   "fileType": "image"
+  }
+ ]
+}

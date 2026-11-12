@@ -1,0 +1,9 @@
+{
+  "LocalAddress": "https://jellyfin.example.ts.net",
+  "ServerName": "Home",
+  "Version": "12.3.0",
+  "ProductName": "Jellyfin Server",
+  "OperatingSystem": "",
+  "Id": "00000000000000000000000000000000",
+  "StartupWizardCompleted": true
+}

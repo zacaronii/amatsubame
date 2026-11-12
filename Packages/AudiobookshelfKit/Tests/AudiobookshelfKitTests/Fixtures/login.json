@@ -1,0 +1,2 @@
+{"user": {"id": "user-1", "username": "listener", "type": "user", "mediaProgress": [], "accessToken": "REDACTED-access", "refreshToken": "REDACTED-refresh"},
+ "userDefaultLibraryId": "lib", "serverSettings": {}, "ereaderDevices": [], "Source": "docker"}

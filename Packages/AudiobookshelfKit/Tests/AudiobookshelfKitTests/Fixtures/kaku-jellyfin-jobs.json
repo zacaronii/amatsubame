@@ -1,0 +1,5 @@
+{"jobs": [
+ {"itemId": "jf-1", "state": "done"},
+ {"itemId": "jf-2", "state": "queued", "progress": 0.0, "error": null, "position": 0},
+ {"itemId": "jf-3", "state": "unavailable", "error": "This episode has no Japanese audio track."}
+]}

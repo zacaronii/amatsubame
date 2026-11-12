@@ -1,0 +1,103 @@
+/* Reader overrides on top of the book's own CSS. Values come from BookReaderSettings
+   through data-kb-* attributes and --kb-* variables on <html>. */
+
+:root {
+  --kb-bg: #ffffff;
+  --kb-fg: #1c1c1e;
+  --kb-link: #2a6fdb;
+  -webkit-text-size-adjust: 100%;
+}
+:root[data-kb-theme="sepia"] { --kb-bg: #f4ecd8; --kb-fg: #4b3a2a; --kb-link: #8a5a2b; }
+:root[data-kb-theme="dark"] { --kb-bg: #000000; --kb-fg: #e0e0e0; --kb-link: #7fb0ff; }
+
+html {
+  background: var(--kb-bg) !important;
+  color: var(--kb-fg) !important;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+:root[data-kb-writing="vertical"] { writing-mode: vertical-rl !important; }
+:root[data-kb-writing="horizontal"] { writing-mode: horizontal-tb !important; }
+:root[data-kb-writing="vertical"] body { writing-mode: vertical-rl !important; }
+:root[data-kb-writing="horizontal"] body { writing-mode: horizontal-tb !important; }
+
+body {
+  box-sizing: border-box !important;
+  margin: 0 !important;
+  padding: var(--kb-pad-top) var(--kb-pad-right) var(--kb-pad-bottom) var(--kb-pad-left) !important;
+  font-size: var(--kb-font-size) !important;
+  line-height: var(--kb-line-height) !important;
+  background: transparent !important;
+}
+body p, body div, body span, body li { line-height: inherit !important; }
+/* Themes other than the book's own colors make all text readable on the page color. */
+:root:not([data-kb-theme="light"]) body *:not(.kb-mask) { color: inherit !important; background-color: transparent !important; }
+a { color: var(--kb-link) !important; }
+
+:root[data-kb-font="mincho"] body { font-family: "Hiragino Mincho ProN", "YuMincho", serif !important; }
+:root[data-kb-font="gothic"] body { font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", sans-serif !important; }
+
+/* Paged: exactly one screen along the line direction; the reading axis overflows and is scrolled in whole pages by script. */
+:root[data-kb-layout="paged"] { overflow: hidden !important; }
+:root { --kb-indent: 0px; }
+:root[data-kb-axis="vertical"] body { padding-top: calc(var(--kb-pad-top) + var(--kb-indent)) !important; }
+:root[data-kb-axis="horizontal"] body { padding-left: calc(var(--kb-pad-left) + var(--kb-indent)) !important; }
+:root[data-kb-layout="paged"][data-kb-axis="vertical"] body { height: 100vh !important; width: auto !important; }
+:root[data-kb-layout="paged"][data-kb-axis="horizontal"] body { width: 100vw !important; }
+/* A screen of blank space after the text, so the last page can scroll into place like the
+   others instead of stopping early and repeating the end of the page before it. */
+:root[data-kb-layout="paged"][data-kb-axis="vertical"]:not([data-kb-image-page="true"]) body { padding-left: calc(var(--kb-pad-left) + 100vw) !important; }
+:root[data-kb-layout="paged"][data-kb-axis="horizontal"]:not([data-kb-image-page="true"]) body { padding-bottom: calc(var(--kb-pad-bottom) + 100vh) !important; }
+
+/* Pictures fit on one page. */
+body img, body svg, body video {
+  max-width: calc(100vw - var(--kb-pad-left) - var(--kb-pad-right)) !important;
+  max-height: calc(100vh - var(--kb-pad-top) - var(--kb-pad-bottom)) !important;
+  object-fit: contain;
+  height: auto;
+}
+
+/* Picture-only sections (cover, illustrations): one picture, centered in the safe area. */
+:root[data-kb-image-page="true"] body {
+  writing-mode: horizontal-tb !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+:root[data-kb-image-page="true"] body * { margin: 0 auto !important; }
+:root[data-kb-image-page="true"] body > div:has(> svg) { width: 100%; height: 100%; }
+:root[data-kb-image-page="true"] body svg { width: 100% !important; height: 100% !important; }
+/* Books wrap pictures in sized boxes that defeat centering; pin the picture to the safe area instead. */
+:root[data-kb-image-page="true"] body img {
+  position: fixed !important;
+  inset: var(--kb-pad-top) var(--kb-pad-right) var(--kb-pad-bottom) var(--kb-pad-left) !important;
+  margin: auto !important;
+  width: auto !important;
+  height: auto !important;
+}
+
+/* Covers whatever doesn't fully fit after the page's last whole line. */
+html:not(#kb-none) .kb-mask { position: fixed; z-index: 2147483647; background: var(--kb-bg) !important; pointer-events: none; }
+:root[data-kb-layout="scroll"] .kb-mask, :root[data-kb-image-page="true"] .kb-mask { display: none !important; }
+
+/* The looked-up word (wrapped by the tap bridge). */
+html:not(#kb-none) body span.lookup-highlight { background-color: rgba(255, 190, 0, 0.45) !important; border-radius: 2px; }
+
+/* Word marks: words not in Anki underlined in the app's accent, words still being learned
+   dotted grey; known words plain. In vertical text the line runs on the right of the column. */
+html:not(#kb-none) body km-w { text-underline-position: under right; text-underline-offset: 0.08em; }
+html:not(#kb-none) body km-w.km-new { text-decoration: underline solid var(--km-accent, #3fc98f) 0.09em !important; }
+html:not(#kb-none) body km-w.km-learning { text-decoration: underline dotted #aeaeb2 0.12em !important; }
+
+/* Furigana: Hidden in the reader settings. */
+html:not(#kb-none)[data-kb-furigana="hidden"] body rt,
+html:not(#kb-none)[data-kb-furigana="hidden"] body rp { display: none !important; }
+
+/* Read-along: the sentence being spoken (Kiku orange, see BookReader.js). */
+html:not(#kb-none) body km-ra {
+  background: color-mix(in srgb, var(--ra-accent, #F79A3E) 30%, transparent) !important;
+  border-radius: 3px;
+}

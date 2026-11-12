@@ -1,0 +1,6 @@
+// Patched from upstream: expose only the C API, so Swift imports this module
+// without C++ interoperability. See VENDORED.md.
+module CHoshiDicts {
+    header "hoshidicts_c.h"
+    export *
+}

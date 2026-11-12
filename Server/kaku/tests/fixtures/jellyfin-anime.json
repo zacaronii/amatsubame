@@ -1,0 +1,214 @@
+{
+ "Items": [
+  {
+   "Name": "第3話",
+   "Id": "jf-anime-1",
+   "DateCreated": "2026-11-01T10:00:00.0000000Z",
+   "Type": "Episode",
+   "SeriesName": "テストアニメ",
+   "SeriesId": "series-1",
+   "SeasonId": "season-1",
+   "ParentIndexNumber": 1,
+   "IndexNumber": 3,
+   "RunTimeTicks": 14250660000,
+   "MediaSources": [
+    {
+     "Protocol": "File",
+     "Id": "source-anime-1",
+     "Type": "Default",
+     "Container": "mkv",
+     "Size": 1500000000,
+     "Name": "第3話",
+     "RunTimeTicks": 14250660000,
+     "MediaStreams": [
+      {
+       "Codec": "subrip",
+       "Language": "eng",
+       "IsDefault": false,
+       "IsExternal": true,
+       "Type": "Subtitle",
+       "Index": 0
+      },
+      {
+       "Codec": "h264",
+       "IsDefault": true,
+       "IsExternal": false,
+       "Type": "Video",
+       "Index": 1
+      },
+      {
+       "Codec": "aac",
+       "Language": "jpn",
+       "IsDefault": true,
+       "IsExternal": false,
+       "Type": "Audio",
+       "Index": 2
+      },
+      {
+       "Codec": "aac",
+       "Language": "eng",
+       "IsDefault": false,
+       "IsExternal": false,
+       "Type": "Audio",
+       "Index": 3
+      },
+      {
+       "Codec": "ass",
+       "Language": "eng",
+       "Title": "Forced",
+       "IsDefault": false,
+       "IsExternal": false,
+       "Type": "Subtitle",
+       "Index": 4
+      },
+      {
+       "Codec": "ass",
+       "Language": "eng",
+       "IsDefault": true,
+       "IsExternal": false,
+       "Type": "Subtitle",
+       "Index": 5
+      },
+      {
+       "Codec": "subrip",
+       "Language": "eng",
+       "Title": "SDH",
+       "IsDefault": false,
+       "IsExternal": false,
+       "Type": "Subtitle",
+       "Index": 6
+      },
+      {
+       "Codec": "ass",
+       "Language": "ara",
+       "Title": "Saudi Arabia",
+       "IsDefault": false,
+       "IsExternal": false,
+       "Type": "Subtitle",
+       "Index": 7
+      },
+      {
+       "Codec": "ass",
+       "Language": "deu",
+       "IsDefault": false,
+       "IsExternal": false,
+       "Type": "Subtitle",
+       "Index": 8
+      },
+      {
+       "Codec": "ass",
+       "Language": "spa",
+       "Title": "Latin American",
+       "IsDefault": false,
+       "IsExternal": false,
+       "Type": "Subtitle",
+       "Index": 9
+      },
+      {
+       "Codec": "ass",
+       "Language": "spa",
+       "Title": "European",
+       "IsDefault": false,
+       "IsExternal": false,
+       "Type": "Subtitle",
+       "Index": 10
+      },
+      {
+       "Codec": "ass",
+       "Language": "fra",
+       "Title": "European",
+       "IsDefault": false,
+       "IsExternal": false,
+       "Type": "Subtitle",
+       "Index": 11
+      },
+      {
+       "Codec": "ass",
+       "Language": "ind",
+       "IsDefault": false,
+       "IsExternal": false,
+       "Type": "Subtitle",
+       "Index": 12
+      },
+      {
+       "Codec": "ass",
+       "Language": "ita",
+       "IsDefault": false,
+       "IsExternal": false,
+       "Type": "Subtitle",
+       "Index": 13
+      },
+      {
+       "Codec": "ass",
+       "Language": "msa",
+       "IsDefault": false,
+       "IsExternal": false,
+       "Type": "Subtitle",
+       "Index": 14
+      },
+      {
+       "Codec": "ass",
+       "Language": "pol",
+       "IsDefault": false,
+       "IsExternal": false,
+       "Type": "Subtitle",
+       "Index": 15
+      },
+      {
+       "Codec": "ass",
+       "Language": "por",
+       "Title": "Brazilian",
+       "IsDefault": false,
+       "IsExternal": false,
+       "Type": "Subtitle",
+       "Index": 16
+      },
+      {
+       "Codec": "ass",
+       "Language": "rus",
+       "IsDefault": false,
+       "IsExternal": false,
+       "Type": "Subtitle",
+       "Index": 17
+      },
+      {
+       "Codec": "ass",
+       "Language": "tha",
+       "IsDefault": false,
+       "IsExternal": false,
+       "Type": "Subtitle",
+       "Index": 18
+      },
+      {
+       "Codec": "ass",
+       "Language": "vie",
+       "IsDefault": false,
+       "IsExternal": false,
+       "Type": "Subtitle",
+       "Index": 19
+      },
+      {
+       "Codec": "ass",
+       "Language": "zho",
+       "Title": "Simplified",
+       "IsDefault": false,
+       "IsExternal": false,
+       "Type": "Subtitle",
+       "Index": 20
+      },
+      {
+       "Codec": "ass",
+       "Language": "zho",
+       "Title": "Traditional",
+       "IsDefault": false,
+       "IsExternal": false,
+       "Type": "Subtitle",
+       "Index": 21
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "TotalRecordCount": 1
+}

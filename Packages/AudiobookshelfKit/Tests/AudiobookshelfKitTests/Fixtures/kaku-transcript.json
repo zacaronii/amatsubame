@@ -1,0 +1,8 @@
+{"item": {"libraryItemId": "show", "episodeId": "ep1", "libraryId": "lib"},
+ "source": {"fingerprint": "11:22:33.0", "duration": 1800.5, "model": "large-v3", "modelVersion": "p2", "kaku": "1.1.0", "pipeline": 2, "createdAt": "2026-11-05T08:30:03+00:00"},
+ "sentences": [
+  {"start": 25.8, "end": 27.4, "text": "それでは、本編をどうぞ。", "confidence": 0.91,
+   "words": [{"text": "それでは、", "start": 25.8, "end": 26.5, "confidence": 0.9}, {"text": "本編をどうぞ。", "start": 26.5, "end": 27.4, "confidence": 0.92}]},
+  {"start": 34.8, "end": 36.1, "text": "よろしくお願いします。", "confidence": 0.97,
+   "words": [{"text": "よろしくお願いします。", "start": 34.8, "end": 36.1, "confidence": 0.97}]}
+ ]}

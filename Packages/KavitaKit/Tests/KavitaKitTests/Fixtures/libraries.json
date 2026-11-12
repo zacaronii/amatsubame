@@ -1,0 +1,125 @@
+[
+  {
+    "lastScanned": "2025-03-08T03:03:06.0000000",
+    "coverImage": null,
+    "folderWatching": true,
+    "includeInDashboard": true,
+    "includeInRecommended": true,
+    "manageCollections": true,
+    "manageReadingLists": true,
+    "includeInSearch": true,
+    "allowScrobbling": true,
+    "folders": [
+      "/library/novels"
+    ],
+    "collapseSeriesRelationships": false,
+    "libraryFileTypes": [
+      2
+    ],
+    "excludePatterns": [
+      ""
+    ],
+    "allowMetadataMatching": true,
+    "enableMetadata": true,
+    "removePrefixForSortName": false,
+    "inheritWebLinksFromFirstChapter": false,
+    "defaultLanguage": "",
+    "metadataProvider": 2,
+    "id": 2,
+    "name": "Novels",
+    "type": 2
+  },
+  {
+    "lastScanned": "2025-03-08T03:03:05.0000000",
+    "coverImage": null,
+    "folderWatching": true,
+    "includeInDashboard": true,
+    "includeInRecommended": true,
+    "manageCollections": true,
+    "manageReadingLists": true,
+    "includeInSearch": true,
+    "allowScrobbling": true,
+    "folders": [
+      "/library/comics"
+    ],
+    "collapseSeriesRelationships": false,
+    "libraryFileTypes": [
+      1
+    ],
+    "excludePatterns": [
+      ""
+    ],
+    "allowMetadataMatching": true,
+    "enableMetadata": true,
+    "removePrefixForSortName": false,
+    "inheritWebLinksFromFirstChapter": false,
+    "defaultLanguage": "en",
+    "metadataProvider": 3,
+    "id": 1,
+    "name": "Comics",
+    "type": 0
+  },
+  {
+    "lastScanned": "2025-03-08T06:24:22.0000000",
+    "coverImage": null,
+    "folderWatching": true,
+    "includeInDashboard": true,
+    "includeInRecommended": true,
+    "manageCollections": false,
+    "manageReadingLists": false,
+    "includeInSearch": true,
+    "allowScrobbling": true,
+    "folders": [
+      "/library/ja-comics"
+    ],
+    "collapseSeriesRelationships": false,
+    "libraryFileTypes": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "excludePatterns": [
+      ""
+    ],
+    "allowMetadataMatching": true,
+    "enableMetadata": true,
+    "removePrefixForSortName": false,
+    "inheritWebLinksFromFirstChapter": false,
+    "defaultLanguage": "ja",
+    "metadataProvider": 3,
+    "id": 3,
+    "name": "漫画",
+    "type": 0
+  },
+  {
+    "lastScanned": "2025-03-08T03:03:06.0000000",
+    "coverImage": null,
+    "folderWatching": true,
+    "includeInDashboard": true,
+    "includeInRecommended": true,
+    "manageCollections": false,
+    "manageReadingLists": false,
+    "includeInSearch": true,
+    "allowScrobbling": true,
+    "folders": [
+      "/library/ja-novels"
+    ],
+    "collapseSeriesRelationships": false,
+    "libraryFileTypes": [
+      2
+    ],
+    "excludePatterns": [
+      ""
+    ],
+    "allowMetadataMatching": true,
+    "enableMetadata": true,
+    "removePrefixForSortName": false,
+    "inheritWebLinksFromFirstChapter": false,
+    "defaultLanguage": "ja",
+    "metadataProvider": 3,
+    "id": 4,
+    "name": "小説",
+    "type": 4
+  }
+]

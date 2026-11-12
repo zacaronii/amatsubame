@@ -1,0 +1,113 @@
+:root {
+  color-scheme: light dark;
+  --text-color: #1c1c1e;
+  --fg: var(--text-color);
+  --background-color: #ffffff;
+  --canvas: var(--background-color);
+  --secondary: #6e6e73;
+  --separator: rgba(60, 60, 67, 0.18);
+  --accent: #0a84ff;
+  --on-accent: #ffffff;
+  --tag-background: #e5e5ea;
+  --example-background: #f2f2f7;
+  --example-word: #0a6fd8;
+  --badge-background: #eef3ff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text-color: #f2f2f7;
+    --background-color: #1c1c1e;
+    --secondary: #a1a1a6;
+    --separator: rgba(84, 84, 88, 0.6);
+    --tag-background: #3a3a3c;
+    --example-background: #2c2c2e;
+    --example-word: #64b5ff;
+    --badge-background: #1f2a3d;
+  }
+}
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; padding: 12px 16px 32px;
+  font: -apple-system-body; font-family: -apple-system, "Hiragino Sans", sans-serif;
+  color: var(--text-color); background: var(--background-color);
+  line-height: 1.5; -webkit-user-select: text; user-select: text;
+  -webkit-tap-highlight-color: transparent;
+}
+.no-results { color: var(--secondary); text-align: center; padding: 2em 0; }
+.entry { padding: 12px 0 16px; border-bottom: 1px solid var(--separator); }
+.entry:last-child { border-bottom: none; }
+.headword { display: flex; align-items: center; gap: 10px; }
+.headword .expression { flex: 1; min-width: 0; }
+.expression { font-size: 2em; line-height: 1.1; font-weight: 500; }
+/* Furigana sits close over the kanji it reads, spread across them (な ん over 何). */
+.expression ruby { ruby-align: space-around; }
+.expression rt { font-size: 0.45em; line-height: 1; color: var(--secondary); ruby-align: space-around; }
+/* Round 44 pt targets on the right of the headword; + is filled in the app's accent. */
+.audio-button, .mine-button {
+  flex: none; border: none; padding: 0; cursor: pointer; width: 44px; height: 44px; border-radius: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.audio-button { color: var(--accent); background: var(--tag-background); }
+.audio-button svg { width: 22px; height: 22px; fill: currentColor; }
+.audio-button.playing { background: color-mix(in srgb, var(--accent) 25%, var(--tag-background)); }
+.audio-button.unavailable { color: var(--secondary); opacity: 0.6; }
+.mine-button { color: var(--on-accent); background: var(--accent); }
+.mine-button svg { width: 26px; height: 26px; fill: currentColor; }
+.mine-button .done, .mine-button.mined .add { display: none; }
+.mine-button.mined .done { display: inline; }
+.mine-button.mined { color: var(--accent); background: var(--tag-background); }
+.inflections { margin-top: 4px; font-size: 0.8em; color: var(--secondary); }
+.inflection-separator { margin: 0 0.35em; }
+.frequencies { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
+.frequency { display: inline-flex; border-radius: 6px; overflow: hidden; font-size: 0.75em; }
+.frequency-dictionary { background: var(--accent); color: white; padding: 1px 6px; }
+.frequency-value { background: var(--badge-background); padding: 1px 6px; }
+.pitch-group { margin-top: 6px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+.pitch-dictionary { font-size: 0.75em; color: var(--secondary); }
+.pitch { display: inline-flex; align-items: baseline; gap: 4px; }
+.pitch-text { font-size: 1.1em; }
+.mora { padding-top: 2px; }
+.mora.high { border-top: 2px solid currentColor; }
+.mora.downstep { border-right: 2px solid currentColor; }
+.pitch-number { font-size: 0.75em; color: var(--secondary); }
+.glossaries { margin-top: 12px; border-top: 1px solid var(--separator); }
+.dictionary-name {
+  display: flex; align-items: center; gap: 6px; margin: 12px 0 2px;
+  font-size: 0.8em; color: var(--secondary);
+}
+.dictionary-name svg { width: 14px; height: 14px; fill: currentColor; }
+.glossary { margin-top: 10px; }
+.sense-number {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 1.6em; height: 1.6em;
+  border-radius: 0.8em; font-size: 0.75em; font-weight: 600; background: var(--accent); color: var(--on-accent);
+}
+/* JMdict examples: a rounded box, the translation smaller and grey, the looked-up word marked. */
+[data-sc-content="examples"] {
+  margin: 6px 0 4px !important; padding: 10px 12px 10px 2.4em !important; border-radius: 12px;
+  background: var(--example-background);
+}
+[data-sc-content="examples"] li[lang="en"] { font-size: 0.85em; color: var(--secondary); }
+.example-word { color: var(--example-word); }
+.glossary-header { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 4px; }
+.tag { font-size: 0.7em; padding: 1px 5px; border-radius: 4px; background: var(--tag-background); }
+.gloss-list { margin: 0; padding-left: 1.4em; }
+.gloss-content ul, .gloss-content ol { padding-left: 1.4em; margin: 0.2em 0; }
+.gloss-sc-table-container { overflow-x: auto; }
+.gloss-sc-table { border-collapse: collapse; }
+.gloss-sc-th, .gloss-sc-td { border: 0 solid var(--separator); padding: 0.1em 0.3em; }
+.gloss-link { color: var(--accent); text-decoration: none; }
+.gloss-image-link { display: inline-block; }
+.gloss-image-container { display: inline-block; }
+.gloss-image { display: block; }
+[data-appearance="monochrome"] .gloss-image { filter: grayscale(1); }
+@media (prefers-color-scheme: dark) { [data-appearance="monochrome"] .gloss-image { filter: invert(1); } }
+.source {
+  font-size: 1.25em; line-height: 1.7; padding: 10px 12px; margin-bottom: 4px;
+  border-radius: 10px; background: var(--badge-background);
+}
+.source mark { background: color-mix(in srgb, var(--accent) 30%, transparent); color: inherit; border-radius: 3px; }
+/* A numbered sense: its glosses on one line ("why? · what for?"), indented under the number. */
+.glossary:has(.sense-number) .gloss-content { margin-left: 2.1em; }
+[data-sc-content="glossary"] { list-style: none !important; padding-left: 0 !important; }
+[data-sc-content="glossary"] > li { display: inline; font-size: 1.05em; }
+[data-sc-content="glossary"] > li + li::before { content: " · "; color: var(--secondary); }

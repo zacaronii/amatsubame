@@ -1,0 +1,42 @@
+{
+ "Items": [
+  {
+   "Name": "Example Drama Show",
+   "Id": "fa4e000000000000000000000000001e",
+   "PremiereDate": "2030-01-03T00:00:00.0000000Z",
+   "OfficialRating": "TV-14",
+   "ChannelId": null,
+   "CommunityRating": 8.58,
+   "ProductionYear": 2018,
+   "IndexNumber": 1,
+   "IsFolder": true,
+   "Type": "Season",
+   "ParentBackdropItemId": "fa4e000000000000000000000000001c",
+   "ParentBackdropImageTags": [
+    "fa4e000000000000000000000000001d"
+   ],
+   "UserData": {
+    "PlayedPercentage": 0,
+    "UnplayedItemCount": 13,
+    "PlaybackPositionTicks": 0,
+    "PlayCount": 0,
+    "IsFavorite": false,
+    "Played": false,
+    "Key": "shoko://series/3001",
+    "ItemId": "fa4e000000000000000000000000001e"
+   },
+   "SeriesName": "Example Drama Show",
+   "SeriesId": "fa4e000000000000000000000000001c",
+   "SeriesPrimaryImageTag": "fa4e000000000000000000000000001f",
+   "ImageTags": {
+    "Primary": "fa4e0000000000000000000000000022",
+    "Logo": "fa4e0000000000000000000000000021"
+   },
+   "BackdropImageTags": [],
+   "MediaType": "Unknown",
+   "EndDate": "2030-01-06T00:00:00.0000000Z"
+  }
+ ],
+ "TotalRecordCount": 1,
+ "StartIndex": 0
+}

@@ -1,0 +1,127 @@
+{
+ "libraries": [
+  {
+   "id": "00000000-0000-4000-8000-000000000001",
+   "name": "Books",
+   "folders": [
+    {
+     "id": "00000000-0000-4000-8000-000000000002",
+     "fullPath": "/audiobooks",
+     "libraryId": "00000000-0000-4000-8000-000000000001",
+     "addedAt": 1767704400000
+    }
+   ],
+   "displayOrder": 1,
+   "icon": "audiobookshelf",
+   "mediaType": "book",
+   "provider": "audible",
+   "settings": {
+    "coverAspectRatio": 1,
+    "disableWatcher": false,
+    "skipMatchingMediaWithAsin": false,
+    "skipMatchingMediaWithIsbn": false,
+    "autoScanCronExpression": "0 0 * * 1",
+    "audiobooksOnly": true,
+    "epubsAllowScriptedContent": false,
+    "hideSingleBookSeries": true,
+    "onlyShowLaterBooksInContinueSeries": true,
+    "metadataPrecedence": [
+     "folderStructure",
+     "audioMetatags",
+     "nfoFile",
+     "txtFiles",
+     "opfFile",
+     "absMetadata"
+    ],
+    "podcastSearchRegion": "us",
+    "markAsFinishedPercentComplete": null,
+    "markAsFinishedTimeRemaining": 10
+   },
+   "lastScan": 1768813200000,
+   "lastScanVersion": "2.36.1",
+   "createdAt": 1767679200000,
+   "lastUpdate": 1768813200000
+  },
+  {
+   "id": "00000000-0000-4000-8000-000000000003",
+   "name": "Podcasts",
+   "folders": [
+    {
+     "id": "00000000-0000-4000-8000-000000000004",
+     "fullPath": "/podcasts",
+     "libraryId": "00000000-0000-4000-8000-000000000003",
+     "addedAt": 1767654000000
+    }
+   ],
+   "displayOrder": 2,
+   "icon": "rss",
+   "mediaType": "podcast",
+   "provider": "itunes",
+   "settings": {
+    "coverAspectRatio": 1,
+    "disableWatcher": false,
+    "skipMatchingMediaWithAsin": false,
+    "skipMatchingMediaWithIsbn": false,
+    "autoScanCronExpression": "0 0 * * *",
+    "audiobooksOnly": false,
+    "epubsAllowScriptedContent": false,
+    "hideSingleBookSeries": false,
+    "onlyShowLaterBooksInContinueSeries": false,
+    "metadataPrecedence": [
+     "folderStructure",
+     "audioMetatags",
+     "nfoFile",
+     "txtFiles",
+     "opfFile",
+     "absMetadata"
+    ],
+    "podcastSearchRegion": "us"
+   },
+   "lastScan": 1769040000000,
+   "lastScanVersion": "2.36.1",
+   "createdAt": 1767628800000,
+   "lastUpdate": 1769040000000
+  },
+  {
+   "id": "00000000-0000-4000-8000-000000000005",
+   "name": "Japanese Books",
+   "folders": [
+    {
+     "id": "00000000-0000-4000-8000-000000000006",
+     "fullPath": "/japanese-audiobooks",
+     "libraryId": "00000000-0000-4000-8000-000000000005",
+     "addedAt": 1768586400000
+    }
+   ],
+   "displayOrder": 3,
+   "icon": "headphones",
+   "mediaType": "book",
+   "provider": "audible",
+   "settings": {
+    "coverAspectRatio": 1,
+    "disableWatcher": false,
+    "autoScanCronExpression": null,
+    "skipMatchingMediaWithAsin": false,
+    "skipMatchingMediaWithIsbn": false,
+    "audiobooksOnly": true,
+    "epubsAllowScriptedContent": false,
+    "hideSingleBookSeries": false,
+    "onlyShowLaterBooksInContinueSeries": false,
+    "metadataPrecedence": [
+     "folderStructure",
+     "audioMetatags",
+     "nfoFile",
+     "txtFiles",
+     "opfFile",
+     "absMetadata"
+    ],
+    "markAsFinishedPercentComplete": null,
+    "markAsFinishedTimeRemaining": 10
+   },
+   "lastScan": 1768611600000,
+   "lastScanVersion": "2.36.1",
+   "createdAt": 1768561200000,
+   "lastUpdate": 1768636800000
+  }
+ ]
+}

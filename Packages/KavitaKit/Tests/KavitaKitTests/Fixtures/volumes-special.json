@@ -1,0 +1,233 @@
+[
+  {
+    "id": 207,
+    "minNumber": 100000,
+    "maxNumber": 100000,
+    "name": "100000",
+    "number": 100000,
+    "pages": 188,
+    "pagesRead": 21,
+    "lastModifiedUtc": "2025-01-12T03:41:58.0000000",
+    "createdUtc": "2025-01-12T03:40:59.0000000",
+    "created": "2025-01-12T03:40:59.0000000",
+    "lastModified": "2025-01-12T03:41:58.0000000",
+    "seriesId": 9,
+    "chapters": [
+      {
+        "id": 207,
+        "range": "Side Story",
+        "number": "-100000",
+        "minNumber": -100000,
+        "maxNumber": -100000,
+        "sortOrder": 0,
+        "pages": 188,
+        "isSpecial": true,
+        "title": "Side Story",
+        "files": [
+          {
+            "id": 207,
+            "filePath": "/library/comics/midnight-bridge/Side Story.cbz",
+            "pages": 188,
+            "bytes": 100000000,
+            "format": 1,
+            "created": "2025-01-12T03:40:59.0000000",
+            "extension": ".cbz",
+            "koreaderHash": "0123456789abcdef0123456789abcdef"
+          }
+        ],
+        "pagesRead": 21,
+        "totalReads": 0,
+        "lastReadingProgressUtc": "2025-01-17T12:29:51.5000000",
+        "lastReadingProgress": "2025-01-17T12:29:51.5000000",
+        "coverImageLocked": false,
+        "volumeId": 207,
+        "createdUtc": "2025-01-12T03:40:59.0000000",
+        "lastModifiedUtc": "2025-01-12T03:41:00.0000000",
+        "created": "2025-01-12T03:40:59.0000000",
+        "releaseDate": "2015-04-01T00:00:00",
+        "titleName": "Side Story",
+        "summary": "A description.",
+        "ageRating": 1,
+        "wordCount": 0,
+        "volumeTitle": "",
+        "minHoursToRead": 1,
+        "maxHoursToRead": 1,
+        "avgHoursToRead": 1.0307018,
+        "webLinks": "",
+        "isbn": "",
+        "writers": [
+          {
+            "id": 93,
+            "name": "Writer Two",
+            "coverImageLocked": false,
+            "primaryColor": null,
+            "secondaryColor": null,
+            "coverImage": null,
+            "aliases": [],
+            "description": null,
+            "asin": null,
+            "aniListId": 0,
+            "malId": 0,
+            "hardcoverId": null,
+            "webLinks": [],
+            "roles": []
+          }
+        ],
+        "coverArtists": [
+          {
+            "id": 93,
+            "name": "Writer Two",
+            "coverImageLocked": false,
+            "primaryColor": null,
+            "secondaryColor": null,
+            "coverImage": null,
+            "aliases": [],
+            "description": null,
+            "asin": null,
+            "aniListId": 0,
+            "malId": 0,
+            "hardcoverId": null,
+            "webLinks": [],
+            "roles": []
+          }
+        ],
+        "publishers": [
+          {
+            "id": 94,
+            "name": "Example Press",
+            "coverImageLocked": false,
+            "primaryColor": null,
+            "secondaryColor": null,
+            "coverImage": null,
+            "aliases": [],
+            "description": null,
+            "asin": null,
+            "aniListId": 0,
+            "malId": 0,
+            "hardcoverId": null,
+            "webLinks": [],
+            "roles": []
+          }
+        ],
+        "characters": [],
+        "pencillers": [],
+        "inkers": [],
+        "imprints": [
+          {
+            "id": 95,
+            "name": "Example Press (Original)",
+            "coverImageLocked": false,
+            "primaryColor": null,
+            "secondaryColor": null,
+            "coverImage": null,
+            "aliases": [],
+            "description": null,
+            "asin": null,
+            "aniListId": 0,
+            "malId": 0,
+            "hardcoverId": null,
+            "webLinks": [],
+            "roles": []
+          },
+          {
+            "id": 96,
+            "name": "Example Press (English)",
+            "coverImageLocked": false,
+            "primaryColor": null,
+            "secondaryColor": null,
+            "coverImage": null,
+            "aliases": [],
+            "description": null,
+            "asin": null,
+            "aniListId": 0,
+            "malId": 0,
+            "hardcoverId": null,
+            "webLinks": [],
+            "roles": []
+          }
+        ],
+        "colorists": [],
+        "letterers": [],
+        "editors": [],
+        "translators": [],
+        "teams": [],
+        "locations": [],
+        "genres": [
+          {
+            "id": 14,
+            "title": "Supernatural"
+          },
+          {
+            "id": 42,
+            "title": "Drama"
+          },
+          {
+            "id": 44,
+            "title": "Slice of Life"
+          }
+        ],
+        "tags": [
+          {
+            "id": 166,
+            "title": "Ghosts"
+          },
+          {
+            "id": 49,
+            "title": "College"
+          }
+        ],
+        "publicationStatus": 0,
+        "language": "en",
+        "count": 100000,
+        "totalCount": 2,
+        "languageLocked": false,
+        "summaryLocked": false,
+        "ageRatingLocked": false,
+        "publicationStatusLocked": false,
+        "genresLocked": false,
+        "tagsLocked": false,
+        "writerLocked": false,
+        "characterLocked": false,
+        "coloristLocked": false,
+        "editorLocked": false,
+        "inkerLocked": false,
+        "imprintLocked": false,
+        "lettererLocked": false,
+        "pencillerLocked": false,
+        "publisherLocked": false,
+        "translatorLocked": false,
+        "teamLocked": false,
+        "locationLocked": false,
+        "coverArtistLocked": false,
+        "releaseDateLocked": false,
+        "titleNameLocked": false,
+        "sortOrderLocked": false,
+        "coverImage": "v207_c207.webp",
+        "primaryColor": "#CCD0AB",
+        "secondaryColor": "#737D81",
+        "format": 1,
+        "aniListId": 0,
+        "malId": 0,
+        "hardcoverId": 0,
+        "metronId": 0,
+        "comicVineId": null,
+        "mangaBakaId": 0,
+        "cbrId": 0
+      }
+    ],
+    "minHoursToRead": 1,
+    "maxHoursToRead": 1,
+    "avgHoursToRead": 1.0307018,
+    "wordCount": 0,
+    "coverImage": "v207_c207.webp",
+    "primaryColor": "#4E5E65",
+    "secondaryColor": "#B3B596",
+    "aniListId": 0,
+    "malId": 0,
+    "hardcoverId": 0,
+    "metronId": 0,
+    "comicVineId": null,
+    "mangaBakaId": 0,
+    "cbrId": 0
+  }
+]

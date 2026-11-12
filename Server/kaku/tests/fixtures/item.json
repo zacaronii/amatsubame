@@ -1,0 +1,53 @@
+{
+  "id": "item-1",
+  "libraryId": "lib-1",
+  "mediaType": "podcast",
+  "media": {
+    "id": "media-1",
+    "metadata": {
+      "title": "テストポッドキャスト"
+    },
+    "episodes": [
+      {
+        "id": "episode-1",
+        "libraryItemId": "item-1",
+        "index": 1,
+        "title": "第1回 テスト",
+        "addedAt": 1793800000000,
+        "publishedAt": 1779900000000,
+        "duration": 2179.344,
+        "audioFile": {
+          "ino": "200",
+          "index": 1,
+          "duration": 2179.344,
+          "codec": "mp3",
+          "metadata": {
+            "filename": "episode1.mp3",
+            "ext": ".mp3",
+            "size": 35300896
+          }
+        }
+      },
+      {
+        "id": "episode-2",
+        "libraryItemId": "item-1",
+        "index": 2,
+        "title": "第2回 テスト",
+        "addedAt": 1792800000000,
+        "publishedAt": 1780200000000,
+        "duration": 1813.272,
+        "audioFile": {
+          "ino": "201",
+          "index": 1,
+          "duration": 1813.272,
+          "codec": "mp3",
+          "metadata": {
+            "filename": "episode2.mp3",
+            "ext": ".mp3",
+            "size": 29337970
+          }
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,33 @@
+# Kaku with Docker Compose and an NVIDIA GPU (see docs/kaku.md). Copy env.example to .env next to
+# this file, fill it in, then `docker compose up -d --build`. The database, transcripts and the
+# Whisper model cache are kept in ./data and ./models.
+services:
+  kaku:
+    image: kaku:1
+    build: .
+    container_name: kaku
+    restart: unless-stopped
+    runtime: nvidia
+    ports:
+      - "${KAKU_PORT:-8000}:8000"
+    environment:
+      - TZ=${TZ:-UTC}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - HOME=/data
+      - AUDIOBOOKSHELF_URL=${AUDIOBOOKSHELF_URL}
+      - AUDIOBOOKSHELF_API_KEY=${AUDIOBOOKSHELF_API_KEY}
+      - KAKU_API_TOKEN=${KAKU_API_TOKEN}
+      # Optional: Jellyfin episodes transcribed on request, for Miru's subtitles.
+      - JELLYFIN_URL=${JELLYFIN_URL:-}
+      - JELLYFIN_API_KEY=${JELLYFIN_API_KEY:-}
+    volumes:
+      - ./data:/data
+      - ./models:/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

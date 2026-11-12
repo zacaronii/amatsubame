@@ -1,0 +1,30 @@
+{
+  "id": "book-1",
+  "libraryId": "lib-2",
+  "mediaType": "book",
+  "addedAt": 1793900000000,
+  "updatedAt": 1793900000000,
+  "media": {
+    "id": "media-2",
+    "metadata": {
+      "title": "テストの本",
+      "authors": [{"id": "author-1", "name": "著者"}],
+      "narrators": ["朗読者"],
+      "authorName": "著者",
+      "narratorName": "朗読者"
+    },
+    "duration": 5400.5,
+    "chapters": [
+      {"id": 0, "start": 0, "end": 2700.25, "title": "第一章"},
+      {"id": 1, "start": 2700.25, "end": 5400.5, "title": "第二章"}
+    ],
+    "audioFiles": [
+      {"index": 1, "ino": "310", "duration": 2700.25, "mimeType": "audio/mpeg", "metadata": {"filename": "part1.mp3", "ext": ".mp3", "size": 43204000}},
+      {"index": 2, "ino": "311", "duration": 2700.25, "mimeType": "audio/mpeg", "metadata": {"filename": "part2.mp3", "ext": ".mp3", "size": 43204001}}
+    ],
+    "tracks": [
+      {"index": 2, "ino": "311", "startOffset": 2700.25, "duration": 2700.25, "mimeType": "audio/mpeg", "title": "part2.mp3"},
+      {"index": 1, "ino": "310", "startOffset": 0, "duration": 2700.25, "mimeType": "audio/mpeg", "title": "part1.mp3"}
+    ]
+  }
+}
