@@ -19,6 +19,6 @@ let package = Package(
         .testTarget(name: "OCRTests", dependencies: [
             "OCR",
             .product(name: "CoreTestSupport", package: "Core"),
-        ]),
+        ], resources: [.copy("Fixtures")]),
     ]
 )

@@ -110,7 +110,13 @@ public actor OCRPipeline {
             }
         }
         let (logits, boxes) = try detectorOutputs(input)
+        #if targetEnvironment(simulator)
+        // The iOS Simulator returns these packed while reporting padded strides ([9600, 32, 1]):
+        // read by the strides, almost nothing was found there (checked 2026-11-13, iOS 26.5).
+        return DetectionDecoder.decode(logits: logits.packedFloats(), boxes: boxes.packedFloats(), threshold: threshold)
+        #else
         return DetectionDecoder.decode(logits: logits.floats(), boxes: boxes.floats(), threshold: threshold)
+        #endif
     }
 
     func detectorOutputs(_ input: MLMultiArray) throws -> (logits: MLMultiArray, boxes: MLMultiArray) {
@@ -175,6 +181,18 @@ public actor OCRPipeline {
 }
 
 extension MLMultiArray {
+    /// The first `count` values as stored, ignoring the strides.
+    func packedFloats() -> [Float] {
+        switch dataType {
+        case .float16:
+            return withUnsafeBufferPointer(ofType: Float16.self) { buffer in (0..<count).map { Float(buffer[$0]) } }
+        case .float32:
+            return withUnsafeBufferPointer(ofType: Float.self) { buffer in Array(buffer.prefix(count)) }
+        default:
+            return (0..<count).map { self[$0].floatValue }
+        }
+    }
+
     /// All values as Float in logical (row-major) order. Core ML may pad rows
     /// (e.g. the detector's [1, 300, 3] float16 logits use strides [9600, 32, 1]),
     /// so values are read through the strides rather than as one contiguous run.
