@@ -23,10 +23,12 @@ struct CoverImage: View {
                 }
             }
             .clipShape(.rect(cornerRadius: 8))
-            .task(id: request?.url) {
+            .task(id: "\(request?.url?.absoluteString ?? "")#\(CoverGeneration.shared.value)") {
                 guard let request else { return }
-                image = try? await CoverLoader.image(for: request, maxPixelSize: 480)
-                if let image { onImage?(image) }
+                await CoverLoader.load(request, maxPixelSize: 480) {
+                    image = $0
+                    onImage?($0)
+                }
             }
     }
 }

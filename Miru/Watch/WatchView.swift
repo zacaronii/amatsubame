@@ -185,7 +185,10 @@ struct WatchView: View {
         .overlay {
             if libraries.isEmpty && isLoading { ProgressView() }
         }
-        .refreshable { await load() }
+        .refreshable {
+            CoverLoader.recheck()
+            await load()
+        }
     }
 
     private func nextUpRows(_ items: [JellyfinItem]) -> some View {
@@ -477,11 +480,13 @@ struct JellyfinImage: View {
                 }
             }
             .clipShape(.rect(cornerRadius: 8))
-            .task(id: "\(itemId)/\(tag ?? "")") {
+            .task(id: "\(itemId)/\(tag ?? "")#\(CoverGeneration.shared.value)") {
                 guard let client = environment.jellyfinClient() else { return }
                 let request = client.imageRequest(itemId: itemId, type: type, tag: tag, maxWidth: 480)
-                image = try? await CoverLoader.image(for: request, maxPixelSize: 480)
-                if let image { onImage?(image) }
+                await CoverLoader.load(request, maxPixelSize: 480) {
+                    image = $0
+                    onImage?($0)
+                }
             }
     }
 }

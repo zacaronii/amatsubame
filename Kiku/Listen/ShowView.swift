@@ -104,7 +104,10 @@ struct ShowView: View {
             await environment.library.loadShow(itemId)
             loaded = true
         }
-        .refreshable { await environment.library.loadShow(itemId) }
+        .refreshable {
+            CoverLoader.recheck()
+            await environment.library.loadShow(itemId)
+        }
     }
 }
 

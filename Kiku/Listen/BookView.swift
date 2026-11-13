@@ -93,7 +93,10 @@ struct BookView: View {
             await environment.library.loadBook(itemId)
             loaded = true
         }
-        .refreshable { await environment.library.loadBook(itemId) }
+        .refreshable {
+            CoverLoader.recheck()
+            await environment.library.loadBook(itemId)
+        }
     }
 
     /// "著者 · Read by 朗読者".

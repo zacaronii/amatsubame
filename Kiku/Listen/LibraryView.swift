@@ -69,7 +69,10 @@ struct LibraryView: View {
         }
         .navigationTitle(only?.name ?? "Library")
         .accessibilityIdentifier("library")
-        .refreshable { await environment.library.refresh() }
+        .refreshable {
+            CoverLoader.recheck()
+            await environment.library.refresh()
+        }
     }
 
     /// "Audiobook · 38%", "Audiobook · Finished", or just "Audiobook" before it's started.

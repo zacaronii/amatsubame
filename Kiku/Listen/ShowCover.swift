@@ -26,11 +26,13 @@ struct ShowCover: View {
                 }
             }
             .clipShape(.rect(cornerRadius: cornerRadius))
-            .task(id: itemId) {
+            .task(id: "\(itemId)#\(CoverGeneration.shared.value)") {
                 guard let client = environment.audiobookshelfClient(),
                       let request = try? await client.coverRequest(itemId: itemId, width: 600) else { return }
-                image = try? await CoverLoader.image(for: request, maxPixelSize: 600)
-                if let image { onImage?(image) }
+                await CoverLoader.load(request, maxPixelSize: 600) {
+                    image = $0
+                    onImage?($0)
+                }
             }
             .accessibilityHidden(true)
     }
