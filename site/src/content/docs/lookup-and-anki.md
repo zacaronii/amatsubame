@@ -78,6 +78,9 @@ Open **Settings ▸ Lookup and Mining ▸ Dictionaries**:
   dictionary to delete it.
 - **Sort Results By** picks which frequency dictionary orders the results. **Automatic** is the
   default.
+- Longer matches come first. One exception when you tap text: a name from JMnedict that only matched
+  by reading hiragana as katakana (たと as the name タト) goes after the other results. Searching for
+  a name still finds it first.
 - **Add Recommended…** installs any of the recommended set you don't have.
 - **Import from Files…** imports Yomitan dictionary zips: term dictionaries, frequency lists and pitch
   accent dictionaries.
