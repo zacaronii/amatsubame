@@ -38,6 +38,21 @@ struct OCRModelTests {
         #expect(block.vertical == vertical)
     }
 
+    /// A real page (Pepper&Carrot, CC BY 4.0): both bubbles are found and read. In the iOS
+    /// Simulator the detector's outputs once came back laid out differently from their strides,
+    /// and this page got one bubble or none; run it there too
+    /// (`xcodebuild test -scheme OCR` with `TEST_RUNNER_OCR_MODELS_DIR`).
+    @Test func readsBothBubblesOnARealPage() async throws {
+        let url = try #require(Bundle.module.url(forResource: "pepper-carrot-e01p02", withExtension: "jpg", subdirectory: "Fixtures"))
+        let source = try #require(CGImageSourceCreateWithURL(url as CFURL, nil))
+        let image = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        let (page, _) = try await Self.pipeline().recognize(page: image)
+        let texts = page.blocks.filter { $0.kind == .bubbleText }.map(\.text)
+        #expect(texts.count == 2, "\(texts)")
+        #expect(texts.contains { $0.contains("カンペキ") })
+        #expect(texts.contains { $0.contains("そんなこと") })
+    }
+
     @Test func detectsAndReadsSpeechBubblesInReadingOrder() async throws {
         let (page, timings) = try await Self.pipeline().recognize(page: SyntheticPage.twoBubbles())
         print("Detected \(page.blocks.map(\.text)) — detection \(timings.detection), recognition \(timings.recognition)")
