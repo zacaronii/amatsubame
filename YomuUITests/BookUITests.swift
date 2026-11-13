@@ -151,26 +151,109 @@ final class BookUITests: XCTestCase {
         snapshot("furigana-hidden")
     }
 
-    func testTappingTextOpensLookup() throws {
-        guard ProcessInfo.processInfo.environment["UITEST_DICTIONARY_ZIPS"] != nil else { throw XCTSkip("Needs UITEST_DICTIONARY_ZIPS.") }
-        openBook()
-        // Jump to chapter 1 with the table of contents: show the controls (a tap in the bottom
-        // margin, where there's never text), open Contents and pick the first entry after "Contents".
+    /// Jumps to chapter 1 with the table of contents: shows the controls (a tap in the bottom
+    /// margin, where there's never text), opens Contents and picks the first entry after "Contents"
+    /// (or the entry at `entry`).
+    private func openFirstChapter(entry: Int = 1) {
         page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.985)).tap()
         let contents = app.buttons["Contents"].firstMatch
         XCTAssertTrue(contents.waitForExistence(timeout: 5), "reader controls")
         contents.tap()
         let entries = app.collectionViews.firstMatch.buttons
-        XCTAssertTrue(entries.element(boundBy: 1).waitForExistence(timeout: 5), "table of contents")
-        entries.element(boundBy: 1).tap()
+        XCTAssertTrue(entries.element(boundBy: entry).waitForExistence(timeout: 5), "table of contents")
+        entries.element(boundBy: entry).tap()
         sleep(3)
-        snapshot("book-text")
-        // Vertical text: the first columns are on the right.
-        // The first body column, right of centre (the chapter heading and its picture are further right).
-        page.coordinate(withNormalizedOffset: CGVector(dx: 0.55, dy: 0.25)).tap()
-        let popup = app.webViews.matching(identifier: "lookup.results").firstMatch
-        XCTAssertTrue(popup.waitForExistence(timeout: 15), "lookup popup opened")
+    }
+
+    private var popup: XCUIElement { app.webViews.matching(identifier: "lookup.results").firstMatch }
+
+    func testTappingTextOpensLookup() throws {
+        guard ProcessInfo.processInfo.environment["UITEST_DICTIONARY_ZIPS"] != nil else { throw XCTSkip("Needs UITEST_DICTIONARY_ZIPS.") }
+        openBook()
+        XCTAssertTrue(try lookUpInFirstChapter(), "lookup popup opened")
         snapshot("book-lookup")
+    }
+
+    /// Back from the background, closing the popup has to take the word's mark off the screen,
+    /// and it mustn't come back with the next lookup (WebKit went on showing the page as painted
+    /// before, until a page turn). Marks are yellow; with no Anki set up nothing else on the page is.
+    func testLookupMarkGoesAfterTheAppWasInTheBackground() throws {
+        guard ProcessInfo.processInfo.environment["UITEST_DICTIONARY_ZIPS"] != nil else { throw XCTSkip("Needs UITEST_DICTIONARY_ZIPS.") }
+        openBook()
+        XCTAssertTrue(try lookUpInFirstChapter(), "no word found to look up")
+        XCTAssertGreaterThan(try markedPixels(), markedMinimum, "the looked-up word is marked")
+
+        XCUIDevice.shared.press(.home)
+        sleep(15)
+        app.activate()
+        XCTAssertTrue(popup.waitForExistence(timeout: 10), "popup still open")
+        sleep(2)
+        closePopup()
+        XCTAssertLessThan(try markedPixels(), markedMinimum, "the mark stayed after closing")
+
+        // Another word further down, then close that too.
+        XCTAssertTrue(lookUp(dy: 0.45), "no second word found to look up")
+        closePopup()
+        snapshot("book-marks-cleared")
+        XCTAssertLessThan(try markedPixels(), markedMinimum, "a mark came back after the second lookup")
+    }
+
+    /// Opens the first Contents entry with words near the top (books start with a cover, a title
+    /// page or both) and looks one up. No page shows a mark before.
+    private func lookUpInFirstChapter() throws -> Bool {
+        for entry in 1...3 {
+            openFirstChapter(entry: entry)
+            snapshot("book-text")
+            XCTAssertLessThan(try markedPixels(), markedMinimum, "a mark before any lookup")
+            if lookUp(dy: 0.25) { return true }
+        }
+        return false
+    }
+
+    /// Looks up a word in one of the first body columns at `dy` (vertical text: the first
+    /// columns are right of centre). A tap can land between columns or on furigana (which does
+    /// nothing): a tap outside text shows the controls, so they're hidden again before the next column.
+    private func lookUp(dy: CGFloat) -> Bool {
+        for dx in [0.55, 0.5, 0.45, 0.4] {
+            page.coordinate(withNormalizedOffset: CGVector(dx: dx, dy: dy)).tap()
+            if popup.waitForExistence(timeout: 5) {
+                sleep(1)
+                return true
+            }
+            // With the controls showing, a tap on the page only hides them.
+            if app.buttons["Contents"].exists { page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
+            sleep(1)
+        }
+        return false
+    }
+
+    /// More marked pixels than stray antialiasing could give; a word's mark has thousands.
+    private let markedMinimum = 200
+
+    /// Swipes the popup down by its grabber.
+    private func closePopup() {
+        let grabber = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.49))
+        grabber.press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.98)))
+        XCTAssertTrue(popup.waitForNonExistence(timeout: 5), "popup closed")
+        sleep(2)
+    }
+
+    /// Pixels of the screen in the lookup mark's yellow (rgba(255, 190, 0, 0.45) over the page,
+    /// dimmed while the popup is open).
+    private func markedPixels() throws -> Int {
+        let image = try XCTUnwrap(app.screenshot().image.cgImage)
+        let width = image.width, height = image.height
+        let context = try XCTUnwrap(CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
+                                              bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        let pixels = try XCTUnwrap(context.data).bindMemory(to: UInt8.self, capacity: width * height * 4)
+        var count = 0
+        for index in stride(from: 0, to: width * height * 4, by: 4) {
+            let red = Int(pixels[index]), green = Int(pixels[index + 1]), blue = Int(pixels[index + 2])
+            if red - blue > 30, green - blue > 20, red >= green { count += 1 }
+        }
+        return count
     }
 
     private func snapshot(_ name: String) {
