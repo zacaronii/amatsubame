@@ -7,8 +7,8 @@ import Observation
 @MainActor @Observable
 public final class LineLookup {
     public var popup: LookupPopupModel?
-    /// The looked-up characters: which line (a caller-chosen key) and the character range.
-    public private(set) var highlight: (key: String, range: Range<Int>)?
+    /// The line (a caller-chosen key) the popup was opened from.
+    private var key: String?
     @ObservationIgnored private let service: LookupService
 
     public init(service: LookupService) {
@@ -22,15 +22,20 @@ public final class LineLookup {
         let offset = String(sentence.prefix(characterIndex)).utf16.count
         Task {
             let page = await service.lookup(text: sentence, utf16Offset: offset, showSource: true)
-            if let source = page.source, !page.results.isEmpty {
-                let start = Self.characterIndex(utf16: source.utf16Offset, in: sentence)
-                let end = Self.characterIndex(utf16: source.utf16Offset + source.utf16Length, in: sentence)
-                highlight = (key, start..<max(end, start + 1))
-            } else {
-                highlight = nil
-            }
+            self.key = key
             popup = LookupPopupModel(page: page, context: context)
         }
+    }
+
+    /// The looked-up characters: which line and the character range. It follows the popup:
+    /// a word tapped in the popup's sentence moves it, Back moves it back, and a word from a
+    /// definition (no sentence) leaves it on the sentence's last word.
+    public var highlight: (key: String, range: Range<Int>)? {
+        guard let key, let page = popup?.pages.last(where: { $0.source != nil && !$0.results.isEmpty }),
+              let source = page.source else { return nil }
+        let start = Self.characterIndex(utf16: source.utf16Offset, in: source.text)
+        let end = Self.characterIndex(utf16: source.utf16Offset + source.utf16Length, in: source.text)
+        return (key, start..<max(end, start + 1))
     }
 
     public func highlightedRange(for key: String) -> Range<Int>? {
@@ -39,7 +44,7 @@ public final class LineLookup {
 
     public func close() {
         popup = nil
-        highlight = nil
+        key = nil
     }
 
     public static func characterIndex(utf16 offset: Int, in text: String) -> Int {
