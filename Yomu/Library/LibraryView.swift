@@ -202,7 +202,10 @@ struct LibraryView: View {
             }
             .padding()
         }
-        .refreshable { await model.load(environment) }
+        .refreshable {
+            CoverLoader.recheck()
+            await model.load(environment)
+        }
     }
 
     /// One row per visible library: its newest series, with "See All".

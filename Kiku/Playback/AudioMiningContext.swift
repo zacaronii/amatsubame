@@ -24,12 +24,8 @@ struct AudioMiningContext: MiningContext {
 
     func pictureData() async -> Data? {
         guard let coverRequest else { return nil }
-        if let (data, response) = try? await CoverLoader.session.data(for: coverRequest),
-           (response as? HTTPURLResponse)?.statusCode == 200 {
-            return data
-        }
-        // Offline: the cover cached when the page showed it.
-        return CoverLoader.session.configuration.urlCache?.cachedResponse(for: coverRequest)?.data
+        // Offline, the cover cached when the page showed it.
+        return try? await CoverLoader.data(for: coverRequest)
     }
 
     func sentenceAudio() async -> SentenceAudio? {

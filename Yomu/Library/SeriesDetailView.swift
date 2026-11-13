@@ -118,7 +118,10 @@ struct SeriesDetailView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
-        .refreshable { await load() }
+        .refreshable {
+            CoverLoader.recheck()
+            await load()
+        }
         .task {
             await load()
             await countCharacters()

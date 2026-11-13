@@ -86,7 +86,10 @@ struct JellyfinLibraryView: View {
         #endif
         .navigationTitle(library.name)
         .navigationSubtitle(japaneseOnly ? "Japanese audio only" : "")
-        .refreshable { await load() }
+        .refreshable {
+            CoverLoader.recheck()
+            await load()
+        }
         .task(id: japaneseOnly) { await load() }
     }
 

@@ -73,7 +73,10 @@ struct SeriesGridView: View {
         }
         .searchable(text: $search, prompt: "Filter")
         .navigationTitle(library.name)
-        .refreshable { await load() }
+        .refreshable {
+            CoverLoader.recheck()
+            await load()
+        }
         .task { await load() }
         .task(id: shelf) {
             guard shelf == .downloaded else { return }
