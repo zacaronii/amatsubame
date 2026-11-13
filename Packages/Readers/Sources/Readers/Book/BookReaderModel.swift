@@ -630,6 +630,12 @@ public final class BookReaderModel {
 
     // MARK: Progress and messages
 
+    /// Back in the foreground: see `repaint` in BookReader.js.
+    func repaint() {
+        web?.run("window.bookReader?.repaint()")
+        companion?.run("window.bookReader?.repaint()")
+    }
+
     public func flushProgress() {
         recorder.flush()
         updateReadingSpeed()

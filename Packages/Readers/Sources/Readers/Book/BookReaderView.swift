@@ -167,7 +167,7 @@ public struct BookReaderView: View {
         .onChange(of: model.lookup?.mining?.revision) { Task { await model.markWords() } }
         .onDisappear { model.flushProgress() }
         .onChange(of: scenePhase) { _, phase in
-            if phase != .active { model.flushProgress() }
+            if phase == .active { model.repaint() } else { model.flushProgress() }
         }
         .sheet(isPresented: $showsSettings) { BookSettingsSheet(model: model) }
         .sheet(isPresented: $showsContents) { contents }

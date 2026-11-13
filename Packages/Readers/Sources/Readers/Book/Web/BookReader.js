@@ -260,11 +260,26 @@
   /// Moves the content back by `delta` along the reading axis. A transform rather than a
   /// scroll: on iOS the web view applies a scroll a frame apart from the masks, and the next
   /// column's edge flashed at the page's edge on a turn.
-  let shiftedBy = 0;
+  let shiftedBy = 0, written3D = false;
   function shift(delta) {
     const scale = window.devicePixelRatio || 1;
     shiftedBy = Math.round((shiftedBy - delta) * scale) / scale;
-    document.body.style.setProperty('transform', state.vertical ? `translateX(${shiftedBy}px)` : `translateY(${shiftedBy}px)`, 'important');
+    writeShift(false);
+  }
+
+  function writeShift(as3D) {
+    written3D = as3D;
+    const [x, y] = state.vertical ? [shiftedBy, 0] : [0, shiftedBy];
+    const transform = as3D ? `translate3d(${x}px, ${y}px, 0)` : state.vertical ? `translateX(${x}px)` : `translateY(${y}px)`;
+    document.body.style.setProperty('transform', transform, 'important');
+  }
+
+  /// Back from the background, WebKit can go on showing parts of the page painted before
+  /// (a lookup mark that's gone from the page came back on later repaints). Moving the body's
+  /// layer, as a page turn does, paints it afresh: the same shift, written the other way.
+  function repaint() {
+    if (state.settings.layout !== 'paged' || root.dataset.kbImagePage === 'true') return;
+    writeShift(!written3D);
   }
 
   function clearShift() {
@@ -799,7 +814,7 @@
     return element ? xpathTo(element) : '';
   }
 
-  window.bookReader = {open, update, next, previous, follow, currentXPath, resolveXPath, xpathTo, audit,
+  window.bookReader = {open, update, repaint, next, previous, follow, currentXPath, resolveXPath, xpathTo, audit,
     wordRuns, markWords, unmarkWords,
     readAlong: {show: showReadAlong, clear: clearReadAlong, lastTap: () => lastTap, xpathOfRun, firstVisiblePlace},
     pageCount: () => state.pages.length, page: () => state.page};
