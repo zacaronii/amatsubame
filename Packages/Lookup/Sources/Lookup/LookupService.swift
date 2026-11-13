@@ -70,7 +70,7 @@ public final class LookupService {
     /// popup shows `text` above the results with the match highlighted.
     public func lookup(text: String, utf16Offset: Int, showSource: Bool = false) async -> LookupResultPage {
         let scanned = TextScanner.scanText(text, utf16Offset: utf16Offset)
-        let results = await library.engine.lookup(scanned)
+        let results = NameRanking.forTextTap(await library.engine.lookup(scanned))
         let matched = results.first?.matched ?? ""
         let page = LookupResultPage(
             query: results.first?.matched ?? scanned,

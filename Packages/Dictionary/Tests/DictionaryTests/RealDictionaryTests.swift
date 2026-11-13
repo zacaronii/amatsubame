@@ -25,6 +25,17 @@ struct RealDictionaryTests {
         #expect(result.pitches.first?.accents.first?.downstep == 2, "Kanjium pitch")
     }
 
+    /// With JMnedict in `REAL_DICTIONARY_ZIPS`: tapping た in 「たと思う」 opens た, not the name タト,
+    /// while 「まさと」 typed in Search still finds the name first.
+    @Test func convertedNamesRankBelowWordsInText() async throws {
+        let library = try await Self.importedLibrary()
+        let tapped = NameRanking.forTextTap(await library.engine.lookup("たと思う"))
+        let searched = await library.engine.lookup("まさと")
+        guard searched.first?.glossaries.first?.dictionary.hasPrefix("JMnedict") == true else { return }  // no JMnedict
+        #expect(tapped.first?.matched == "た")
+        #expect(searched.first?.expression == "マサト")
+    }
+
     /// Word marks split a chapter in the background: report how long one takes.
     @Test func chapterScanSpeed() async throws {
         let library = try await Self.importedLibrary()
