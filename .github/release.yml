@@ -1,0 +1,29 @@
+# Groups for the notes `gh release create --generate-notes` writes (scripts/release.sh), by PR label.
+# A PR takes the label of the issue it fixes (CLAUDE.md ▸ Issues); unlabelled PRs land in "Other".
+changelog:
+  exclude:
+    labels:
+      - chore
+      - test
+      - duplicate
+      - invalid
+      - wontfix
+  categories:
+    - title: Features
+      labels:
+        - idea
+        - enhancement
+    - title: Fixes
+      labels:
+        - bug
+    - title: Polish
+      labels:
+        - polish
+        - perf
+        - accessibility
+    - title: Docs
+      labels:
+        - documentation
+    - title: Other
+      labels:
+        - "*"
