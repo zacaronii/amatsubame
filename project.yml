@@ -13,13 +13,14 @@ configFiles:
 
 settings:
   base:
-    # The App Group for the shared setup (Shared/SharedSetup.entitlements) is on for simulator
-    # builds only: signing it for devices needs a paid developer membership. With one, add
-    # CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*] next to each [sdk=iphonesimulator*] line.
+    # The App Group for the shared setup is on for simulator builds; on devices and the Mac only
+    # with AMATSUBAME_APP_GROUP = YES (Config/Signing.xcconfig), which needs a paid developer team.
     SWIFT_VERSION: "6.0"
     CODE_SIGN_STYLE: Automatic
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
+    # The apps only use encryption through Apple's networking (HTTPS) and the video player's TLS.
+    INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     SWIFT_APPROACHABLE_CONCURRENCY: YES
 
@@ -66,9 +67,10 @@ targets:
         PRODUCT_MODULE_NAME: Yomu
         PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).yomu
         CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Shared/SharedSetup.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: $(AMATSUBAME_DEVICE_ENTITLEMENTS)
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         TARGETED_DEVICE_FAMILY: "1,2"
-        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Yomu/Resources/Yomu-macOS.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Shared/App-macOS$(AMATSUBAME_MAC_SUFFIX).entitlements
         ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_FILE: Yomu/Resources/Info.plist
@@ -136,9 +138,10 @@ targets:
         PRODUCT_MODULE_NAME: Miru
         PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).miru
         CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Shared/SharedSetup.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: $(AMATSUBAME_DEVICE_ENTITLEMENTS)
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         TARGETED_DEVICE_FAMILY: "1,2"
-        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Miru/Resources/Miru-macOS.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Shared/App-macOS$(AMATSUBAME_MAC_SUFFIX).entitlements
         ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_FILE: Miru/Resources/Info.plist
@@ -173,9 +176,10 @@ targets:
         PRODUCT_MODULE_NAME: Kiku
         PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).kiku
         CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Shared/SharedSetup.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: $(AMATSUBAME_DEVICE_ENTITLEMENTS)
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         TARGETED_DEVICE_FAMILY: "1,2"
-        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Kiku/Resources/Kiku-macOS.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Shared/App-macOS$(AMATSUBAME_MAC_SUFFIX).entitlements
         ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_FILE: Kiku/Resources/Info.plist
@@ -206,11 +210,13 @@ targets:
         PRODUCT_MODULE_NAME: Hiku
         PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).hiku
         CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Shared/SharedSetup.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: $(AMATSUBAME_DEVICE_ENTITLEMENTS)
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         TARGETED_DEVICE_FAMILY: "1,2"
-        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Hiku/Resources/Hiku-macOS.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Shared/App-macOS$(AMATSUBAME_MAC_SUFFIX).entitlements
         ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
         GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: Hiku/Resources/Info.plist
         INFOPLIST_KEY_CFBundleDisplayName: Hiku
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
@@ -254,6 +260,11 @@ targets:
       path: HikuExtension/Info.plist
       properties:
         CFBundleDisplayName: Hiku
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # AnkiConnect and word audio servers are often plain http.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
         NSExtension:
           NSExtensionPointIdentifier: com.apple.Safari.web-extension
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).SafariWebExtensionHandler
@@ -263,8 +274,9 @@ targets:
         PRODUCT_MODULE_NAME: HikuExtension
         PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).hiku.extension
         CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Shared/SharedSetup.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: $(AMATSUBAME_DEVICE_ENTITLEMENTS)
         TARGETED_DEVICE_FAMILY: "1,2"
-        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: HikuExtension/HikuExtension-macOS.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: HikuExtension/HikuExtension-macOS$(AMATSUBAME_MAC_SUFFIX).entitlements
         ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
         GENERATE_INFOPLIST_FILE: NO
         # The copy step reads the repo's Dictionaries/ folder, which may not exist.
@@ -277,9 +289,11 @@ targets:
           DEST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}"
           mkdir -p "$DEST/Dictionaries"
           cp "${SRCROOT}/Packages/Lookup/Sources/Lookup/Web/TextTapBridge.js" "$DEST/"
+          rm -rf "$DEST/Dictionaries/"*
+          # Archives (TestFlight, the App Store) never carry them: the extension uses the shared setup.
+          if [ "$ACTION" = "install" ]; then exit 0; fi
           # Local dictionaries for development (gitignored, never committed), until the App Group,
           # prebuilt on the Mac (scripts/prebuild-extension-dictionaries.sh); plain zips if that fails.
-          rm -rf "$DEST/Dictionaries/"*
           if "${SRCROOT}/scripts/prebuild-extension-dictionaries.sh" && ls -d "${SRCROOT}/Dictionaries/Prebuilt/"*.hoshidict >/dev/null 2>&1; then
             for package in "${SRCROOT}/Dictionaries/Prebuilt/"*.hoshidict; do
               rsync -a --exclude source.txt "$package" "$DEST/Dictionaries/"

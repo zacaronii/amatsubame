@@ -219,7 +219,7 @@ When sharing is available:
 
 Sharing uses an App Group, which on an iPhone, iPad or Mac needs a team in the paid Apple Developer
 Program; a free account can't sign it. Builds for the Simulator share without it. Turning it on for
-your devices takes a small change to the project, described in
+your devices takes a line in your signing settings and an App Group ID of your own, described in
 [`docs/shared.md`](https://github.com/zacaronii/amatsubame/blob/main/docs/shared.md) in the
 repository. Without it every app keeps its own setup, and Hiku's extension uses dictionaries built
 into it (see [Hiku](/hiku/)).
