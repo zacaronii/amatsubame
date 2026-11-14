@@ -15,8 +15,7 @@
 # - Config/Signing.local.xcconfig with DEVELOPMENT_TEAM (a paid team) and AMATSUBAME_APP_GROUP = YES.
 # - That team's Apple ID signed in to Xcode (Settings ▸ Accounts): signing goes through it, since an
 #   App Manager API key can't manage certificates and profiles.
-# - For uploading, an App Store Connect API key (App Manager) in the login keychain, the .p8 file base64-encoded:
-#     security add-generic-password -s amatsubame.asc -a <Key ID> -j <Issuer ID> -w "$(base64 -i AuthKey_<Key ID>.p8)"
+# - For uploading, an App Store Connect API key (App Manager) in the login keychain (scripts/asc-key.sh).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -57,14 +56,8 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 if [ $upload = 1 ]; then
   # The API key, from the keychain into a file only this run can read.
-  item=$(security find-generic-password -s amatsubame.asc 2>/dev/null) \
-    || fail "no App Store Connect key in the keychain (service amatsubame.asc); see the top of this script."
-  key_id=$(sed -nE 's/^[[:space:]]*"acct"<blob>="(.*)"$/\1/p' <<<"$item")
-  issuer=$(sed -nE 's/^[[:space:]]*"icmt"<blob>="(.*)"$/\1/p' <<<"$item")
-  [ -n "$key_id" ] && [ -n "$issuer" ] || fail "the keychain item needs the Key ID as its account and the Issuer ID as its comment."
-  key_file="$work/AuthKey_$key_id.p8"
-  (umask 077; security find-generic-password -s amatsubame.asc -w | base64 -D > "$key_file")
-  grep -q "BEGIN PRIVATE KEY" "$key_file" || fail "the keychain item doesn't hold a base64-encoded .p8 key."
+  . scripts/asc-key.sh
+  load_asc_key "$work"
 fi
 
 build=$(date -u +%Y%m%d%H%M)
