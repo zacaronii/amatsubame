@@ -38,24 +38,23 @@ final class ExtensionState {
             state = .unknown
         }
         #else
-        let enabled = await withCheckedContinuation { continuation in
-            SFSafariExtensionManager.getStateOfSafariExtension(withIdentifier: Self.identifier) { state, _ in
-                continuation.resume(returning: state?.isEnabled)
-            }
-        }
-        state = enabled.map { $0 ? .on : .off } ?? .unknown
+        // The async form: a completion handler written here would be main-actor isolated, and Safari
+        // calls it on a background queue, which stopped the app on launch.
+        let extensionState = try? await SFSafariExtensionManager.stateOfSafariExtension(withIdentifier: Self.identifier)
+        state = extensionState.map { $0.isEnabled ? .on : .off } ?? .unknown
         #endif
     }
 
     func openSettings() {
         #if os(iOS)
         if #available(iOS 26.2, *) {
-            SFSafariSettings.openExtensionsSettings(forIdentifiers: [Self.identifier]) { _ in }
+            // @Sendable: called back off the main queue (see refresh()).
+            SFSafariSettings.openExtensionsSettings(forIdentifiers: [Self.identifier]) { @Sendable _ in }
         } else if let url = URL(string: UIApplication.openSettingsURLString) {
             UIApplication.shared.open(url)
         }
         #else
-        SFSafariApplication.showPreferencesForExtension(withIdentifier: Self.identifier) { _ in }
+        SFSafariApplication.showPreferencesForExtension(withIdentifier: Self.identifier) { @Sendable _ in }
         #endif
     }
 }
