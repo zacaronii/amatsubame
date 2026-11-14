@@ -65,6 +65,41 @@ original plans ([PLAN.md](docs/PLAN.md), [AUDIO_PLAN.md](docs/AUDIO_PLAN.md),
 [NAMING.md](docs/NAMING.md)). [CLAUDE.md](CLAUDE.md) holds the project's rules and commands for
 contributors and coding agents.
 
+## Contributing
+
+Bugs and ideas are GitHub issues. Work goes issue → branch → pull request → `main`, and `main` should
+always be ready to ship. [CLAUDE.md](CLAUDE.md) has the conventions.
+
+### Releasing
+
+The four apps share one version (`MARKETING_VERSION` in `project.yml`), 0.x while in beta: the middle
+number goes up for features, the last one for fix-only releases. They also share one build number,
+the upload time, which only goes up.
+
+- `scripts/upload-dev.sh` uploads the current commit to the TestFlight **Dev** group and tags it
+  `build-<number>`. A release doesn't rebuild: it promotes a Dev build that has been in use.
+- `scripts/release.sh <build number>` checks that build's commit, tags it `v<version>`, creates the
+  GitHub pre-release with generated notes, and opens the pull request that moves `main` to the next
+  version (0.2.0 out → 0.3.0), so every Dev build already carries the version it would ship as. The
+  build is then added to the main tester group in App Store Connect.
+
+When:
+
+- About every two weeks: ship whatever has merged if `main` passes the checklist; skip the cycle if
+  nothing worthwhile merged.
+- A merged bug fix shouldn't wait more than about a week: do a fix-only release if needed (set
+  `main` to the patch version first, for example 0.3.0 → 0.2.1, then upload and release as usual).
+- TestFlight builds expire after 90 days, so never go more than about two months between releases.
+- Bigger features use a GitHub milestone (for example "v0.4.0") and ship once its issues are closed.
+
+The checklist (the script checks the first two and the fourth, and asks about the rest):
+
+- All four apps build for iOS and macOS.
+- The tests pass: the packages, the apps' unit tests and Kaku's.
+- Every pull request since the last release was checked by hand.
+- No open issue has the "blocks release" label.
+- The build has been in use in the Dev group for a day or two.
+
 ## Acknowledgements
 
 Amatsubame stands on the work of many people. Thank you to:

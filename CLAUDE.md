@@ -38,6 +38,7 @@ Contributor-specific details (your devices, simulators, local folders, server sp
   | `Perf:` | slow or heavy | `perf` |
   | `Q:` | question, look into it | `question` |
 
+- **Pull requests** get the issue's type label (`bug`, `idea`, `polish`, `perf`, `documentation`), or `chore`/`test` for changes users don't see: release notes are grouped by them (`.github/release.yml`). An issue labelled `blocks release` stops `scripts/release.sh`.
 - **Labels:** issues filed from a phone often have none. When going through issues, add the label from the prefix, plus the app's label from the name in the title: `Reader` (Yomu), `Player` (Miru), `Extension` (Hiku), `Kiku`, `Kaku`, or `Shared` for the shared screens and packages that every app uses (title `<Prefix>: All apps – …`). If a title has no prefix, pick the closest one and ask if unsure.
 
 ## Stack
@@ -74,5 +75,5 @@ Contributor-specific details (your devices, simulators, local folders, server sp
 - Docs site (amatsubame.com): Astro Starlight in `site/` (`npm install`, then `npm run dev` or `npm run build`). Pages are in `site/src/content/docs/`; a push to main that touches `site/` publishes it through `.github/workflows/site.yml` (GitHub Pages). Update the user guides when a feature they describe changes.
 - Mac build: `xcodebuild build -scheme Yomu -destination 'platform=macOS'` (and `-scheme Miru`, `-scheme Kiku`, `-scheme Hiku`).
 - Area-specific test setups (live Kavita, real dictionaries, OCR models, Jimaku, sync, the extension) are in each app's doc above.
-- TestFlight: `scripts/upload-testflight.sh [--no-upload] [App …]` archives each app for iOS and macOS with a time-based build number and uploads it (needs the paid team, `AMATSUBAME_APP_GROUP = YES` and an App Store Connect API key in the keychain; see the script's header). Each app has a `PrivacyInfo.xcprivacy`; update it when code starts using another required-reason API.
+- TestFlight and releases (README ▸ Releasing): `scripts/upload-dev.sh [--no-upload] [App …]` archives each app for iOS and macOS with the upload time as build number, uploads it to the Dev group and tags the commit `build-<number>` (needs the paid team, `AMATSUBAME_APP_GROUP = YES` and an App Store Connect API key in the keychain; see the script's header). `scripts/release.sh <build number>` checks that build's commit, tags `v<version>`, creates the GitHub pre-release and opens the next-version PR; `--check-only` runs just the checks. Each app has a `PrivacyInfo.xcprivacy`; update it when code starts using another required-reason API.
 - Kaku: `python3 -m pytest -q tests` in `Server/kaku` (no GPU needed). To run it: `docker compose up -d --build` in `Server/kaku` with a filled-in `.env` from `env.example` (details in docs/kaku.md).
