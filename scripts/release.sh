@@ -11,6 +11,8 @@
 # - the package tests, the apps' unit tests (on an iPhone simulator; RELEASE_SIMULATOR=<udid> picks
 #   one, never the Amatsubame ones) and Kaku's tests pass,
 # - no open issue has the "blocks release" label,
+# - the version fits what's in it: a release with features (PRs labelled idea or enhancement) moves
+#   the middle number (0.3.0), a fix-only one the last (0.2.1),
 # then you confirm the hand checks (every PR since the last release tried, a day or two in Dev).
 # Logs go to build.noindex/release/<version>/.
 set -euo pipefail
@@ -43,6 +45,25 @@ echo "Build $build is commit ${commit:0:7}, version $version."
 logs="build.noindex/release/$version"
 mkdir -p "$logs"
 failures=()
+
+# The pull requests since the last release, with their labels.
+previous=$(git describe --tags --match 'v*' --abbrev=0 "$commit" 2>/dev/null || true)
+prs=$(git log --first-parent --merges --format=%s ${previous:+"$previous.."}"$commit" | sed -nE 's/^Merge pull request #([0-9]+).*/\1/p')
+features=()
+for pr in $prs; do
+  labels=$(gh pr view "$pr" --json labels -q '.labels[].name')
+  grep -qxE 'idea|enhancement' <<<"$labels" && features+=("#$pr")
+done
+
+step "Version"
+IFS=. read -r major minor patch <<<"$version"
+if [ ${#features[@]} -gt 0 ] && [ "${patch:-0}" != 0 ]; then
+  echo "  $version is a fix-only number, but ${features[*]} added features: those release as $major.$((minor + 1)).0."
+  echo "  Set MARKETING_VERSION in project.yml and HikuExtension/Resources/manifest.json on main, then upload again."
+  failures+=("version $version for a release with features")
+else
+  echo "  ok ($([ ${#features[@]} -gt 0 ] && echo "features: ${features[*]}" || echo "fixes only"))"
+fi
 
 step "Issues labelled \"blocks release\""
 blockers=$(gh issue list --state open --label "blocks release" --json number,title -q '.[] | "  #\(.number) \(.title)"')
@@ -132,9 +153,7 @@ if [ ${#failures[@]} -gt 0 ]; then
 fi
 
 step "Hand checks"
-previous=$(git describe --tags --match 'v*' --abbrev=0 "$commit" 2>/dev/null || true)
 echo "  PRs merged since ${previous:-the start}:"
-prs=$(git log --first-parent --merges --format=%s ${previous:+"$previous.."}"$commit" | sed -nE 's/^Merge pull request #([0-9]+).*/\1/p')
 if [ -z "$prs" ]; then
   echo "    (none)"
 else
@@ -158,9 +177,9 @@ git push -q origin "v$version"
 gh release create "v$version" --verify-tag --prerelease --generate-notes --title "Amatsubame $version" \
   --notes "TestFlight build $build."
 
-# The next version: the middle number goes up (a fix-only release, x.y.z, is followed by x.(y+1).0 too).
-IFS=. read -r major minor _ <<<"$version"
-next="$major.$((minor + 1)).0"
+# The next version: the last number goes up, as if the next release only fixes things. The first
+# feature merged after it moves main to x.(y+1).0 (the version check above catches a forgotten one).
+next="$major.$minor.$(( ${patch:-0} + 1 ))"
 main_version=$(git show origin/main:project.yml | sed -nE 's/^[[:space:]]*MARKETING_VERSION:[[:space:]]*"?([0-9.]+)"?.*/\1/p' | head -1)
 if [ "$main_version" != "$version" ]; then
   echo "main is already at $main_version; no version PR needed."
@@ -176,7 +195,7 @@ else
     git commit -q -am "Version $next" -m "After releasing $version (build $build)."
     git push -q -u origin "version-$next"
     gh pr create --base main --head "version-$next" --label chore --title "Version $next" \
-      --body "Moves main to the next version after releasing v$version (TestFlight build $build), so every Dev build carries the version it would ship as."
+      --body "Moves main to $next after releasing v$version (TestFlight build $build), so every Dev build carries the version it would ship as. When a feature (idea or enhancement) merges, change it to $major.$((minor + 1)).0 instead."
   )
   git worktree remove --force "$bump"
 fi

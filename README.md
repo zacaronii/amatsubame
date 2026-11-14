@@ -80,24 +80,27 @@ the upload time, which only goes up.
   `build-<number>`. A release doesn't rebuild: it promotes a Dev build that has been in use.
 - `scripts/release.sh <build number>` checks that build's commit, tags it `v<version>`, creates the
   GitHub pre-release with generated notes, and opens the pull request that moves `main` to the next
-  version (0.2.0 out → 0.3.0), so every Dev build already carries the version it would ship as. The
-  build is then added to the main tester group in App Store Connect.
+  fix version (0.2.0 out → 0.2.1), so every Dev build already carries the version it would ship as.
+  The build is then added to the main tester group in App Store Connect.
+- The first feature (a PR labelled `idea` or `enhancement`) merged after a release also moves `main`
+  to the next feature version (0.2.1 → 0.3.0). If that's forgotten, the release script stops and
+  says so.
 
 When:
 
 - About every two weeks: ship whatever has merged if `main` passes the checklist; skip the cycle if
   nothing worthwhile merged.
-- A merged bug fix shouldn't wait more than about a week: do a fix-only release if needed (set
-  `main` to the patch version first, for example 0.3.0 → 0.2.1, then upload and release as usual).
+- A merged bug fix shouldn't wait more than about a week: do a fix-only release if needed.
 - TestFlight builds expire after 90 days, so never go more than about two months between releases.
 - Bigger features use a GitHub milestone (for example "v0.4.0") and ship once its issues are closed.
 
-The checklist (the script checks the first two and the fourth, and asks about the rest):
+The checklist (the script checks all but the third and last, and asks about those):
 
 - All four apps build for iOS and macOS.
 - The tests pass: the packages, the apps' unit tests and Kaku's.
 - Every pull request since the last release was checked by hand.
 - No open issue has the "blocks release" label.
+- The version fits: the middle number for a release with features, the last for fixes only.
 - The build has been in use in the Dev group for a day or two.
 
 ## Acknowledgements
