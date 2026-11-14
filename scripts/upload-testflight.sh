@@ -92,7 +92,7 @@ for app in "${apps[@]}"; do
     xcodebuild archive -project Amatsubame.xcodeproj -scheme "$app" -configuration Release \
       -destination "generic/platform=$platform" -archivePath "$archive" \
       -derivedDataPath "build.noindex/testflight/derived-$platform" \
-      CURRENT_PROJECT_VERSION="$build" AMATSUBAME_APP_GROUP=YES "${extra[@]}" -allowProvisioningUpdates >"$log" 2>&1 \
+      CURRENT_PROJECT_VERSION="$build" AMATSUBAME_APP_GROUP=YES ${extra[@]+"${extra[@]}"} -allowProvisioningUpdates >"$log" 2>&1 \
       || fail "archiving $app for $platform failed; see $log"
     echo "• $app ($platform): exporting"
     xcodebuild -exportArchive -archivePath "$archive" -exportOptionsPlist "$work/ExportOptions.plist" \
