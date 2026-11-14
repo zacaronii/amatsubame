@@ -12,7 +12,7 @@
 		<true/>
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Connects to your Audiobookshelf, Kaku and AnkiConnect servers on your network.</string>
+	<string>Connects to your Audiobookshelf, Kaku, AnkiConnect and word audio servers on your network.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>

@@ -29,6 +29,6 @@
 		<string>audio</string>
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Connects to your Kavita, Jellyfin and AnkiConnect servers on your network.</string>
+	<string>Connects to your Kavita, Audiobookshelf, Kaku, AnkiConnect and word audio servers on your network.</string>
 </dict>
 </plist>

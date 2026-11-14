@@ -5,4 +5,15 @@
 // IDs are registered to another team.
 DEVELOPMENT_TEAM =
 BUNDLE_ID_PREFIX = com.amatsubame
+
+// The App Group behind the shared setup (docs/shared.md) on devices and the Mac. Only a team in the
+// paid Apple Developer Program that owns group.com.amatsubame can sign it, so it's off unless
+// Signing.local.xcconfig sets AMATSUBAME_APP_GROUP = YES. Simulator builds always have it.
+AMATSUBAME_APP_GROUP = NO
+AMATSUBAME_DEVICE_ENTITLEMENTS_YES = Shared/SharedSetup.entitlements
+AMATSUBAME_DEVICE_ENTITLEMENTS_NO =
+AMATSUBAME_DEVICE_ENTITLEMENTS = $(AMATSUBAME_DEVICE_ENTITLEMENTS_$(AMATSUBAME_APP_GROUP))
+AMATSUBAME_MAC_SUFFIX_YES = -AppGroup
+AMATSUBAME_MAC_SUFFIX_NO =
+AMATSUBAME_MAC_SUFFIX = $(AMATSUBAME_MAC_SUFFIX_$(AMATSUBAME_APP_GROUP))
 #include? "Signing.local.xcconfig"
