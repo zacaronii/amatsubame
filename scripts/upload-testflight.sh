@@ -99,7 +99,7 @@ for app in "${apps[@]}"; do
       -exportPath "$out/$app-$platform" -allowProvisioningUpdates >>"$log" 2>&1 \
       || fail "exporting $app for $platform failed; see $log"
     [ $upload = 1 ] || continue
-    package=$(ls "$out/$app-$platform/"*.ipa "$out/$app-$platform/"*.pkg 2>/dev/null | head -1)
+    package=$(find "$out/$app-$platform" -maxdepth 1 \( -name "*.ipa" -o -name "*.pkg" \) | head -1)
     [ -n "$package" ] || fail "no .ipa or .pkg for $app ($platform) in $out/$app-$platform"
     echo "• $app ($platform): uploading"
     xcrun altool --upload-package "$package" --api-key "$key_id" --api-issuer "$issuer" \
