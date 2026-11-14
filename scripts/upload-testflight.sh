@@ -3,12 +3,14 @@
 #
 #   scripts/upload-testflight.sh [--no-upload] [App ...]
 #
-# Apps default to Yomu Miru Kiku Hiku. --no-upload signs and exports the builds into
-# build.noindex/testflight/<build>/ instead of sending them.
+# Apps default to Yomu Miru Kiku Hiku. Each is archived and exported (signed for the App Store) into
+# build.noindex/testflight/<build>/, then uploaded; --no-upload stops after the export.
 #
 # Needs, besides a clean checkout:
 # - Config/Signing.local.xcconfig with DEVELOPMENT_TEAM (a paid team) and AMATSUBAME_APP_GROUP = YES.
-# - An App Store Connect API key (App Manager) in the login keychain, the .p8 file base64-encoded:
+# - That team's Apple ID signed in to Xcode (Settings ▸ Accounts): signing goes through it, since an
+#   App Manager API key can't manage certificates and profiles.
+# - For uploading, an App Store Connect API key (App Manager) in the login keychain, the .p8 file base64-encoded:
 #     security add-generic-password -s amatsubame.asc -a <Key ID> -j <Issuer ID> -w "$(base64 -i AuthKey_<Key ID>.p8)"
 #
 # Each run gets a new build number from the time (YYYYMMDD.HHMM, UTC), so nothing in the repo changes;
@@ -43,18 +45,19 @@ team=$(sed -nE 's/^[[:space:]]*DEVELOPMENT_TEAM[[:space:]]*=[[:space:]]*([A-Z0-9
 grep -qE '^[[:space:]]*AMATSUBAME_APP_GROUP[[:space:]]*=[[:space:]]*YES' "$local_config" \
   || fail "set AMATSUBAME_APP_GROUP = YES in $local_config."
 
-# The API key, from the keychain into a file only this run can read.
-item=$(security find-generic-password -s amatsubame.asc 2>/dev/null) \
-  || fail "no App Store Connect key in the keychain (service amatsubame.asc); see the top of this script."
-key_id=$(sed -nE 's/^[[:space:]]*"acct"<blob>="(.*)"$/\1/p' <<<"$item")
-issuer=$(sed -nE 's/^[[:space:]]*"icmt"<blob>="(.*)"$/\1/p' <<<"$item")
-[ -n "$key_id" ] && [ -n "$issuer" ] || fail "the keychain item needs the Key ID as its account and the Issuer ID as its comment."
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-key_file="$work/AuthKey_$key_id.p8"
-(umask 077; security find-generic-password -s amatsubame.asc -w | base64 -D > "$key_file")
-grep -q "BEGIN PRIVATE KEY" "$key_file" || fail "the keychain item doesn't hold a base64-encoded .p8 key."
-auth=(-allowProvisioningUpdates -authenticationKeyPath "$key_file" -authenticationKeyID "$key_id" -authenticationKeyIssuerID "$issuer")
+if [ $upload = 1 ]; then
+  # The API key, from the keychain into a file only this run can read.
+  item=$(security find-generic-password -s amatsubame.asc 2>/dev/null) \
+    || fail "no App Store Connect key in the keychain (service amatsubame.asc); see the top of this script."
+  key_id=$(sed -nE 's/^[[:space:]]*"acct"<blob>="(.*)"$/\1/p' <<<"$item")
+  issuer=$(sed -nE 's/^[[:space:]]*"icmt"<blob>="(.*)"$/\1/p' <<<"$item")
+  [ -n "$key_id" ] && [ -n "$issuer" ] || fail "the keychain item needs the Key ID as its account and the Issuer ID as its comment."
+  key_file="$work/AuthKey_$key_id.p8"
+  (umask 077; security find-generic-password -s amatsubame.asc -w | base64 -D > "$key_file")
+  grep -q "BEGIN PRIVATE KEY" "$key_file" || fail "the keychain item doesn't hold a base64-encoded .p8 key."
+fi
 
 build=$(date -u +%Y%m%d.%H%M)
 out="build.noindex/testflight/$build"
@@ -66,7 +69,7 @@ cat > "$work/ExportOptions.plist" <<EOF
 <plist version="1.0">
 <dict>
 	<key>method</key><string>app-store-connect</string>
-	<key>destination</key><string>$([ $upload = 1 ] && echo upload || echo export)</string>
+	<key>destination</key><string>export</string>
 	<key>teamID</key><string>$team</string>
 	<key>signingStyle</key><string>automatic</string>
 	<key>manageAppVersionAndBuildNumber</key><false/>
@@ -89,12 +92,19 @@ for app in "${apps[@]}"; do
     xcodebuild archive -project Amatsubame.xcodeproj -scheme "$app" -configuration Release \
       -destination "generic/platform=$platform" -archivePath "$archive" \
       -derivedDataPath "build.noindex/testflight/derived-$platform" \
-      CURRENT_PROJECT_VERSION="$build" AMATSUBAME_APP_GROUP=YES "${extra[@]}" "${auth[@]}" >"$log" 2>&1 \
+      CURRENT_PROJECT_VERSION="$build" AMATSUBAME_APP_GROUP=YES "${extra[@]}" -allowProvisioningUpdates >"$log" 2>&1 \
       || fail "archiving $app for $platform failed; see $log"
-    echo "• $app ($platform): $([ $upload = 1 ] && echo uploading || echo exporting)"
+    echo "• $app ($platform): exporting"
     xcodebuild -exportArchive -archivePath "$archive" -exportOptionsPlist "$work/ExportOptions.plist" \
-      -exportPath "$out/$app-$platform" "${auth[@]}" >>"$log" 2>&1 \
+      -exportPath "$out/$app-$platform" -allowProvisioningUpdates >>"$log" 2>&1 \
       || fail "exporting $app for $platform failed; see $log"
+    [ $upload = 1 ] || continue
+    package=$(ls "$out/$app-$platform/"*.ipa "$out/$app-$platform/"*.pkg 2>/dev/null | head -1)
+    [ -n "$package" ] || fail "no .ipa or .pkg for $app ($platform) in $out/$app-$platform"
+    echo "• $app ($platform): uploading"
+    xcrun altool --upload-package "$package" --api-key "$key_id" --api-issuer "$issuer" \
+      --p8-file-path "$key_file" >>"$log" 2>&1 \
+      || fail "uploading $app for $platform failed; see $log"
   done
 done
 echo "Done. Archives and logs are in $out."
