@@ -30,7 +30,7 @@ struct RealPopupRenderTests {
             let source = sample.sentence.map {
                 EntryRenderer.source(LookupSource(text: $0, utf16Offset: 0, utf16Length: results.first?.matched.utf16.count ?? 0))
             } ?? ""
-            let html = LookupPage.document(body: source + EntryRenderer.entries(Array(results.prefix(2)), mined: results.prefix(2).map { _ in false }, lookupCount: .init(3)),
+            let html = LookupPage.document(body: source + EntryRenderer.entries(Array(results.prefix(2)), mined: results.prefix(2).map { _ in false }, lookupCount: .init(3), summary: .init()),
                                            dictionaryStyles: styles, extraCSS: ":root { --accent: #3FC98F; --on-accent: #04261A; }")
             try html.write(to: folder.appending(path: "\(sample.name).html"), atomically: true, encoding: .utf8)
             try await Self.snapshot(html, to: folder.appending(path: "\(sample.name).png"))

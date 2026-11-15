@@ -37,7 +37,21 @@ body {
 .entry { padding: 12px 0 16px; border-bottom: 1px solid var(--separator); }
 .entry:last-child { border-bottom: none; }
 .headword { display: flex; align-items: center; gap: 10px; }
-.headword .expression { flex: 1; min-width: 0; }
+/* The headword and its summary share the space left of the buttons, which never wrap. */
+.headword-text { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 4px; }
+.headword-text .expression { flex: 0 1 auto; min-width: 0; }
+/* Hachidori's compact summary (render/reader.css .gsm-hoshidicts-compact-definition-summary): beside
+   the headword, wrapping under it when there's no room. */
+.compact-summary {
+  flex: 1 1 180px; min-width: min(180px, 100%); max-width: 100%; align-self: center;
+  display: flex; align-items: center; gap: 8px;
+  color: var(--secondary); font-size: 13px; line-height: 1.3; overflow-wrap: anywhere;
+}
+.compact-summary-image { flex: 0 0 36px; width: 36px; height: 36px; overflow: hidden; border-radius: 4px; }
+.compact-summary-image img { width: 36px; height: 36px; object-fit: contain; }
+.compact-summary-items { min-width: 0; margin: 0; padding: 0; list-style: none; }
+.compact-summary-items > li { display: inline; }
+.compact-summary-items > li + li::before { content: " · "; opacity: 0.6; }
 .expression { font-size: 2em; line-height: 1.1; font-weight: 500; }
 /* Furigana sits close over the kanji it reads, spread across them (な ん over 何). */
 .expression ruby { ruby-align: space-around; }

@@ -299,7 +299,7 @@ public struct LookupAndMiningSection<AnkiPage: View>: View {
             NavigationLink {
                 PopupSettingsPage()
             } label: {
-                SettingsRowLabel("Popup", subtitle: environment.lookup.showsLookupCounts ? "Lookup counts" : nil,
+                SettingsRowLabel("Popup", subtitle: popupSummary,
                                  systemImage: "text.bubble.fill", color: .indigo)
             }
             .accessibilityIdentifier("settings.popup")
@@ -332,6 +332,13 @@ public struct LookupAndMiningSection<AnkiPage: View>: View {
         if enabled.isEmpty { return dictionaries.isEmpty ? "None yet" : "All turned off" }
         return enabled.map { record in RecommendedDictionaries.all.first { $0.matches(record) }?.name ?? record.title }
             .joined(separator: ", ")
+    }
+
+    private var popupSummary: String? {
+        let settings = environment.lookup.popupSettings
+        let parts = [settings.showCompactDefinitionSummary ? "First meaning" : nil, settings.showLookupCounts ? "Lookup counts" : nil]
+            .compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: ", ")
     }
 
     private var ankiSummary: String {

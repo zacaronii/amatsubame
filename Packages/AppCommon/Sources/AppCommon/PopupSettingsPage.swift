@@ -1,3 +1,5 @@
+import Core
+import Lookup
 import SwiftUI
 
 /// Settings ▸ Lookup and Mining ▸ Popup: how the lookup popup looks and what it keeps,
@@ -6,12 +8,34 @@ public struct PopupSettingsPage: View {
     @Environment(CommonEnvironment.self) private var environment
     @State private var confirmsReset = false
     @State private var resetDone = false
+    @State private var dictionaries: [DictionaryRecord] = []
 
     public init() {}
 
     public var body: some View {
         let lookup = environment.lookup
         Form {
+            Section {
+                Toggle("Show Brief Definitions Beside the Headword", isOn: setting(\.showCompactDefinitionSummary))
+                    .accessibilityIdentifier("popup.compactSummary")
+                if lookup.popupSettings.showCompactDefinitionSummary {
+                    Picker("Snippets", selection: setting(\.compactDefinitionSummaryCount)) {
+                        ForEach(CompactDefinitionSummary.counts, id: \.self) { count in
+                            Text(count == 1 ? "1 snippet" : "\(count) snippets").tag(count)
+                        }
+                    }
+                    Picker("Summary Dictionary", selection: setting(\.compactDefinitionSummaryDictionary)) {
+                        Text("Automatic").tag(String?.none)
+                        ForEach(dictionaries.filter(\.hasTerms), id: \.id) { dictionary in
+                            Text(dictionary.title).tag(String?.some(dictionary.title))
+                        }
+                    }
+                }
+            } header: {
+                Text("First Meaning")
+            } footer: {
+                Text("Full definitions stay available below. Without a summary dictionary, the first dictionary with a definition is used.")
+            }
             Section {
                 Toggle("Record and Show Lookup Counts", isOn: Binding { lookup.showsLookupCounts } set: { lookup.setShowsLookupCounts($0) })
                     .accessibilityIdentifier("popup.lookupCounts")
@@ -26,6 +50,11 @@ public struct PopupSettingsPage: View {
         }
         .formStyle(.grouped)
         .navigationTitle("Popup")
+        .task {
+            do {
+                for try await records in environment.dictionaries.observeDictionaries() { dictionaries = records }
+            } catch {}
+        }
         .confirmationDialog("Reset Lookup Counts?", isPresented: $confirmsReset, titleVisibility: .visible) {
             Button("Reset Lookup Counts", role: .destructive) {
                 try? lookup.counts.reset()
@@ -34,5 +63,10 @@ public struct PopupSettingsPage: View {
         } message: {
             Text("Every word starts again from zero; your next lookup of it counts as 1. Dictionaries, settings and Anki notes are not changed.")
         }
+    }
+
+    private func setting<Value>(_ keyPath: WritableKeyPath<PopupSettings, Value>) -> Binding<Value> {
+        let lookup = environment.lookup
+        return Binding { lookup.popupSettings[keyPath: keyPath] } set: { value in lookup.updatePopupSettings { $0[keyPath: keyPath] = value } }
     }
 }

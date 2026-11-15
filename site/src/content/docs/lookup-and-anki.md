@@ -25,7 +25,8 @@ works too).
 
 For each result, top to bottom:
 
-- **The word** with furigana over its kanji.
+- **The word** with furigana over its kanji, and, with **Show Brief Definitions Beside the
+  Headword** on, its first few meanings next to it ("guilt-free · sinless · innocent").
 - **How it was conjugated**, when the tapped text was an inflected form.
 - **Frequency**: how common the word is, from each frequency dictionary you have. The first result
   also says how often you've looked it up ("Looked up 3 times").
@@ -46,6 +47,14 @@ doesn't. The counts work like [Hachidori](https://github.com/bee-san/hachidori)'
 their setup add to the same counts.
 
 Settings ▸ Lookup and Mining ▸ **Popup** turns them off (your past counts are kept) or resets them.
+
+### Brief definitions
+
+Settings ▸ Lookup and Mining ▸ **Popup** ▸ **Show Brief Definitions Beside the Headword** puts a
+word's first few meanings next to it, so several results are quick to scan; the full definitions
+stay below. It's off by default, as in Hachidori, and picks the snippets the same way: up to three
+(1–6 under **Snippets**) from the first dictionary that has a definition, or from the **Summary
+Dictionary** you choose.
 
 ### Word audio
 

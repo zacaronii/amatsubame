@@ -19,6 +19,7 @@ They include or use the following. Each keeps its own license; the full texts ar
 | [libfvad](https://github.com/dpirch/libfvad) (WebRTC's voice activity detector) | BSD-3-Clause | `Vendor/libfvad` (`LICENSE`, `VENDORED.md`) |
 | Mozilla CA certificate list | MPL-2.0 | `Packages/Player/Sources/PlayerKit/Resources/cacert.pem` |
 | Yomitan Japanese transforms test data | GPL-3.0 | `Packages/Dictionary/Tests/DictionaryTests/Fixtures/yomitan-japanese-transforms.json` |
+| [Hachidori](https://github.com/bee-san/hachidori)'s compact definition summary, ported to Swift | GPL-3.0 | `Packages/Lookup/Sources/Lookup/CompactDefinitionSummary.swift` (from `extension/render/popup.js` and `render/reader.css`) |
 
 ## Swift packages (fetched when building)
 | Project | License |
@@ -29,6 +30,8 @@ They include or use the following. Each keeps its own license; the full texts ar
 | [MPVKit](https://github.com/mpvkit/MPVKit) (LGPL build) with mpv, FFmpeg and MoltenVK | LGPL-3.0 (MPVKit), LGPL-2.1+ (mpv, FFmpeg), Apache-2.0 (MoltenVK), plus the licenses of the libraries MPVKit bundles |
 
 ## Followed, not copied
+- [Hachidori](https://github.com/bee-san/hachidori) (GPL-3.0): how lookups are counted and the
+  "Looked up N times" chip (docs/hachidori.md).
 - [Yomitan](https://github.com/yomidevs/yomitan) (GPL-3.0): the dictionary format, deinflection rules
   (through hoshidicts) and how structured-content entries are rendered.
 
