@@ -145,6 +145,9 @@ Amatsubame stands on the work of many people. Thank you to:
   behind every lookup. Manhhao's Hoshi Reader was an inspiration too.
 - [Yomitan](https://github.com/yomidevs/yomitan): its dictionary format, deinflection rules and popup
   design shaped how lookup works here.
+- [Hachidori](https://github.com/bee-san/hachidori) by bee-san: the apps follow its lead on popup
+  details and recommended dictionaries, and can link to a Hachidori host to share lookups and
+  dictionaries.
 - [Jiten](https://jiten.moe): its underlines on known words inspired the word marks in every app.
 - [Nagare](https://github.com/bpwhelan/Nagare): its mineable stream of subtitles inspired Miru's
   Lines, the running list of lines (from Miru or another Jellyfin player) you can scroll back
