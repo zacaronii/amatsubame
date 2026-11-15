@@ -48,7 +48,8 @@ Sharing the setup between the apps (an App Group) needs a paid Apple Developer P
 without it each app keeps its own setup.
 
 Nothing large is bundled. Yomu downloads the manga OCR models in Settings → Manga OCR, and setup
-recommends dictionaries (Jitendex, JMnedict, KANJIDIC, Jiten frequency, Kanjium) and installs them for
+recommends Hachidori's default dictionaries (Jitendex, JMnedict, Bee's Ultimate Kanji, Jiten frequency,
+Bee's Ultimate Grammar; Kanjium for pitch accent is optional) and installs them for
 you; you can also import any Yomitan dictionary zip.
 
 ## Kaku

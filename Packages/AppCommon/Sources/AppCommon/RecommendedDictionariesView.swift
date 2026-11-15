@@ -123,8 +123,8 @@ struct AddRecommendedView: View {
             refresh()
             guard !loaded else { return }
             loaded = true
-            // Everything not installed yet, except ones the user removed.
-            selection = Set(RecommendedDictionaries.all.map(\.id)).subtracting(installed).subtracting(removed)
+            // The defaults not installed yet, except ones the user removed.
+            selection = RecommendedDictionaries.defaultSelection.subtracting(installed).subtracting(removed)
         }
     }
 

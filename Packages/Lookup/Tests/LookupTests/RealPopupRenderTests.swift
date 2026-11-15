@@ -8,7 +8,8 @@ import Testing
 import WebKit
 
 /// Renders the popup for real dictionaries to PNGs, to check its layout by eye:
-/// `REAL_DICTIONARY_ZIPS="<zip>|…" POPUP_RENDER_DIR=<folder> swift test --filter RealPopupRenderTests`.
+/// `REAL_DICTIONARY_ZIPS="<zip>|…" POPUP_RENDER_DIR=<folder> swift test --filter RealPopupRenderTests`
+/// (`POPUP_RENDER_WORDS="猫|ている"` adds words of your own).
 @MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["POPUP_RENDER_DIR"] != nil))
 struct RealPopupRenderTests {
     @Test func rendersSampleWords() async throws {
@@ -24,7 +25,7 @@ struct RealPopupRenderTests {
         let samples: [(name: String, text: String, sentence: String?)] = [
             ("nande", "なんでんな遅くまで起きてるんです？", "なんでんな遅くまで起きてるんです？"),
             ("machini", "待ちに待った", nil), ("nihongo", "日本語", nil), ("taberu", "食べさせられなかった", nil),
-        ]
+        ] + (env["POPUP_RENDER_WORDS"] ?? "").split(separator: "|").enumerated().map { ("word\($0.offset)", String($0.element), nil) }
         for sample in samples {
             let results = await library.engine.lookup(String(sample.text.prefix(16)))
             let source = sample.sentence.map {

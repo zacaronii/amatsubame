@@ -64,7 +64,7 @@ Contributor-specific details (your devices, simulators, local folders, server sp
 
 ## Defaults the apps are built around
 - Anki note type: Lapis is the built-in preset (field names are read via AnkiConnect `modelFieldNames`, never hardcoded).
-- Dictionaries: Yomitan-format zips; the apps recommend Jitendex, JMnedict, KANJIDIC, Jiten frequency and Kanjium.
+- Dictionaries: Yomitan-format zips; the apps recommend Hachidori's defaults (Jitendex, JMnedict, Bee's Ultimate Kanji Dictionary, Jiten frequency, Bee's Ultimate Grammar Dictionary), with Kanjium (pitch accent) as an optional extra.
 - AnkiConnect reachable from the devices (with an API key), ideally syncing to AnkiWeb.
 
 ## Commands

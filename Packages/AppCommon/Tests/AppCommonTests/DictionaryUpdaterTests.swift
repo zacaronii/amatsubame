@@ -32,6 +32,20 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
     }
 }
 
+/// The recommended set is Hachidori's defaults, in its order; Kanjium is an unticked extra and
+/// KANJIDIC, recommended before, is still recognised where it's installed.
+@MainActor @Suite struct RecommendedDictionariesTests {
+    @Test func theDefaultsAreHachidoris() {
+        #expect(RecommendedDictionaries.all.map(\.id) == ["jitendex", "jmnedict", "bees-kanji", "jiten", "bees-grammar", "kanjium"])
+        #expect(RecommendedDictionaries.defaultSelection == ["jitendex", "jmnedict", "bees-kanji", "jiten", "bees-grammar"])
+        #expect(RecommendedDictionaries.entry("kanjidic")?.name == "KANJIDIC")
+        let kanjidic = DictionaryRecord(id: "k", title: "KANJIDIC [2026-01-01]", revision: "1", sortOrder: 0)
+        #expect(RecommendedDictionaries.entry(for: kanjidic, source: nil)?.id == "kanjidic")
+        let bee = DictionaryRecord(id: "b", title: "Bee's Ultimate Kanji Dictionary", revision: "2026.09.08", sortOrder: 0)
+        #expect(RecommendedDictionaries.entry(for: bee, source: nil)?.id == "bees-kanji")
+    }
+}
+
 @MainActor @Suite(.serialized) struct DictionaryUpdaterTests {
     let index = "https://example.com/freq/index.json"
     let zipURL = "https://example.com/freq/dict.zip"
