@@ -25,11 +25,16 @@
     --badge-background: #1f2a3d;
   }
 }
-html { -webkit-text-size-adjust: 100%; }
+/* Hachidori's Background opacity (--popup-opacity, set per page): what's behind the popup shows
+   through its background; text and the cards inside stay opaque. */
+html {
+  -webkit-text-size-adjust: 100%; min-height: 100%;
+  background: color-mix(in srgb, var(--background-color) var(--popup-opacity, 100%), transparent);
+}
 body {
   margin: 0; padding: 12px 16px 32px;
   font: -apple-system-body; font-family: -apple-system, "Hiragino Sans", sans-serif;
-  color: var(--text-color); background: var(--background-color);
+  color: var(--text-color); background: transparent;
   line-height: 1.5; -webkit-user-select: text; user-select: text;
   -webkit-tap-highlight-color: transparent;
 }

@@ -37,6 +37,22 @@ public struct PopupSettingsPage: View {
                 Text("Full definitions stay available below. Without a summary dictionary, the first dictionary with a definition is used.")
             }
             Section {
+                LabeledContent("Background Opacity") {
+                    HStack {
+                        Slider(value: Binding { Double(lookup.popupSettings.backgroundOpacityPercent) } set: { value in
+                            lookup.updatePopupSettings { $0.backgroundOpacityPercent = Int(value.rounded()) }
+                        }, in: 0...100, step: 1)
+                        .frame(minWidth: 120)
+                        .accessibilityIdentifier("popup.backgroundOpacity")
+                        Text("\(lookup.popupSettings.backgroundOpacityPercent) %").monospacedDigit().frame(minWidth: 48, alignment: .trailing)
+                    }
+                }
+            } header: {
+                Text("Appearance")
+            } footer: {
+                Text("Text stays opaque.")
+            }
+            Section {
                 Toggle("Record and Show Lookup Counts", isOn: Binding { lookup.showsLookupCounts } set: { lookup.setShowsLookupCounts($0) })
                     .accessibilityIdentifier("popup.lookupCounts")
                 Button("Reset Lookup Counts", role: .destructive) { confirmsReset = true }

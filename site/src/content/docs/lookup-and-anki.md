@@ -48,6 +48,12 @@ their setup add to the same counts.
 
 Settings ▸ Lookup and Mining ▸ **Popup** turns them off (your past counts are kept) or resets them.
 
+### Background opacity
+
+Settings ▸ Lookup and Mining ▸ **Popup** ▸ **Background Opacity** sets how much of the page, video or
+transcript shows through behind the popup, from 0 to 100% (85% by default, as in Hachidori). Text
+stays opaque.
+
 ### Brief definitions
 
 Settings ▸ Lookup and Mining ▸ **Popup** ▸ **Show Brief Definitions Beside the Headword** puts a

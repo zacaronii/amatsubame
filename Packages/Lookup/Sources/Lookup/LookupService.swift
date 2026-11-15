@@ -159,11 +159,14 @@ public final class LookupService {
         _ = try? database.writer.write { try LookupHistoryRecord.deleteAll($0) }
     }
 
-    /// The full HTML document for a page of results.
-    public func document(for page: LookupResultPage) -> String {
+    /// The full HTML document for a page of results. With `nativeBackground`, the page stays
+    /// transparent and the view showing it draws the background (`LookupPopupView`).
+    public func document(for page: LookupResultPage, nativeBackground: Bool = false) -> String {
         let source = page.source.map(EntryRenderer.source) ?? ""
         let mined = mining.map { mining in page.results.map(mining.isMined) }
-        let accentCSS = accent.map { ":root { --accent: \($0.color); --on-accent: \($0.onColor); }" } ?? ""
+        let opacity = nativeBackground ? 0 : min(max(popupSettings.backgroundOpacityPercent, 0), 100)
+        let accentCSS = (accent.map { ":root { --accent: \($0.color); --on-accent: \($0.onColor); }" } ?? "")
+            + ":root { --popup-opacity: \(opacity)%; }"
         let count: EntryRenderer.LookupCount? = showsLookupCounts ? .init(page.lookupCount) : nil
         let summary: EntryRenderer.SummaryOptions? = popupSettings.showCompactDefinitionSummary
             ? .init(dictionary: popupSettings.compactDefinitionSummaryDictionary, count: popupSettings.compactDefinitionSummaryCount)

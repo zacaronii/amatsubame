@@ -671,6 +671,13 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v34_popup_opacity") { db in
+            // Hachidori's Background opacity (Settings ▸ Popup): 0–100 %, 85 by default; text stays opaque.
+            try db.alter(table: "popupSettings") { t in
+                t.add(column: "backgroundOpacityPercent", .integer).notNull().defaults(to: 85)
+            }
+        }
+
         return migrator
     }
 }
