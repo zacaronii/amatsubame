@@ -20,6 +20,7 @@ public struct TappableLine: View {
     public var style = Style.plain
     public var alignment = Alignment.center
     public let onTap: (Int) -> Void
+    @Environment(\.closeLookup) private var closeLookup
 
     public init(text: String, highlighted: Range<Int>? = nil, marks: [Int: WordMarkState] = [:], fontSize: CGFloat,
                 style: Style = .plain, alignment: Alignment = .center, onTap: @escaping (Int) -> Void) {
@@ -71,9 +72,10 @@ public struct TappableLine: View {
                         .overlay(alignment: .bottom) { WordMarkLine(state: marks[glyph.index]) }
                         .background(highlighted?.contains(glyph.index) == true ? AnyShapeStyle(.tint.opacity(0.75)) : AnyShapeStyle(.clear))
                         .contentShape(.rect)
-                        // Between words (a space, punctuation) there's nothing to look up.
+                        // Between words (a space, punctuation) there's nothing to look up: a tap
+                        // there closes an open popup instead.
                         .onTapGesture(coordinateSpace: .global) { location in
-                            guard Self.isWordCharacter(glyph.character) else { return }
+                            guard Self.isWordCharacter(glyph.character) else { closeLookup?(); return }
                             // Where the word is, for the popup to sit beside it (LineLookup).
                             Self.lastTap = CGRect(x: location.x - fontSize / 2, y: location.y - fontSize * 0.75,
                                                   width: fontSize, height: fontSize * 1.5)

@@ -66,16 +66,14 @@ final class ExtensionLookupUITests: XCTestCase {
             .withOffset(CGVector(dx: characterWidth * 6.5, dy: characterWidth * 0.6)).tap()
         XCTAssertTrue(gloss.waitForExistence(timeout: 15), "食 still looks up")
 
-        // With the popup open, a tap on another word only closes it; the next one looks up.
+        // With the popup open, a tap on another word looks it up in its place.
         // From the screen, not the line: the highlight splits the line into several texts.
         let sushiAt = safari.coordinate(withNormalizedOffset: .zero)
             .withOffset(CGVector(dx: frame.minX + characterWidth * 3.5, dy: frame.minY + characterWidth * 0.6))
         let sushi = safari.webViews.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] 'sushi'")).firstMatch
         sushiAt.tap()
-        XCTAssertTrue(gloss.waitForNonExistence(timeout: 5), "the popup closes")
-        XCTAssertFalse(sushi.waitForExistence(timeout: 5), "and 寿司 isn't looked up")
-        sushiAt.tap()
-        XCTAssertTrue(sushi.waitForExistence(timeout: 15), "the next tap looks 寿司 up")
+        XCTAssertTrue(sushi.waitForExistence(timeout: 15), "one tap looks 寿司 up")
+        XCTAssertTrue(gloss.waitForNonExistence(timeout: 5), "in place of 食べる")
 
         // Add to Anki goes through to the native side; without AnkiConnect set up it says where to set it.
         let mine = safari.webViews.buttons["Add to Anki"].firstMatch

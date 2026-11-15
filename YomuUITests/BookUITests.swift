@@ -230,7 +230,7 @@ final class BookUITests: XCTestCase {
     /// More marked pixels than stray antialiasing could give; a word's mark has thousands.
     private let markedMinimum = 200
 
-    /// Closes the popup with a tap outside it.
+    /// Closes the popup (`closeLookup`).
     private func closePopup() {
         app.closeLookup()
         XCTAssertTrue(popup.waitForNonExistence(timeout: 5), "popup closed")

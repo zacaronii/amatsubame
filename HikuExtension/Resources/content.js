@@ -49,15 +49,17 @@
     down = null;
     if (!enabled || !start || !event.isPrimary) return;
     if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > 10 || event.timeStamp - start.time > 500) return;
-    // With a popup open, a tap on the page only closes it: on a page full of text
-    // nearly every tap lands on a word. The next tap looks up. Links and buttons too: the tap
-    // closes the popup instead of following them.
-    if (popupOpen()) {
-      request++;
-      swallowsClick = true;
-      return hide();
+    if (event.target.closest?.(controls)) {
+      // With a popup open, a link or button only closes it, instead of being followed.
+      if (popupOpen()) {
+        request++;
+        swallowsClick = true;
+        hide();
+      }
+      return;
     }
-    if (event.target.closest?.(controls)) return;
+    // Another word replaces an open popup with its own (as in the apps); a tap that finds
+    // nothing closes it (a miss, or no result).
     window.lookupBridge?.tapAt(event.clientX, event.clientY);
   }, true);
   document.addEventListener('pointercancel', () => { down = null; }, true);

@@ -458,9 +458,9 @@ public final class BookReaderModel {
 
     /// A tap at `x` across the reader (facing pages: their margins and the crease too).
     func tapZone(x: CGFloat) {
+        // With the popup open, a tap that misses a word only closes it.
         if popup != nil {
-            // Facing pages show the lookup as a panel, not a popover that closes itself.
-            if spread { popup = nil }
+            popup = nil
             return
         }
         let zone = x / max(viewSize.width, 1)
@@ -489,7 +489,8 @@ public final class BookReaderModel {
             // Read the tap's place in the runs first: the lookup highlight splits text nodes.
             let place = readAlong == nil ? nil : await tapPlace(in: source)
             let page = await lookup.lookup(text: text, utf16Offset: offset)
-            guard let length = page.results.first?.matched.utf16.count, length > 0 else { return }
+            // Nothing there to look up: like a tap that missed a word, it closes an open popup.
+            guard let length = page.results.first?.matched.utf16.count, length > 0 else { popup = nil; return }
             web?.clearHighlight()
             companion?.clearHighlight()
             source.highlight(offset: offset, length: length)
