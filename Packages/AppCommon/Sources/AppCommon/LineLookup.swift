@@ -20,10 +20,14 @@ public final class LineLookup {
     public func lookUp(_ text: String, characterIndex: Int, key: String, context: (any MiningContext)?) {
         let sentence = TappableLine.sentence(text)
         let offset = String(sentence.prefix(characterIndex)).utf16.count
+        let anchor = TappableLine.lastTap
+        TappableLine.lastTap = nil
         Task {
             let page = await service.lookup(text: sentence, utf16Offset: offset, showSource: true)
             self.key = key
-            popup = LookupPopupModel(page: page, context: context)
+            let popup = LookupPopupModel(page: page, context: context)
+            popup.anchor = anchor
+            self.popup = popup
         }
     }
 

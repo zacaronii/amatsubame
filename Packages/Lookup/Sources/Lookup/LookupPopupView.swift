@@ -2,8 +2,8 @@ import Dictionary
 import SwiftUI
 
 /// The shared lookup popup: a stack of result pages so tapping a word inside a
-/// definition opens it, with Back to return. Readers present this as a sheet or
-/// overlay; the Search screen embeds it.
+/// definition opens it, with Back to return. Apps show it with `lookupOverlay` (a card by
+/// the word, or a bottom panel); the Search screen embeds it.
 @MainActor @Observable
 public final class LookupPopupModel: Identifiable {
     public private(set) var pages: [LookupResultPage] = []
@@ -11,6 +11,9 @@ public final class LookupPopupModel: Identifiable {
     public var canGoBack: Bool { pages.count > 1 }
     /// Picture and source for cards mined from this popup (set by readers).
     public var context: (any MiningContext)?
+    /// The looked-up word on screen, in window coordinates: the popup goes beside it
+    /// (`lookupOverlay`). Nil puts it along the bottom.
+    public var anchor: CGRect?
     /// Results mined while the popup is open, per page.
     var minedIndices: [LookupResultPage.ID: Set<Int>] = [:]
     /// Lookup counts recorded after a page was shown (a search left on screen), per page.

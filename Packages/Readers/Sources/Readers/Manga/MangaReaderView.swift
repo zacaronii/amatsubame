@@ -9,7 +9,6 @@ public struct MangaReaderView: View {
     let onOpenChapter: (ReaderChapter) -> Void
     @Environment(\.scenePhase) private var scenePhase
     @State private var showsSettings = false
-    @State private var readerFrame: CGRect = .zero
     /// The screen's side safe areas: on the iPhone Duo's outer screen, the status column.
     @State private var sideInsets = SideInsets()
     /// Debug: show how long the last tap-to-popup took (Settings → OCR).
@@ -71,25 +70,16 @@ public struct MangaReaderView: View {
             }
             .onAppear {
                 updateSpreadFit(geometry.size)
-                readerFrame = geometry.frame(in: .global)
                 sideInsets = SideInsets(geometry.safeAreaInsets)
             }
             .onChange(of: geometry.size) { _, size in
                 updateSpreadFit(size)
-                readerFrame = geometry.frame(in: .global)
             }
             .onChange(of: SideInsets(geometry.safeAreaInsets)) { _, insets in sideInsets = insets }
         }
-        .popover(item: $model.popup, attachmentAnchor: .rect(.rect(popupAnchor)),
-                 arrowEdge: PopupPlacement.arrowEdge(for: popupAnchor, width: readerFrame.width)) { popup in
-            if let lookup = model.lookup {
-                LookupPopupView(service: lookup, model: popup)
-                    // Narrow enough for the space beside the word: iOS cuts a popover down to fit, and
-                    // on the open iPhone Duo held upright a 360 pt minimum clipped both sides.
-                    .frame(minWidth: 280, idealWidth: 420, minHeight: 360, idealHeight: 520)
-                    .presentationCompactAdaptation(.sheet)
-                    .presentationDetents([.medium, .large])
-            }
+        .readerLookupOverlay(model.popup, lookup: model.lookup, anchor: model.popupAnchor, in: .global,
+                             beside: true, onClose: { model.popup = nil }) { popup, lookup in
+            LookupPopupView(service: lookup, model: popup, drawsBackground: false)
         }
         .animation(.easeInOut(duration: 0.2), value: model.showsChrome)
         .focusedSceneValue(\.readerPaging, ReaderPaging(next: { model.requestPage(1) }, previous: { model.requestPage(-1) }))
@@ -118,10 +108,6 @@ public struct MangaReaderView: View {
         }
     }
 
-    /// The tapped block in this view's coordinates (taps report global coordinates).
-    private var popupAnchor: CGRect {
-        model.popupAnchor.offsetBy(dx: -readerFrame.minX, dy: -readerFrame.minY)
-    }
 
     @ViewBuilder private var statusBadges: some View {
         VStack(alignment: .leading, spacing: 6) {

@@ -230,16 +230,14 @@ final class BookUITests: XCTestCase {
     /// More marked pixels than stray antialiasing could give; a word's mark has thousands.
     private let markedMinimum = 200
 
-    /// Swipes the popup down by its grabber.
+    /// Closes the popup with its close button.
     private func closePopup() {
-        let grabber = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.49))
-        grabber.press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.98)))
+        app.buttons["lookup.close"].tap()
         XCTAssertTrue(popup.waitForNonExistence(timeout: 5), "popup closed")
         sleep(2)
     }
 
-    /// Pixels of the screen in the lookup mark's yellow (rgba(255, 190, 0, 0.45) over the page,
-    /// dimmed while the popup is open).
+    /// Pixels of the screen in the lookup mark's yellow (rgba(255, 190, 0, 0.45) over the page).
     private func markedPixels() throws -> Int {
         let image = try XCTUnwrap(app.screenshot().image.cgImage)
         let width = image.width, height = image.height

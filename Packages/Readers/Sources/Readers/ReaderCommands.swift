@@ -1,12 +1,18 @@
+import Lookup
 import SwiftUI
 
-/// Where a lookup popup opens beside the tapped text: away from the nearer edge, so it stays
-/// inside the window (the arrow sits on the popup's edge facing the text).
-public enum PopupPlacement {
-    public static func arrowEdge(for anchor: CGRect, width: CGFloat) -> Edge {
-        guard width > 0 else { return .leading }
-        // Text in the right half: the popup opens to its left (arrow on the popup's trailing edge).
-        return anchor.midX > width / 2 ? .trailing : .leading
+extension View {
+    /// The lookup over a reader: a card by the tapped word, or a bottom panel on a phone
+    /// (`lookupOverlay`). Nothing until the reader has a lookup service.
+    @ViewBuilder func readerLookupOverlay<Panel: View>(
+        _ popup: LookupPopupModel?, lookup: LookupService?, anchor: CGRect, in space: LookupAnchorSpace = .local, beside: Bool,
+        onClose: @escaping () -> Void, @ViewBuilder panel: @escaping (LookupPopupModel, LookupService) -> Panel
+    ) -> some View {
+        if let lookup {
+            lookupOverlay(popup, service: lookup, anchor: anchor == .zero ? nil : anchor, in: space, beside: beside, onClose: onClose) { panel($0, lookup) }
+        } else {
+            self
+        }
     }
 }
 

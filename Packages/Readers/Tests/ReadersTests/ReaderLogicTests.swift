@@ -231,10 +231,3 @@ final class FakePageSource: MangaPageSource {
     }
 }
 
-@Suite struct PopupPlacementTests {
-    @Test func popupOpensAwayFromTheNearerEdge() {
-        #expect(PopupPlacement.arrowEdge(for: CGRect(x: 900, y: 100, width: 80, height: 200), width: 1200) == .trailing)
-        #expect(PopupPlacement.arrowEdge(for: CGRect(x: 100, y: 100, width: 80, height: 200), width: 1200) == .leading)
-        #expect(PopupPlacement.arrowEdge(for: .zero, width: 0) == .leading)
-    }
-}

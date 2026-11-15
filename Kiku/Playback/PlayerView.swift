@@ -65,8 +65,8 @@ struct PlayerView: View {
         }
         // A full-screen cover doesn't inherit the app's tint.
         .tint(Color("AccentColor"))
-        .sheet(item: Binding(get: { model.lookup.popup }, set: { if $0 == nil { model.popupClosed() } })) { popup in
-            KikuLookupSheet(model: model, popup: popup)
+        .lookupOverlay(model.lookup.popup, service: common.lookup, onClose: model.popupClosed) { popup in
+            KikuLookupPanel(model: model, popup: popup)
         }
         .sheet(isPresented: $showsChapters) {
             ChaptersSheet(model: model) { showsChapters = false }
@@ -467,7 +467,9 @@ private struct Scrubber: View {
 
 /// The lookup (K5): the line with the word highlighted and its clip (what goes on the card),
 /// then the shared popup.
-struct KikuLookupSheet: View {
+/// The lookup's content in Kiku: the line's clip above the popup (`lookupOverlay` draws the
+/// card or panel around it).
+struct KikuLookupPanel: View {
     @Environment(CommonEnvironment.self) private var common
     let model: any LineLookupHost
     let popup: LookupPopupModel
@@ -491,8 +493,10 @@ struct KikuLookupSheet: View {
                     Spacer(minLength: 0)
                 }
                 .padding(12)
-                .background(.background.secondary, in: .rect(cornerRadius: 18))
-                .padding([.horizontal, .top])
+                // See-through like the popup (its background opacity), not a solid block.
+                .background(.quaternary.opacity(0.6), in: .rect(cornerRadius: 18))
+                .padding(.horizontal)
+                .padding(.top, 2)
             }
             LookupPopupView(service: common.lookup, model: popup, drawsBackground: false)
             if model.resumesOnClose {
@@ -500,19 +504,7 @@ struct KikuLookupSheet: View {
                     .font(.footnote).foregroundStyle(.secondary).padding(.bottom, 8)
             }
         }
-        .lookupPopupBackground(common.lookup)
-        .overlay(alignment: .topTrailing) {
-            #if os(macOS)
-            Button("Close", systemImage: "xmark.circle.fill") { model.popupClosed() }
-                .labelStyle(.iconOnly).buttonStyle(.plain).font(.title2).foregroundStyle(.secondary)
-                .keyboardShortcut(.cancelAction).padding(8)
-            #endif
-        }
         .tint(Color("AccentColor"))
-        .presentationDetents([.medium, .large])
-        #if os(macOS)
-        .frame(minWidth: 460, minHeight: 560)
-        #endif
     }
 }
 

@@ -74,19 +74,11 @@ public struct BookReaderView: View {
                             .accessibilityIdentifier("book.page")
                             .accessibilityValue(positionDescription)
                             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { pageWidth = $0 }
-                            .popover(item: Binding(get: { model.spread ? nil : model.popup }, set: { model.popup = $0 }), attachmentAnchor: .rect(.rect(model.popupAnchor)),
-                                     arrowEdge: PopupPlacement.arrowEdge(for: model.popupAnchor, width: pageWidth)) { popup in
-                                if let lookup = model.lookup {
-                                    VStack(spacing: 0) {
-                                        if let popupHeader { popupHeader }
-                                        LookupPopupView(service: lookup, model: popup, drawsBackground: false)
-                                    }
-                                    .lookupPopupBackground(lookup)
-                                    // Narrow enough for the space beside the word: iOS cuts a popover down to fit, and
-                                    // on the open iPhone Duo held upright a 360 pt minimum clipped both sides.
-                                    .frame(minWidth: 280, idealWidth: 420, minHeight: 360, idealHeight: 520)
-                                    .presentationCompactAdaptation(.sheet)
-                                    .presentationDetents([.medium, .large])
+                            .readerLookupOverlay(model.spread ? nil : model.popup, lookup: model.lookup, anchor: model.popupAnchor,
+                                                 beside: model.isVertical, onClose: { model.popup = nil }) { popup, lookup in
+                                VStack(spacing: 0) {
+                                    if let popupHeader { popupHeader }
+                                    LookupPopupView(service: lookup, model: popup, drawsBackground: false)
                                 }
                             }
                     }
