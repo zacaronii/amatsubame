@@ -21,6 +21,16 @@ idea: never touching down out of Japanese.
 The apps share dictionaries, word audio sources and AnkiConnect settings on a device, so you set them
 up once.
 
+## Install on a Mac
+
+The Mac apps are on [Homebrew](https://brew.sh), signed with Developer ID and notarized:
+
+    brew install --cask zacaronii/amatsubame/yomu   # or miru, kiku, hiku
+
+They need macOS 26 or later on Apple silicon, and `brew upgrade` updates them with each release. They
+are the same apps as on TestFlight, so install each app from one place only. To build them yourself
+instead, see Building below.
+
 ## Requirements
 
 - iOS, iPadOS or macOS 26 (Hiku's extension runs in Safari on iPhone, iPad and Mac).
@@ -83,6 +93,10 @@ the upload time, which only goes up.
   GitHub pre-release with generated notes, and opens the pull request that moves `main` to the next
   fix version (0.2.0 out → 0.2.1), so every Dev build already carries the version it would ship as.
   The build is then added to the main tester group in App Store Connect.
+- The same run makes the Mac apps for Homebrew: the build's Mac archives exported with Developer ID,
+  notarized, stapled and attached to the GitHub release as `<App>-<version>.zip`, and the casks in
+  [zacaronii/homebrew-amatsubame](https://github.com/zacaronii/homebrew-amatsubame) moved to them.
+  `scripts/release.sh --mac-only <build number>` redoes just that part for a released build.
 - The first feature (a PR labelled `idea` or `enhancement`) merged after a release also moves `main`
   to the next feature version (0.2.1 → 0.3.0). If that's forgotten, the release script stops and
   says so.
