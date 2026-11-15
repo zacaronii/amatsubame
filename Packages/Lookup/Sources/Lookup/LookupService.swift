@@ -26,12 +26,17 @@ public struct LookupResultPage: Identifiable, Equatable, Sendable {
     /// Shown above the results so another word can be tapped (readers, OCR blocks).
     public var source: LookupSource?
     public var results: [TermLookupResult]
+    /// How often the first result's headword has been looked up, counting this visit; nil
+    /// until the visit is recorded, or when lookup counts are off.
+    public var lookupCount: Int?
 
-    public init(query: String, sentence: String? = nil, source: LookupSource? = nil, results: [TermLookupResult]) {
+    public init(query: String, sentence: String? = nil, source: LookupSource? = nil, results: [TermLookupResult],
+                lookupCount: Int? = nil) {
         self.query = query
         self.sentence = sentence
         self.source = source
         self.results = results
+        self.lookupCount = lookupCount
     }
 }
 
@@ -49,6 +54,10 @@ public final class LookupService {
     /// The app's accent in the popup (buttons, highlights): CSS colors for the accent and for
     /// text on it. Nil keeps the system blue.
     public var accent: (color: String, onColor: String)?
+    /// Lookup counts and the popup's settings, in the setup's database (shared by the apps).
+    public let counts: LookupCountStore
+    /// Settings ▸ Popup ▸ Lookup Counts: count lookups and show "Looked up N times".
+    public private(set) var showsLookupCounts: Bool
     private let database: AppDatabase
     static let historyLimit = 500
 
@@ -58,6 +67,15 @@ public final class LookupService {
         self.library = library
         self.audio = audio
         database = history ?? library.database
+        counts = LookupCountStore(database: library.database)
+        showsLookupCounts = (try? counts.settings().showLookupCounts) ?? true
+    }
+
+    public func setShowsLookupCounts(_ shows: Bool) {
+        showsLookupCounts = shows
+        var settings = (try? counts.settings()) ?? PopupSettings()
+        settings.showLookupCounts = shows
+        try? counts.save(settings)
     }
 
     /// Loads installed dictionaries into the engine (call at launch and after changes).
@@ -78,9 +96,8 @@ public final class LookupService {
             source: showSource ? LookupSource(text: text, utf16Offset: utf16Offset, utf16Length: matched.utf16.count) : nil,
             results: results
         )
-        record(page)
         if !results.isEmpty { try? activity?.recordLookup() }
-        return page
+        return record(page)
     }
 
     /// Looks up typed text (the search screen and glossary links).
@@ -90,16 +107,25 @@ public final class LookupService {
         return page
     }
 
-    /// A typed search the user settled on (submitted): kept in history and counted in Stats,
-    /// like a lookup (searches as you type aren't counted).
-    public func recordSearch(_ page: LookupResultPage) {
-        guard !page.results.isEmpty else { return }
-        record(page)
+    /// A typed search the user settled on (submitted): kept in history and counted, like a
+    /// lookup (searches as you type aren't counted). Returns its lookup count.
+    @discardableResult
+    public func recordSearch(_ page: LookupResultPage) -> Int? {
+        guard !page.results.isEmpty else { return nil }
         try? activity?.recordLookup()
+        return record(page).lookupCount
     }
 
-    public func record(_ page: LookupResultPage) {
-        guard let first = page.results.first else { return }
+    /// One visit to a page of results (a tap, a link in a definition, a submitted search):
+    /// kept in history, and counted the way Hachidori counts lookups: +1 for the first result's
+    /// headword and reading, once per visit (Back and re-rendering don't count again).
+    @discardableResult
+    public func record(_ page: LookupResultPage) -> LookupResultPage {
+        guard let first = page.results.first else { return page }
+        var page = page
+        if showsLookupCounts {
+            page.lookupCount = (try? counts.record(term: first.expression, reading: first.reading))?.lookupCount
+        }
         let entry = LookupHistoryRecord(query: page.query, expression: first.expression, reading: first.reading)
         try? database.writer.write { db in
             var entry = entry
@@ -109,6 +135,7 @@ public final class LookupService {
                 DELETE FROM lookupHistory WHERE id NOT IN (SELECT id FROM lookupHistory ORDER BY createdAt DESC, id DESC LIMIT ?)
                 """, arguments: [Self.historyLimit])
         }
+        return page
     }
 
     public func observeHistory(limit: Int = 50) -> AsyncThrowingStream<[LookupHistoryRecord], any Error> {
@@ -126,7 +153,8 @@ public final class LookupService {
         let source = page.source.map(EntryRenderer.source) ?? ""
         let mined = mining.map { mining in page.results.map(mining.isMined) }
         let accentCSS = accent.map { ":root { --accent: \($0.color); --on-accent: \($0.onColor); }" } ?? ""
-        return LookupPage.document(body: source + EntryRenderer.entries(page.results, mined: mined), dictionaryStyles: styles,
-                                   extraCSS: accentCSS)
+        let count: EntryRenderer.LookupCount? = showsLookupCounts ? .init(page.lookupCount) : nil
+        return LookupPage.document(body: source + EntryRenderer.entries(page.results, mined: mined, lookupCount: count),
+                                   dictionaryStyles: styles, extraCSS: accentCSS)
     }
 }

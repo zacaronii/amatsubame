@@ -126,6 +126,21 @@ import Testing
         #expect(html.contains(#"data-action="audio" data-index="0""#))
     }
 
+    /// Hachidori's chip: on the first result only, after its frequencies, in its wording; an
+    /// empty chip (count on its way) keeps a "Looked up 99 times" place.
+    @Test func lookupCountChipFollowsTheFirstResultsFrequencies() {
+        var plain = result
+        plain.frequencies = []
+        let html = EntryRenderer.entries([result, plain], lookupCount: .init(3))
+        #expect(html.contains(#"13390㋕</span></span><span class="lookup-count" role="status" data-placeholder="Looked up 99 times">Looked up 3 times</span>"#))
+        #expect(html.components(separatedBy: "lookup-count").count == 2, "only the first result")
+        let pending = EntryRenderer.entries([plain], lookupCount: .init(nil))
+        #expect(pending.contains(#"<div class="frequencies"><span class="lookup-count" role="status" data-placeholder="Looked up 99 times"></span></div>"#))
+        #expect(!EntryRenderer.entries([result]).contains("lookup-count"))
+        #expect(EntryRenderer.lookupCountText(1) == "Looked up 1 time")
+        #expect(EntryRenderer.lookupCountText(0) == "Looked up 0 times")
+    }
+
     @Test func emptyResultsSayNoResults() {
         #expect(EntryRenderer.entries([]).contains("No results"))
     }

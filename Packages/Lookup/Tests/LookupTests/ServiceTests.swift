@@ -147,6 +147,32 @@ import Testing
         #expect(try await iterator.next()?.isEmpty == true)
     }
 
+    /// Hachidori's lookup counts: +1 for the first result's headword per visit (a tap, a link,
+    /// a submitted search); searching as you type doesn't count.
+    @Test func lookupsAreCountedByHeadwordOncePerVisit() async throws {
+        let service = try await makeService()
+        let tap = await service.lookup(text: "食べた", utf16Offset: 0)
+        #expect(tap.lookupCount == 1)
+        #expect(await service.lookup(text: "食べさせる", utf16Offset: 0).lookupCount == 2, "counted by headword, not the tapped text")
+        let typed = await service.search("食べる")
+        #expect(typed.lookupCount == nil)
+        #expect(service.recordSearch(typed) == 3)
+        #expect(await service.lookup(text: "xyz", utf16Offset: 0).lookupCount == nil, "misses don't count")
+        #expect(try service.counts.count(term: "食べる", reading: "たべる") == 3)
+    }
+
+    @Test func turningCountsOffStopsCountingAndHidesTheChip() async throws {
+        let service = try await makeService()
+        let counted = await service.lookup(text: "映画", utf16Offset: 0)
+        #expect(service.document(for: counted).contains("Looked up 1 time<"))
+        service.setShowsLookupCounts(false)
+        let page = await service.lookup(text: "映画", utf16Offset: 0)
+        #expect(page.lookupCount == nil)
+        #expect(!service.document(for: page).contains(#"class="lookup-count""#))
+        #expect(try service.counts.count(term: "映画", reading: "えいが") == 1, "past counts are kept")
+        #expect(try !service.counts.settings().showLookupCounts)
+    }
+
     @Test func searchFindsTypedText() async throws {
         let service = try await makeService()
         #expect(await service.search(" 食べた ").results.first?.expression == "食べる")

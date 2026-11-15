@@ -62,6 +62,16 @@ body {
 .frequency { display: inline-flex; border-radius: 6px; overflow: hidden; font-size: 0.75em; }
 .frequency-dictionary { background: var(--accent); color: white; padding: 1px 6px; }
 .frequency-value { background: var(--badge-background); padding: 1px 6px; }
+/* Lookup count ("Looked up 3 times"), after the first result's frequencies, as Hachidori draws it
+   (render/reader.css .gsm-hoshidicts-lookup-stats): a pill whose place is kept, as wide as
+   "Looked up 99 times", while the count is on its way. */
+.lookup-count {
+  display: inline-block; padding: 1px 8px; border: 1px solid var(--tag-background); border-radius: 999px;
+  font-size: 0.75em; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.2; text-align: center;
+}
+.lookup-count::before { display: block; height: 0; visibility: hidden; content: attr(data-placeholder); }
+.lookup-count:empty { visibility: hidden; }
+.lookup-count:empty::before { height: auto; }
 .pitch-group { margin-top: 6px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
 .pitch-dictionary { font-size: 0.75em; color: var(--secondary); }
 .pitch { display: inline-flex; align-items: baseline; gap: 4px; }
