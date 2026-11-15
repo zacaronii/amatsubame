@@ -12,12 +12,24 @@ public enum EntryRenderer {
         public init(_ value: Int?) { self.value = value }
     }
 
-    public static func entries(_ results: [TermLookupResult], mined: [Bool]? = nil, lookupCount: LookupCount? = nil) -> String {
+    /// Settings ▸ Popup ▸ First Meaning: which dictionary first, and how many snippets.
+    public struct SummaryOptions: Equatable, Sendable {
+        public var dictionary: String?
+        public var count: Int
+        public init(dictionary: String? = nil, count: Int = CompactDefinitionSummary.defaultCount) {
+            self.dictionary = dictionary
+            self.count = count
+        }
+    }
+
+    public static func entries(_ results: [TermLookupResult], mined: [Bool]? = nil, lookupCount: LookupCount? = nil,
+                               summary: SummaryOptions? = nil) -> String {
         if results.isEmpty {
             return "<div class=\"no-results\">No results</div>"
         }
         return results.enumerated().map { index, result in
-            entry(result, index: index, mined: mined.map { index < $0.count && $0[index] }, lookupCount: index == 0 ? lookupCount : nil)
+            entry(result, index: index, mined: mined.map { index < $0.count && $0[index] }, lookupCount: index == 0 ? lookupCount : nil,
+                  summary: summary)
         }.joined()
     }
 
@@ -36,9 +48,15 @@ public enum EntryRenderer {
         return "<div class=\"source\" lang=\"ja\">\(HTML.escape(before))<mark>\(HTML.escape(match))</mark>\(HTML.escape(after))</div>"
     }
 
-    static func entry(_ result: TermLookupResult, index: Int, mined: Bool? = nil, lookupCount: LookupCount? = nil) -> String {
+    static func entry(_ result: TermLookupResult, index: Int, mined: Bool? = nil, lookupCount: LookupCount? = nil,
+                      summary: SummaryOptions? = nil) -> String {
         var html = "<article class=\"entry\" data-index=\"\(index)\">"
-        html += "<header class=\"headword\"><span class=\"expression\" lang=\"ja\">\(headword(result))</span>"
+        html += "<header class=\"headword\"><div class=\"headword-text\"><span class=\"expression\" lang=\"ja\">\(headword(result))</span>"
+        if let summary, let compact = CompactDefinitionSummary.extract(result.glossaries, preferredDictionary: summary.dictionary,
+                                                                       maximumItems: summary.count) {
+            html += compactSummary(compact)
+        }
+        html += "</div>"
         html += "<button class=\"audio-button\" data-action=\"audio\" data-index=\"\(index)\" aria-label=\"Play audio\">"
             + "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 9v6h4l5 4V5L8 9H4zm12.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z\"/></svg></button>"
         if let mined {
@@ -128,6 +146,18 @@ public enum EntryRenderer {
             rest = rest[end.lowerBound...]
         }
         return output + rest
+    }
+
+    /// Hachidori's compact summary beside the headword: an optional 36 px image, then the
+    /// snippets, which CSS joins with " · ".
+    static func compactSummary(_ summary: CompactDefinitionSummary) -> String {
+        var html = "<div class=\"compact-summary\" data-dictionary=\"\(HTML.escape(summary.dictionary))\">"
+        if let path = summary.imagePath {
+            let src = StructuredContentRenderer(dictionary: summary.dictionary).mediaURL(path)
+            html += "<span class=\"compact-summary-image\"><img src=\"\(src)\" alt=\"\"></span>"
+        }
+        html += "<ul class=\"compact-summary-items\">" + summary.items.map { "<li>\(HTML.escape($0))</li>" }.joined() + "</ul></div>"
+        return html
     }
 
     /// The headword with ruby furigana over its kanji.

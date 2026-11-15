@@ -56,8 +56,10 @@ public final class LookupService {
     public var accent: (color: String, onColor: String)?
     /// Lookup counts and the popup's settings, in the setup's database (shared by the apps).
     public let counts: LookupCountStore
+    /// Settings ▸ Popup, shared by the apps.
+    public private(set) var popupSettings: PopupSettings
     /// Settings ▸ Popup ▸ Lookup Counts: count lookups and show "Looked up N times".
-    public private(set) var showsLookupCounts: Bool
+    public var showsLookupCounts: Bool { popupSettings.showLookupCounts }
     private let database: AppDatabase
     static let historyLimit = 500
 
@@ -68,20 +70,29 @@ public final class LookupService {
         self.audio = audio
         database = history ?? library.database
         counts = LookupCountStore(database: library.database)
-        showsLookupCounts = (try? counts.settings().showLookupCounts) ?? true
+        popupSettings = (try? counts.settings()) ?? PopupSettings()
     }
 
     public func setShowsLookupCounts(_ shows: Bool) {
-        showsLookupCounts = shows
-        var settings = (try? counts.settings()) ?? PopupSettings()
-        settings.showLookupCounts = shows
-        try? counts.save(settings)
+        updatePopupSettings { $0.showLookupCounts = shows }
+    }
+
+    /// Changes Settings ▸ Popup; pages built afterwards follow it.
+    public func updatePopupSettings(_ change: (inout PopupSettings) -> Void) {
+        change(&popupSettings)
+        try? counts.save(popupSettings)
+    }
+
+    /// Re-reads the shared settings (another app may have changed them).
+    public func reloadPopupSettings() {
+        if let settings = try? counts.settings() { popupSettings = settings }
     }
 
     /// Loads installed dictionaries into the engine (call at launch and after changes).
     public func reload() async throws {
         try await library.reloadEngine()
         styles = await library.engine.styles()
+        reloadPopupSettings()
     }
 
     /// Looks up from the tapped character of `text` onward. With `showSource`, the
@@ -154,7 +165,10 @@ public final class LookupService {
         let mined = mining.map { mining in page.results.map(mining.isMined) }
         let accentCSS = accent.map { ":root { --accent: \($0.color); --on-accent: \($0.onColor); }" } ?? ""
         let count: EntryRenderer.LookupCount? = showsLookupCounts ? .init(page.lookupCount) : nil
-        return LookupPage.document(body: source + EntryRenderer.entries(page.results, mined: mined, lookupCount: count),
+        let summary: EntryRenderer.SummaryOptions? = popupSettings.showCompactDefinitionSummary
+            ? .init(dictionary: popupSettings.compactDefinitionSummaryDictionary, count: popupSettings.compactDefinitionSummaryCount)
+            : nil
+        return LookupPage.document(body: source + EntryRenderer.entries(page.results, mined: mined, lookupCount: count, summary: summary),
                                    dictionaryStyles: styles, extraCSS: accentCSS)
     }
 }

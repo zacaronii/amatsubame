@@ -661,6 +661,16 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v33_compact_summary") { db in
+            // Hachidori's compact definition summary (Settings ▸ Popup ▸ First Meaning): off by
+            // default, as in Hachidori; 3 snippets; nil dictionary = automatic.
+            try db.alter(table: "popupSettings") { t in
+                t.add(column: "showCompactDefinitionSummary", .boolean).notNull().defaults(to: false)
+                t.add(column: "compactDefinitionSummaryCount", .integer).notNull().defaults(to: 3)
+                t.add(column: "compactDefinitionSummaryDictionary", .text)
+            }
+        }
+
         return migrator
     }
 }

@@ -30,9 +30,20 @@ public struct PopupSettings: Codable, Equatable, Sendable, FetchableRecord, Pers
     /// Count lookups and show "Looked up N times" (Hachidori's Lookup history switch, on by
     /// default). Off keeps the counts but stops new ones.
     public var showLookupCounts: Bool
+    /// Hachidori's compact definition summary: brief definitions beside each headword. Off by
+    /// default, as in Hachidori.
+    public var showCompactDefinitionSummary: Bool
+    /// How many snippets (1–6, Hachidori's default 3).
+    public var compactDefinitionSummaryCount: Int
+    /// The dictionary the summary comes from first (its title); nil picks the first that has one.
+    public var compactDefinitionSummaryDictionary: String?
 
-    public init(showLookupCounts: Bool = true) {
+    public init(showLookupCounts: Bool = true, showCompactDefinitionSummary: Bool = false,
+                compactDefinitionSummaryCount: Int = 3, compactDefinitionSummaryDictionary: String? = nil) {
         self.showLookupCounts = showLookupCounts
+        self.showCompactDefinitionSummary = showCompactDefinitionSummary
+        self.compactDefinitionSummaryCount = compactDefinitionSummaryCount
+        self.compactDefinitionSummaryDictionary = compactDefinitionSummaryDictionary
     }
 }
 
