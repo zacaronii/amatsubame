@@ -1,6 +1,6 @@
 # Hachidori: research for linking the apps
 
-Research for making Yomu, Miru, Kiku and Hiku work with a [Hachidori](https://github.com/bee-san/hachidori) host (GPL-3.0). Nothing here is built yet; the plan is at the end. Sources were read at these versions:
+Research for making Yomu, Miru, Kiku and Hiku work with a [Hachidori](https://github.com/bee-san/hachidori) host (GPL-3.0). The work is tracked in issues #29–#40: `Packages/HachidoriKit` implements sections 1–4, and the Mac apps use it for lookups (Settings ▸ Lookup and Mining ▸ Hachidori). Sources were read at these versions:
 
 | Name here | Project | Version |
 | --- | --- | --- |
