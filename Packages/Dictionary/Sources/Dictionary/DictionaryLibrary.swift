@@ -333,7 +333,9 @@ public final class DictionaryLibrary: Sendable {
             EngineDictionary(title: $0.title, folder: folder(for: $0), hasTerms: $0.hasTerms,
                              hasFrequencies: $0.hasFrequencies, hasPitches: $0.hasPitches, hasKanji: $0.hasKanji)
         }
-        try await engine.configure(loaded, frequencySortTitle: sortTitle)
-        await scanner.configure(loaded, frequencySortTitle: sortTitle)
+        // A dictionary the engine rejects is left out of word marks too.
+        let rejected = await engine.configure(loaded, frequencySortTitle: sortTitle)
+        await scanner.configure(loaded.filter { !rejected.contains($0.title) },
+                                frequencySortTitle: sortTitle.flatMap { rejected.contains($0) ? nil : $0 })
     }
 }

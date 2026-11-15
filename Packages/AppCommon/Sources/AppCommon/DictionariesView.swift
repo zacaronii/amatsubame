@@ -29,7 +29,8 @@ public struct DictionariesView: View {
             }
             Section {
                 ForEach(Array(records.enumerated()), id: \.element.id) { index, record in
-                    DictionaryRow(record: record, updatesItself: selfUpdating.contains(record.id)) { enabled in
+                    DictionaryRow(record: record, updatesItself: selfUpdating.contains(record.id),
+                                  problem: DictionaryFormat(folder: environment.dictionaries.folder(for: record)).problem) { enabled in
                         Task { await run { try await environment.dictionaries.setEnabled(record.id, enabled) } }
                     }
                     .reorderMenu(index: index, count: records.count, move: move)
@@ -177,6 +178,8 @@ public struct DictionariesView: View {
 private struct DictionaryRow: View {
     let record: DictionaryRecord
     let updatesItself: Bool
+    /// Why the engine can't load it (a newer format, or a broken folder).
+    let problem: String?
     let onToggle: (Bool) -> Void
 
     var body: some View {
@@ -193,6 +196,11 @@ private struct DictionaryRow: View {
                                 .background(.tint.opacity(0.15), in: .capsule)
                         }
                         Text(details).font(.caption).foregroundStyle(.secondary)
+                    }
+                    if let problem {
+                        Label(problem, systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
                     }
                 }
                 if updatesItself {

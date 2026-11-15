@@ -65,7 +65,7 @@ One multiplatform SwiftUI app target covering iOS, iPadOS and native macOS, with
 
 **Mac support.** Since MPVKit, Core ML, GRDB and WKWebView all run on macOS, a native Mac build mostly costs layout polish (menus, keyboard shortcuts, hover instead of tap). Keep the Mac destination building from day one so it never drifts; treat polish as the last phase.
 
-**Licensing.** The apps are GPL-3.0 (`LICENSE`): hoshidicts and Yomitan's deinflection data are GPL-3.0 and linked into every app. MPVKit's LGPL build stays dynamically linked and replaceable. Third-party notices are in `THIRD_PARTY_NOTICES.md`. An App Store release would need the hoshidicts author's permission, since Apple's terms add restrictions the GPL doesn't allow.
+**Licensing.** The apps are GPL-3.0 (`LICENSE`): hoshidicts and Yomitan's deinflection data are GPL-3.0 and linked into every app. MPVKit's LGPL build stays dynamically linked and replaceable. Third-party notices are in `THIRD_PARTY_NOTICES.md`. An App Store release would need the hoshidicts authors' permission (Manhhao and bee-san), since Apple's terms add restrictions the GPL doesn't allow.
 
 ## Architecture
 

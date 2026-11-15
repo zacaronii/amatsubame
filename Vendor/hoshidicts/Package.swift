@@ -4,7 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "hoshidicts",
-    platforms: [.iOS(.v18), .macOS(.v15)],
+    platforms: [.iOS(.v26), .macOS(.v26)],
     products: [
         .library(name: "CHoshiDicts", targets: ["CHoshiDicts"]),
     ],
@@ -22,10 +22,13 @@ let package = Package(
                 "src",
                 "external/libdeflate/lib",
                 "external/utf8proc/utf8proc.c",
+                "external/lzokay/lzokay.cpp",
+                "external/gumbo-parser/src",
             ],
             publicHeadersPath: "include",
             cxxSettings: [
                 .headerSearchPath("include"),
+                .headerSearchPath("src"),
                 .headerSearchPath("external/libdeflate"),
                 .headerSearchPath("external/libdeflate/lib"),
                 .headerSearchPath("external/utfcpp/source"),
@@ -33,6 +36,8 @@ let package = Package(
                 .headerSearchPath("external/xxHash"),
                 .headerSearchPath("external/unordered_dense/include"),
                 .headerSearchPath("external/utf8proc"),
+                .headerSearchPath("external/lzokay"),
+                .headerSearchPath("external/gumbo-parser/src"),
                 .unsafeFlags(["-Wno-missing-braces"]),
             ]
         ),

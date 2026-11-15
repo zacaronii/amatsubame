@@ -9,13 +9,15 @@ They include or use the following. Each keeps its own license; the full texts ar
 ## Included in this repository
 | Project | License | Where |
 | --- | --- | --- |
-| [hoshidicts](https://github.com/Manhhao/hoshidicts) | GPL-3.0 | `Vendor/hoshidicts` (`LICENSE`, local changes in `VENDORED.md`) |
+| [hoshidicts](https://github.com/Manhhao/hoshidicts), as [bee-san's fork](https://github.com/bee-san/hoshidicts) | GPL-3.0 | `Vendor/hoshidicts` (`LICENSE`, local changes in `VENDORED.md`) |
 | glaze | MIT | `Vendor/hoshidicts/external/glaze` |
 | libdeflate | MIT | `Vendor/hoshidicts/external/libdeflate` |
 | unordered_dense | MIT | `Vendor/hoshidicts/external/unordered_dense` |
 | utf8proc | MIT and the Unicode data license | `Vendor/hoshidicts/external/utf8proc` |
 | utfcpp | BSL-1.0 | `Vendor/hoshidicts/external/utfcpp` |
 | xxHash | BSD-2-Clause | `Vendor/hoshidicts/external/xxHash` |
+| lzokay | MIT | `Vendor/hoshidicts/external/lzokay` |
+| gumbo-parser (Nokogiri's) | Apache-2.0 | `Vendor/hoshidicts/external/gumbo-parser` |
 | [libfvad](https://github.com/dpirch/libfvad) (WebRTC's voice activity detector) | BSD-3-Clause | `Vendor/libfvad` (`LICENSE`, `VENDORED.md`) |
 | Mozilla CA certificate list | MPL-2.0 | `Packages/Player/Sources/PlayerKit/Resources/cacert.pem` |
 | Yomitan Japanese transforms test data | GPL-3.0 | `Packages/Dictionary/Tests/DictionaryTests/Fixtures/yomitan-japanese-transforms.json` |

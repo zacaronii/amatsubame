@@ -116,7 +116,7 @@ import Testing
                      "pitches": [["dictionary": "Kanjium", "pitches": [["position": 1, "nasal": [], "devoice": [2]]]]]],
         ]]]
         let result = try #require(try HostLookupPage(response: response).results.first)
-        #expect(result.score == 2)
+        #expect(result.score == 1.6, "kept as the host sent it")
         #expect(result.pitches == [PitchGroup(dictionary: "Kanjium", accents: [PitchAccent(downstep: 1, devoice: [2])])])
     }
 }

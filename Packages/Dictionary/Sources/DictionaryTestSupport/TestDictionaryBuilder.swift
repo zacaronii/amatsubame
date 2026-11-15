@@ -8,10 +8,10 @@ public struct TestDictionaryBuilder {
         public var rules: String
         public var glossary: [Any]
         public var definitionTags: String
-        public var score: Int
+        public var score: Double
 
         public init(_ expression: String, _ reading: String, rules: String = "", glossary: [Any] = ["test"],
-                    definitionTags: String = "", score: Int = 0) {
+                    definitionTags: String = "", score: Double = 0) {
             self.expression = expression
             self.reading = reading
             self.rules = rules
