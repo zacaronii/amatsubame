@@ -129,6 +129,28 @@ show **Auto**.
 - Imported dictionaries don't update unless their own files say they can and where from.
 - If you delete a recommended dictionary, the apps remember and don't pick it again by themselves.
 
+## Hachidori on the Mac
+
+If you use [Hachidori](https://github.com/bee-san/hachidori) in your browser and share it from a
+computer or a Docker host, the Mac apps can look words up on it too: Settings ▸ Lookup and Mining ▸
+**Hachidori**. Turn on **Use Hachidori** and enter the address of the computer sharing it (port 8771
+unless you changed it).
+
+While the apps are linked:
+
+- Words are looked up on Hachidori, with its dictionaries.
+- Lookup counts are Hachidori's, so a word you look up in the browser and in Yomu counts twice in the
+  same place.
+- The popup follows Hachidori's settings (brief definitions, lookup counts, background opacity); the
+  Popup page shows them but you change them in Hachidori.
+- Words you marked known or ignored in Hachidori aren't underlined.
+- Cards still go to your Anki through the apps' own Anki settings.
+
+When Hachidori can't be reached, the apps look up with the Mac's own dictionaries and keep trying to
+link in the background. Hachidori has no password, so only use it over your home network or a private
+network such as Tailscale, never over the internet. The setting is shared by the apps that share a
+setup. On iPhone and iPad the apps keep looking up with their own dictionaries for now.
+
 ## Word marks
 
 With **Mark Words by Anki State** on (in Settings ▸ Lookup and Mining), the apps underline words by

@@ -13,12 +13,25 @@ public enum LookupWebEvent: Equatable, Sendable {
     case mine(index: Int)
 }
 
-/// Serves `dictmedia://media/<path>?dictionary=<title>` from the dictionary engine.
-final class DictionaryMediaHandler: NSObject, WKURLSchemeHandler {
-    let engine: DictionaryEngine
+/// Where the popup's dictionary images come from: the local engine, and while linked the host.
+struct MediaSource: Sendable {
+    let load: @Sendable (_ dictionary: String, _ path: String) async -> Data?
 
-    init(engine: DictionaryEngine) {
-        self.engine = engine
+    static func engine(_ engine: DictionaryEngine) -> MediaSource {
+        MediaSource { await engine.mediaFile(dictionary: $0, path: $1) }
+    }
+
+    static func service(_ service: LookupService) -> MediaSource {
+        MediaSource { await service.mediaFile(dictionary: $0, path: $1) }
+    }
+}
+
+/// Serves `dictmedia://media/<path>?dictionary=<title>` from the dictionaries.
+final class DictionaryMediaHandler: NSObject, WKURLSchemeHandler {
+    let media: MediaSource
+
+    init(media: MediaSource) {
+        self.media = media
     }
 
     func webView(_ webView: WKWebView, start task: any WKURLSchemeTask) {
@@ -26,10 +39,10 @@ final class DictionaryMediaHandler: NSObject, WKURLSchemeHandler {
         let components = url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }
         let dictionary = components?.queryItems?.first { $0.name == "dictionary" }?.value ?? ""
         let path = String((components?.path ?? "").dropFirst())
-        let engine = engine
+        let media = media
         let taskBox = UncheckedTask(task)
         Task { @MainActor in
-            let data = await engine.mediaFile(dictionary: dictionary, path: path)
+            let data = await media.load(dictionary, path)
             guard let url, let data else {
                 taskBox.task.didFailWithError(URLError(.fileDoesNotExist))
                 return
@@ -66,7 +79,7 @@ final class DictionaryMediaHandler: NSObject, WKURLSchemeHandler {
 @MainActor
 struct LookupWebView {
     let html: String
-    let engine: DictionaryEngine
+    let media: MediaSource
     /// Results mined since the page loaded; their buttons turn into checks without a reload.
     var minedIndices: Set<Int> = []
     /// A lookup count recorded after the page was built (a search left on screen): written into
@@ -78,7 +91,7 @@ struct LookupWebView {
 
     func makeWebView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
-        configuration.setURLSchemeHandler(DictionaryMediaHandler(engine: engine), forURLScheme: StructuredContentRenderer.mediaScheme)
+        configuration.setURLSchemeHandler(DictionaryMediaHandler(media: media), forURLScheme: StructuredContentRenderer.mediaScheme)
         configuration.userContentController.add(context.coordinator, name: "lookup")
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator

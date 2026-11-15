@@ -56,8 +56,27 @@ public final class LookupService {
     public var accent: (color: String, onColor: String)?
     /// Lookup counts and the popup's settings, in the setup's database (shared by the apps).
     public let counts: LookupCountStore
-    /// Settings ▸ Popup, shared by the apps.
-    public private(set) var popupSettings: PopupSettings
+    /// Settings ▸ Popup as stored in the setup (shared by the apps).
+    public private(set) var storedPopupSettings: PopupSettings
+    /// Settings ▸ Hachidori: the host lookups go to while it's linked (the Mac apps). Nil looks
+    /// up locally only.
+    public var host: HostConnection? {
+        didSet { if oldValue !== host { oldValue?.stop() } }
+    }
+    /// Linked to a Hachidori host: lookups, counts and the popup's settings are the host's.
+    public var followsHost: Bool { host?.isLinked == true }
+    /// Settings ▸ Popup in effect: the host's while linked (Hachidori's options), else ours.
+    public var popupSettings: PopupSettings {
+        guard followsHost, let options = host?.options else { return storedPopupSettings }
+        var settings = storedPopupSettings
+        settings.showLookupCounts = options.showLookupCounts
+        settings.showCompactDefinitionSummary = options.showCompactDefinitionSummary
+        settings.compactDefinitionSummaryCount = options.compactDefinitionSummaryCount
+        settings.compactDefinitionSummaryDictionary = options.compactDefinitionSummaryDictionary.isEmpty
+            ? nil : options.compactDefinitionSummaryDictionary
+        settings.backgroundOpacityPercent = options.popupOpacityPercent
+        return settings
+    }
     /// Settings ▸ Popup ▸ Lookup Counts: count lookups and show "Looked up N times".
     public var showsLookupCounts: Bool { popupSettings.showLookupCounts }
     private let database: AppDatabase
@@ -70,7 +89,7 @@ public final class LookupService {
         self.audio = audio
         database = history ?? library.database
         counts = LookupCountStore(database: library.database)
-        popupSettings = (try? counts.settings()) ?? PopupSettings()
+        storedPopupSettings = (try? counts.settings()) ?? PopupSettings()
     }
 
     public func setShowsLookupCounts(_ shows: Bool) {
@@ -79,13 +98,13 @@ public final class LookupService {
 
     /// Changes Settings ▸ Popup; pages built afterwards follow it.
     public func updatePopupSettings(_ change: (inout PopupSettings) -> Void) {
-        change(&popupSettings)
-        try? counts.save(popupSettings)
+        change(&storedPopupSettings)
+        try? counts.save(storedPopupSettings)
     }
 
     /// Re-reads the shared settings (another app may have changed them).
     public func reloadPopupSettings() {
-        if let settings = try? counts.settings() { popupSettings = settings }
+        if let settings = try? counts.settings() { storedPopupSettings = settings }
     }
 
     /// Loads installed dictionaries into the engine (call at launch and after changes).
@@ -99,7 +118,7 @@ public final class LookupService {
     /// popup shows `text` above the results with the match highlighted.
     public func lookup(text: String, utf16Offset: Int, showSource: Bool = false) async -> LookupResultPage {
         let scanned = TextScanner.scanText(text, utf16Offset: utf16Offset)
-        let results = NameRanking.forTextTap(await library.engine.lookup(scanned))
+        let results = NameRanking.forTextTap(await terms(scanned))
         let matched = results.first?.matched ?? ""
         let page = LookupResultPage(
             query: results.first?.matched ?? scanned,
@@ -108,43 +127,53 @@ public final class LookupService {
             results: results
         )
         if !results.isEmpty { try? activity?.recordLookup() }
-        return record(page)
+        return await record(page)
     }
 
     /// Looks up typed text (the search screen and glossary links).
     public func search(_ query: String) async -> LookupResultPage {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let page = LookupResultPage(query: trimmed, results: await library.engine.lookup(trimmed, maxResults: 32))
-        return page
+        return LookupResultPage(query: trimmed, results: await terms(trimmed, maxResults: 32))
+    }
+
+    /// The host's results while linked, else (or when it doesn't answer) the local dictionaries'.
+    private func terms(_ text: String, maxResults: Int? = nil) async -> [TermLookupResult] {
+        if !text.isEmpty, let host, let found = await host.lookup(text, maxResults: maxResults) { return found }
+        if let maxResults { return await library.engine.lookup(text, maxResults: maxResults) }
+        return await library.engine.lookup(text)
     }
 
     /// A typed search the user settled on (submitted): kept in history and counted, like a
     /// lookup (searches as you type aren't counted). Returns its lookup count.
     @discardableResult
-    public func recordSearch(_ page: LookupResultPage) -> Int? {
+    public func recordSearch(_ page: LookupResultPage) async -> Int? {
         guard !page.results.isEmpty else { return nil }
         try? activity?.recordLookup()
-        return record(page).lookupCount
+        return await record(page).lookupCount
     }
 
     /// One visit to a page of results (a tap, a link in a definition, a submitted search):
     /// kept in history, and counted the way Hachidori counts lookups: +1 for the first result's
-    /// headword and reading, once per visit (Back and re-rendering don't count again).
+    /// headword and reading, once per visit (Back and re-rendering don't count again). While
+    /// linked to a Hachidori host the count is the host's (`hd_lookup_stats_record`).
     @discardableResult
-    public func record(_ page: LookupResultPage) -> LookupResultPage {
+    public func record(_ page: LookupResultPage) async -> LookupResultPage {
         guard let first = page.results.first else { return page }
         var page = page
-        if showsLookupCounts {
+        if let host, host.isLinked {
+            page.lookupCount = await host.recordLookup(term: first.expression, reading: first.reading)
+        } else if showsLookupCounts {
             page.lookupCount = (try? counts.record(term: first.expression, reading: first.reading))?.lookupCount
         }
         let entry = LookupHistoryRecord(query: page.query, expression: first.expression, reading: first.reading)
-        try? database.writer.write { db in
+        let limit = Self.historyLimit
+        try? await database.writer.write { db in
             var entry = entry
             _ = try LookupHistoryRecord.filter(Column("expression") == entry.expression && Column("reading") == entry.reading).deleteAll(db)
             try entry.insert(db)
             try db.execute(sql: """
                 DELETE FROM lookupHistory WHERE id NOT IN (SELECT id FROM lookupHistory ORDER BY createdAt DESC, id DESC LIMIT ?)
-                """, arguments: [Self.historyLimit])
+                """, arguments: [limit])
         }
         return page
     }
@@ -171,7 +200,14 @@ public final class LookupService {
         let summary: EntryRenderer.SummaryOptions? = popupSettings.showCompactDefinitionSummary
             ? .init(dictionary: popupSettings.compactDefinitionSummaryDictionary, count: popupSettings.compactDefinitionSummaryCount)
             : nil
+        let dictionaryStyles = followsHost ? styles.merging(host?.styles ?? [:]) { $1 } : styles
         return LookupPage.document(body: source + EntryRenderer.entries(page.results, mined: mined, lookupCount: count, summary: summary),
-                                   dictionaryStyles: styles, extraCSS: accentCSS)
+                                   dictionaryStyles: dictionaryStyles, extraCSS: accentCSS)
+    }
+
+    /// A dictionary image for the popup: from the local dictionaries, else from the host.
+    func mediaFile(dictionary: String, path: String) async -> Data? {
+        if let data = await library.engine.mediaFile(dictionary: dictionary, path: path) { return data }
+        return await host?.media(dictionary: dictionary, path: path)
     }
 }

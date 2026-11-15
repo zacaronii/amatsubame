@@ -3,6 +3,7 @@ import Core
 import Dictionary
 import Foundation
 import GRDB
+import HachidoriKit
 import KechimochiKit
 import Lookup
 import Observation
@@ -169,6 +170,7 @@ public final class CommonEnvironment {
         pendingDictionaryImports = []
         try? await lookup.reload()
         loadedDictionaries = (try? dictionaries.dictionaries()) ?? []
+        applyHachidoriSettings()
         dictionaryUpdater.start()
         Task {
             // At launch, then every 30 minutes while the app runs (word marks follow reviews in Anki).
@@ -215,10 +217,43 @@ public final class CommonEnvironment {
     }
 
     private func reloadDictionariesIfChanged() async {
+        applyHachidoriSettings()
         let current = (try? dictionaries.dictionaries()) ?? []
         guard current != loadedDictionaries else { return }
         loadedDictionaries = current
         try? await lookup.reload()
+    }
+
+    // MARK: Hachidori
+
+    public var hachidoriSettings: HachidoriSettings {
+        (try? dictionaries.database.hachidoriSettings()) ?? HachidoriSettings()
+    }
+
+    /// Settings ▸ Hachidori: saves the host and links to it (or unlinks), here and, through the
+    /// shared setup, in the other apps.
+    public func saveHachidoriSettings(_ settings: HachidoriSettings) {
+        try? dictionaries.database.saveHachidoriSettings(settings)
+        applyHachidoriSettings()
+    }
+
+    /// Links lookups to the Hachidori host in the settings, if it's on. Only the Mac apps look up
+    /// on the host; on iOS the apps keep looking up locally (docs/hachidori.md section 8).
+    func applyHachidoriSettings() {
+        #if os(macOS)
+        let settings = hachidoriSettings
+        guard settings.enabled, let url = HachidoriLink.linkURL(from: settings.address) else {
+            lookup.host = nil
+            return
+        }
+        if lookup.host?.link.url == url { return }
+        let info = Bundle.main.infoDictionary
+        let name = info?["CFBundleName"] as? String ?? "Amatsubame"
+        let version = info?["CFBundleShortVersionString"] as? String ?? "0"
+        let connection = HostConnection(link: HachidoriLink(url: url, clientName: name, clientVersion: version))
+        lookup.host = connection
+        connection.start()
+        #endif
     }
 
     /// The user's choice when both this app and the shared setup had one (applies next launch).

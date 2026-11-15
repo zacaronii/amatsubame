@@ -11,6 +11,7 @@ let package = Package(
         .package(path: "../Anki"),
         .package(path: "../Core"),
         .package(path: "../Dictionary"),
+        .package(path: "../HachidoriKit"),
         .package(url: "https://github.com/groue/GRDB.swift", from: "7.11.1"),
     ],
     targets: [
@@ -21,6 +22,7 @@ let package = Package(
                 .product(name: "Core", package: "Core"),
                 .product(name: "Dictionary", package: "Dictionary"),
                 .product(name: "GRDB", package: "GRDB.swift"),
+                .product(name: "HachidoriKit", package: "HachidoriKit"),
             ],
             resources: [.copy("Web")]
         ),

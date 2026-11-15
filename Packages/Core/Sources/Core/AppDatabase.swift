@@ -678,6 +678,16 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v35_hachidori") { db in
+            // Settings ▸ Hachidori: the host the Mac apps look words up on (part of the shared
+            // setup). The address is the user's own; there's no default.
+            try db.create(table: "hachidoriSettings") { t in
+                t.primaryKey("id", .integer)
+                t.column("enabled", .boolean).notNull().defaults(to: false)
+                t.column("address", .text).notNull().defaults(to: "")
+            }
+        }
+
         return migrator
     }
 }

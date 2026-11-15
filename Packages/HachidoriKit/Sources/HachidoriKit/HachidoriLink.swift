@@ -38,7 +38,7 @@ public actor HachidoriLink {
         public init() {}
     }
 
-    public let url: URL
+    public nonisolated let url: URL
     let clientName: String
     let clientVersion: String
     let transport: any SharingTransport
@@ -138,8 +138,9 @@ public actor HachidoriLink {
         case .hello(let hello):
             guard hello.protocolVersion == ClientFrame.protocolVersion else { throw HachidoriError.malformed("protocol \(hello.protocolVersion)") }
             records.apply(snapshot: hello.snapshot)
-            setStatus(.linked(name: hello.name, version: hello.version, capabilities: hello.capabilities))
+            // The records first: whoever sees "linked" can read the host's settings at once.
             broadcast(.records(Set(SharedRecords.snapshotKeys)))
+            setStatus(.linked(name: hello.name, version: hello.version, capabilities: hello.capabilities))
             for (id, waiter) in linkWaiters {
                 linkWaiters[id] = nil
                 waiter.resume(returning: .success(socket))
@@ -188,7 +189,9 @@ public actor HachidoriLink {
     // MARK: Requests
 
     /// Sends one request and returns the host's reply (`ok` true), waiting a few seconds for the link.
-    public func request(_ target: String, _ type: String, _ fields: [String: JSONValue] = [:]) async throws(HachidoriError) -> JSONValue {
+    /// `timeout` replaces the usual reply timeout (a tap shouldn't wait 15 s).
+    public func request(_ target: String, _ type: String, _ fields: [String: JSONValue] = [:],
+                        timeout: Duration? = nil) async throws(HachidoriError) -> JSONValue {
         let socket = try await linkedSocket().get()
         nextID += 1
         let id = nextID
@@ -197,7 +200,7 @@ public actor HachidoriLink {
         message["type"] = .string(type)
         message["requestId"] = .number(Double(id))
         let frame = ClientFrame.request(id: id, message: message).json
-        let reply = timing.reply
+        let reply = timeout ?? timing.reply
         return try await withCheckedContinuation { (continuation: CheckedContinuation<Result<JSONValue, HachidoriError>, Never>) in
             pending[id] = continuation
             Task {
@@ -238,7 +241,8 @@ public actor HachidoriLink {
     // MARK: The requests the apps use
 
     /// Looks `text` up on the host with its own settings (`termPayload` in Hachidori's content.js).
-    public func lookup(_ text: String, maxResults: Int? = nil, scanLength: Int? = nil) async throws(HachidoriError) -> HostLookupPage {
+    public func lookup(_ text: String, maxResults: Int? = nil, scanLength: Int? = nil,
+                       timeout: Duration? = nil) async throws(HachidoriError) -> HostLookupPage {
         // The settings come with the hello, so wait for the link before reading them.
         _ = try await linkedSocket().get()
         let options = records.options
@@ -248,7 +252,7 @@ public actor HachidoriLink {
             "scanLength": .number(Double(scanLength ?? options.scanLength)),
             "options": ["frequencyDictionary": .string(options.frequencyDictionary),
                         "frequencyOrder": .string(options.frequencyOrder), "primaryReading": ""],
-        ])
+        ], timeout: timeout)
         return try HostLookupPage(response: reply)
     }
 
@@ -259,6 +263,16 @@ public actor HachidoriLink {
         ])
         guard let url = reply["dataUrl"]?.string else { throw .malformed("a media reply without data") }
         return url
+    }
+
+    /// A dictionary's image, decoded from `media(dictionary:path:)`'s `data:` URL.
+    public func mediaData(dictionary: String, path: String) async throws(HachidoriError) -> Data {
+        let url = try await media(dictionary: dictionary, path: path)
+        guard let comma = url.firstIndex(of: ","), url[..<comma].hasSuffix(";base64"),
+              let data = Data(base64Encoded: String(url[url.index(after: comma)...])) else {
+            throw .malformed("an unreadable image")
+        }
+        return data
     }
 
     /// Each dictionary's CSS (dictionary title → styles).
@@ -274,8 +288,8 @@ public actor HachidoriLink {
     /// Counts one lookup of a headword (the first result's expression and reading) with the host's
     /// clock. Returns the row, or nil when the host has lookup counts turned off.
     @discardableResult
-    public func recordLookup(term: String, reading: String) async throws(HachidoriError) -> HostLookupCount? {
-        try await lookupStats("hd_lookup_stats_record", term: term, reading: reading)
+    public func recordLookup(term: String, reading: String, timeout: Duration? = nil) async throws(HachidoriError) -> HostLookupCount? {
+        try await lookupStats("hd_lookup_stats_record", term: term, reading: reading, timeout: timeout)
     }
 
     /// The count for a headword, without adding one.
@@ -283,10 +297,11 @@ public actor HachidoriLink {
         try await lookupStats("hd_lookup_stats_read", term: term, reading: reading)
     }
 
-    private func lookupStats(_ type: String, term: String, reading: String) async throws(HachidoriError) -> HostLookupCount? {
+    private func lookupStats(_ type: String, term: String, reading: String,
+                             timeout: Duration? = nil) async throws(HachidoriError) -> HostLookupCount? {
         let reply = try await request("hoshidicts-worker", type, [
             "term": .string(HostLookupCount.normalized(term)), "reading": .string(HostLookupCount.normalized(reading)),
-        ])
+        ], timeout: timeout)
         guard let statistics = reply["statistics"], statistics != .null else { return nil }
         guard let row = try? statistics.decode(HostLookupCount.self) else { throw .malformed("an unreadable lookup count") }
         return row

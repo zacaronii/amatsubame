@@ -156,7 +156,7 @@ import Testing
         #expect(await service.lookup(text: "食べさせる", utf16Offset: 0).lookupCount == 2, "counted by headword, not the tapped text")
         let typed = await service.search("食べる")
         #expect(typed.lookupCount == nil)
-        #expect(service.recordSearch(typed) == 3)
+        #expect(await service.recordSearch(typed) == 3)
         #expect(await service.lookup(text: "xyz", utf16Offset: 0).lookupCount == nil, "misses don't count")
         #expect(try service.counts.count(term: "食べる", reading: "たべる") == 3)
     }
