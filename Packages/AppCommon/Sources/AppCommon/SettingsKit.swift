@@ -297,6 +297,13 @@ public struct LookupAndMiningSection<AnkiPage: View>: View {
             }
             .accessibilityIdentifier("settings.audioSources")
             NavigationLink {
+                PopupSettingsPage()
+            } label: {
+                SettingsRowLabel("Popup", subtitle: environment.lookup.showsLookupCounts ? "Lookup counts" : nil,
+                                 systemImage: "text.bubble.fill", color: .indigo)
+            }
+            .accessibilityIdentifier("settings.popup")
+            NavigationLink {
                 ankiPage()
             } label: {
                 SettingsRowLabel("Anki", subtitle: ankiSummary, systemImage: "rectangle.stack.fill", color: .green,

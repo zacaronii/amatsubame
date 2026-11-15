@@ -27,7 +27,8 @@ For each result, top to bottom:
 
 - **The word** with furigana over its kanji.
 - **How it was conjugated**, when the tapped text was an inflected form.
-- **Frequency**: how common the word is, from each frequency dictionary you have.
+- **Frequency**: how common the word is, from each frequency dictionary you have. The first result
+  also says how often you've looked it up ("Looked up 3 times").
 - **Pitch accent**: a graph of the reading with the downstep number, from your pitch accent dictionary.
 - **Definitions**, grouped under each dictionary's name, in your dictionary order.
 
@@ -35,6 +36,16 @@ Two buttons sit beside the word: the speaker plays **word audio**, and **+** (Ad
 card. It turns into a check mark for words you've already mined.
 
 Tap a word inside a definition to look that up too; **Back** returns to the word before.
+
+### Lookup counts
+
+Each lookup adds one to the count of the first result's word, the dictionary form rather than the
+form you tapped, so 食べた and 食べさせる both count for 食べる. A tap, a word tapped inside a
+definition and a search you settle on each count once; going **Back**, or searching as you type,
+doesn't. The counts work like [Hachidori](https://github.com/bee-san/hachidori)'s, and apps that share
+their setup add to the same counts.
+
+Settings ▸ Lookup and Mining ▸ **Popup** turns them off (your past counts are kept) or resets them.
 
 ### Word audio
 
@@ -206,7 +217,8 @@ syncs straight away.
 
 ## Sharing the setup between apps
 
-Dictionaries, word audio sources, AnkiConnect (with its card settings) and word marks can be shared
+Dictionaries, word audio sources, AnkiConnect (with its card settings), word marks, lookup counts and
+the popup's settings can be shared
 by Yomu, Miru, Kiku and Hiku on the same device, so you set them up once and a change in one app
 shows in all of them. Servers, reading and watching progress, downloads, waiting cards and lookup
 history always stay with each app.

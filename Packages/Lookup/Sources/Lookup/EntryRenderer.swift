@@ -4,13 +4,26 @@ import Foundation
 /// Builds the popup's HTML: one block per result, Yomitan-style.
 public enum EntryRenderer {
     /// `mined` (one flag per result) adds the Add to Anki button, checked for words already mined.
-    public static func entries(_ results: [TermLookupResult], mined: [Bool]? = nil) -> String {
+    /// The first result's lookup count, shown after its frequencies when lookup counts are on.
+    /// `value` is nil while the visit isn't recorded yet: the chip's place is kept, empty, and
+    /// filled in by `LookupWebView` when the count arrives.
+    public struct LookupCount: Equatable, Sendable {
+        public var value: Int?
+        public init(_ value: Int?) { self.value = value }
+    }
+
+    public static func entries(_ results: [TermLookupResult], mined: [Bool]? = nil, lookupCount: LookupCount? = nil) -> String {
         if results.isEmpty {
             return "<div class=\"no-results\">No results</div>"
         }
         return results.enumerated().map { index, result in
-            entry(result, index: index, mined: mined.map { index < $0.count && $0[index] })
+            entry(result, index: index, mined: mined.map { index < $0.count && $0[index] }, lookupCount: index == 0 ? lookupCount : nil)
         }.joined()
+    }
+
+    /// Hachidori's wording (render/popup.js formatLookupCount).
+    public static func lookupCountText(_ count: Int) -> String {
+        "Looked up \(count) \(count == 1 ? "time" : "times")"
     }
 
     /// The source text with the matched span highlighted; tapping another word in it looks that up.
@@ -23,7 +36,7 @@ public enum EntryRenderer {
         return "<div class=\"source\" lang=\"ja\">\(HTML.escape(before))<mark>\(HTML.escape(match))</mark>\(HTML.escape(after))</div>"
     }
 
-    static func entry(_ result: TermLookupResult, index: Int, mined: Bool? = nil) -> String {
+    static func entry(_ result: TermLookupResult, index: Int, mined: Bool? = nil, lookupCount: LookupCount? = nil) -> String {
         var html = "<article class=\"entry\" data-index=\"\(index)\">"
         html += "<header class=\"headword\"><span class=\"expression\" lang=\"ja\">\(headword(result))</span>"
         html += "<button class=\"audio-button\" data-action=\"audio\" data-index=\"\(index)\" aria-label=\"Play audio\">"
@@ -40,11 +53,16 @@ public enum EntryRenderer {
             }.joined(separator: "<span class=\"inflection-separator\">«</span>") + "</div>"
         }
         let frequencies = result.frequencies.filter { !$0.values.isEmpty }
-        if !frequencies.isEmpty {
+        if !frequencies.isEmpty || lookupCount != nil {
             html += "<div class=\"frequencies\">" + frequencies.map { group in
                 "<span class=\"frequency\"><span class=\"frequency-dictionary\">\(HTML.escape(group.dictionary))</span>"
                     + "<span class=\"frequency-value\">\(group.values.map { HTML.escape($0.display) }.joined(separator: " / "))</span></span>"
-            }.joined() + "</div>"
+            }.joined()
+            if let lookupCount {
+                let text = lookupCount.value.map(lookupCountText) ?? ""
+                html += "<span class=\"lookup-count\" role=\"status\" data-placeholder=\"\(lookupCountText(99))\">\(text)</span>"
+            }
+            html += "</div>"
         }
         for group in result.pitches where !group.accents.isEmpty {
             html += "<div class=\"pitch-group\"><span class=\"pitch-dictionary\">\(HTML.escape(group.dictionary))</span>"

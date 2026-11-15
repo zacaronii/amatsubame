@@ -13,6 +13,8 @@ public final class LookupPopupModel: Identifiable {
     public var context: (any MiningContext)?
     /// Results mined while the popup is open, per page.
     var minedIndices: [LookupResultPage.ID: Set<Int>] = [:]
+    /// Lookup counts recorded after a page was shown (a search left on screen), per page.
+    var lookupCounts: [LookupResultPage.ID: Int] = [:]
     /// Each page's HTML, built once so marking a result as mined doesn't reload it.
     @ObservationIgnored private var documents: [LookupResultPage.ID: String] = [:]
 
@@ -25,6 +27,12 @@ public final class LookupPopupModel: Identifiable {
         pages = [page]
         documents = [:]
         minedIndices = [:]
+        lookupCounts = [:]
+    }
+
+    /// The count for a page recorded after it was shown.
+    public func setLookupCount(_ count: Int?, for page: LookupResultPage.ID) {
+        lookupCounts[page] = count
     }
 
     func document(for page: LookupResultPage, service: LookupService) -> String {
@@ -95,7 +103,8 @@ public struct LookupPopupView: View {
             }
             if let page = model.current {
                 LookupWebView(html: model.document(for: page, service: service), engine: service.library.engine,
-                              minedIndices: model.minedIndices[page.id] ?? []) { event in
+                              minedIndices: model.minedIndices[page.id] ?? [],
+                              lookupCount: model.lookupCounts[page.id]) { event in
                     handle(event, page: page)
                 }
                 .accessibilityIdentifier("lookup.results")
@@ -165,8 +174,8 @@ public struct LookupPopupView: View {
             }
         case .query(let query):
             Task {
-                let next = await service.search(query)
-                service.record(next)
+                // A link in a definition is its own visit, so it counts (as in Hachidori).
+                let next = service.record(await service.search(query))
                 model.push(next)
             }
         case .audio(let index):

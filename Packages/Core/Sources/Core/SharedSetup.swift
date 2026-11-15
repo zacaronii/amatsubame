@@ -16,7 +16,8 @@ public struct SharedSetup: Sendable {
 
     /// Tables that make up a setup (the AnkiConnect row of `serverAccount` too).
     /// After the tables they refer to (rows are inserted in this order).
-    public static let tables = ["dictionary", "dictionarySource", "dictionarySettings", "audioSource", "ankiSettings", "minedWord"]
+    public static let tables = ["dictionary", "dictionarySource", "dictionarySettings", "audioSource", "ankiSettings", "minedWord",
+                                "lookupCount", "popupSettings"]
     public static let sharedServerKinds: Set<ServerKind> = [.anki]
     /// Changes other running apps must reload for (the rest is read fresh on each use).
     public static let reloadTables = ["dictionary", "dictionarySettings"]

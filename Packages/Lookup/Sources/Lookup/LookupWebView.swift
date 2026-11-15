@@ -69,6 +69,9 @@ struct LookupWebView {
     let engine: DictionaryEngine
     /// Results mined since the page loaded; their buttons turn into checks without a reload.
     var minedIndices: Set<Int> = []
+    /// A lookup count recorded after the page was built (a search left on screen): written into
+    /// the first result's chip without a reload.
+    var lookupCount: Int?
     let onEvent: (LookupWebEvent) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(onEvent: onEvent) }
@@ -95,7 +98,12 @@ struct LookupWebView {
         if context.coordinator.loadedHTML != html {
             context.coordinator.loadedHTML = html
             context.coordinator.markedMined = []
+            context.coordinator.lookupCount = nil
             webView.loadHTMLString(html, baseURL: URL(string: "about:blank"))
+        }
+        if let lookupCount, lookupCount != context.coordinator.lookupCount {
+            context.coordinator.lookupCount = lookupCount
+            context.coordinator.showLookupCount(in: webView)
         }
         let newlyMined = minedIndices.subtracting(context.coordinator.markedMined)
         guard !newlyMined.isEmpty else { return }
@@ -110,6 +118,7 @@ struct LookupWebView {
         var onEvent: (LookupWebEvent) -> Void
         var loadedHTML: String?
         var markedMined: Set<Int> = []
+        var lookupCount: Int?
 
         init(onEvent: @escaping (LookupWebEvent) -> Void) {
             self.onEvent = onEvent
@@ -131,6 +140,17 @@ struct LookupWebView {
             default:
                 break
             }
+        }
+
+        /// Fills in the chip; also run when a load finishes, in case the count came first.
+        func showLookupCount(in webView: WKWebView) {
+            guard let lookupCount else { return }
+            let text = EntryRenderer.lookupCountText(lookupCount)
+            webView.evaluateJavaScript("document.querySelectorAll('.lookup-count').forEach(c => c.textContent = '\(text)')")
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            showLookupCount(in: webView)
         }
 
         /// External glossary links open in the system browser, never inside the popup.

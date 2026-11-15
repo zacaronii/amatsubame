@@ -643,6 +643,24 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v32_lookup_counts") { db in
+            // How often each headword was looked up, in every app (part of the shared setup),
+            // counted like Hachidori's lookup statistics (LookupCounts.swift).
+            try db.create(table: "lookupCount") { t in
+                t.column("term", .text).notNull()
+                t.column("reading", .text).notNull()
+                t.column("lookupCount", .integer).notNull()
+                t.column("firstLookedUpAt", .datetime).notNull()
+                t.column("lastLookedUpAt", .datetime).notNull()
+                t.primaryKey(["term", "reading"])
+            }
+            // The popup's own settings (Settings ▸ Popup), shared like the dictionaries.
+            try db.create(table: "popupSettings") { t in
+                t.primaryKey("id", .integer)
+                t.column("showLookupCounts", .boolean).notNull().defaults(to: true)
+            }
+        }
+
         return migrator
     }
 }
