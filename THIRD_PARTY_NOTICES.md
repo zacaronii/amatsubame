@@ -37,7 +37,8 @@ They include or use the following. Each keeps its own license; the full texts ar
 
 ## Downloaded at runtime (not in this repository)
 - [nemu-ocr-coreml](https://huggingface.co/nemu-pm/nemu-ocr-coreml) manga OCR models (Apache-2.0), pinned in `OCRModelStore`.
-- Recommended dictionaries (Jitendex, JMnedict, KANJIDIC, Jiten, Kanjium), each under its own license
+- Recommended dictionaries (Hachidori's defaults: Jitendex, JMnedict, Bee's Ultimate Kanji Dictionary, Jiten,
+  Bee's Ultimate Grammar Dictionary; and Kanjium, optional), each under its own license
   shown in the apps' About screens.
 - Kaku: [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (MIT) and the Whisper large-v3
   weights (MIT), plus its Python dependencies listed in `Server/kaku/Dockerfile`.

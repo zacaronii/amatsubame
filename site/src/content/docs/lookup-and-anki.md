@@ -82,15 +82,19 @@ so most dictionaries made for Yomitan can be imported.
 
 ### The recommended set
 
-Setup downloads these for you (about 60 MB in all):
+Setup downloads [Hachidori](https://github.com/bee-san/hachidori)'s default dictionaries for you (about
+105 MB in all):
 
 | Dictionary | What it's for |
 | --- | --- |
 | Jitendex | English definitions |
 | JMnedict | Names of people and places |
-| KANJIDIC | Kanji meanings and readings |
+| Bee's Ultimate Kanji Dictionary | Kanji meanings, readings and stroke order |
 | Jiten Frequency | How common each word is in anime, novels and games |
-| Kanjium | Pitch accent |
+| Bee's Ultimate Grammar Dictionary | Grammar points, with examples |
+
+**Kanjium** (pitch accent) is offered too, unticked: Hachidori's set has no pitch accent dictionary,
+so tick it if you want the pitch graph in the popup and the pitch fields on your cards.
 
 Each keeps its own licence; they're listed in **Settings ▸ About**.
 

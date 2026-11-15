@@ -188,7 +188,7 @@ struct SetupDictionariesStep: View {
             autoUpdate = updater.autoUpdate
             guard !started else { return }
             started = true
-            selection = Set(RecommendedDictionaries.all.map(\.id)).subtracting(installed).subtracting(removed)
+            selection = RecommendedDictionaries.defaultSelection.subtracting(installed).subtracting(removed)
             if !selection.isEmpty { install() }
         }
     }
