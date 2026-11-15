@@ -64,8 +64,9 @@ public enum LookupOverlayPlacement {
 public extension View {
     /// Shows `popup` over this view without covering it with a sheet: a card by the word
     /// (`anchor`) on a wide screen, a bottom panel with a handle on a narrow one. What's
-    /// behind shows through, blurred, at the popup's opacity, with no dimming; a tap anywhere
-    /// outside the popup closes it. `panel` is the popup's content, drawn without a
+    /// behind shows through, lightly blurred, at the popup's opacity, with no dimming, and stays
+    /// usable: tapping another word looks it up in place of this one. Taps that miss a word close
+    /// the popup where the view handles them (`closeLookup` in the environment); Esc closes it too. `panel` is the popup's content, drawn without a
     /// background (`LookupPopupView(…, drawsBackground: false)`).
     /// `beside`: the card goes left or right of the word (vertical text and manga).
     func lookupOverlay<Panel: View>(_ popup: LookupPopupModel?, service: LookupService, anchor: CGRect? = nil,
@@ -90,6 +91,7 @@ struct LookupOverlayModifier<Panel: View>: ViewModifier {
     func body(content: Content) -> some View {
         let global = anchor.map { space == .local ? $0.offsetBy(dx: origin.x, dy: origin.y) : $0 } ?? popup?.anchor
         content
+            .environment(\.closeLookup, popup == nil ? nil : CloseLookupAction(onClose))
             .onGeometryChange(for: CGPoint.self) { $0.frame(in: .global).origin } action: { origin = $0 }
             .overlay {
                 LookupOverlayHost(popup: popup, service: service, anchor: global, beside: beside, onClose: onClose, panel: panel)
@@ -112,7 +114,6 @@ struct LookupOverlayHost<Panel: View>: View {
         GeometryReader { geometry in
             if let popup {
                 ZStack {
-                    outside
                     if LookupOverlayPlacement.usesBottomPanel(geometry.size) {
                         bottomPanel(popup, geometry: geometry)
                     } else {
@@ -129,18 +130,6 @@ struct LookupOverlayHost<Panel: View>: View {
         }
         .animation(.spring(duration: 0.3), value: popup?.id)
         .onChange(of: popup?.id) { tall = false; drag = 0 }
-    }
-
-    /// Everywhere but the popup: a tap (or click, or Esc) there closes it, like Hachidori's. It
-    /// isn't passed on, so tapping another word first closes the popup.
-    private var outside: some View {
-        Button(action: onClose) {
-            Color.clear.contentShape(.rect)
-        }
-        .buttonStyle(.plain)
-        .keyboardShortcut(.cancelAction)
-        .accessibilityLabel("Close dictionary")
-        .accessibilityIdentifier("lookup.close")
     }
 
     /// A narrow screen: half the height, pulled up to almost all of it or down to close. It
@@ -170,8 +159,16 @@ struct LookupOverlayHost<Panel: View>: View {
         }
         .foregroundStyle(.primary)
         .lookupPopupBackground(service)
-        // What's behind is blurred, so text stays readable at any opacity (as in Hachidori's).
-        .background(.ultraThinMaterial)
+        // What's behind is lightly blurred (the lightest material, half strength), so text stays
+        // readable at low opacity while the colours behind still come through.
+        .background { Rectangle().fill(.ultraThinMaterial).opacity(0.5) }
+        // Esc (no visible close button: a tap elsewhere closes it).
+        .background {
+            Button("Close Dictionary", action: onClose)
+                .keyboardShortcut(.cancelAction)
+                .opacity(0)
+                .accessibilityHidden(true)
+        }
         .clipShape(.rect(cornerRadius: 16))
         .overlay { RoundedRectangle(cornerRadius: 16).strokeBorder(.separator, lineWidth: 0.5) }
         .shadow(color: .black.opacity(0.25), radius: 18, y: 6)
@@ -214,4 +211,22 @@ struct LookupOverlayHost<Panel: View>: View {
                 }
             }
     }
+}
+
+/// Closes the open lookup popup, for a tap that missed a word (`lookupOverlay` sets it in the
+/// environment of the view it's attached to while a popup is open).
+public struct CloseLookupAction {
+    let close: () -> Void
+
+    init(_ close: @escaping () -> Void) {
+        self.close = close
+    }
+
+    public func callAsFunction() {
+        close()
+    }
+}
+
+public extension EnvironmentValues {
+    @Entry var closeLookup: CloseLookupAction?
 }

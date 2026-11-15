@@ -20,8 +20,9 @@ Tap a word to open the popup:
 On a Mac, an iPad, or an iPhone held sideways, the popup opens as a card right by the word: below it,
 or above it for subtitles near the bottom, and beside it in vertical text and manga. On an iPhone held
 upright it slides up from the bottom; drag its top edge up to see more, or down to close it. Either way
-what's behind shows through it, blurred (see **Background opacity** below). Tap anywhere outside the
-popup (or press Esc on a keyboard) to close it.
+what's behind shows through it, lightly blurred (see **Background opacity** below). With a popup
+open, tap another word to look it up straight away, or tap somewhere with nothing to look up (a
+margin, a space, punctuation) or press Esc to close it.
 
 The lookup finds the longest word that starts where you tapped, including conjugated forms, so
 食べられなかった finds 食べる. Yomu also has a **Dictionary** tab where you can type a search (romaji
@@ -58,7 +59,7 @@ Settings ▸ Lookup and Mining ▸ **Popup** turns them off (your past counts ar
 
 Settings ▸ Lookup and Mining ▸ **Popup** ▸ **Background Opacity** sets how much of the page, video or
 transcript shows through behind the popup, from 0 to 100% (85% by default, as in Hachidori). What's
-behind is blurred, so even at 0% the text stays easy to read.
+behind is lightly blurred, so even at 0% the text stays easy to read.
 
 ### Brief definitions
 
