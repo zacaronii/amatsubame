@@ -1,0 +1,21 @@
+{
+ "kind": "reply",
+ "id": 3,
+ "response": {
+  "type": "hd_styles_result",
+  "requestId": 3,
+  "ok": true,
+  "error": null,
+  "generation": 7,
+  "styles": [
+   {
+    "dictionary": "Bee's Ultimate Grammar Dictionary",
+    "styles": "/* Yomitan wraps this whole file in one [data-dictionary=\"...\"] nesting block,\n   so every rule below is scoped to this dictionary's own entries and cannot\n   restyle Yomitan or another dictionary. Colours come from Yomitan's theme\n   variables so light and dark themes are inherited rather than re-implemented. */\n\n[data-sc-grammar-card] {\n  --bugd-row-gap: 0.5em;\n  --bugd-inline-gap: 0.5em;\n  /* O"
+   },
+   {
+    "dictionary": "Bee's Ultimate Kanji Dictionary",
+    "styles": "/* Bee's Ultimate Kanji Dictionary -- compact accessible structured-content CSS.\n   All rules are scoped to our own data-sc-bee-role markers. Colour is never the\n   sole information channel; every graphic has a visible text equivalent. */\n\n/* Restrained reusable token palette: colours and spacing are defined once here\n   and consumed via var() below, so nothing hardcodes a stray magic value. The\n "
+   }
+  ]
+ }
+}

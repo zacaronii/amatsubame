@@ -1,0 +1,10 @@
+{
+ "kind": "reply",
+ "id": 5,
+ "response": {
+  "type": "hd_bogus_result",
+  "requestId": 5,
+  "ok": false,
+  "error": "Unsupported operation: hoshidicts-offscreen/hd_bogus."
+ }
+}

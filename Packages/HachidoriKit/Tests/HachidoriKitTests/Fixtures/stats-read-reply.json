@@ -1,0 +1,18 @@
+{
+ "kind": "reply",
+ "id": 4,
+ "response": {
+  "type": "hd_lookup_stats_read_result",
+  "requestId": 4,
+  "ok": true,
+  "descriptor": {
+   "generation": "11111111-2222-4333-8444-555555555555",
+   "revision": 16
+  },
+  "statistics": {
+   "term": "食べる",
+   "reading": "たべる",
+   "lookupCount": 4
+  }
+ }
+}
