@@ -1,0 +1,208 @@
+{
+ "kind": "hello",
+ "protocol": 1,
+ "version": "0.1.5",
+ "name": "Hachidori Docker host",
+ "dictionaryCount": 5,
+ "capabilities": [
+  "hoshidicts-api-v1",
+  "linked-anki-v1",
+  "linked-anki-v2",
+  "linked-import-v1"
+ ],
+ "snapshot": {
+  "dictionaryState": {
+   "schemaVersion": 1,
+   "revision": 10,
+   "dictionaries": [
+    {
+     "id": "29821e7ce1e74c6a6b95826a98462c8e",
+     "title": "Bee's Ultimate Grammar Dictionary",
+     "displayName": null,
+     "path": "/dicts/.hdw-generation-3bbde269-6ab6-4db2-93a7-c49942dbee63/Bee's Ultimate Grammar Dictionary",
+     "enabled": true,
+     "favorite": false,
+     "revision": "2026.11.08",
+     "isUpdatable": true,
+     "indexUrl": "https://raw.githubusercontent.com/bee-san/bees-ultimate-grammar-dictionary/main/dist/index.json",
+     "downloadUrl": "https://bee-san.github.io/bees-ultimate-grammar-dictionary/downloads/bees-ultimate-grammar-dictionary.zip",
+     "language": "ja",
+     "frequencyMode": null,
+     "termCount": 7882,
+     "frequencyCount": 0,
+     "pitchCount": 0,
+     "kanjiCount": 0,
+     "mediaCount": 947,
+     "longKeyLength": 62,
+     "installedAt": "2026-01-01T00:00:00.000Z",
+     "lastUpdateCheck": {
+      "checkedAt": "2026-11-15T01:02:57.125Z",
+      "status": "up-to-date",
+      "remoteRevision": "2026.11.08",
+      "error": null
+     }
+    },
+    {
+     "id": "3ae9985feb938d3448b522771511a3da",
+     "title": "Bee's Ultimate Kanji Dictionary",
+     "displayName": null,
+     "path": "/dicts/.hdw-generation-2a5b8833-6a57-4fac-8399-77c5fba0b1d2/Bee's Ultimate Kanji Dictionary",
+     "enabled": true,
+     "favorite": false,
+     "revision": "2026.09.08",
+     "isUpdatable": true,
+     "indexUrl": "https://raw.githubusercontent.com/bee-san/bees-ultimate-kanji-dictionary/main/dist/index.json",
+     "downloadUrl": "https://github.com/bee-san/bees-ultimate-kanji-dictionary/releases/latest/download/bees-ultimate-kanji-dictionary.zip",
+     "language": "ja",
+     "frequencyMode": "rank-based",
+     "termCount": 12634,
+     "frequencyCount": 3897,
+     "pitchCount": 0,
+     "kanjiCount": 0,
+     "mediaCount": 10255,
+     "longKeyLength": 0,
+     "installedAt": "2026-01-01T00:00:00.000Z",
+     "lastUpdateCheck": {
+      "checkedAt": "2026-11-15T01:02:57.344Z",
+      "status": "up-to-date",
+      "remoteRevision": "2026.09.08",
+      "error": null
+     }
+    },
+    {
+     "id": "638f95269407a322cf4e71135dc92d5a",
+     "title": "Jiten",
+     "displayName": null,
+     "path": "/dicts/.hdw-generation-42b2a5be-476a-4468-a17a-e3ec45da33f7/Jiten",
+     "enabled": true,
+     "favorite": false,
+     "revision": "Jiten 26-11-13",
+     "isUpdatable": true,
+     "indexUrl": "https://api.jiten.moe/api/frequency-list/index",
+     "downloadUrl": "https://api.jiten.moe/api/frequency-list/download",
+     "language": null,
+     "frequencyMode": "rank-based",
+     "termCount": 0,
+     "frequencyCount": 594092,
+     "pitchCount": 0,
+     "kanjiCount": 0,
+     "mediaCount": 0,
+     "longKeyLength": 0,
+     "installedAt": "2026-01-01T00:00:00.000Z",
+     "lastUpdateCheck": {
+      "checkedAt": "2026-11-15T01:02:57.442Z",
+      "status": "up-to-date",
+      "remoteRevision": "Jiten 26-11-13",
+      "error": null
+     }
+    },
+    {
+     "id": "00b40c22fbb10baf7666498dd55fdeb0",
+     "title": "Jitendex.org [2026-10-03]",
+     "displayName": null,
+     "path": "/dicts/.hdw-generation-65b725b7-bd72-4316-9bab-1ff71e55ab93/Jitendex.org [2026-10-03]",
+     "enabled": true,
+     "favorite": false,
+     "revision": "2026.10.03.0",
+     "isUpdatable": true,
+     "indexUrl": "https://jitendex.org/static/yomitan.json",
+     "downloadUrl": "https://github.com/stephenmk/stephenmk.github.io/releases/latest/download/jitendex-yomitan.zip",
+     "language": "ja",
+     "frequencyMode": null,
+     "termCount": 436555,
+     "frequencyCount": 0,
+     "pitchCount": 0,
+     "kanjiCount": 0,
+     "mediaCount": 250,
+     "longKeyLength": 37,
+     "installedAt": "2026-01-01T00:00:00.000Z",
+     "lastUpdateCheck": {
+      "checkedAt": "2026-11-15T01:02:57.834Z",
+      "status": "up-to-date",
+      "remoteRevision": "2026.10.03.0",
+      "error": null
+     }
+    },
+    {
+     "id": "55448abc3bb214478b99b8665a604d53",
+     "title": "JMnedict [2026-11-13]",
+     "displayName": null,
+     "path": "/dicts/.hdw-generation-2c4378ce-b9a2-43a1-8f7f-df706bf3c0e1/JMnedict [2026-11-13]",
+     "enabled": true,
+     "favorite": false,
+     "revision": "JMnedict.2026-11-13",
+     "isUpdatable": true,
+     "indexUrl": "https://github.com/yomidevs/jmdict-yomitan/releases/latest/download/JMnedict.json",
+     "downloadUrl": "https://github.com/yomidevs/jmdict-yomitan/releases/latest/download/JMnedict.zip",
+     "language": null,
+     "frequencyMode": null,
+     "termCount": 668033,
+     "frequencyCount": 0,
+     "pitchCount": 0,
+     "kanjiCount": 0,
+     "mediaCount": 0,
+     "longKeyLength": 41,
+     "installedAt": "2026-01-01T00:00:00.000Z",
+     "lastUpdateCheck": {
+      "checkedAt": "2026-11-15T01:02:58.041Z",
+      "status": "update-available",
+      "remoteRevision": "JMnedict.unknown",
+      "error": null
+     }
+    }
+   ],
+   "groups": []
+  },
+  "options": {
+   "revision": 51,
+   "anki": {
+    "url": "http://ankiconnect.example:8765",
+    "apiKey": "REDACTED",
+    "deck": "Mining",
+    "model": "Lapis",
+    "tags": [
+     "hachidori"
+    ],
+    "templates": []
+   },
+   "audioSources": [
+    {
+     "id": "00000000-0000-4000-8000-000000000001",
+     "type": "custom-json",
+     "enabled": true,
+     "url": "https://audio.example/list?term={term}&reading={reading}",
+     "voice": ""
+    }
+   ],
+   "popupOpacityPercent": 70,
+   "popupScalePercent": 100,
+   "showCompactDefinitionSummary": true,
+   "maxResults": 24,
+   "frequencyDictionary": "Jiten"
+  },
+  "customDictionarySource": {
+   "schemaVersion": 1,
+   "revision": 0,
+   "semanticRevision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+   "text": "食べる, たべる, to eat (personal note)\n"
+  },
+  "dictionaryUpdates": {
+   "revision": 1,
+   "schedule": "off",
+   "lastCheckedAt": "2026-01-01T00:00:00.000Z"
+  },
+  "lookupStats": {
+   "generation": "11111111-2222-4333-8444-555555555555",
+   "revision": 16
+  },
+  "wordStatusOverrides": {
+   "revision": 3,
+   "known": [
+    "食べる"
+   ],
+   "ignored": [
+    "する"
+   ]
+  }
+ }
+}
