@@ -106,7 +106,7 @@ public struct LookupPopupView: View {
                 Divider()
             }
             if let page = model.current {
-                LookupWebView(html: model.document(for: page, service: service), engine: service.library.engine,
+                LookupWebView(html: model.document(for: page, service: service), media: .service(service),
                               minedIndices: model.minedIndices[page.id] ?? [],
                               lookupCount: model.lookupCounts[page.id]) { event in
                     handle(event, page: page)
@@ -180,7 +180,7 @@ public struct LookupPopupView: View {
         case .query(let query):
             Task {
                 // A link in a definition is its own visit, so it counts (as in Hachidori).
-                let next = service.record(await service.search(query))
+                let next = await service.record(await service.search(query))
                 model.push(next)
             }
         case .audio(let index):

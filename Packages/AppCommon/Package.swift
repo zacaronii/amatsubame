@@ -16,6 +16,7 @@ let package = Package(
         .package(path: "../Anki"),
         .package(path: "../AudiobookshelfKit"),
         .package(path: "../KechimochiKit"),
+        .package(path: "../HachidoriKit"),
         .package(url: "https://github.com/groue/GRDB.swift", from: "7.11.1"),
     ],
     targets: [
@@ -28,6 +29,7 @@ let package = Package(
                 .product(name: "Anki", package: "Anki"),
                 .product(name: "AudiobookshelfKit", package: "AudiobookshelfKit"),
                 .product(name: "KechimochiKit", package: "KechimochiKit"),
+                .product(name: "HachidoriKit", package: "HachidoriKit"),
                 .product(name: "GRDB", package: "GRDB.swift"),
             ],
             // Like the app targets, so screens moved here keep their main-actor assumptions.

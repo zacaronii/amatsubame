@@ -145,8 +145,10 @@ public struct SearchView: View {
     private func recordSearch(_ page: LookupResultPage) {
         guard countedQuery != page.query else { return }
         countedQuery = page.query
-        let count = environment.lookup.recordSearch(page)
-        if popup.current?.id == page.id { popup.setLookupCount(count, for: page.id) }
+        Task {
+            let count = await environment.lookup.recordSearch(page)
+            if popup.current?.id == page.id { popup.setLookupCount(count, for: page.id) }
+        }
     }
 
     // MARK: Sentence

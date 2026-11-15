@@ -15,7 +15,7 @@ public struct TappableTextView: View {
     }
 
     public var body: some View {
-        LookupWebView(html: Self.document(text), engine: engine) { event in
+        LookupWebView(html: Self.document(text), media: .engine(engine)) { event in
             if case .tap(let text, let offset) = event { onTap(text, offset) }
         }
     }

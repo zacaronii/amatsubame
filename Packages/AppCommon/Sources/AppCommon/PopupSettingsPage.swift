@@ -15,6 +15,12 @@ public struct PopupSettingsPage: View {
     public var body: some View {
         let lookup = environment.lookup
         Form {
+            if lookup.followsHost {
+                Section {
+                    Label("These follow your Hachidori host while it's linked. Change them in Hachidori.", systemImage: "bird")
+                        .accessibilityIdentifier("popup.followsHachidori")
+                }
+            }
             Section {
                 Toggle("Show Brief Definitions Beside the Headword", isOn: setting(\.showCompactDefinitionSummary))
                     .accessibilityIdentifier("popup.compactSummary")
@@ -65,6 +71,7 @@ public struct PopupSettingsPage: View {
             }
         }
         .formStyle(.grouped)
+        .disabled(lookup.followsHost)
         .navigationTitle("Popup")
         .task {
             do {

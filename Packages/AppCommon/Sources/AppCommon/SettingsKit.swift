@@ -303,6 +303,15 @@ public struct LookupAndMiningSection<AnkiPage: View>: View {
                                  systemImage: "text.bubble.fill", color: .indigo)
             }
             .accessibilityIdentifier("settings.popup")
+            #if os(macOS)
+            NavigationLink {
+                HachidoriSettingsPage()
+            } label: {
+                SettingsRowLabel("Hachidori", subtitle: HachidoriSettingsPage.summary(environment),
+                                 systemImage: "bird.fill", color: .teal)
+            }
+            .accessibilityIdentifier("settings.hachidori")
+            #endif
             NavigationLink {
                 ankiPage()
             } label: {
