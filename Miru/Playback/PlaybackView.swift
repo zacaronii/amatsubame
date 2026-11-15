@@ -558,8 +558,8 @@ struct PlaybackView: View {
     /// The dictionary popup: a side panel in landscape (the video stays visible), a bottom panel in portrait.
     @ViewBuilder private func lookupPanel(_ popup: LookupPopupModel, size: CGSize) -> some View {
         let landscape = size.width > size.height
+        // The popup draws its own background at the chosen opacity (Settings ▸ Popup).
         let panel = LookupPopupView(service: common.lookup, model: popup)
-            .background(.background)
             .clipShape(.rect(cornerRadius: 14))
             .overlay(alignment: .topTrailing) {
                 Button(action: closePopup) {
