@@ -186,19 +186,8 @@ public struct SearchView: View {
                     .accessibilityIdentifier("search.sentenceDone")
             }
         }
-        .sheet(item: $tapPopup) { model in
-            NavigationStack {
-                LookupPopupView(service: environment.lookup, model: model)
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Done") { tapPopup = nil }
-                        }
-                    }
-            }
-            .presentationDetents([.medium, .large])
-            #if os(macOS)
-            .frame(minWidth: 480, minHeight: 520)
-            #endif
+        .lookupOverlay(tapPopup, service: environment.lookup, onClose: { tapPopup = nil }) { model in
+            LookupPopupView(service: environment.lookup, model: model, drawsBackground: false)
         }
     }
 

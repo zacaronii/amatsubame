@@ -347,24 +347,8 @@ struct LiveFeedView: View {
                 withAnimation { proxy.scrollTo(transcript.lines[index].cue, anchor: .center) }
             }
         }
-        .sheet(item: Binding(get: { transcript.lookup.popup }, set: { if $0 == nil { transcript.lookup.close() } })) { popup in
-            LookupPopupView(service: common.lookup, model: popup)
-                .overlay(alignment: .topTrailing) {
-                    Button { transcript.lookup.close() } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.title2)
-                            .symbolRenderingMode(.hierarchical)
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .keyboardShortcut(.cancelAction)
-                    .padding(8)
-                    .accessibilityLabel("Close dictionary")
-                }
-                .presentationDetents([.medium, .large])
-                #if os(macOS)
-                .frame(minWidth: 460, minHeight: 520)
-                #endif
+        .lookupOverlay(transcript.lookup.popup, service: common.lookup, onClose: { transcript.lookup.close() }) { popup in
+            LookupPopupView(service: common.lookup, model: popup, drawsBackground: false)
         }
     }
 }

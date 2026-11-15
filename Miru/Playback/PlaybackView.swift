@@ -114,6 +114,10 @@ struct PlaybackView: View {
         }
         #endif
         .foregroundStyle(.white)
+        .lookupOverlay(usesLookupCard(screen) ? model.popup : nil, service: common.lookup, onClose: closePopup) { popup in
+            LookupPopupView(service: common.lookup, model: popup, drawsBackground: false)
+                .accessibilityIdentifier("player.lookup")
+        }
         #if os(iOS)
         // Never over the picture (on the iPhone Duo the clock column sits on the video).
         .statusBarHidden(true)
@@ -231,12 +235,9 @@ struct PlaybackView: View {
             Text(model.debugKeys.suffix(4).joined(separator: " ")).font(.system(size: 4)).opacity(0.02)
                 .accessibilityIdentifier("player.debugKeys")
             #endif
-            if screen.layout == .overlay {
-                if let popup = model.popup {
-                    lookupPanel(popup, size: size)
-                } else if model.showsSubtitlesSheet, subtitlesAsPanel {
-                    subtitlesPanel(size: size)
-                }
+            // The lookup is a card by the word here (lookupOverlay in player(size:screen:)).
+            if screen.layout == .overlay, model.popup == nil, model.showsSubtitlesSheet, subtitlesAsPanel {
+                subtitlesPanel(size: size)
             }
             if model.showsShortcuts {
                 shortcutsPanel(size: size)
@@ -317,11 +318,13 @@ struct PlaybackView: View {
     /// scrubber in the bar below. A lookup dims the picture and covers the right half.
     @ViewBuilder private func barsOverlays(video: CGRect, top: CGRect, bottom: CGRect, screen: PlayerScreen) -> some View {
         let left = screen.leftOfFold(video)
-        if model.popup != nil {
+        // With a fold the lookup is a panel on the other side of it; otherwise a card by the word.
+        let lookupPanel = model.popup != nil && screen.fold != nil
+        if lookupPanel {
             place(video) { Color.black.opacity(0.45).allowsHitTesting(false) }
         }
         if scrub == nil {
-            place(sidePanelShows ? left : video) { pictureSubtitles(fontSize: subtitleSize(video.size)) }
+            place(lookupPanel || sidePanelShows ? left : video) { pictureSubtitles(fontSize: subtitleSize(video.size)) }
         }
         if showsControls || scrub != nil {
             place(top) { topBarRow.padding(.horizontal, 16) }
@@ -336,10 +339,10 @@ struct PlaybackView: View {
         // The panels stop above the scrubber's bar.
         let panel = screen.rightOfFold
         let side = CGRect(x: panel.minX, y: panel.minY, width: panel.width, height: max(bottom.minY - 8 - panel.minY, 0))
-        if let popup = model.popup {
+        if lookupPanel, let popup = model.popup {
             place(side) { sidePanel { lookupContent(popup) } }
                 .transition(.move(edge: .trailing))
-        } else if model.showsSubtitlesSheet, subtitlesAsPanel {
+        } else if model.popup == nil, model.showsSubtitlesSheet, subtitlesAsPanel {
             place(side) { subtitlesForm }
                 .transition(.move(edge: .trailing))
         }
@@ -555,43 +558,6 @@ struct PlaybackView: View {
         }
     }
 
-    /// The dictionary popup: a side panel in landscape (the video stays visible), a bottom panel in portrait.
-    @ViewBuilder private func lookupPanel(_ popup: LookupPopupModel, size: CGSize) -> some View {
-        let landscape = size.width > size.height
-        // The popup draws its own background at the chosen opacity (Settings ▸ Popup).
-        let panel = LookupPopupView(service: common.lookup, model: popup)
-            .clipShape(.rect(cornerRadius: 14))
-            .overlay(alignment: .topTrailing) {
-                Button(action: closePopup) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title2)
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .padding(8)
-                .accessibilityLabel("Close dictionary")
-                .accessibilityIdentifier("player.closeLookup")
-            }
-            .foregroundStyle(.primary)
-            .accessibilityIdentifier("player.lookup")
-        if landscape {
-            HStack {
-                Spacer()
-                panel.frame(width: min(max(size.width * 0.42, 320), 460))
-            }
-            .padding(8)
-            .transition(.move(edge: .trailing))
-        } else {
-            VStack {
-                Spacer()
-                panel.frame(height: size.height * 0.55)
-            }
-            .padding(8)
-            .transition(.move(edge: .bottom))
-        }
-    }
-
     private var subtitlesAsPanel: Bool {
         #if os(iOS)
         wide
@@ -600,9 +566,19 @@ struct PlaybackView: View {
         #endif
     }
 
-    /// A panel covers the right half: the dictionary, or the Subtitles settings.
+    /// The Subtitles settings cover the right half (the lookup is a card instead).
     private var sidePanelShows: Bool {
-        model.popup != nil || model.showsSubtitlesSheet && subtitlesAsPanel
+        model.popup == nil && model.showsSubtitlesSheet && subtitlesAsPanel
+    }
+
+    /// The lookup as a card by the tapped word: everywhere but the half-open layout (a panel
+    /// under the picture) and a screen with a fold down the middle (a panel beside it).
+    private func usesLookupCard(_ screen: PlayerScreen) -> Bool {
+        switch screen.layout {
+        case .overlay: true
+        case .bars: screen.fold == nil
+        case .split: false
+        }
     }
 
     /// The Subtitles settings on the right half (landscape), over the dimmed video.
@@ -656,7 +632,7 @@ struct PlaybackView: View {
             topBarRow
             Spacer()
             // Not under a side panel's edge (it's in the middle of the screen).
-            if scrub == nil, !sidePanelShows {
+            if scrub == nil, !sidePanelShows, model.popup == nil {
                 Button { model.mpv.togglePause() } label: {
                     Image(systemName: model.mpv.isPaused ? "play.fill" : "pause.fill")
                         .font(.system(size: 34))
