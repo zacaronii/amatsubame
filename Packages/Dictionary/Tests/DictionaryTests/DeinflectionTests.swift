@@ -26,24 +26,15 @@ import Testing
         #expect(result.inflections.map(\.name) == ["causative", "potential or passive", "negative", "-た"])
     }
 
-    /// Where hoshidicts (Yomitan's rules as ported, upstream e6af33e) differs from current Yomitan.
+    /// Where hoshidicts (Yomitan's rules as ported, bee-san's fork 088ac5d) differs from current Yomitan.
     /// Each group is a known issue: if hoshidicts gains the rules, the test reports the group as fixed.
     enum KnownDifference: String, CaseIterable {
-        case historicalKana = "Historical kana spellings (さう, ませう, やう, ゐる, 思ふ…) aren't in hoshidicts' rules"
-        case yashinai = "-やしない / -やしません aren't in hoshidicts' rules"
-        case singleCharacter = "hoshidicts doesn't deinflect one-character text (し → する)"
         case traceLabel = "Right word, different trace (来られる 'passive' vs 'potential or passive'; っちゃ via -ば -ゃ)"
 
         static func classify(source: String, term: String, wrongTraceOnly: Bool) -> KnownDifference? {
-            if wrongTraceOnly {
-                let traceCases: Set<String> = ["行きゃ", "待っちゃ", "来られる", "来られない", "來られる", "來られない",
-                                               "こられる", "こられない", "やんなきゃ"]
-                return traceCases.contains(source) ? .traceLabel : nil
-            }
-            if source.count == 1 { return .singleCharacter }
-            if source.contains("やしな") || source.contains("やしま") || source.contains("やしね") { return .yashinai }
-            let historical = /ゐ|ゑ|さう$|ませう|やう$|からう$|[かがさたなはばまらわ]う$|思[はひふへ]|しま[はひふへ]/
-            return source.contains(historical) ? .historicalKana : nil
+            let traceCases: Set<String> = ["行きゃ", "待っちゃ", "来られる", "来られない", "來られる", "來られない",
+                                           "こられる", "こられない", "やんなきゃ"]
+            return wrongTraceOnly && traceCases.contains(source) ? .traceLabel : nil
         }
     }
 

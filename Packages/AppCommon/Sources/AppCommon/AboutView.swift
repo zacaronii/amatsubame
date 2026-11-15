@@ -6,7 +6,7 @@ public struct AboutView: View {
     @State private var dictionaries: [DictionaryRecord] = []
     private let credits: [(String, String, String)]
     private static let shared: [(String, String, String)] = [
-        ("hoshidicts", "GPL-3.0", "Yomitan dictionary import and lookup by Manhhao, with Yomitan's Japanese deinflection rules."),
+        ("hoshidicts", "GPL-3.0", "Yomitan dictionary import and lookup by Manhhao, in bee-san's fork that Hachidori uses, with Yomitan's Japanese deinflection rules."),
         ("Yomitan", "GPL-3.0", "Dictionary format, deinflection rules and structured-content rendering this app follows."),
         ("GRDB.swift", "MIT", "SQLite toolkit."),
         ("ZIPFoundation", "MIT", "Reading EPUB and subtitle archives."),

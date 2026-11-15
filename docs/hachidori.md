@@ -8,7 +8,7 @@ Research for making Yomu, Miru, Kiku and Hiku work with a [Hachidori](https://gi
 | Hachidori 0.3.2 | the same, as pinned by hachidori-docker | 5f986e47 (0.3.2 + 5) |
 | relay | bee-san/hachidori-anki | v0.0.5 (deployed), v0.0.6 |
 | hachidori-docker | ksyasuda/hachidori-docker | b89564d |
-| hoshidicts (ours) | Manhhao/hoshidicts, vendored | e6af33e1 |
+| hoshidicts (ours) | Manhhao/hoshidicts, vendored until 2026-11-15; now bee-san's fork (Vendor/hoshidicts/VENDORED.md) | e6af33e1 |
 | hoshidicts (Hachidori's) | bee-san/hoshidicts fork | 20019e4b (0.3.2), 088ac5de (latest) |
 
 The test host is hachidori-docker on a home server, reached over the LAN or Tailscale only (it has no authentication or TLS). Its address is a contributor-specific detail and isn't recorded here.
@@ -155,7 +155,7 @@ The host's headless AnkiConnect already accepts exactly what our apps send (medi
 ## 7. Dictionary exports
 
 - `GET /dictionaries` lists `{id, title, revision, size, fileName}`; `GET /dictionaries/<id>` streams a one-dictionary **Hachidori backup archive**: a stored (uncompressed) ZIP64 with `hachidori-backup.json` and the dictionary's **compiled hoshidicts folder**, not a Yomitan zip.
-- **Our engine can't load those folders.** Hachidori uses bee-san's hoshidicts fork, which writes format markers `.hoshidicts_5`/`_6` (term scores stored as doubles, an extra `scan.idx`). Our vendored engine reads `_1`–`_4` and silently skips anything else. Upstream hoshidicts has since written its own, different `_5` (a perfect-hash table), so the two `_5`s must never be mixed. Bee's fork does read our `_3`/`_4`.
+- **Our engine now loads those folders.** Hachidori uses bee-san's hoshidicts fork, which writes format markers `.hoshidicts_5`/`_6` (term scores stored as doubles, an extra `scan.idx`). Upstream hoshidicts has since written its own, different `_5` (a perfect-hash table), so the two `_5`s must never be mixed. Since 2026-11-15 the apps vendor bee's fork at the commit the latest Hachidori release pins (a newer engine reads every older format, including the `_3`/`_4` folders our earlier engine wrote); `DictionaryFormat` flags a folder from a newer engine instead of skipping it silently.
 - Size: the archives are about the compiled size: Jitendex 99 MB, JMnedict 76 MB, Jiten frequency 72 MB, Bee's Kanji 61 MB, Bee's Grammar 35 MB (about 336 MB for Hachidori's five defaults). The Yomitan zips are 2–5 times smaller, and importing one takes well under a second on a Mac.
 - Two ways to give an iPhone the host's dictionaries:
   1. **Re-import the same Yomitan zips** from each dictionary's `downloadUrl` in `dictionaryState`, at the revision the host has. Our engine is unchanged and downloads are small; the host's personal dictionary is rebuilt locally from `customDictionarySource.text`.

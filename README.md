@@ -140,8 +140,9 @@ The checklist (the script checks all but the third and last, and asks about thos
 Amatsubame stands on the work of many people. Thank you to:
 
 **Built on and inspired by**
-- [hoshidicts](https://github.com/Manhhao/hoshidicts) by Manhhao: the dictionary engine behind every
-  lookup. Manhhao's Hoshi Reader was an inspiration too.
+- [hoshidicts](https://github.com/Manhhao/hoshidicts) by Manhhao, in
+  [bee-san's fork](https://github.com/bee-san/hoshidicts) that Hachidori uses: the dictionary engine
+  behind every lookup. Manhhao's Hoshi Reader was an inspiration too.
 - [Yomitan](https://github.com/yomidevs/yomitan): its dictionary format, deinflection rules and popup
   design shaped how lookup works here.
 - [Jiten](https://jiten.moe): its underlines on known words inspired the word marks in every app.

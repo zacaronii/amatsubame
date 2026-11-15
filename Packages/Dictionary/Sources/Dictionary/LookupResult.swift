@@ -11,7 +11,8 @@ public struct TermLookupResult: Equatable, Sendable {
     public var reading: String
     /// Part-of-speech rules from the dictionary (v1, v5, adj-i…).
     public var rules: [String]
-    public var score: Int
+    /// The dictionary's ranking score for the entry (Yomitan allows fractions).
+    public var score: Double
     /// Inflections applied to the headword, in Yomitan's order (base form outward):
     /// 食べさせられなかった → causative, potential or passive, negative, -た.
     public var inflections: [Inflection]
@@ -22,7 +23,7 @@ public struct TermLookupResult: Equatable, Sendable {
 
     public init(
         matched: String, deinflected: String, expression: String, reading: String, rules: [String] = [],
-        score: Int = 0, inflections: [Inflection] = [], preprocessorSteps: Int = 0, glossaries: [Glossary] = [],
+        score: Double = 0, inflections: [Inflection] = [], preprocessorSteps: Int = 0, glossaries: [Glossary] = [],
         frequencies: [FrequencyGroup] = [], pitches: [PitchGroup] = []
     ) {
         self.matched = matched

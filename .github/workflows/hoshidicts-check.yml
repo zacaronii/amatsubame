@@ -1,0 +1,43 @@
+# Every week: does the latest Hachidori release ship another hoshidicts commit than
+# Vendor/hoshidicts? If so, opens an issue (once per commit) to run scripts/update-hoshidicts.sh.
+name: hoshidicts check
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: dev
+      - name: Compare with the latest Hachidori release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if report=$(scripts/update-hoshidicts.sh --check); then
+            echo "$report"
+            exit 0
+          fi
+          echo "$report"
+          release=$(gh api repos/bee-san/hachidori/releases/latest --jq .tag_name)
+          title="Q: All apps – Hachidori $release ships a new hoshidicts"
+          if [ -n "$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[].number')" ]; then
+            echo "Already filed."
+            exit 0
+          fi
+          gh issue create --title "$title" --label question --label Shared --body "$(cat <<EOF
+          $report
+
+          Run \`scripts/update-hoshidicts.sh $release\` on a branch from \`dev\`, read what it prints (C API, Package.swift and format changes), then run the Dictionary tests and build the four apps (Vendor/hoshidicts/VENDORED.md ▸ Updating).
+
+          Filed by .github/workflows/hoshidicts-check.yml.
+          EOF
+          )"

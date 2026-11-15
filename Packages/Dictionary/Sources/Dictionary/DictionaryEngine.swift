@@ -61,9 +61,14 @@ public actor DictionaryEngine {
     }
 
     /// Replaces the loaded dictionaries. The lookup keeps references into the
-    /// query, so both are rebuilt together.
-    public func configure(_ dictionaries: [EngineDictionary], frequencySortTitle: String?) throws(DictionaryError) {
+    /// query, so both are rebuilt together. A dictionary the engine rejects
+    /// (`DictionaryFormat` says why) is left out so the others keep working;
+    /// returns the titles left out.
+    @discardableResult
+    public func configure(_ dictionaries: [EngineDictionary], frequencySortTitle: String?) -> [String] {
         let newQuery = hd_query_new()!
+        var loaded: [EngineDictionary] = []
+        var rejected: [String] = []
         for dictionary in dictionaries {
             let path = dictionary.folder.path(percentEncoded: false)
             var failed = false
@@ -72,14 +77,18 @@ public actor DictionaryEngine {
             if dictionary.hasPitches { failed = failed || hd_query_add_pitch_dict(newQuery, path) != 0 }
             if dictionary.hasKanji { failed = failed || hd_query_add_kanji_dict(newQuery, path) != 0 }
             if failed {
-                hd_query_free(newQuery)
-                throw .unreadable(dictionary.title)
+                // Drop the kinds that did load, so the dictionary is out entirely.
+                hd_query_remove_dict(newQuery, path)
+                rejected.append(dictionary.title)
+            } else {
+                loaded.append(dictionary)
             }
         }
         handles = QueryHandles(query: newQuery, deinflector: deinflector)
-        self.dictionaries = dictionaries
-        self.frequencySortTitle = frequencySortTitle
-            ?? dictionaries.first(where: \.hasFrequencies)?.title
+        self.dictionaries = loaded
+        self.frequencySortTitle = frequencySortTitle.flatMap { title in loaded.contains { $0.title == title } ? title : nil }
+            ?? loaded.first(where: \.hasFrequencies)?.title
+        return rejected
     }
 
     /// Finds the longest dictionary matches at the start of `text`, deinflecting
@@ -155,7 +164,7 @@ extension TermLookupResult {
             expression: term.expression.string,
             reading: term.reading.string,
             rules: words(term.rules),
-            score: Int(term.score),
+            score: term.score,
             inflections: trace.reversed(),
             preprocessorSteps: Int(result.preprocessor_steps),
             glossaries: (0..<term.glossaries_count).map {
