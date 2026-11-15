@@ -285,7 +285,7 @@ step "Tagging v$version"
 git tag -a "v$version" -m "Amatsubame $version (TestFlight build $build)" "$commit"
 git push -q origin "v$version"
 gh release create "v$version" "$mac_out"/*-"$version".zip --verify-tag --prerelease --generate-notes \
-  --title "Amatsubame $version" --notes "TestFlight build $build. The Mac apps are also on Homebrew: brew install --cask $(gh repo view --json owner -q .owner.login)/amatsubame/yomu (or miru, kiku, hiku)."
+  --title "Amatsubame $version" --notes "TestFlight build $build. The Mac apps are also on Homebrew: brew trust $(gh repo view --json owner -q .owner.login)/amatsubame, then brew install --cask $(gh repo view --json owner -q .owner.login)/amatsubame/yomu (or miru, kiku, hiku)."
 update_tap
 
 # The next version: the last number goes up, as if the next release only fixes things. The first

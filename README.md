@@ -25,6 +25,7 @@ up once.
 
 The Mac apps are on [Homebrew](https://brew.sh), signed with Developer ID and notarized:
 
+    brew trust zacaronii/amatsubame                # Homebrew 7 asks before using another tap
     brew install --cask zacaronii/amatsubame/yomu   # or miru, kiku, hiku
 
 They need macOS 26 or later on Apple silicon, and `brew upgrade` updates them with each release. They
