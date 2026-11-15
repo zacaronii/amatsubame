@@ -85,6 +85,8 @@ struct LookupWebView {
         #if os(iOS)
         webView.isOpaque = false
         webView.backgroundColor = .clear
+        // Past the page's ends too: what's behind the popup shows through (Background opacity).
+        webView.underPageBackgroundColor = .clear
         webView.scrollView.contentInsetAdjustmentBehavior = .automatic
         #else
         webView.setValue(false, forKey: "drawsBackground")

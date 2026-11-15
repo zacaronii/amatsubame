@@ -470,10 +470,10 @@ struct PlaybackView: View {
         min(max(min(size.width, size.height) * 0.06, 18), 40)
     }
 
-    /// A panel beside or under the picture (the dictionary).
+    /// A panel beside or under the picture (the dictionary), which draws its own background at
+    /// the chosen opacity (Settings ▸ Popup) so the picture can show through.
     private func sidePanel(@ViewBuilder _ content: () -> some View) -> some View {
         content()
-            .background(.background)
             .clipShape(.rect(cornerRadius: 14))
             .foregroundStyle(.primary)
     }

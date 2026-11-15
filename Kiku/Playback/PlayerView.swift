@@ -494,12 +494,13 @@ struct KikuLookupSheet: View {
                 .background(.background.secondary, in: .rect(cornerRadius: 18))
                 .padding([.horizontal, .top])
             }
-            LookupPopupView(service: common.lookup, model: popup)
+            LookupPopupView(service: common.lookup, model: popup, drawsBackground: false)
             if model.resumesOnClose {
                 Text("Playback paused · resumes when you close this")
                     .font(.footnote).foregroundStyle(.secondary).padding(.bottom, 8)
             }
         }
+        .lookupPopupBackground(common.lookup)
         .overlay(alignment: .topTrailing) {
             #if os(macOS)
             Button("Close", systemImage: "xmark.circle.fill") { model.popupClosed() }

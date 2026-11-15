@@ -37,13 +37,18 @@ public struct PopupSettings: Codable, Equatable, Sendable, FetchableRecord, Pers
     public var compactDefinitionSummaryCount: Int
     /// The dictionary the summary comes from first (its title); nil picks the first that has one.
     public var compactDefinitionSummaryDictionary: String?
+    /// Hachidori's Background opacity: how much of what's behind the popup shows through
+    /// (0–100 %, 85 by default). Text stays opaque.
+    public var backgroundOpacityPercent: Int
 
     public init(showLookupCounts: Bool = true, showCompactDefinitionSummary: Bool = false,
-                compactDefinitionSummaryCount: Int = 3, compactDefinitionSummaryDictionary: String? = nil) {
+                compactDefinitionSummaryCount: Int = 3, compactDefinitionSummaryDictionary: String? = nil,
+                backgroundOpacityPercent: Int = 85) {
         self.showLookupCounts = showLookupCounts
         self.showCompactDefinitionSummary = showCompactDefinitionSummary
         self.compactDefinitionSummaryCount = compactDefinitionSummaryCount
         self.compactDefinitionSummaryDictionary = compactDefinitionSummaryDictionary
+        self.backgroundOpacityPercent = backgroundOpacityPercent
     }
 }
 

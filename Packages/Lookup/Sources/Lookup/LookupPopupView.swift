@@ -37,7 +37,7 @@ public final class LookupPopupModel: Identifiable {
 
     func document(for page: LookupResultPage, service: LookupService) -> String {
         if let cached = documents[page.id] { return cached }
-        let html = service.document(for: page)
+        let html = service.document(for: page, nativeBackground: true)
         documents[page.id] = html
         return html
     }
@@ -69,6 +69,7 @@ public struct LookupPopupView: View {
     let service: LookupService
     @Bindable var model: LookupPopupModel
     var showsBackBar = true
+    var drawsBackground = true
     @State private var toast: Toast?
     @State private var duplicate: (page: LookupResultPage, index: Int)?
 
@@ -78,10 +79,13 @@ public struct LookupPopupView: View {
         var jobId: Int64?
     }
 
-    public init(service: LookupService, model: LookupPopupModel, showsBackBar: Bool = true) {
+    /// `drawsBackground: false` when a wrapper around the popup (a header, a clip bar) draws
+    /// `lookupPopupBackground` itself, so the tint covers it too.
+    public init(service: LookupService, model: LookupPopupModel, showsBackBar: Bool = true, drawsBackground: Bool = true) {
         self.service = service
         self.model = model
         self.showsBackBar = showsBackBar
+        self.drawsBackground = drawsBackground
     }
 
     public var body: some View {
@@ -125,6 +129,7 @@ public struct LookupPopupView: View {
             }
         }
         .animation(.default, value: toast)
+        .modifier(PopupBackground(service: service, enabled: drawsBackground))
         .confirmationDialog("Already in Anki", isPresented: Binding(get: { duplicate != nil }, set: { if !$0 { duplicate = nil } }),
                             presenting: duplicate) { item in
             Button("Add Another Card") { mine(item.index, on: item.page, allowDuplicate: true) }
@@ -185,6 +190,39 @@ public struct LookupPopupView: View {
         case .mine(let index):
             mine(index, on: page, allowDuplicate: false)
         }
+    }
+}
+
+/// The popup's background at the chosen opacity (Settings ▸ Popup, Hachidori's Background
+/// opacity): behind the bar, the page (drawn transparent) and the bottom edge alike, with a
+/// sheet's or popover's own background cleared so what's behind shows through.
+struct PopupBackground: ViewModifier {
+    let service: LookupService
+    var enabled = true
+    @Environment(\.colorScheme) private var colorScheme
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content
+                .background(color.ignoresSafeArea())
+                .presentationBackground(.clear)
+        } else {
+            content
+        }
+    }
+
+    /// popup.css --background-color.
+    private var color: Color {
+        let base = colorScheme == .dark ? Color(red: 0x1c / 255, green: 0x1c / 255, blue: 0x1e / 255) : .white
+        return base.opacity(Double(min(max(service.popupSettings.backgroundOpacityPercent, 0), 100)) / 100)
+    }
+}
+
+public extension View {
+    /// For a wrapper around `LookupPopupView(…, drawsBackground: false)`: the popup's background
+    /// behind the whole wrapper.
+    func lookupPopupBackground(_ service: LookupService) -> some View {
+        modifier(PopupBackground(service: service))
     }
 }
 

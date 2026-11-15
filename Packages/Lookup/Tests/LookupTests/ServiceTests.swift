@@ -173,6 +173,16 @@ import Testing
         #expect(try !service.counts.settings().showLookupCounts)
     }
 
+    /// Hachidori's Background opacity: 85 % by default, from the shared settings.
+    @Test func theBackgroundOpacityReachesThePage() async throws {
+        let service = try await makeService()
+        let page = await service.search("映画")
+        #expect(service.document(for: page).contains("--popup-opacity: 85%;"))
+        service.updatePopupSettings { $0.backgroundOpacityPercent = 40 }
+        #expect(service.document(for: page).contains("--popup-opacity: 40%;"))
+        #expect(try service.counts.settings().backgroundOpacityPercent == 40)
+    }
+
     @Test func searchFindsTypedText() async throws {
         let service = try await makeService()
         #expect(await service.search(" 食べた ").results.first?.expression == "食べる")

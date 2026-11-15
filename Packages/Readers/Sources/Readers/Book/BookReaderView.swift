@@ -79,8 +79,9 @@ public struct BookReaderView: View {
                                 if let lookup = model.lookup {
                                     VStack(spacing: 0) {
                                         if let popupHeader { popupHeader }
-                                        LookupPopupView(service: lookup, model: popup)
+                                        LookupPopupView(service: lookup, model: popup, drawsBackground: false)
                                     }
+                                    .lookupPopupBackground(lookup)
                                     // Narrow enough for the space beside the word: iOS cuts a popover down to fit, and
                                     // on the open iPhone Duo held upright a 360 pt minimum clipped both sides.
                                     .frame(minWidth: 280, idealWidth: 420, minHeight: 360, idealHeight: 520)
@@ -291,11 +292,11 @@ public struct BookReaderView: View {
         let height = min(page.height - 16, 560)
         return VStack(spacing: 0) {
             if let popupHeader { popupHeader }
-            if let lookup = model.lookup { LookupPopupView(service: lookup, model: popup) }
+            if let lookup = model.lookup { LookupPopupView(service: lookup, model: popup, drawsBackground: false) }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("book.lookupPanel")
-        .background(.background)
+        .modifier(OptionalPopupBackground(lookup: model.lookup))
         .clipShape(.rect(cornerRadius: 20))
         .shadow(color: .black.opacity(0.25), radius: 16, y: 6)
         .overlay(alignment: .topTrailing) {
@@ -524,5 +525,14 @@ private extension View {
         } else {
             self
         }
+    }
+}
+
+/// The lookup panel's background: the popup's, at its chosen opacity (Settings ▸ Popup).
+private struct OptionalPopupBackground: ViewModifier {
+    let lookup: LookupService?
+
+    func body(content: Content) -> some View {
+        if let lookup { content.lookupPopupBackground(lookup) } else { content.background(.background) }
     }
 }
