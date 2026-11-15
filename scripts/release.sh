@@ -1,7 +1,7 @@
 #!/bin/bash
 # Releases a TestFlight build that's already in the Dev group: checks it, makes the Mac apps for
 # Homebrew, tags it v<version>, makes the GitHub pre-release with those apps, updates the Homebrew
-# tap and opens the PR that moves main to the next version. Nothing goes to TestFlight; the build
+# tap and opens the PR that moves dev to the next version. Nothing goes to TestFlight; the build
 # goes to the main tester group by hand in App Store Connect.
 #
 #   scripts/release.sh <build number>     e.g. scripts/release.sh 202611201530
@@ -41,11 +41,11 @@ if [[ "$build" == *.* ]]; then build="${build%%.*}.$(printf %04d "$((10#${build#
 fail() { echo "error: $*" >&2; exit 1; }
 step() { echo "• $*"; }
 
-git fetch -q --tags origin main
+git fetch -q --tags origin main dev
 commit=$(git rev-parse -q --verify "refs/tags/build-$build^{commit}") \
   || fail "no tag build-$build: was that build uploaded with scripts/upload-dev.sh?"
 git merge-base --is-ancestor "$commit" origin/main \
-  || fail "build $build (${commit:0:7}) isn't on main. Releases come from main: merge first and upload a new build."
+  || fail "build $build (${commit:0:7}) isn't on main. Releases come from main: bring dev over first (README ▸ Branches)."
 version=$(git show "$commit:project.yml" | sed -nE 's/^[[:space:]]*MARKETING_VERSION:[[:space:]]*"?([0-9.]+)"?.*/\1/p' | head -1)
 [ -n "$version" ] || fail "no MARKETING_VERSION in project.yml at ${commit:0:7}."
 if [ $mac_only = 1 ]; then
@@ -155,11 +155,15 @@ if [ $mac_only = 1 ]; then
   exit 0
 fi
 
-# The pull requests since the last release, with their labels.
+# The pull requests since the last release, with their labels: those merged into dev as well as
+# straight into main, but not the dev → main ones that brought them over.
 previous=$(git describe --tags --match 'v*' --abbrev=0 "$commit" 2>/dev/null || true)
-prs=$(git log --first-parent --merges --format=%s ${previous:+"$previous.."}"$commit" | sed -nE 's/^Merge pull request #([0-9]+).*/\1/p')
+merged=$(git log --merges --format=%s ${previous:+"$previous.."}"$commit" | sed -nE 's/^Merge pull request #([0-9]+).*/\1/p')
+prs=()
 features=()
-for pr in $prs; do
+for pr in $merged; do
+  [ "$(gh pr view "$pr" --json headRefName -q .headRefName)" = dev ] && continue
+  prs+=("$pr")
   labels=$(gh pr view "$pr" --json labels -q '.labels[].name')
   grep -qxE 'idea|enhancement' <<<"$labels" && features+=("#$pr")
 done
@@ -168,7 +172,7 @@ step "Version"
 IFS=. read -r major minor patch <<<"$version"
 if [ ${#features[@]} -gt 0 ] && [ "${patch:-0}" != 0 ]; then
   echo "  $version is a fix-only number, but ${features[*]} added features: those release as $major.$((minor + 1)).0."
-  echo "  Set MARKETING_VERSION in project.yml and HikuExtension/Resources/manifest.json on main, then upload again."
+  echo "  Set MARKETING_VERSION in project.yml and HikuExtension/Resources/manifest.json on dev, bring it to main, then upload again."
   failures+=("version $version for a release with features")
 else
   echo "  ok ($([ ${#features[@]} -gt 0 ] && echo "features: ${features[*]}" || echo "fixes only"))"
@@ -257,10 +261,10 @@ fi
 
 step "Hand checks"
 echo "  PRs merged since ${previous:-the start}:"
-if [ -z "$prs" ]; then
+if [ ${#prs[@]} = 0 ]; then
   echo "    (none)"
 else
-  for pr in $prs; do echo "    #$pr $(gh pr view "$pr" --json title -q .title)"; done
+  for pr in "${prs[@]}"; do echo "    #$pr $(gh pr view "$pr" --json title -q .title)"; done
 fi
 minutes=$build; minutes=${minutes/./}
 uploaded=$(date -j -u -f %Y%m%d%H%M "$minutes" +%s 2>/dev/null || echo 0)
@@ -285,24 +289,25 @@ gh release create "v$version" "$mac_out"/*-"$version".zip --verify-tag --prerele
 update_tap
 
 # The next version: the last number goes up, as if the next release only fixes things. The first
-# feature merged after it moves main to x.(y+1).0 (the version check above catches a forgotten one).
+# feature merged after it moves dev to x.(y+1).0 (the version check above catches a forgotten one).
+# Work merges into dev (README ▸ Branches), so that's where the version moves; main follows.
 next="$major.$minor.$(( ${patch:-0} + 1 ))"
-main_version=$(git show origin/main:project.yml | sed -nE 's/^[[:space:]]*MARKETING_VERSION:[[:space:]]*"?([0-9.]+)"?.*/\1/p' | head -1)
-if [ "$main_version" != "$version" ]; then
-  echo "main is already at $main_version; no version PR needed."
+dev_version=$(git show origin/dev:project.yml | sed -nE 's/^[[:space:]]*MARKETING_VERSION:[[:space:]]*"?([0-9.]+)"?.*/\1/p' | head -1)
+if [ "$dev_version" != "$version" ]; then
+  echo "dev is already at $dev_version; no version PR needed."
 else
-  step "Moving main to $next"
+  step "Moving dev to $next"
   bump="$root/build.noindex/release-bump"
   git worktree remove --force "$bump" 2>/dev/null || rm -rf "$bump"
-  git worktree add -q -b "version-$next" "$bump" origin/main
+  git worktree add -q -b "version-$next" "$bump" origin/dev
   (
     cd "$bump"
     sed -i '' -E "s/^([[:space:]]*MARKETING_VERSION:[[:space:]]*)\"$version\"/\1\"$next\"/" project.yml
     sed -i '' -E "s/^([[:space:]]*\"version\":[[:space:]]*)\"$version\"/\1\"$next\"/" HikuExtension/Resources/manifest.json
     git commit -q -am "Version $next" -m "After releasing $version (build $build)."
     git push -q -u origin "version-$next"
-    gh pr create --base main --head "version-$next" --label chore --title "Version $next" \
-      --body "Moves main to $next after releasing v$version (TestFlight build $build), so every Dev build carries the version it would ship as. When a feature (idea or enhancement) merges, change it to $major.$((minor + 1)).0 instead."
+    gh pr create --base dev --head "version-$next" --label chore --title "Version $next" \
+      --body "Moves dev to $next after releasing v$version (TestFlight build $build), so every Dev build carries the version it would ship as. When a feature (idea or enhancement) merges, change it to $major.$((minor + 1)).0 instead."
   )
   git worktree remove --force "$bump"
 fi
