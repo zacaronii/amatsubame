@@ -37,4 +37,16 @@ import Testing
         try store.save(PopupSettings(showLookupCounts: false))
         #expect(try !store.settings().showLookupCounts)
     }
+
+    @Test func firstInstallSettingsAreWrittenOnce() throws {
+        let store = LookupCountStore(database: try AppDatabase.inMemory())
+        #expect(try store.saveFirstInstallSettings())
+        #expect(try store.settings() == PopupSettings.firstInstall)
+        #expect(try store.settings().showCompactDefinitionSummary)
+        #expect(try store.settings().compactDefinitionSummaryCount == 2)
+
+        try store.save(PopupSettings(showCompactDefinitionSummary: false))
+        #expect(try !store.saveFirstInstallSettings(), "a saved choice is kept")
+        #expect(try !store.settings().showCompactDefinitionSummary)
+    }
 }

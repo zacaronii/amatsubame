@@ -58,9 +58,10 @@ stays opaque.
 
 Settings ▸ Lookup and Mining ▸ **Popup** ▸ **Show Brief Definitions Beside the Headword** puts a
 word's first few meanings next to it, so several results are quick to scan; the full definitions
-stay below. It's off by default, as in Hachidori, and picks the snippets the same way: up to three
-(1–6 under **Snippets**) from the first dictionary that has a definition, or from the **Summary
-Dictionary** you choose.
+stay below. As in Hachidori, a new installation starts with it on and two snippets (1–6 under
+**Snippets**); setups from before version 0.3.0 keep it off until you turn it on. The snippets come
+from the first dictionary that has a definition, or from the **Summary Dictionary** you choose, picked
+the same way as Hachidori's.
 
 ### Word audio
 

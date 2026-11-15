@@ -164,6 +164,11 @@ public final class CommonEnvironment {
 
         try? lookup.audio.installDefaultSourcesIfNeeded()
         try? lookup.audio.moveKeysToKeychain()
+        // A new installation (setup not started, no dictionaries yet) starts with Hachidori's
+        // first-install popup settings (read by the reload below).
+        if setup.status == .notStarted, (try? dictionaries.dictionaries())?.isEmpty == true {
+            try? lookup.counts.saveFirstInstallSettings()
+        }
         for zip in pendingDictionaryImports {
             _ = try? await dictionaries.importDictionary(at: zip)
         }

@@ -41,6 +41,10 @@ public struct PopupSettings: Codable, Equatable, Sendable, FetchableRecord, Pers
     /// (0–100 %, 85 by default). Text stays opaque.
     public var backgroundOpacityPercent: Int
 
+    /// A new installation's settings, written once (Hachidori's `FIRST_INSTALL_OPTIONS`): brief
+    /// definitions on, two snippets. Existing setups keep the defaults above.
+    public static let firstInstall = PopupSettings(showCompactDefinitionSummary: true, compactDefinitionSummaryCount: 2)
+
     public init(showLookupCounts: Bool = true, showCompactDefinitionSummary: Bool = false,
                 compactDefinitionSummaryCount: Int = 3, compactDefinitionSummaryDictionary: String? = nil,
                 backgroundOpacityPercent: Int = 85) {
@@ -93,6 +97,16 @@ public struct LookupCountStore: Sendable {
 
     public func settings() throws -> PopupSettings {
         try database.reader.read { try PopupSettings.fetchOne($0, key: 1) } ?? PopupSettings()
+    }
+
+    /// Writes `PopupSettings.firstInstall` unless settings were already saved. Returns whether it did.
+    @discardableResult
+    public func saveFirstInstallSettings() throws -> Bool {
+        try database.writer.write { db in
+            guard try PopupSettings.fetchOne(db, key: 1) == nil else { return false }
+            try PopupSettings.firstInstall.save(db)
+            return true
+        }
     }
 
     public func save(_ settings: PopupSettings) throws {
