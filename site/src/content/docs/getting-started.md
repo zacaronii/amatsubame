@@ -34,9 +34,11 @@ libraries and getting dictionaries.
 ## Install on a Mac with Homebrew
 
 The Mac apps are signed and notarized, and [Homebrew](https://brew.sh) installs them in one line
-each:
+each. Recent versions of Homebrew first ask you to trust the tap (the folder of install recipes)
+they come from:
 
 ```sh
+brew trust zacaronii/amatsubame
 brew install --cask zacaronii/amatsubame/yomu
 brew install --cask zacaronii/amatsubame/miru
 brew install --cask zacaronii/amatsubame/kiku
