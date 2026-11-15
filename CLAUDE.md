@@ -27,7 +27,8 @@ Shared code is in `Packages/*`. Keep app-specific code out of shared packages, a
 Contributor-specific details (your devices, simulators, local folders, server specifics) can go in an optional gitignored `CLAUDE.local.md` next to this file, which loads alongside it.
 
 ## Issues
-- Bugs and ideas are tracked as GitHub issues (`gh issue list`). Work from them only when asked. Plan the fix first, and put `Fixes #N` in the commit that fixes one. Close an issue (with a short comment) once the fix is confirmed on a device.
+- Bugs and ideas are tracked as GitHub issues (`gh issue list`). Work from them only when asked. Plan the fix first, and put `Fixes #N` in the commit that fixes one. It closes when the fix reaches `main`; meanwhile give the issue the `in dev` label once its PR merges into `dev`.
+- **Branches** (README ▸ Branches): branch from `dev` and open the PR into `dev`; merge it yourself once the four apps build (macOS included) and the tests pass, then upload a Dev build (`scripts/upload-dev.sh` from `dev`) so the owner can try it. Don't stack PRs on each other's branches. `main` moves only through the `dev` → `main` PR, which the owner approves. A problem found after a merge gets a new PR into `dev` (labelled `follow-up` if what it fixes isn't released yet), not a reopened one.
 - **Titles:** `<Prefix>: <App> – <what>`, e.g. `Bug: Yomu – EPUB page jumps back after a lookup`. Older titles use Reader/Player/Extension.
 
   | Prefix | Means | Label |

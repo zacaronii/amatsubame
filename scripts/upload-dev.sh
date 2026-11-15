@@ -1,6 +1,7 @@
 #!/bin/bash
 # Archives the four apps for iOS and macOS from the current commit and uploads them to App Store
 # Connect, where the TestFlight "Dev" group gets them. Releases reuse these builds (scripts/release.sh).
+# Dev builds come from the dev branch (README ▸ Branches); a build from anywhere else says so.
 #
 #   scripts/upload-dev.sh [--no-upload] [App ...]
 #
@@ -34,10 +35,12 @@ fail() { echo "error: $*" >&2; exit 1; }
 
 # Only committed work, and never local-only commits (the demo fill-in).
 [ -z "$(git status --porcelain)" ] || fail "the working tree has changes; commit or stash them first."
-git fetch -q origin main
-if git log --format=%B "origin/main..HEAD" | grep -q "LOCAL ONLY"; then
+git fetch -q origin main dev
+if git log --format=%B "origin/dev..HEAD" | grep -q "LOCAL ONLY"; then
   fail "this branch has LOCAL ONLY commits."
 fi
+git merge-base --is-ancestor HEAD origin/dev || git merge-base --is-ancestor HEAD origin/main \
+  || echo "Note: $(git rev-parse --short HEAD) isn't on dev yet; releases only take builds that reach main."
 
 # Hiku's Safari extension has its own copy of the version.
 version=$(sed -nE 's/^[[:space:]]*MARKETING_VERSION:[[:space:]]*"?([0-9.]+)"?.*/\1/p' project.yml | head -1)
