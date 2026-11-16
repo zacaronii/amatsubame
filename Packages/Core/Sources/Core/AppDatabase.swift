@@ -688,6 +688,13 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v36_popup_blur") { db in
+            // Settings ▸ Popup ▸ Background Blur: 0–100 %, 50 by default (the blur the apps had).
+            try db.alter(table: "popupSettings") { t in
+                t.add(column: "backgroundBlurPercent", .integer).notNull().defaults(to: 50)
+            }
+        }
+
         return migrator
     }
 }

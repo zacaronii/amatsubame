@@ -20,7 +20,7 @@ Tap a word to open the popup:
 On a Mac, an iPad, or an iPhone held sideways, the popup opens as a card right by the word: below it,
 or above it for subtitles near the bottom, and beside it in vertical text and manga. On an iPhone held
 upright it slides up from the bottom; drag its top edge up to see more, or down to close it. Either way
-what's behind shows through it, lightly blurred (see **Background opacity** below). With a popup
+what's behind shows through it, blurred (see **Background opacity and blur** below). With a popup
 open, tap another word to look it up straight away, or tap somewhere with nothing to look up (a
 margin, a space, punctuation) or press Esc to close it.
 
@@ -55,11 +55,13 @@ their setup add to the same counts.
 
 Settings ▸ Lookup and Mining ▸ **Popup** turns them off (your past counts are kept) or resets them.
 
-### Background opacity
+### Background opacity and blur
 
-Settings ▸ Lookup and Mining ▸ **Popup** ▸ **Background Opacity** sets how much of the page, video or
-transcript shows through behind the popup, from 0 to 100% (85% by default, as in Hachidori). What's
-behind is lightly blurred, so even at 0% the text stays easy to read.
+Settings ▸ Lookup and Mining ▸ **Popup** ▸ **Background Opacity** sets how solid the popup's
+background is, from 0 to 100% (85% by default, as in Hachidori): the lower it is, the more of the page,
+video or transcript shows through. **Background Blur**, from 0 to 100% (50% by default), blurs what
+shows through, so it distracts less and the popup's text stays easy to read. The text itself always
+stays solid.
 
 ### Brief definitions
 
@@ -150,7 +152,8 @@ While the apps are linked:
 - Lookup counts are Hachidori's, so a word you look up in the browser and in Yomu counts twice in the
   same place.
 - The popup follows Hachidori's settings (brief definitions, lookup counts, background opacity); the
-  Popup page shows them but you change them in Hachidori.
+  Popup page shows them but you change them in Hachidori. Background Blur isn't a Hachidori setting,
+  so it stays yours.
 - Words you marked known or ignored in Hachidori aren't underlined.
 - Cards still go to your Anki through the apps' own Anki settings.
 

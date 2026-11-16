@@ -183,6 +183,15 @@ import Testing
         #expect(try service.counts.settings().backgroundOpacityPercent == 40)
     }
 
+    /// Background Blur: ours (not Hachidori's), 50 % by default, kept in the shared settings.
+    @Test func theBackgroundBlurIsKept() async throws {
+        let service = try await makeService()
+        #expect(service.popupSettings.backgroundBlurPercent == 50)
+        service.updatePopupSettings { $0.backgroundBlurPercent = 80 }
+        #expect(service.popupSettings.backgroundBlurPercent == 80)
+        #expect(try service.counts.settings().backgroundBlurPercent == 80)
+    }
+
     @Test func searchFindsTypedText() async throws {
         let service = try await makeService()
         #expect(await service.search(" 食べた ").results.first?.expression == "食べる")

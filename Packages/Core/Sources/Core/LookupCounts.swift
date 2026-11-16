@@ -40,6 +40,9 @@ public struct PopupSettings: Codable, Equatable, Sendable, FetchableRecord, Pers
     /// Hachidori's Background opacity: how much of what's behind the popup shows through
     /// (0–100 %, 85 by default). Text stays opaque.
     public var backgroundOpacityPercent: Int
+    /// How strongly what's behind the popup is blurred (0–100 %, 50 by default: the apps' blur
+    /// before it was a setting). Ours, not Hachidori's, so a linked host doesn't set it.
+    public var backgroundBlurPercent: Int
 
     /// A new installation's settings, written once (Hachidori's `FIRST_INSTALL_OPTIONS`): brief
     /// definitions on, two snippets. Existing setups keep the defaults above.
@@ -47,12 +50,13 @@ public struct PopupSettings: Codable, Equatable, Sendable, FetchableRecord, Pers
 
     public init(showLookupCounts: Bool = true, showCompactDefinitionSummary: Bool = false,
                 compactDefinitionSummaryCount: Int = 3, compactDefinitionSummaryDictionary: String? = nil,
-                backgroundOpacityPercent: Int = 85) {
+                backgroundOpacityPercent: Int = 85, backgroundBlurPercent: Int = 50) {
         self.showLookupCounts = showLookupCounts
         self.showCompactDefinitionSummary = showCompactDefinitionSummary
         self.compactDefinitionSummaryCount = compactDefinitionSummaryCount
         self.compactDefinitionSummaryDictionary = compactDefinitionSummaryDictionary
         self.backgroundOpacityPercent = backgroundOpacityPercent
+        self.backgroundBlurPercent = backgroundBlurPercent
     }
 }
 

@@ -158,10 +158,8 @@ struct LookupOverlayHost<Panel: View>: View {
             panel(popup)
         }
         .foregroundStyle(.primary)
+        // Tint and blur from Settings ▸ Popup.
         .lookupPopupBackground(service)
-        // What's behind is lightly blurred (the lightest material, half strength), so text stays
-        // readable at low opacity while the colours behind still come through.
-        .background { Rectangle().fill(.ultraThinMaterial).opacity(0.5) }
         // Esc (no visible close button: a tap elsewhere closes it).
         .background {
             Button("Close Dictionary", action: onClose)

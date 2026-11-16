@@ -197,8 +197,9 @@ public struct LookupPopupView: View {
 }
 
 /// The popup's background at the chosen opacity (Settings ▸ Popup, Hachidori's Background
-/// opacity): behind the bar, the page (drawn transparent) and the bottom edge alike, with a
-/// sheet's or popover's own background cleared so what's behind shows through.
+/// opacity) over what's behind, blurred at the chosen strength (Background Blur): behind the
+/// bar, the page (drawn transparent) and the bottom edge alike, with a sheet's or popover's own
+/// background cleared so what's behind shows through.
 struct PopupBackground: ViewModifier {
     let service: LookupService
     var enabled = true
@@ -208,6 +209,9 @@ struct PopupBackground: ViewModifier {
         if enabled {
             content
                 .background(color.ignoresSafeArea())
+                // The lightest material, faded in by the setting: SwiftUI has no blur radius
+                // for what's behind a view, so the strength is how much of the material shows.
+                .background { Rectangle().fill(.ultraThinMaterial).opacity(blur).ignoresSafeArea() }
                 .presentationBackground(.clear)
         } else {
             content
@@ -218,6 +222,10 @@ struct PopupBackground: ViewModifier {
     private var color: Color {
         let base = colorScheme == .dark ? Color(red: 0x1c / 255, green: 0x1c / 255, blue: 0x1e / 255) : .white
         return base.opacity(Double(min(max(service.popupSettings.backgroundOpacityPercent, 0), 100)) / 100)
+    }
+
+    private var blur: Double {
+        Double(min(max(service.popupSettings.backgroundBlurPercent, 0), 100)) / 100
     }
 }
 
