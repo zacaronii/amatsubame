@@ -22,6 +22,21 @@ import Testing
         #expect(await library.engine.lookup("食べた").first?.expression == "食べる")
     }
 
+    /// A copy follows its source, not the dictionary's latest release (a host may pin an older one).
+    @Test func aCopyDoesntUpdateItself() async throws {
+        let library = try makeLibrary()
+        var builder = TestDictionaryBuilder(title: "Pinned", revision: "1")
+        builder.terms = [.init("食べる", "たべる")]
+        builder.index = ["isUpdatable": true, "indexUrl": "https://example.com/index.json", "downloadUrl": "https://example.com/dict.zip"]
+        let package = FileManager.default.temporaryDirectory.appending(path: "compiled-\(UUID().uuidString)")
+        try DictionaryLibrary.prebuild(zip: try builder.write(), into: package)
+        let folder = try #require(try FileManager.default.contentsOfDirectory(at: package, includingPropertiesForKeys: nil).first(where: \.hasDirectoryPath))
+        let record = try await library.installCompiled(folder, kinds: .init(terms: 1)).dictionary
+        let source = try #require(try library.sources()[record.id])
+        #expect(source.downloadUrl == "https://example.com/dict.zip", "kept, to recognise it")
+        #expect(!source.updates)
+    }
+
     @Test func theSameRevisionIsAlreadyInstalledANewerOneReplaces() async throws {
         let library = try makeLibrary()
         let first = try await library.installCompiled(try compiledFolder(revision: "1"), kinds: .init(terms: 1)).dictionary

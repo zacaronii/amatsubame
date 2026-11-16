@@ -91,7 +91,14 @@ public struct HostDictionaryExports: Sendable {
                 let relative = String(entry.path.dropFirst(prefix.count))
                 let parts = relative.split(separator: "/")
                 guard !parts.isEmpty, !parts.contains(".."), !parts.contains(".") else { continue }
-                _ = try archive.extract(entry, to: folder.appending(path: relative))
+                let destination = folder.appending(path: relative)
+                if relative.hasPrefix(".hoshidicts_") {
+                    // The format marker is empty, but Hachidori's ZIP64 entry for it reads as
+                    // 4 GiB here, and extracting it copies the rest of the archive into it.
+                    FileManager.default.createFile(atPath: destination.path(percentEncoded: false), contents: Data())
+                    continue
+                }
+                _ = try archive.extract(entry, to: destination)
             }
         } catch {
             throw .malformed("the dictionary download couldn't be unpacked: \(error.localizedDescription)")
