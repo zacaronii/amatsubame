@@ -326,4 +326,69 @@ public actor HachidoriLink {
             "entry": ["term": .string(term), "reading": .string(reading), "definition": .string(definition)],
         ])
     }
+
+    // MARK: Sending a dictionary
+
+    /// `linked-import-v1`'s target (Hachidori's extension/linked-import.js).
+    static let linkedImportTarget = "hachidori-linked-import"
+    static let linkedImportCapability = "linked-import-v1"
+    /// Importing a large dictionary takes the host a while, and hachidori-docker's commit also
+    /// waits for an import or update already running.
+    static let commitTimeout: Duration = .seconds(600)
+
+    /// Whether the linked host accepts dictionaries (`linked-import-v1`).
+    public var acceptsDictionaries: Bool {
+        if case .linked(_, _, let capabilities) = status { capabilities.contains(Self.linkedImportCapability) } else { false }
+    }
+
+    /// Sends a Yomitan zip to the host, as a linked browser's Settings does: `hd_import_begin`,
+    /// the chunks in order, then `hd_import_commit` (`hd_import_abort` if a chunk fails). With
+    /// `replace`, it replaces the host's dictionary of the same title; otherwise the host keeps
+    /// both. Returns the host's import reply.
+    @discardableResult
+    public func sendDictionary(_ zip: URL, replace: Bool,
+                               progress: @Sendable (Double) -> Void = { _ in }) async throws(HachidoriError) -> JSONValue {
+        _ = try await linkedSocket().get()
+        guard acceptsDictionaries else {
+            throw .host(message: "This Hachidori doesn't accept dictionaries from other apps. Update it and try again.", code: nil)
+        }
+        let handle: FileHandle
+        let size: Int
+        do {
+            handle = try FileHandle(forReadingFrom: zip)
+            size = Int(try handle.seekToEnd())
+            try handle.seek(toOffset: 0)
+        } catch {
+            throw .malformed("the dictionary couldn't be read: \(error.localizedDescription)")
+        }
+        defer { try? handle.close() }
+        let begin = try await request(Self.linkedImportTarget, "hd_import_begin", [
+            "fileName": .string(zip.lastPathComponent), "size": .number(Double(size)), "replace": .bool(replace),
+        ])
+        guard let token = begin["token"]?.string, let chunkBytes = begin["chunkBytes"]?.int, chunkBytes > 0 else {
+            throw .malformed("an unreadable upload reply")
+        }
+        do throws(HachidoriError) {
+            var offset = 0
+            while offset < size {
+                let data: Data
+                do {
+                    data = try handle.read(upToCount: chunkBytes) ?? Data()
+                } catch {
+                    throw .malformed("the dictionary couldn't be read: \(error.localizedDescription)")
+                }
+                guard !data.isEmpty else { throw .malformed("the dictionary ended early") }
+                // In order: the host refuses a chunk at any other offset.
+                _ = try await request(Self.linkedImportTarget, "hd_import_chunk", [
+                    "token": .string(token), "offset": .number(Double(offset)), "data": .string(data.base64EncodedString()),
+                ])
+                offset += data.count
+                progress(Double(offset) / Double(size))
+            }
+        } catch {
+            _ = try? await request(Self.linkedImportTarget, "hd_import_abort", ["token": .string(token)])
+            throw error
+        }
+        return try await request(Self.linkedImportTarget, "hd_import_commit", ["token": .string(token)], timeout: Self.commitTimeout)
+    }
 }
