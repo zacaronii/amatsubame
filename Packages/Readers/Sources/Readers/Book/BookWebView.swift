@@ -181,11 +181,11 @@ final class BookWebController: NSObject, WKScriptMessageHandler, WKNavigationDel
     }
 
     func highlight(offset: Int, length: Int) {
-        run("window.lookupBridge?.highlight(\(offset), \(length))")
+        run("window.bookReader?.highlight(\(offset), \(length))")
     }
 
     func clearHighlight() {
-        run("window.lookupBridge?.clearHighlight()")
+        run("window.bookReader?.clearHighlight()")
     }
 
     // MARK: WKNavigationDelegate

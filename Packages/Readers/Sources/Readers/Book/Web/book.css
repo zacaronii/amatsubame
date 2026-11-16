@@ -83,8 +83,9 @@ body img, body svg, body video {
 html:not(#kb-none) .kb-mask { position: fixed; z-index: 2147483647; background: var(--kb-bg) !important; pointer-events: none; }
 :root[data-kb-layout="scroll"] .kb-mask, :root[data-kb-image-page="true"] .kb-mask { display: none !important; }
 
-/* The looked-up word (wrapped by the tap bridge). */
-html:not(#kb-none) body span.lookup-highlight { background-color: rgba(255, 190, 0, 0.45) !important; border-radius: 2px; }
+/* The looked-up word: boxes over the span the tap bridge wraps it in (placeLookupMark in
+   BookReader.js), below the masks. */
+html:not(#kb-none) .kb-lookup-mark { position: fixed; z-index: 2147483646; pointer-events: none; background-color: rgba(255, 190, 0, 0.45) !important; border-radius: 2px; }
 
 /* Word marks: words not in Anki underlined in the app's accent, words still being learned
    dotted grey; known words plain. In vertical text the line runs on the right of the column. */
