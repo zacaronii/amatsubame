@@ -138,7 +138,10 @@
       host = document.createElement('div');
       const shadow = host.attachShadow({mode: 'closed'});
       frame = document.createElement('iframe');
-      frame.setAttribute('style', 'border:0;width:100%;height:100%;border-radius:12px;background:Canvas;color-scheme:light dark;');
+      // No background of its own: the popup's page draws it at Settings ▸ Popup ▸ Background
+      // Opacity, so the page behind shows through. The frame's color-scheme matches the
+      // popup's (light dark), or Safari would paint the frame opaque.
+      frame.setAttribute('style', 'border:0;width:100%;height:100%;border-radius:12px;background:transparent;color-scheme:light dark;');
       shadow.append(frame);
       document.documentElement.append(host);
     }
