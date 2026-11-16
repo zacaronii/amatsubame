@@ -75,6 +75,7 @@ public final class BrowserService {
                 let lookupMs = Self.milliseconds(ContinuousClock.now - lookupStart)
                 var response = present(page, source: Self.source(title: title, url: url))
                 response["matchLength"] = page.results.first?.matched.utf16.count ?? 0
+                response["blurPercent"] = min(max(common.lookup.popupSettings.backgroundBlurPercent, 0), 100)
                 response["stats"] = stats(prepareMs: prepared, lookupMs: lookupMs, totalMs: Self.milliseconds(ContinuousClock.now - started))
                 return response
             case .query(let query):
