@@ -198,6 +198,27 @@ final class BookUITests: XCTestCase {
         XCTAssertLessThan(try markedPixels(), markedMinimum, "a mark came back after the second lookup")
     }
 
+    /// A page after a section's first: the body has moved (a page turn), and WebKit didn't repaint
+    /// a mark drawn inside it, so the looked-up word showed no mark (in 小説 君の名は。).
+    func testLookupMarkShowsAfterAPageTurn() throws {
+        guard ProcessInfo.processInfo.environment["UITEST_DICTIONARY_ZIPS"] != nil else { throw XCTSkip("Needs UITEST_DICTIONARY_ZIPS.") }
+        openBook()
+        openFirstChapter()
+        // Forward (a swipe right in right-to-left books) until a section's second page or later.
+        let laterPage = /page ([2-9]|\d\d+) of/
+        for _ in 0..<8 where (page.value as? String)?.contains(laterPage) != true {
+            page.swipeRight()
+            sleep(2)
+        }
+        XCTAssertTrue((page.value as? String)?.contains(laterPage) == true, "no section with a second page: \(page.value ?? "")")
+        XCTAssertLessThan(try markedPixels(), markedMinimum, "a mark before any lookup")
+        XCTAssertTrue(lookUp(dy: 0.25) || lookUp(dy: 0.45), "no word found to look up")
+        snapshot("book-mark-after-turn")
+        XCTAssertGreaterThan(try markedPixels(), markedMinimum, "the looked-up word is marked")
+        closePopup()
+        XCTAssertLessThan(try markedPixels(), markedMinimum, "the mark stayed after closing")
+    }
+
     /// Opens the first Contents entry with words near the top (books start with a cover, a title
     /// page or both) and looks one up. No page shows a mark before.
     private func lookUpInFirstChapter() throws -> Bool {
@@ -237,10 +258,15 @@ final class BookUITests: XCTestCase {
         sleep(2)
     }
 
-    /// Pixels of the screen in the lookup mark's yellow (rgba(255, 190, 0, 0.45) over the page).
+    /// Pixels of the screen in the lookup mark's yellow (rgba(255, 190, 0, 0.45) over the page),
+    /// outside the popup (its tags and chips can be warm colours too).
     private func markedPixels() throws -> Int {
         let image = try XCTUnwrap(app.screenshot().image.cgImage)
         let width = image.width, height = image.height
+        let scale = CGFloat(width) / app.frame.width
+        let popupFrame = popup.exists ? popup.frame : .null
+        let skipped = popupFrame.isNull ? CGRect.null
+            : CGRect(x: popupFrame.minX * scale, y: popupFrame.minY * scale, width: popupFrame.width * scale, height: popupFrame.height * scale)
         let context = try XCTUnwrap(CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
                                               bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
                                               bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
@@ -248,6 +274,8 @@ final class BookUITests: XCTestCase {
         let pixels = try XCTUnwrap(context.data).bindMemory(to: UInt8.self, capacity: width * height * 4)
         var count = 0
         for index in stride(from: 0, to: width * height * 4, by: 4) {
+            let pixel = index / 4
+            if skipped.contains(CGPoint(x: pixel % width, y: pixel / width)) { continue }
             let red = Int(pixels[index]), green = Int(pixels[index + 1]), blue = Int(pixels[index + 2])
             if red - blue > 30, green - blue > 20, red >= green { count += 1 }
         }

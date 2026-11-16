@@ -484,6 +484,38 @@
   function relayout(place) {
     layout(place?.xpath ? place : 'start');
     if (place?.xpath) state.place = place;
+    placeLookupMark();
+  }
+
+  // MARK: Lookup mark
+  // TextTapBridge wraps the looked-up word in span.lookup-highlight, but WebKit doesn't always
+  // repaint the body once it has moved (vertical text after a page turn): the span's
+  // background never shows. The mark is drawn instead as boxes outside the body, like the
+  // masks, over the span's rectangles, and placed again after a relayout.
+
+  let lookupBoxes = [];
+  function placeLookupMark() {
+    lookupBoxes.forEach((box) => box.remove());
+    lookupBoxes = [];
+    for (const span of document.querySelectorAll('span.lookup-highlight')) {
+      for (const r of span.getClientRects()) {
+        const box = document.createElement('div');
+        box.className = 'kb-lookup-mark';
+        box.style.cssText = `left: ${r.left}px; top: ${r.top}px; width: ${r.width}px; height: ${r.height}px`;
+        document.documentElement.appendChild(box);
+        lookupBoxes.push(box);
+      }
+    }
+  }
+
+  function highlight(offset, length) {
+    window.lookupBridge?.highlight(offset, length);
+    placeLookupMark();
+  }
+
+  function clearHighlight() {
+    window.lookupBridge?.clearHighlight();
+    placeLookupMark();
   }
 
   // MARK: Gestures
@@ -645,7 +677,7 @@
   }
 
   function unmarkWords() {
-    window.lookupBridge?.clearHighlight();
+    clearHighlight();
     const parents = new Set();
     for (const mark of document.querySelectorAll('km-w')) {
       const parent = mark.parentNode;
@@ -815,6 +847,7 @@
   }
 
   window.bookReader = {open, update, repaint, next, previous, follow, currentXPath, resolveXPath, xpathTo, audit,
+    highlight, clearHighlight,
     wordRuns, markWords, unmarkWords,
     readAlong: {show: showReadAlong, clear: clearReadAlong, lastTap: () => lastTap, xpathOfRun, firstVisiblePlace},
     pageCount: () => state.pages.length, page: () => state.page};
