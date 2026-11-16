@@ -251,9 +251,9 @@ final class BookUITests: XCTestCase {
     /// More marked pixels than stray antialiasing could give; a word's mark has thousands.
     private let markedMinimum = 200
 
-    /// Closes the popup (`closeLookup`).
+    /// Closes the popup (`closeLookup`); a card (iPad) by a tap in the bottom margin, which never has text.
     private func closePopup() {
-        app.closeLookup()
+        app.closeLookup(outside: page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.985)))
         XCTAssertTrue(popup.waitForNonExistence(timeout: 5), "popup closed")
         sleep(2)
     }
