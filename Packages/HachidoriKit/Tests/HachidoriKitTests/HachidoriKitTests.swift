@@ -286,4 +286,29 @@ struct LiveLinkTests {
         _ = try await link.lookupCount(term: "食べる", reading: "たべる")
         await link.stop()
     }
+
+    /// Copies the host's smallest dictionary (read-only): list, download, unpack, look up.
+    @Test func copiesADictionaryFromARealHost() async throws {
+        let url = try #require(ProcessInfo.processInfo.environment["HACHIDORI_LINK_URL"].flatMap(HachidoriLink.linkURL))
+        let link = HachidoriLink(url: url, clientName: "Amatsubame tests", clientVersion: "0.3.0")
+        await link.start()
+        _ = try await link.lookup("食べる")
+        let state = await link.records.dictionaries
+        await link.stop()
+        let exports = HostDictionaryExports(baseURL: try #require(HostDictionaryExports.apiURL(forLink: url)))
+        let list = try await exports.list()
+        #expect(Set(list.map(\.id)) == Set(state.map(\.id)), "every dictionary in dictionaryState can be exported")
+        let grammar = try #require(list.first { $0.title.hasPrefix("Bee's Ultimate Grammar") }, "needs Bee's Grammar on the host")
+        let work = temporaryFolder()
+        try await exports.download(grammar.id, to: work.appending(path: "export.zip"))
+        try HostDictionaryExports.unpack(work.appending(path: "export.zip"), into: work.appending(path: "dictionary"))
+        #expect(DictionaryFormat(folder: work.appending(path: "dictionary")) != .missing)
+        let engine = DictionaryEngine()
+        let rejected = await engine.configure([EngineDictionary(title: grammar.title, folder: work.appending(path: "dictionary"),
+                                                                hasTerms: true, hasFrequencies: false, hasPitches: false, hasKanji: false)],
+                                              frequencySortTitle: nil)
+        #expect(rejected.isEmpty)
+        #expect(await engine.lookup("ために").first?.glossaries.first?.dictionary == grammar.title)
+        try? FileManager.default.removeItem(at: work)
+    }
 }
