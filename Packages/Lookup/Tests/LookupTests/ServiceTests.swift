@@ -183,13 +183,18 @@ import Testing
         #expect(try service.counts.settings().backgroundOpacityPercent == 40)
     }
 
-    /// Background Blur: ours (not Hachidori's), 50 % by default, kept in the shared settings.
-    @Test func theBackgroundBlurIsKept() async throws {
+    /// The text halo: full at 0 % opacity, gone by 70 %; the page gets it even when the app
+    /// draws the background natively.
+    @Test func theTextHaloFadesWithOpacity() async throws {
+        #expect(LookupService.haloStrength(opacityPercent: 0) == 1)
+        #expect(LookupService.haloStrength(opacityPercent: 35) == 0.5)
+        #expect(LookupService.haloStrength(opacityPercent: 70) == 0)
+        #expect(LookupService.haloStrength(opacityPercent: 85) == 0)
         let service = try await makeService()
-        #expect(service.popupSettings.backgroundBlurPercent == 50)
-        service.updatePopupSettings { $0.backgroundBlurPercent = 80 }
-        #expect(service.popupSettings.backgroundBlurPercent == 80)
-        #expect(try service.counts.settings().backgroundBlurPercent == 80)
+        let page = await service.search("映画")
+        #expect(service.document(for: page).contains("--popup-halo: 0.000;"), "85 % by default: no halo")
+        service.updatePopupSettings { $0.backgroundOpacityPercent = 0 }
+        #expect(service.document(for: page, nativeBackground: true).contains("--popup-opacity: 0%; --popup-halo: 1.000;"))
     }
 
     @Test func searchFindsTypedText() async throws {

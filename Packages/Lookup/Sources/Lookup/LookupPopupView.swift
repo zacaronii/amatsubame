@@ -106,6 +106,7 @@ public struct LookupPopupView: View {
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 8)
+                .lookupPopupTextHalo(service)
                 Divider()
             }
             if let page = model.current {
@@ -196,10 +197,11 @@ public struct LookupPopupView: View {
     }
 }
 
-/// The popup's background at the chosen opacity (Settings ▸ Popup, Hachidori's Background
-/// opacity) over what's behind, blurred at the chosen strength (Background Blur): behind the
-/// bar, the page (drawn transparent) and the bottom edge alike, with a sheet's or popover's own
-/// background cleared so what's behind shows through.
+/// The popup's background: what's behind, blurred by the lightest material at full strength,
+/// under the popup colour at the chosen opacity (Settings ▸ Popup, Hachidori's Background
+/// opacity: a tint only). Behind the bar, the page (drawn transparent) and the bottom edge
+/// alike, with a sheet's or popover's own background cleared so what's behind shows through.
+/// (Fading the material instead cross-fades a sharp and a blurred copy of what's behind.)
 struct PopupBackground: ViewModifier {
     let service: LookupService
     var enabled = true
@@ -209,9 +211,7 @@ struct PopupBackground: ViewModifier {
         if enabled {
             content
                 .background(color.ignoresSafeArea())
-                // The lightest material, faded in by the setting: SwiftUI has no blur radius
-                // for what's behind a view, so the strength is how much of the material shows.
-                .background { Rectangle().fill(.ultraThinMaterial).opacity(blur).ignoresSafeArea() }
+                .background(.ultraThinMaterial)
                 .presentationBackground(.clear)
         } else {
             content
@@ -223,9 +223,22 @@ struct PopupBackground: ViewModifier {
         let base = colorScheme == .dark ? Color(red: 0x1c / 255, green: 0x1c / 255, blue: 0x1e / 255) : .white
         return base.opacity(Double(min(max(service.popupSettings.backgroundOpacityPercent, 0), 100)) / 100)
     }
+}
 
-    private var blur: Double {
-        Double(min(max(service.popupSettings.backgroundBlurPercent, 0), 100)) / 100
+/// A soft halo around text that sits on a see-through popup (popup.css `text-shadow`, the same
+/// three layers): black in dark mode, white in light, strongest at 0 % opacity and gone by 70 %.
+struct PopupTextHalo: ViewModifier {
+    let service: LookupService
+    @Environment(\.colorScheme) private var colorScheme
+
+    func body(content: Content) -> some View {
+        let strength = LookupService.haloStrength(opacityPercent: service.popupSettings.backgroundOpacityPercent)
+        let halo: Color = colorScheme == .dark ? .black : .white
+        // A CSS blur radius is about twice SwiftUI's shadow radius.
+        content
+            .shadow(color: halo.opacity(0.95 * strength), radius: 0.5)
+            .shadow(color: halo.opacity(0.75 * strength), radius: 1.5)
+            .shadow(color: halo.opacity(0.60 * strength), radius: 3, y: 1)
     }
 }
 
@@ -234,6 +247,11 @@ public extension View {
     /// behind the whole wrapper.
     func lookupPopupBackground(_ service: LookupService) -> some View {
         modifier(PopupBackground(service: service))
+    }
+
+    /// The popup's text halo, for native text on the popup's background (headers, bars).
+    func lookupPopupTextHalo(_ service: LookupService) -> some View {
+        modifier(PopupTextHalo(service: service))
     }
 }
 

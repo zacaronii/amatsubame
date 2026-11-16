@@ -20,7 +20,7 @@ Tap a word to open the popup:
 On a Mac, an iPad, or an iPhone held sideways, the popup opens as a card right by the word: below it,
 or above it for subtitles near the bottom, and beside it in vertical text and manga. On an iPhone held
 upright it slides up from the bottom; drag its top edge up to see more, or down to close it. Either way
-what's behind shows through it, blurred (see **Background opacity and blur** below). With a popup
+what's behind shows through it, blurred (see **Background opacity** below). With a popup
 open, tap another word to look it up straight away, or tap somewhere with nothing to look up (a
 margin, a space, punctuation) or press Esc to close it.
 
@@ -55,13 +55,13 @@ their setup add to the same counts.
 
 Settings ▸ Lookup and Mining ▸ **Popup** turns them off (your past counts are kept) or resets them.
 
-### Background opacity and blur
+### Background opacity
 
-Settings ▸ Lookup and Mining ▸ **Popup** ▸ **Background Opacity** sets how solid the popup's
-background is, from 0 to 100% (85% by default, as in Hachidori): the lower it is, the more of the page,
-video or transcript shows through. **Background Blur**, from 0 to 100% (50% by default), blurs what
-shows through, so it distracts less and the popup's text stays easy to read. The text itself always
-stays solid.
+The popup is like frosted glass: what's behind it is always blurred. Settings ▸ Lookup and Mining ▸
+**Popup** ▸ **Background Opacity** sets how much of the popup's colour lies over that blur, from 0 to
+100% (85% by default, as in Hachidori): the lower it is, the more of the page, video or transcript
+shows through. The text always stays solid, and at low opacity it gets a soft halo (dark in dark mode,
+light in light mode) so it stays readable over anything; the halo fades out as the opacity goes up.
 
 ### Brief definitions
 
@@ -172,8 +172,7 @@ While the Mac apps are linked:
 - Lookup counts are Hachidori's, so a word you look up in the browser and in Yomu counts twice in the
   same place.
 - The popup follows Hachidori's settings (brief definitions, lookup counts, background opacity); the
-  Popup page shows them but you change them in Hachidori. Background Blur isn't a Hachidori setting,
-  so it stays yours.
+  Popup page shows them but you change them in Hachidori.
 - Words you marked known or ignored in Hachidori aren't underlined.
 - Cards still go to your Anki through the apps' own Anki settings.
 

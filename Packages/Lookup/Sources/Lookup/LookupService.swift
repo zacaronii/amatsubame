@@ -188,14 +188,22 @@ public final class LookupService {
         _ = try? database.writer.write { try LookupHistoryRecord.deleteAll($0) }
     }
 
+    /// How strong the text halo is at a background opacity: 1 at 0 %, fading to 0 by 70 %, where
+    /// the popup colour alone keeps text readable.
+    public static func haloStrength(opacityPercent: Int) -> Double {
+        max(0, 1 - Double(min(max(opacityPercent, 0), 100)) / 70)
+    }
+
     /// The full HTML document for a page of results. With `nativeBackground`, the page stays
     /// transparent and the view showing it draws the background (`LookupPopupView`).
     public func document(for page: LookupResultPage, nativeBackground: Bool = false) -> String {
         let source = page.source.map(EntryRenderer.source) ?? ""
         let mined = mining.map { mining in page.results.map(mining.isMined) }
-        let opacity = nativeBackground ? 0 : min(max(popupSettings.backgroundOpacityPercent, 0), 100)
+        let setting = min(max(popupSettings.backgroundOpacityPercent, 0), 100)
+        let opacity = nativeBackground ? 0 : setting
+        let halo = Self.haloStrength(opacityPercent: setting)
         let accentCSS = (accent.map { ":root { --accent: \($0.color); --on-accent: \($0.onColor); }" } ?? "")
-            + ":root { --popup-opacity: \(opacity)%; }"
+            + ":root { --popup-opacity: \(opacity)%; --popup-halo: \(String(format: "%.3f", halo)); }"
         let count: EntryRenderer.LookupCount? = showsLookupCounts ? .init(page.lookupCount) : nil
         let summary: EntryRenderer.SummaryOptions? = popupSettings.showCompactDefinitionSummary
             ? .init(dictionary: popupSettings.compactDefinitionSummaryDictionary, count: popupSettings.compactDefinitionSummaryCount)

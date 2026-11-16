@@ -53,20 +53,10 @@ public struct PopupSettingsPage: View {
                         Text("\(lookup.popupSettings.backgroundOpacityPercent) %").monospacedDigit().frame(minWidth: 48, alignment: .trailing)
                     }
                 }
-                LabeledContent("Background Blur") {
-                    HStack {
-                        Slider(value: Binding { Double(lookup.popupSettings.backgroundBlurPercent) } set: { value in
-                            lookup.updatePopupSettings { $0.backgroundBlurPercent = Int(value.rounded()) }
-                        }, in: 0...100, step: 1)
-                        .frame(minWidth: 120)
-                        .accessibilityIdentifier("popup.backgroundBlur")
-                        Text("\(lookup.popupSettings.backgroundBlurPercent) %").monospacedDigit().frame(minWidth: 48, alignment: .trailing)
-                    }
-                }
             } header: {
                 Text("Appearance")
             } footer: {
-                Text("Text stays opaque. Blur softens what shows through behind the popup.")
+                Text("What shows through is always blurred, and text stays solid; at low opacity it gets a soft halo so it stays readable.")
             }
             Section {
                 Toggle("Record and Show Lookup Counts", isOn: Binding { lookup.showsLookupCounts } set: { lookup.setShowsLookupCounts($0) })

@@ -126,7 +126,6 @@ final class ScriptedHost: SharingTransport {
         #expect(!service.showsLookupCounts)
         #expect(await service.lookup(text: "映画", utf16Offset: 0).lookupCount == nil, "the host doesn't count")
         #expect(service.storedPopupSettings.backgroundOpacityPercent == 85, "our own settings are kept")
-        #expect(service.popupSettings.backgroundBlurPercent == 50, "the host has no blur setting: ours applies")
 
         service.host = nil
         #expect(service.popupSettings.backgroundOpacityPercent == 85)

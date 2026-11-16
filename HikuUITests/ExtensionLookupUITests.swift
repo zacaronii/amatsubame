@@ -94,6 +94,63 @@ final class ExtensionLookupUITests: XCTestCase {
         enableExtension()
     }
 
+    static let busyPage = """
+    <!doctype html><html lang="ja"><head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1"><title>Busy</title></head>
+    <body style="font-size: 28px; margin: 0; padding: 40px 20px; color: #fff; min-height: 100vh; box-sizing: border-box;
+     background: radial-gradient(90px 130px at 18% 30%, #ff3fa4, transparent 70%), radial-gradient(110px 160px at 78% 22%, #46c8ff, transparent 70%),
+     radial-gradient(150px 90px at 62% 60%, #ffb03f, transparent 70%), radial-gradient(70px 190px at 40% 75%, #b56bff, transparent 70%),
+     linear-gradient(160deg, #2a1d3c 0%, #151826 55%, #3b2433 100%);">
+    <p style="font-weight: 800;">NEON 新宿 · 24H 営業中</p>
+    <p id="text">昨日は寿司を食べました。とても美味しかったです。</p>
+    <div style="background: #fafafa; color: #1c1c1e; border-radius: 14px; padding: 14px; font-size: 20px;">その日の朝、私はいつものように駅前の店で朝ごはんを食べた。白い紙に書かれた文字が並んでいる。</div>
+    <p style="color: #ff3fa4; font-weight: 800;">ラーメン　焼き鳥　カラオケ</p>
+    <p style="color: #46c8ff; font-weight: 800;">いらっしゃいませ！</p>
+    </body></html>
+    """
+
+    /// Screenshots of the popup's glass in Safari: over a white page and a dark, busy one, at 0,
+    /// 25, 50 and 100 % opacity, in light and dark mode (the Hiku app sets the opacity).
+    func testPopupGlassScreenshots() throws {
+        // Safari doesn't follow XCUIDevice's appearance: with `UITEST_GLASS_APPEARANCE` (light or
+        // dark, set on the simulator with `simctl ui … appearance`) only that one is taken.
+        let only = ProcessInfo.processInfo.environment["UITEST_GLASS_APPEARANCE"]
+        let appearances: [(XCUIDevice.Appearance?, String)] = only.map { [(nil, $0)] } ?? [(.light, "light"), (.dark, "dark")]
+        let hiku = XCUIApplication()
+        hiku.launch()
+        enableExtension()
+        let pages = [("white", try TestServer(html: Self.page)), ("busy", try TestServer(html: Self.busyPage))]
+        defer { pages.forEach { $0.1.stop() } }
+        let safari = XCUIApplication(bundleIdentifier: "com.apple.mobilesafari")
+        var first = true
+        for (appearance, name) in appearances {
+            if let appearance { XCUIDevice.shared.appearance = appearance }
+            for opacity in [0, 25, 50, 100] {
+                hiku.launchEnvironment = ["UITEST_POPUP_OPACITY": String(opacity)]
+                hiku.launch()
+                sleep(2)
+                hiku.terminate()
+                for (backdrop, server) in pages {
+                    safari.terminate()
+                    XCUIDevice.shared.system.open(try XCTUnwrap(URL(string: "http://127.0.0.1:\(server.port)/")))
+                    XCTAssertTrue(safari.wait(for: .runningForeground, timeout: 10))
+                    if first { allowOnThisSite(safari) }
+                    let text = safari.webViews.staticTexts.matching(NSPredicate(format: "label CONTAINS '寿司を食べました'")).firstMatch
+                    XCTAssertTrue(text.waitForExistence(timeout: 15), "the page loaded")
+                    let characterWidth = text.frame.width / CGFloat("昨日は寿司を食べました。".count)
+                    text.coordinate(withNormalizedOffset: .zero)
+                        .withOffset(CGVector(dx: characterWidth * 6.5, dy: characterWidth * 0.6)).tap()
+                    let gloss = safari.webViews.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] 'to eat'")).firstMatch
+                    // The first lookup imports the dictionaries.
+                    XCTAssertTrue(gloss.waitForExistence(timeout: first ? 180 : 20), "the popup shows 食べる")
+                    first = false
+                    sleep(1)
+                    attach(safari.screenshot(), "\(backdrop)-\(name)-\(opacity)")
+                }
+            }
+        }
+    }
+
     private func attach(_ screenshot: XCUIScreenshot, _ name: String) {
         let attachment = XCTAttachment(screenshot: screenshot)
         attachment.name = name
