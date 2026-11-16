@@ -28,7 +28,9 @@ final class PlayerEnvironment {
     /// Libraries showing only movies and shows with a Japanese audio track.
     private(set) var japaneseOnlyLibraries: Set<String> = []
     /// The tab showing (menu shortcuts ⌘1–⌘4 switch it).
-    var selectedTab = PlayerTab.watch
+    var selectedTab = PlayerTab.watch { didSet { tabRequests &+= 1 } }
+    /// Bumped by every switch, to the same tab too: the Mac's sidebar follows it from a library row.
+    private(set) var tabRequests = 0
     /// A series (or a library, from the sidebar) to open in the Watch tab.
     var openSeriesRequest: JellyfinItem?
     /// The Jellyfin libraries, as the Watch tab last loaded them (the iPad's and Mac's sidebar).

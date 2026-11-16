@@ -35,12 +35,9 @@ struct SeriesGridView: View {
                     .foregroundStyle(.secondary)
                     .padding(.horizontal)
             }
-            Picker("Show", selection: $shelf) {
-                ForEach(Shelf.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal)
-            .accessibilityIdentifier("shelf.filter")
+            #if os(iOS)
+            shelfPicker.padding(.horizontal)
+            #endif
             if shelf == .downloaded {
                 OnDeviceCard(downloads: downloadedBytes, cache: Int64(cacheBytes))
                     .padding(.horizontal)
@@ -73,6 +70,12 @@ struct SeriesGridView: View {
         }
         .searchable(text: $search, prompt: "Filter")
         .navigationTitle(library.name)
+        #if os(macOS)
+        // The Mac keeps a screen's controls in its toolbar.
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) { shelfPicker.fixedSize() }
+        }
+        #endif
         .refreshable {
             CoverLoader.recheck()
             await load()
@@ -82,6 +85,14 @@ struct SeriesGridView: View {
             guard shelf == .downloaded else { return }
             cacheBytes = await environment.books.unpinnedBytes() + ((try? environment.pageCache.unpinnedBytes()) ?? 0)
         }
+    }
+
+    private var shelfPicker: some View {
+        Picker("Show", selection: $shelf) {
+            ForEach(Shelf.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+        }
+        .pickerStyle(.segmented)
+        .accessibilityIdentifier("shelf.filter")
     }
 
     /// Everything downloaded on this device (all libraries), as Settings ▸ Storage counts it.

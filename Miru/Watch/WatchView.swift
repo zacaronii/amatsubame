@@ -3,6 +3,36 @@ import Core
 import JellyfinKit
 import SwiftUI
 
+/// What a Jellyfin item opens: a library's shows, or a series.
+struct WatchDestination: View {
+    let item: JellyfinItem
+    @Binding var playback: PlaybackSession?
+
+    var body: some View {
+        if item.type == "CollectionFolder" {
+            JellyfinLibraryView(library: item)
+        } else {
+            SeriesView(series: item, playback: $playback)
+        }
+    }
+}
+
+#if os(macOS)
+/// One library from the Mac's sidebar, with its own navigation.
+struct LibraryStack: View {
+    let library: JellyfinItem
+    @State private var playback: PlaybackSession?
+
+    var body: some View {
+        NavigationStack {
+            JellyfinLibraryView(library: library)
+                .navigationDestination(for: JellyfinItem.self) { WatchDestination(item: $0, playback: $playback) }
+        }
+        .playbackPresentation($playback)
+    }
+}
+#endif
+
 /// Home: Today, Continue Watching (in progress), Next Up and each library's newest shows.
 struct WatchView: View {
     /// The Watch tab's navigation (a suggestion from the player opens a series here).
@@ -60,13 +90,7 @@ struct WatchView: View {
                     }
                 }
             }
-            .navigationDestination(for: JellyfinItem.self) { item in
-                if item.type == "CollectionFolder" {
-                    JellyfinLibraryView(library: item)
-                } else {
-                    SeriesView(series: item, playback: $playback)
-                }
-            }
+            .navigationDestination(for: JellyfinItem.self) { WatchDestination(item: $0, playback: $playback) }
         }
         .playbackPresentation($playback)
         .onChange(of: environment.openSeriesRequest, initial: true) { _, series in

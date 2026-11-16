@@ -125,7 +125,7 @@ public struct StatsView<Cover: View>: View {
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
-                            boardPicker
+                            if Self.inlinePickers { boardPicker }
                             switch board {
                             case .app: appStats
                             case .all:
@@ -139,6 +139,15 @@ public struct StatsView<Cover: View>: View {
                 }
             }
             .navigationTitle("Stats")
+            #if os(macOS)
+            // The Mac keeps a screen's controls in its toolbar.
+            .toolbar {
+                ToolbarItem(placement: .principal) { boardPicker.fixedSize() }
+                if board == .app {
+                    ToolbarItem(placement: .primaryAction) { periodPicker.fixedSize() }
+                }
+            }
+            #endif
             .task { await model.load() }
             .onReceive(NotificationCenter.default.publisher(for: .kechimochiAddressDidChange)) { _ in
                 Task { await immersion.load() }
@@ -171,9 +180,18 @@ public struct StatsView<Cover: View>: View {
         .accessibilityIdentifier("stats.period")
     }
 
+    /// The pickers sit above the numbers on iPhone and iPad, and in the Mac's toolbar.
+    private static var inlinePickers: Bool {
+        #if os(macOS)
+        false
+        #else
+        true
+        #endif
+    }
+
     /// This app's own numbers.
     @ViewBuilder private var appStats: some View {
-        periodPicker
+        if Self.inlinePickers { periodPicker }
         if let summary = model.summary {
             chartCard(summary)
             tiles(summary)

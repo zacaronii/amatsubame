@@ -38,6 +38,16 @@ struct MiruApp: App {
             await environment.downloader.handleBackgroundEvents()
         }
         #endif
+        #if os(macOS)
+        // ⌘, : today's Settings pages in their own window.
+        Settings {
+            PlayerSettingsView()
+                .frame(minWidth: 560, minHeight: 480)
+                .tint(Color("AccentColor"))
+                .environment(environment)
+                .environment(environment.common)
+        }
+        #endif
     }
 
     /// Asks iOS to wake the app later to send anything still queued.
@@ -53,6 +63,15 @@ struct MiruApp: App {
 /// Menu bar: Playback (acts on the player in front) and tab shortcuts.
 struct PlayerMenus: Commands {
     let environment: PlayerEnvironment
+
+    /// ⌘1… for each tab; on the Mac, Settings is ⌘, instead.
+    static var shortcutTabs: [PlayerTab] {
+        #if os(macOS)
+        PlayerTab.allCases.filter { $0 != .settings }
+        #else
+        PlayerTab.allCases
+        #endif
+    }
     @FocusedValue(\.playback) private var playback
 
     /// Off while a sheet you type in is open (dictionary search, Find Subtitles), so typing
@@ -99,7 +118,7 @@ struct PlayerMenus: Commands {
             }
         }
         CommandGroup(after: .sidebar) {
-            ForEach(Array(PlayerTab.allCases.enumerated()), id: \.offset) { index, tab in
+            ForEach(Array(Self.shortcutTabs.enumerated()), id: \.offset) { index, tab in
                 Button(tab.title) { environment.selectedTab = tab }
                     .keyboardShortcut(KeyEquivalent(Character(String(index + 1))), modifiers: .command)
             }

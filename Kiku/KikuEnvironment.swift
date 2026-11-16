@@ -20,7 +20,9 @@ final class KikuEnvironment {
     /// Shared by every Audiobookshelf client, so an expired token is refreshed once.
     let tokens: AudiobookshelfTokens
     /// The tab showing (⌘1–⌘4 switch it).
-    var selectedTab = KikuTab.listen
+    var selectedTab = KikuTab.listen { didSet { tabRequests &+= 1 } }
+    /// Bumped by every switch, to the same tab too: the Mac's sidebar follows it from a library row.
+    private(set) var tabRequests = 0
     /// A library to open in the Listen tab (the iPad's and Mac's sidebar).
     var requestedLibrary: AudiobookshelfLibrary?
     /// Shows, new episodes and progress from Audiobookshelf, shared by the tabs.
