@@ -242,23 +242,31 @@ public final class CommonEnvironment {
         applyHachidoriSettings()
     }
 
-    /// Links lookups to the Hachidori host in the settings, if it's on. Only the Mac apps look up
-    /// on the host; on iOS the apps keep looking up locally (docs/hachidori.md section 8).
+    /// The link to the Hachidori host in the settings, while it's on: dictionaries are copied
+    /// from and sent to it (Settings ▸ Dictionaries) on every platform.
+    public private(set) var hachidori: HostConnection?
+
+    /// Links to the Hachidori host in the settings, if it's on. Only the Mac apps look up on the
+    /// host; on iOS the apps keep looking up locally (docs/hachidori.md section 8).
     func applyHachidoriSettings() {
-        #if os(macOS)
         let settings = hachidoriSettings
         guard settings.enabled, let url = HachidoriLink.linkURL(from: settings.address) else {
+            hachidori?.stop()
+            hachidori = nil
             lookup.host = nil
             return
         }
-        if lookup.host?.link.url == url { return }
+        if hachidori?.link.url == url { return }
+        hachidori?.stop()
         let info = Bundle.main.infoDictionary
         let name = info?["CFBundleName"] as? String ?? "Amatsubame"
         let version = info?["CFBundleShortVersionString"] as? String ?? "0"
         let connection = HostConnection(link: HachidoriLink(url: url, clientName: name, clientVersion: version))
+        hachidori = connection
+        #if os(macOS)
         lookup.host = connection
-        connection.start()
         #endif
+        connection.start()
     }
 
     /// The user's choice when both this app and the shared setup had one (applies next launch).

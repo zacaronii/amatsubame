@@ -139,14 +139,34 @@ show **Auto**.
 - Imported dictionaries don't update unless their own files say they can and where from.
 - If you delete a recommended dictionary, the apps remember and don't pick it again by themselves.
 
-## Hachidori on the Mac
+## Hachidori
 
 If you use [Hachidori](https://github.com/bee-san/hachidori) in your browser and share it from a
-computer or a Docker host, the Mac apps can look words up on it too: Settings ▸ Lookup and Mining ▸
-**Hachidori**. Turn on **Use Hachidori** and enter the address of the computer sharing it (port 8771
-unless you changed it).
+computer or a Docker host, the apps can link to it: Settings ▸ Lookup and Mining ▸ **Hachidori**. Turn
+on **Use Hachidori** and enter the address of the computer sharing it (port 8771 unless you changed
+it).
 
-While the apps are linked:
+### Copying Hachidori's dictionaries
+
+While linked, Settings ▸ Lookup and Mining ▸ **Dictionaries** ▸ **Copy from Hachidori** lists
+Hachidori's dictionaries and whether each is new to this device, newer than the copy here, or the
+same. Tap **Copy** to download what's new or newer, at exactly Hachidori's versions (a dictionary you
+pinned to an older release stays on that release), then match Hachidori's order and which ones are
+on. Dictionaries that are only on the device stay, after Hachidori's.
+
+- Hachidori sends its own ready-to-use copies, about two to five times the size of the dictionary
+  files: its five recommended dictionaries take about 340 MB. Nothing downloads until you tap Copy.
+- Copies don't update themselves; copy again after updating them in Hachidori.
+- A dictionary made by a newer version of Hachidori's engine than the app has says so; update the app.
+
+To add a dictionary file you import on a device to Hachidori too, turn on **Also Add Imports to
+Hachidori** in the same section. Each zip you then import is sent to Hachidori after it's installed
+here (replacing Hachidori's copy of the same dictionary). The apps don't keep the zip afterwards, so a
+dictionary imported earlier has to be imported again to send it.
+
+### Looking up on the Mac
+
+While the Mac apps are linked:
 
 - Words are looked up on Hachidori, with its dictionaries.
 - Lookup counts are Hachidori's, so a word you look up in the browser and in Yomu counts twice in the
@@ -160,7 +180,8 @@ While the apps are linked:
 When Hachidori can't be reached, the apps look up with the Mac's own dictionaries and keep trying to
 link in the background. Hachidori has no password, so only use it over your home network or a private
 network such as Tailscale, never over the internet. The setting is shared by the apps that share a
-setup. On iPhone and iPad the apps keep looking up with their own dictionaries for now.
+setup. On iPhone and iPad the apps keep looking up with their own dictionaries, so lookups stay fast
+and work anywhere; copy Hachidori's dictionaries to have the same ones.
 
 ## Word marks
 

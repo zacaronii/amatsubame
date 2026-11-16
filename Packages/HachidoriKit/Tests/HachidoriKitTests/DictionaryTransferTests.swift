@@ -66,7 +66,7 @@ func makeExport(at url: URL) throws {
         let folder = work.appending(path: "out/dictionary")
         try HostDictionaryExports.unpack(zip, into: folder)
         let fileManager = FileManager.default
-        #expect(fileManager.fileExists(atPath: folder.appending(path: ".hoshidicts_6").path()))
+        #expect(try Data(contentsOf: folder.appending(path: ".hoshidicts_6")).isEmpty, "the format marker stays empty")
         #expect(fileManager.fileExists(atPath: folder.appending(path: "index.json").path()))
         #expect(try Data(contentsOf: folder.appending(path: "media/a.bin")) == Data([1, 2, 3]))
         let everything = try fileManager.subpathsOfDirectory(atPath: work.path())
