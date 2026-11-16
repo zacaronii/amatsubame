@@ -695,6 +695,14 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v37_no_popup_blur") { db in
+            // The blur is always full now, like Hachidori's (fading a material cross-fades a
+            // sharp and a blurred copy of what's behind): the setting goes.
+            try db.alter(table: "popupSettings") { t in
+                t.drop(column: "backgroundBlurPercent")
+            }
+        }
+
         return migrator
     }
 }

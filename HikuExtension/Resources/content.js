@@ -94,7 +94,7 @@
         mark.style.setProperty('background-color', 'rgba(255, 204, 0, 0.45)', 'important');
         mark.style.setProperty('border-radius', '3px', 'important');
       }
-      show(response.id, message.rect, response.stats, response.blurPercent ?? 50);
+      show(response.id, message.rect, response.stats);
     }, (error) => {
       clearTimeout(slow);
       say('Hiku: ' + error, 4000);
@@ -133,9 +133,15 @@
     if (duration) setTimeout(() => toast.textContent === text && say(null), duration);
   }
 
-  /// The popup at `rect`'s word; what's behind it is blurred by Settings ▸ Popup ▸ Background
-  /// Blur (`blurPercent`: 0–100 % of the apps' material, about 20 px at 100).
-  function show(id, rect, stats, blurPercent) {
+  /// What's behind the popup, blurred like the apps' lightest material (always full strength;
+  /// Background Opacity is the tint the popup's page draws over it).
+  function backdrop() {
+    const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    return `blur(18px) saturate(1.5) brightness(${dark ? 0.72 : 1.08})`;
+  }
+
+  /// The popup at `rect`'s word.
+  function show(id, rect, stats) {
     if (!host) {
       host = document.createElement('div');
       const shadow = host.attachShadow({mode: 'closed'});
@@ -155,7 +161,7 @@
     host.setAttribute('style', important([
       'position:absolute', `left:${left}px`, `top:${top}px`, `width:${width}px`, `height:${height}px`,
       'z-index:2147483647', 'display:block', 'box-shadow:0 6px 24px rgba(0,0,0,.35)', 'border-radius:12px',
-      `-webkit-backdrop-filter:blur(${blurPercent * 0.2}px)`, `backdrop-filter:blur(${blurPercent * 0.2}px)`,
+      `-webkit-backdrop-filter:${backdrop()}`, `backdrop-filter:${backdrop()}`,
     ]));
     const query = stats ? '?' + new URLSearchParams(Object.entries(stats)).toString() : '';
     frame.src = browser.runtime.getURL('popup-frame.html') + query + '#' + id;

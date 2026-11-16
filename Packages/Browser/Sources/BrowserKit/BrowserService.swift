@@ -70,12 +70,13 @@ public final class BrowserService {
             case .status:
                 return status(prepareMs: prepared)
             case .lookup(let text, let offset, let title, let url):
+                // Settings ▸ Popup may have changed in an app since this extension process started.
+                common.lookup.reloadPopupSettings()
                 let lookupStart = ContinuousClock.now
                 let page = await common.lookup.lookup(text: text, utf16Offset: offset)
                 let lookupMs = Self.milliseconds(ContinuousClock.now - lookupStart)
                 var response = present(page, source: Self.source(title: title, url: url))
                 response["matchLength"] = page.results.first?.matched.utf16.count ?? 0
-                response["blurPercent"] = min(max(common.lookup.popupSettings.backgroundBlurPercent, 0), 100)
                 response["stats"] = stats(prepareMs: prepared, lookupMs: lookupMs, totalMs: Self.milliseconds(ContinuousClock.now - started))
                 return response
             case .query(let query):

@@ -21,7 +21,7 @@ struct KikuApp: App {
 
     var body: some Scene {
         WindowGroup {
-            KikuRootView()
+            root
                 // Kiku orange; the Info.plist accent alone isn't applied.
                 .tint(Color("AccentColor"))
                 .environment(environment)
@@ -48,6 +48,19 @@ struct KikuApp: App {
         .backgroundTask(.urlSession(EpisodeDownloader.sessionIdentifier)) {
             await environment.downloader.handleBackgroundEvents()
         }
+        #endif
+    }
+
+    @ViewBuilder private var root: some View {
+        #if DEBUG
+        // UI tests' screenshots of the lookup popup's glass (PopupGlassGallery).
+        if let gallery = PopupGlassGallery.fromEnvironment() {
+            gallery
+        } else {
+            KikuRootView()
+        }
+        #else
+        KikuRootView()
         #endif
     }
 
