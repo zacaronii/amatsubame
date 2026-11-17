@@ -149,6 +149,11 @@ Hachidori version and how many dictionaries it has. While linked, the Status sec
 
 ### Copying Hachidori's dictionaries
 
+Setup's dictionaries step has **Use Hachidori** at the top: enter the address and tap **Copy from
+Hachidori** to link to it and copy its dictionaries there and then. Setup starts downloading the
+recommended dictionaries by itself unless an address is already known (from another app's setup); the
+copy waits for those to finish and then only fetches what differs.
+
 While linked, Settings ▸ Lookup and Mining ▸ **Dictionaries** ▸ **Copy from Hachidori** lists
 Hachidori's dictionaries and whether each is new to this device, newer than the copy here, or the
 same. Tap **Copy** to download what's new or newer, at exactly Hachidori's versions (a dictionary you
