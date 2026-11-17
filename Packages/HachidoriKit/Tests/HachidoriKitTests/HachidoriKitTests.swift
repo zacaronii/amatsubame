@@ -270,6 +270,20 @@ import Testing
         await link.stop()
         #expect(await link.status == .stopped)
     }
+
+    @Test func probesAnAddressOnce() async throws {
+        let url = URL(string: "ws://host.example:8771/link")!
+        let host = FakeHost(hello: try fixture("hello"))
+        let hello = try await HachidoriLink.probe(url: url, clientName: "Yomu", clientVersion: "0.3.0", transport: host)
+        #expect(hello.name == "Hachidori Docker host")
+        #expect(host.connections == 1)
+
+        let away = FakeHost(hello: nil)
+        away.refuse(true)
+        await #expect(throws: HachidoriError.notLinked) {
+            try await HachidoriLink.probe(url: url, clientName: "Yomu", clientVersion: "0.3.0", transport: away, timeout: .milliseconds(200))
+        }
+    }
 }
 
 /// Against a real host, read only (no counts, no writes): `HACHIDORI_LINK_URL=ws://<host>:8771/link swift test`.
@@ -285,6 +299,9 @@ struct LiveLinkTests {
         #expect(!(try await link.styles().isEmpty))
         _ = try await link.lookupCount(term: "食べる", reading: "たべる")
         await link.stop()
+
+        let hello = try await HachidoriLink.probe(url: url, clientName: "Amatsubame tests", clientVersion: "0.3.0")
+        #expect(hello.dictionaryCount > 0)
     }
 
     /// Copies the host's smallest dictionary (read-only): list, download, unpack, look up.

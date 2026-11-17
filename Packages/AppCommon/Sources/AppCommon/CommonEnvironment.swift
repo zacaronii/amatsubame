@@ -261,15 +261,26 @@ public final class CommonEnvironment {
         }
         if hachidori?.link.url == url { return }
         hachidori?.stop()
-        let info = Bundle.main.infoDictionary
-        let name = info?["CFBundleName"] as? String ?? "Amatsubame"
-        let version = info?["CFBundleShortVersionString"] as? String ?? "0"
-        let connection = HostConnection(link: HachidoriLink(url: url, clientName: name, clientVersion: version))
+        let client = Self.hachidoriClient
+        let connection = HostConnection(link: HachidoriLink(url: url, clientName: client.name, clientVersion: client.version))
         hachidori = connection
         #if os(macOS)
         lookup.host = connection
         #endif
         connection.start()
+    }
+
+    /// Settings ▸ Hachidori's Test Connection: the hello of the host at `address`, without linking to it.
+    public func testHachidori(address: String) async throws -> HostHello {
+        guard let url = HachidoriLink.linkURL(from: address) else { throw HachidoriError.notLinked }
+        let client = Self.hachidoriClient
+        return try await HachidoriLink.probe(url: url, clientName: client.name, clientVersion: client.version)
+    }
+
+    /// How the apps name themselves in their hello.
+    private static var hachidoriClient: (name: String, version: String) {
+        let info = Bundle.main.infoDictionary
+        return (info?["CFBundleName"] as? String ?? "Amatsubame", info?["CFBundleShortVersionString"] as? String ?? "0")
     }
 
     /// The user's choice when both this app and the shared setup had one (applies next launch).
