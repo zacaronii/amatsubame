@@ -108,7 +108,7 @@ extension JellyfinClient {
     /// Fields for poster lists; `withStreams` adds the streams (movies' audio languages), which
     /// make a large library's list much bigger.
     private static func posterFields(withStreams: Bool) -> String {
-        "PrimaryImageAspectRatio,ProductionYear,ChildCount" + (withStreams ? ",MediaStreams" : "")
+        "PrimaryImageAspectRatio,ProductionYear,ChildCount,DateCreated" + (withStreams ? ",MediaStreams" : "")
     }
 
     /// A library's series and movies with the newest content first (the home shelves). Jellyfin's

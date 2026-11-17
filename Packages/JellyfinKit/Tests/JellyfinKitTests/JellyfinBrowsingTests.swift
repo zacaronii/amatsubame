@@ -60,6 +60,8 @@ import Testing
         let series = try await jellyfin.libraryItems(libraryId: "L")
         #expect(series.count == 3 && series.allSatisfy { $0.type == "Series" })
         #expect(series[0].userData?.unplayedItemCount == 29)
+        #expect(series[0].dateCreated != nil && series[1].dateCreated == nil)
+        #expect(query(transport.requests[0])["fields"]?.contains("DateCreated") == true)
         #expect(query(transport.requests[0])["parentId"] == "L")
 
         let seasons = try await jellyfin.seasons(seriesId: "S")
