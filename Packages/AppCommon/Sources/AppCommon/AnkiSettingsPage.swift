@@ -90,7 +90,7 @@ public struct AnkiSettingsPage<CardExtras: View>: View {
                 }
 
                 Section {
-                    Toggle("Sync to AnkiWeb After Adding", isOn: $cards.settings.syncAfterAdding)
+                    Toggle("Sync After Adding", isOn: $cards.settings.syncAfterAdding)
                     Button {
                         Task { await cards.syncNow() }
                     } label: {
@@ -110,9 +110,9 @@ public struct AnkiSettingsPage<CardExtras: View>: View {
                         EmptyView()
                     }
                 } header: {
-                    Text("AnkiWeb")
+                    Text("Sync")
                 } footer: {
-                    Text("Sends new cards to AnkiMobile about 10 seconds after they arrive, once for a batch.")
+                    Text("Asks Anki to sync with its sync server (AnkiWeb or your own) about 10 seconds after new cards arrive, once for a batch, so they reach your other devices. Leave it off if your AnkiConnect server already syncs after each card.")
                 }
 
                 Section {

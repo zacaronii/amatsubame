@@ -126,10 +126,31 @@ public struct AnkiConnectClient: Sendable {
         }
     }
 
-    /// Syncs the server's collection with AnkiWeb (the server uses its own AnkiWeb login).
-    /// AnkiConnect answers null; some proxies answer with a status report, so any result goes.
+    /// Syncs the server's collection with the sync server its Anki uses (AnkiWeb or a
+    /// self-hosted one; the server has its own login). AnkiConnect answers null; some
+    /// proxies answer with a status report, so any result goes.
     public func sync() async throws(ConnectionError) {
-        let _: AnyResult? = try await invoke("sync")
+        do {
+            let _: AnyResult? = try await invoke("sync")
+        } catch .message(let message) {
+            throw .message(Self.syncMessage(message))
+        }
+    }
+
+    /// The answers to `sync` that need the user to do something, in plain words. Anything
+    /// else (e.g. a sync already in progress, which the scheduler retries) is kept.
+    static func syncMessage(_ message: String) -> String {
+        let lower = message.lowercased()
+        if lower.contains("unsupported action") {
+            return "This AnkiConnect server can't sync. Turn off Sync After Adding, or sync in Anki."
+        }
+        if lower.contains("not configured") {
+            return "The Anki behind AnkiConnect isn't signed in to a sync server. Sign in to sync in Anki first."
+        }
+        if lower.contains("sync status") || lower.contains("fullsync") || lower.contains("full sync") {
+            return "Anki needs a one-way full sync. Sync once in Anki and choose which side to keep."
+        }
+        return message
     }
 
     /// A result whose content doesn't matter (any JSON).
