@@ -11,6 +11,13 @@ public struct HachidoriSettingsPage: View {
     @State private var enabled = false
     @State private var address = ""
     @State private var loaded = false
+    @State private var test: TestResult?
+
+    enum TestResult {
+        case testing
+        case found(HostHello)
+        case failed
+    }
 
     public init() {}
 
@@ -28,11 +35,18 @@ public struct HachidoriSettingsPage: View {
                     .textInputAutocapitalization(.never)
                     #endif
                     .onSubmit(save)
+                    .onChange(of: address) { test = nil }
                     .accessibilityIdentifier("hachidori.address")
                 if addressChanged {
                     Button("Link", action: save)
                         .disabled(HachidoriLink.linkURL(from: address) == nil)
                         .accessibilityIdentifier("hachidori.link")
+                }
+                Button("Test Connection", action: runTest)
+                    .disabled(HachidoriLink.linkURL(from: address) == nil || isTesting)
+                    .accessibilityIdentifier("hachidori.test")
+                if let test {
+                    testRow(test)
                 }
             } footer: {
                 Text("The address of the computer running Hachidori, or of its Docker host (port 8771 unless you changed it). Hachidori has no password, so only use it over your home network or a private network such as Tailscale.")
@@ -44,6 +58,10 @@ public struct HachidoriSettingsPage: View {
                     }
                     .accessibilityIdentifier("hachidori.status")
                     if let host = environment.hachidori, host.isLinked {
+                        if let hello = host.hello {
+                            LabeledContent("Host", value: hello.name)
+                            LabeledContent("Version", value: hello.version)
+                        }
                         LabeledContent("Dictionaries", value: host.dictionaries.filter(\.enabled).map(\.name).joined(separator: ", "))
                     }
                 }
@@ -73,6 +91,43 @@ public struct HachidoriSettingsPage: View {
             enabled = settings.enabled
             address = settings.address
             loaded = true
+        }
+    }
+
+    private var isTesting: Bool {
+        if case .testing = test { true } else { false }
+    }
+
+    private func runTest() {
+        test = .testing
+        let address = address
+        Task {
+            do {
+                test = .found(try await environment.testHachidori(address: address))
+            } catch {
+                test = .failed
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func testRow(_ result: TestResult) -> some View {
+        switch result {
+        case .testing:
+            HStack {
+                ProgressView().controlSize(.small)
+                Text("Testing…").foregroundStyle(.secondary)
+            }
+        case .found(let hello):
+            Label("Found \(hello.name) (\(hello.version)) with \(hello.dictionaryCount) \(hello.dictionaryCount == 1 ? "dictionary" : "dictionaries").",
+                  systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .accessibilityIdentifier("hachidori.testResult")
+        case .failed:
+            Label("No answer from Hachidori at this address. Check that it's running and that this device can reach it (the same network, or Tailscale).",
+                  systemImage: "xmark.circle.fill")
+                .foregroundStyle(.orange)
+                .accessibilityIdentifier("hachidori.testResult")
         }
     }
 

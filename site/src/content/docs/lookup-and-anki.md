@@ -103,8 +103,8 @@ Setup downloads [Hachidori](https://github.com/bee-san/hachidori)'s default dict
 | Jiten Frequency | How common each word is in anime, novels and games |
 | Bee's Ultimate Grammar Dictionary | Grammar points, with examples |
 
-**Kanjium** (pitch accent) is offered too, unticked: Hachidori's set has no pitch accent dictionary,
-so tick it if you want the pitch graph in the popup and the pitch fields on your cards.
+**Kanjium** (pitch accent) is offered too, unticked: tick it if you want the pitch graph in the popup
+and the pitch fields on your cards.
 
 Each keeps its own licence; they're listed in **Settings ▸ About**.
 
@@ -144,7 +144,8 @@ show **Auto**.
 If you use [Hachidori](https://github.com/bee-san/hachidori) in your browser and share it from a
 computer or a Docker host, the apps can link to it: Settings ▸ Lookup and Mining ▸ **Hachidori**. Turn
 on **Use Hachidori** and enter the address of the computer sharing it (port 8771 unless you changed
-it).
+it). **Test Connection** checks an address before you link to it: it shows the host's name, its
+Hachidori version and how many dictionaries it has. While linked, the Status section shows the same.
 
 ### Copying Hachidori's dictionaries
 

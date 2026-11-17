@@ -46,6 +46,8 @@ public actor HachidoriLink {
 
     public private(set) var status: Status = .stopped
     public private(set) var records = SharedRecords()
+    /// The host's latest hello: its name, version and dictionary count.
+    public private(set) var hello: HostHello?
     /// The host engine's generation from its latest engine reply (`hd_media` needs the current one).
     public private(set) var generation: Int?
 
@@ -78,6 +80,22 @@ public actor HachidoriLink {
         if components.port == nil { components.port = 8771 }
         if components.path.isEmpty || components.path == "/" { components.path = "/link" }
         return components.url
+    }
+
+    /// Settings ▸ Hachidori's Test Connection: links to `url` once and returns the host's hello,
+    /// or fails with `notLinked` when no hello came within `timeout`.
+    public static func probe(url: URL, clientName: String, clientVersion: String,
+                             transport: any SharingTransport = URLSessionSharingTransport(),
+                             timeout: Duration = .seconds(6)) async throws(HachidoriError) -> HostHello {
+        var timing = Timing()
+        timing.linkWait = timeout
+        let link = HachidoriLink(url: url, clientName: clientName, clientVersion: clientVersion, transport: transport, timing: timing)
+        await link.start()
+        let linked = await link.linkedSocket()
+        let hello = await link.hello
+        await link.stop()
+        guard case .success = linked, let hello else { throw .notLinked }
+        return hello
     }
 
     // MARK: Link
@@ -138,6 +156,7 @@ public actor HachidoriLink {
         case .hello(let hello):
             guard hello.protocolVersion == ClientFrame.protocolVersion else { throw HachidoriError.malformed("protocol \(hello.protocolVersion)") }
             records.apply(snapshot: hello.snapshot)
+            self.hello = hello
             // The records first: whoever sees "linked" can read the host's settings at once.
             broadcast(.records(Set(SharedRecords.snapshotKeys)))
             setStatus(.linked(name: hello.name, version: hello.version, capabilities: hello.capabilities))

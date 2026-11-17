@@ -17,6 +17,8 @@ public final class HostConnection {
     }
     @ObservationIgnored private var unmarked: Set<String> = []
     public private(set) var dictionaries: [HostDictionary] = []
+    /// The host's hello while linked: its name, version and dictionary count.
+    public private(set) var hello: HostHello?
     /// Each host dictionary's CSS, fetched once per link.
     public private(set) var styles: [String: String] = [:]
     @ObservationIgnored private var observing: Task<Void, Never>?
@@ -63,6 +65,7 @@ public final class HostConnection {
             if case .linked = status {
                 // Never linked without the host's settings in place.
                 await refreshRecords()
+                hello = await link.hello
                 self.status = status
                 styles = (try? await link.styles()) ?? [:]
             } else {
