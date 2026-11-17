@@ -66,6 +66,14 @@ document.addEventListener('click', async (event) => {
       const response = await browser.runtime.sendMessage({action: 'audio', id: current, index});
       if (response?.audio) new Audio(`data:${response.type};base64,${response.audio}`).play().catch((error) => say(String(error)));
       else say(response?.error ?? 'No audio.');
+    } else if (action.dataset.action === 'known' || action.dataset.action === 'ignored') {
+      // Like Hachidori's Mark as known and Ignore: pressing the pressed one clears the mark.
+      const response = await browser.runtime.sendMessage({action: 'wordStatus', id: current, index, status: action.dataset.action});
+      if (response?.error) return say(response.error);
+      for (const other of document.querySelectorAll('.status-button')) {
+        if (other.dataset.headword !== action.dataset.headword) continue;
+        other.setAttribute('aria-pressed', String(other.dataset.action === response?.status));
+      }
     } else if (action.dataset.action === 'mine') {
       if (action.classList.contains('mined')) return;
       action.disabled = true;

@@ -12,10 +12,7 @@ public final class HostConnection {
     @ObservationIgnored public let link: HachidoriLink
     public private(set) var status: HachidoriLink.Status = .stopped
     public private(set) var options = HostOptions(nil)
-    public private(set) var wordStatus = WordStatusOverrides() {
-        didSet { unmarked = Set(wordStatus.known + wordStatus.ignored) }
-    }
-    @ObservationIgnored private var unmarked: Set<String> = []
+    public private(set) var wordStatus = WordStatusOverrides()
     public private(set) var dictionaries: [HostDictionary] = []
     /// The host's hello while linked: its name, version and dictionary count.
     public private(set) var hello: HostHello?
@@ -25,6 +22,8 @@ public final class HostConnection {
     @ObservationIgnored public var onLinked: (@MainActor () -> Void)?
     /// Called with the host's settings whenever they come in.
     @ObservationIgnored var onOptions: (@MainActor (HostOptions) -> Void)?
+    /// Called with the host's known and ignored words whenever they come in.
+    @ObservationIgnored var onWordStatus: (@MainActor (WordStatusOverrides) -> Void)?
     /// Each host dictionary's CSS, fetched once per link.
     public private(set) var styles: [String: String] = [:]
     @ObservationIgnored private var observing: Task<Void, Never>?
@@ -92,6 +91,7 @@ public final class HostConnection {
         dictionaries = records.dictionaries
         lastSynced = Date()
         onOptions?(options)
+        onWordStatus?(wordStatus)
     }
 
     /// Tries to link now instead of after the backoff (the app came to the front, or Sync Now).
@@ -119,10 +119,5 @@ public final class HostConnection {
     func media(dictionary: String, path: String) async -> Data? {
         guard isLinked else { return nil }
         return try? await link.mediaData(dictionary: dictionary, path: path)
-    }
-
-    /// Marked known or ignored on the host: such words get no word mark (as in Hachidori).
-    func hidesMark(for headword: String) -> Bool {
-        unmarked.contains(headword)
     }
 }

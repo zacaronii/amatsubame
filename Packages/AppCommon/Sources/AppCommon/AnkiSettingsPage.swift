@@ -83,6 +83,12 @@ public struct AnkiSettingsPage<CardExtras: View>: View {
                             LabeledContent("Also Mark Words From", value: cards.settings.markDecks.isEmpty ? "None" : cards.settings.markDecks.joined(separator: ", "))
                         }
                     }
+                    NavigationLink {
+                        KnownWordsView()
+                    } label: {
+                        LabeledContent("Known and Ignored Words", value: environment.lookup.wordStatuses.count.formatted())
+                    }
+                    .accessibilityIdentifier("anki.knownWords")
                 } header: {
                     Text("Word Marks")
                 } footer: {

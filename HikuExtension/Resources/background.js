@@ -31,6 +31,7 @@ browser.runtime.onMessage.addListener((message) => {
     case 'status':
     case 'saveAnki':
     case 'marks':
+    case 'wordStatus':
       return native(message);
   }
 });

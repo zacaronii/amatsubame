@@ -293,6 +293,7 @@ extension OutboxJobKind {
         case .jellyfinSubtitle: "Subtitles for Jellyfin"
         case .audiobookshelfProgress: "Listening Positions for Audiobookshelf"
         case .hachidoriLookupCount: "Lookup Counts for Hachidori"
+        case .hachidoriWordStatus: "Known Words for Hachidori"
         }
     }
 
@@ -305,6 +306,7 @@ extension OutboxJobKind {
         case .jellyfinSubtitle: ("subtitle", "subtitles")
         case .audiobookshelfProgress: ("listening position", "listening positions")
         case .hachidoriLookupCount: ("word's lookups", "words' lookups")
+        case .hachidoriWordStatus: ("known or ignored word", "known or ignored words")
         }
         return "\(count) \(count == 1 ? one : many)"
     }
@@ -317,6 +319,7 @@ extension OutboxJobKind {
         case .jellyfinSubtitle: "Jellyfin subtitles"
         case .audiobookshelfProgress: "Audiobookshelf progress"
         case .hachidoriLookupCount: "Hachidori lookup count"
+        case .hachidoriWordStatus: "Hachidori known word"
         }
     }
 }

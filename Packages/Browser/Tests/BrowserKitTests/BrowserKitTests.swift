@@ -15,6 +15,8 @@ import Testing
         // JavaScript numbers can come through as doubles.
         #expect(BrowserRequest(["action": "lookup", "text": "映画", "offset": 1.0]) == .lookup(text: "映画", offset: 1, title: nil, url: nil))
         #expect(BrowserRequest(["action": "mine", "id": "A", "index": 0]) == .mine(id: "A", index: 0))
+        #expect(BrowserRequest(["action": "wordStatus", "id": "A", "index": 1, "status": "ignored"]) == .wordStatus(id: "A", index: 1, status: .ignored))
+        #expect(BrowserRequest(["action": "wordStatus", "id": "A", "index": 1, "status": "maybe"]) == nil)
         #expect(BrowserRequest(["action": "audio", "id": "A", "index": 1.0]) == .audio(id: "A", index: 1))
         #expect(BrowserRequest(["action": "query", "query": "見る"]) == .query("見る"))
         #expect(BrowserRequest(["action": "saveAnki", "url": "anki.local:8765"]) == .saveAnki(url: "anki.local:8765", apiKey: "", deck: ""))

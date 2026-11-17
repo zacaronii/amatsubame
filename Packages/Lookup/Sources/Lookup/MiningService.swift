@@ -191,7 +191,12 @@ public final class MiningService {
 
     /// The mined words' states, for marking text.
     public func wordMarks() -> WordMarks {
-        (try? minedWords.marks()) ?? .empty
+        (try? minedWords.marks(markedByHand: markedByHand)) ?? .empty
+    }
+
+    /// Words marked known or ignored by hand (`LookupService.wordStatuses`): never marked.
+    public var markedByHand: Set<String> = [] {
+        didSet { if markedByHand != oldValue { revision += 1 } }
     }
 
     /// Whether words are marked: the setting is on and Anki is connected. Without Anki there are

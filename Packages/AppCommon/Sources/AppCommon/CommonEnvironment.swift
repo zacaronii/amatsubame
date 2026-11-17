@@ -151,11 +151,14 @@ public final class CommonEnvironment {
         }
         let hachidoriLink = hachidoriLink
         handlers.append(HachidoriCountHandler(store: outbox, link: { hachidoriLink.link }))
+        handlers.append(HachidoriWordStatusHandler(statuses: lookup.wordStatusStore, link: { hachidoriLink.link }))
         worker = OutboxWorker(store: outbox, mediaStorage: outboxMedia, handlers: handlers)
         let worker = worker
         mining = MiningService(outbox: outbox, media: outboxMedia, settings: ankiSettings, minedWords: minedWords,
                                onQueued: { Task { await worker.drain() } })
         lookup.mining = mining
+        let hachidoriDatabase = lookup.library.database
+        lookup.sharesWithHost = { (try? hachidoriDatabase.hachidoriSettings())?.enabled ?? false }
         wordMarks = WordMarkCache(service: lookup)
     }
 
@@ -235,6 +238,7 @@ public final class CommonEnvironment {
 
     private func reloadDictionariesIfChanged() async {
         applyHachidoriSettings()
+        lookup.reloadWordStatuses()
         let current = (try? dictionaries.dictionaries()) ?? []
         guard current != loadedDictionaries else { return }
         loadedDictionaries = current
@@ -250,7 +254,11 @@ public final class CommonEnvironment {
     /// Settings ▸ Hachidori: saves the host and links to it (or unlinks), here and, through the
     /// shared setup, in the other apps.
     public func saveHachidoriSettings(_ settings: HachidoriSettings) {
+        let wasEnabled = hachidoriSettings.enabled
         try? dictionaries.database.saveHachidoriSettings(settings)
+        // Turned on: the words marked here join Hachidori's list. Turned off: nothing waits for it.
+        if settings.enabled, !wasEnabled { try? lookup.wordStatusStore.sendAllToHost() }
+        if !settings.enabled, wasEnabled { try? lookup.wordStatusStore.forgetHost() }
         applyHachidoriSettings()
     }
 
@@ -268,7 +276,7 @@ public final class CommonEnvironment {
             hachidori = nil
             hachidoriLink.link = nil
             lookup.host = nil
-            lookup.hostCounts = nil
+            lookup.hostOutbox = nil
             return
         }
         if hachidori?.link.url == url { return }
@@ -277,13 +285,14 @@ public final class CommonEnvironment {
         let connection = HostConnection(link: HachidoriLink(url: url, clientName: client.name, clientVersion: client.version))
         hachidori = connection
         hachidoriLink.link = connection.link
-        // Back in touch: send the lookups counted meanwhile.
-        connection.onLinked = { [weak self] in self?.syncNow(retryWaiting: true) }
+        // Back in touch: send the lookups counted and the words marked meanwhile (by any app
+        // sharing the setup: the marks waiting are in the setup).
+        connection.onLinked = { [weak self] in self?.sendWaitingToHachidori() }
         lookup.host = connection
         #if os(macOS)
         lookup.looksUpOnHost = true
         #endif
-        lookup.hostCounts = (outbox, { [weak self] in self?.syncNow() })
+        lookup.hostOutbox = (outbox, { [weak self] in self?.syncNow() })
         connection.start()
     }
 
@@ -291,6 +300,13 @@ public final class CommonEnvironment {
     /// waiting (the host's records come in by themselves while linked).
     public func syncHachidori() {
         hachidori?.reconnectNow()
+        sendWaitingToHachidori()
+    }
+
+    private func sendWaitingToHachidori() {
+        for record in (try? lookup.wordStatusStore.pendingHost()) ?? [] {
+            try? outbox.queueHostWordStatus(record.headword)
+        }
         syncNow(retryWaiting: true)
     }
 
