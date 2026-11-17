@@ -193,7 +193,9 @@ Tailscale, never over the internet. The setting is shared by the apps that share
 With **Mark Words by Anki State** on (in Settings ▸ Anki, under Word Marks), the apps underline words by
 where they stand in your Anki mining deck: words you haven't mined, and words you're still learning,
 are underlined; words you know stay plain. A word counts as known once its card's interval is 21 days
-or more. Cards waiting to be sent count as learning. Marks need Anki: until AnkiConnect is connected
+or more, and stops counting while you relearn it after forgetting it. Cards waiting to be sent count as
+learning. A word with no card of its own takes the state of a card that spells it in kana, so a card
+for かわいい also covers 可愛い (and the other way round). Marks need Anki: until AnkiConnect is connected
 they stay off, since every word would otherwise look unmined.
 
 Marks show in Yomu's books (not on manga pages), Miru's subtitles, Kiku's transcripts and web pages

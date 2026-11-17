@@ -146,7 +146,7 @@ The count chip ("Looked up N time(s)") appears only on the **first** result, aft
 | Note type and fields | Our Lapis preset, field names from `modelFieldNames` | The host's Templates (`{expression}`, `{glossary}`… markers), rendered by the host |
 | Media | Anything via `storeMediaFile`: picture, sentence audio, word audio | A JPEG screenshot (≤ 6 MiB) and text-to-speech WAV only; word audio from the host's URL sources. **No sentence audio** |
 | Duplicates | `addNote` with `duplicateScope: "deck"` | The Template's scope (note type on the test host); the host's index covers the first Template only |
-| Word marks | Our `findNotes` queries (`prop:ivl>=21`, `-is:new`) | `hd_anki_word_status` (known/learning/unknown) plus `wordStatusOverrides`, per request online |
+| Word marks | Our `findNotes` queries (`is:review -is:learn prop:ivl>=21` like Hachidori's, `-is:new`) | `hd_anki_word_status` (known/learning/unknown) plus `wordStatusOverrides`, per request online |
 | Offline | Outbox: the card is rendered at mine time and sent later | Impossible: a submission needs the host's live lookup result, engine `generation` and a per-process `configKey`, all invalid after a restart or dictionary change |
 | Auth | AnkiConnect API key | The relay has none |
 

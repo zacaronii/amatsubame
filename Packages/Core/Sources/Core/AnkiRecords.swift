@@ -194,7 +194,7 @@ public struct MinedWordRecord: Codable, Equatable, Sendable, FetchableRecord, Pe
     public var source: Source
     public var jobId: Int64?
     public var updatedAt: Date
-    /// Its card's review interval is 21 days or more. Queued words are still learning.
+    /// It has a card in review with an interval of 21 days or more (not being relearned). Queued words are still learning.
     public var known: Bool
 
     public init(expression: String, reading: String, source: Source, jobId: Int64? = nil, updatedAt: Date = Date(), known: Bool = false) {
@@ -211,9 +211,9 @@ public struct MinedWordRecord: Codable, Equatable, Sendable, FetchableRecord, Pe
 public enum WordMarkState: String, Codable, Sendable {
     /// No note for it in the mining deck: a solid underline in the app's accent.
     case notInAnki
-    /// In the deck with an interval under 21 days, or mined and not studied yet: a dotted grey underline.
+    /// In the deck and not known yet (new, learning or relearning), or queued: a dotted grey underline.
     case learning
-    /// An interval of 21 days or more: no mark.
+    /// A card in review with an interval of 21 days or more: no mark.
     case known
 }
 
@@ -221,18 +221,31 @@ public enum WordMarkState: String, Codable, Sendable {
 public struct WordMarks: Sendable {
     /// Expression → (reading, known) for each mined reading of it.
     private let words: [String: [(reading: String, known: Bool)]]
+    /// Reading → whether each note with it is known.
+    private let readings: [String: [Bool]]
 
     public init(_ records: [MinedWordRecord]) {
         words = Dictionary(grouping: records, by: \.expression).mapValues { $0.map { ($0.reading, $0.known) } }
+        readings = Dictionary(grouping: records.filter { !$0.reading.isEmpty }, by: \.reading).mapValues { $0.map(\.known) }
     }
 
     public static let empty = WordMarks([])
 
-    /// An empty reading in Anki matches any reading; known only when the matching notes are.
+    /// An empty reading in Anki matches any reading; known when any matching note is. A word
+    /// with no note of its own takes the state of one spelling it in kana, as in Hachidori:
+    /// 可愛い from a note for かわいい, and かわいい from a note for 可愛い (read かわいい).
     public func state(expression: String, reading: String) -> WordMarkState {
-        let matching = (words[expression] ?? []).filter { $0.reading == reading || $0.reading.isEmpty || reading.isEmpty }
+        var matching = (words[expression] ?? []).filter { $0.reading == reading || $0.reading.isEmpty || reading.isEmpty }.map(\.known)
+        if matching.isEmpty {
+            if !reading.isEmpty, reading != expression { matching = (words[reading] ?? []).map(\.known) }
+            if Self.isKana(expression) { matching += readings[expression] ?? [] }
+        }
         if matching.isEmpty { return .notInAnki }
-        return matching.contains { $0.known } ? .known : .learning
+        return matching.contains(true) ? .known : .learning
+    }
+
+    static func isKana(_ text: String) -> Bool {
+        !text.isEmpty && text.unicodeScalars.allSatisfy { (0x3041...0x30FF).contains($0.value) && $0.value != 0x30FB }
     }
 }
 
