@@ -71,9 +71,14 @@ import Testing
 
     @Test func settingsDefaultToWiFiOnly() throws {
         let database = try AppDatabase.inMemory()
+        #if os(macOS)
+        // The Mac has no cellular setting: any network the Mac joined is allowed.
+        #expect(DownloadSettings.load(database) == DownloadSettings(allowsCellular: true, readsDownloadedPages: true))
+        #else
         #expect(DownloadSettings.load(database) == DownloadSettings(allowsCellular: false, readsDownloadedPages: true))
         try DownloadSettings(allowsCellular: true).save(database)
         #expect(DownloadSettings.load(database).allowsCellular)
+        #endif
     }
 
     @Test func autoDownloadSettingsPerLibrary() throws {

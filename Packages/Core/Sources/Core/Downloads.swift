@@ -238,7 +238,7 @@ public struct DownloadSettings: Codable, Equatable, Sendable, FetchableRecord, P
     }
 
     public static func load(_ database: AppDatabase) -> DownloadSettings {
-        (try? database.reader.read { try DownloadSettings.fetchOne($0, key: 1) }) ?? DownloadSettings()
+        ((try? database.reader.read { try DownloadSettings.fetchOne($0, key: 1) }) ?? DownloadSettings()).forPlatform
     }
 
     public func save(_ database: AppDatabase) throws {
@@ -246,7 +246,19 @@ public struct DownloadSettings: Codable, Equatable, Sendable, FetchableRecord, P
     }
 
     public static func observe(_ database: AppDatabase) -> AsyncThrowingStream<DownloadSettings, any Error> {
-        database.values { try DownloadSettings.fetchOne($0, key: 1) ?? DownloadSettings() }
+        database.values { (try DownloadSettings.fetchOne($0, key: 1) ?? DownloadSettings()).forPlatform }
+    }
+
+    /// The Mac has no cellular setting (a hotspot is a network the user chose to join), so
+    /// nothing waits for Wi-Fi there.
+    private var forPlatform: DownloadSettings {
+        #if os(macOS)
+        var settings = self
+        settings.allowsCellular = true
+        return settings
+        #else
+        self
+        #endif
     }
 }
 

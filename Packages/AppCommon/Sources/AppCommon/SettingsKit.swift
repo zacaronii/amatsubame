@@ -279,19 +279,16 @@ struct ChipFlow: Layout {
 
 // MARK: Lookup and Mining
 
-/// Dictionaries, Audio Sources, Anki and word marks: the same in every app, and shared
+/// Dictionaries, Audio Sources, Popup, Hachidori and Anki: the same in every app, and shared
 /// between them when sharing is on. `ankiPage`: the app's Anki page (Miru adds Card Picture).
 public struct LookupAndMiningSection<AnkiPage: View>: View {
     @Environment(CommonEnvironment.self) private var environment
     @State private var dictionaries: [DictionaryRecord] = []
     @State private var sourceCount = 0
     @State private var deck: String?
-    let footnote: String?
     let ankiPage: () -> AnkiPage
 
-    /// `footnote`: what the word marks cover in this app.
-    public init(footnote: String? = nil, @ViewBuilder ankiPage: @escaping () -> AnkiPage) {
-        self.footnote = footnote
+    public init(@ViewBuilder ankiPage: @escaping () -> AnkiPage) {
         self.ankiPage = ankiPage
     }
 
@@ -331,11 +328,10 @@ public struct LookupAndMiningSection<AnkiPage: View>: View {
                                  dot: environment.serverAccounts[.anki]?.dotColor)
             }
             .accessibilityIdentifier("settings.anki")
-            WordMarksToggle()
         } header: {
             Text("Lookup and Mining")
         } footer: {
-            Text(footer)
+            if let footer { Text(footer) }
         }
         .task {
             do {
@@ -368,14 +364,10 @@ public struct LookupAndMiningSection<AnkiPage: View>: View {
         return ["Connected", settings.map { "Deck: \($0.deck)" }, settings?.noteType].compactMap { $0 }.joined(separator: " · ")
     }
 
-    private var footer: String {
-        var parts: [String] = []
+    private var footer: String? {
         let others = environment.appsSharingSetup
-        if !others.isEmpty {
-            parts.append("Shared with \(others.formatted(.list(type: .and))). \(others.count == 1 ? "A change here shows there too." : "A change here shows in all of them.")")
-        }
-        parts.append(WordMarksToggle.footer + (footnote.map { " \($0)" } ?? ""))
-        return parts.joined(separator: " ")
+        guard !others.isEmpty else { return nil }
+        return "Shared with \(others.formatted(.list(type: .and))). \(others.count == 1 ? "A change here shows there too." : "A change here shows in all of them.")"
     }
 }
 

@@ -242,7 +242,11 @@ struct SeriesView: View {
                 Task { await environment.downloader.download(items) }
             }
         } message: {
+            #if os(macOS)
+            Text("Each is the original file, often 1–2 GB.")
+            #else
             Text("Each is the original file, often 1–2 GB. They wait for Wi-Fi unless cellular downloads are on in Settings.")
+            #endif
         }
         .refreshable { await loadEpisodes() }
         .task { await loadSeasons() }

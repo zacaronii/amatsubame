@@ -71,3 +71,48 @@ public struct AboutView: View {
         .task { dictionaries = (try? environment.dictionaries.dictionaries()) ?? [] }
     }
 }
+
+#if os(macOS)
+import AppKit
+
+/// App menu ▸ About: the standard About window, with the open-source credits from Settings ▸ About.
+public struct AboutCommands: Commands {
+    let appCredits: [(String, String, String)]
+
+    /// `appCredits`: the app's own libraries, as in its Settings ▸ About.
+    public init(appCredits: [(String, String, String)] = []) {
+        self.appCredits = appCredits
+    }
+
+    public var body: some Commands {
+        CommandGroup(replacing: .appInfo) {
+            Button("About \(CommonEnvironment.appName)") {
+                NSApplication.shared.orderFrontStandardAboutPanel(options: [.credits: AboutView.creditsText(appCredits: appCredits)])
+                NSApplication.shared.activate()
+            }
+        }
+    }
+}
+
+extension AboutView {
+    /// The credits as the About window shows them: each library with its licence and use.
+    static func creditsText(appCredits: [(String, String, String)]) -> NSAttributedString {
+        let text = NSMutableAttributedString()
+        let small = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        paragraph.paragraphSpacing = 6
+        func add(_ string: String, font: NSFont, color: NSColor) {
+            text.append(NSAttributedString(string: string, attributes: [.font: font, .foregroundColor: color, .paragraphStyle: paragraph]))
+        }
+        add("Open Source\n", font: .boldSystemFont(ofSize: NSFont.systemFontSize), color: .labelColor)
+        for (name, license, note) in appCredits + shared {
+            add(name, font: .boldSystemFont(ofSize: NSFont.smallSystemFontSize), color: .labelColor)
+            add(" · \(license)\n", font: small, color: .secondaryLabelColor)
+            add("\(note)\n", font: small, color: .secondaryLabelColor)
+        }
+        add("\nEach dictionary's licence is in Settings ▸ About.", font: small, color: .secondaryLabelColor)
+        return text
+    }
+}
+#endif
