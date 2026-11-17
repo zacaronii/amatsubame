@@ -452,7 +452,7 @@ public struct AdvancedSettingsView<Troubleshooting: View>: View {
         Form {
             SetupSharingSection()
             Section {
-                ForEach(kinds, id: \.self) { kind in
+                ForEach(kinds + (environment.hachidoriSettings.enabled ? [.hachidoriLookupCount] : []), id: \.self) { kind in
                     NavigationLink {
                         OutboxView(kind: kind)
                     } label: {

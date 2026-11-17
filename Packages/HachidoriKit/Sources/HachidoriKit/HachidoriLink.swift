@@ -52,6 +52,8 @@ public actor HachidoriLink {
     public private(set) var generation: Int?
 
     private var runTask: Task<Void, Never>?
+    /// The backoff wait between tries, which `reconnectNow` cuts short.
+    private var backoff: (id: UUID, continuation: CheckedContinuation<Void, Never>)?
     private var socket: (any SharingSocket)?
     private var nextID = 0
     private var pending: [Int: CheckedContinuation<Result<JSONValue, HachidoriError>, Never>] = [:]
@@ -108,6 +110,7 @@ public actor HachidoriLink {
     public func stop() {
         runTask?.cancel()
         runTask = nil
+        endBackoff()
         socket?.close()
         drop()
         setStatus(.stopped)
@@ -145,8 +148,29 @@ public actor HachidoriLink {
             let delay = min(timing.backoffMax, timing.backoffBase * (1 << min(attempt, 16)))
             attempt += 1
             setStatus(.waiting(retryIn: delay))
-            try? await Task.sleep(for: delay)
+            let id = UUID()
+            await withCheckedContinuation { continuation in
+                backoff = (id, continuation)
+                Task {
+                    try? await Task.sleep(for: delay)
+                    self.endBackoff(id)
+                }
+            }
         }
+    }
+
+    /// Tries again now instead of after the backoff (the app came to the front, or Sync Now).
+    /// Does nothing while linked, stopped or already connecting.
+    public func reconnectNow() {
+        endBackoff()
+    }
+
+    /// Ends the backoff wait (only the one with `id`, when given: an earlier wait's timer
+    /// mustn't cut a later one short).
+    private func endBackoff(_ id: UUID? = nil) {
+        guard let backoff, id == nil || backoff.id == id else { return }
+        self.backoff = nil
+        backoff.continuation.resume()
     }
 
     /// Handles one frame; true when it was the host's hello.
@@ -312,8 +336,8 @@ public actor HachidoriLink {
     }
 
     /// The count for a headword, without adding one.
-    public func lookupCount(term: String, reading: String) async throws(HachidoriError) -> HostLookupCount? {
-        try await lookupStats("hd_lookup_stats_read", term: term, reading: reading)
+    public func lookupCount(term: String, reading: String, timeout: Duration? = nil) async throws(HachidoriError) -> HostLookupCount? {
+        try await lookupStats("hd_lookup_stats_read", term: term, reading: reading, timeout: timeout)
     }
 
     private func lookupStats(_ type: String, term: String, reading: String,

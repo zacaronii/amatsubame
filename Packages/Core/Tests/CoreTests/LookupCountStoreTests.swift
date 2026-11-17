@@ -23,6 +23,33 @@ import Testing
         #expect(try store.count(term: "かぎ", reading: "がぎ") == 1)
     }
 
+    @Test func takesTheHostsCount() throws {
+        let store = LookupCountStore(database: try AppDatabase.inMemory())
+        try store.record(term: "猫", reading: "ねこ")
+        try store.setCount(term: "猫", reading: "ねこ", to: 12)
+        #expect(try store.count(term: "猫", reading: "ねこ") == 12)
+        try store.setCount(term: "犬", reading: "いぬ", to: 3)
+        #expect(try store.count(term: "犬", reading: "いぬ") == 3)
+    }
+
+    /// Lookups for the host add up in one waiting job per word; once it's being sent, a new one starts.
+    @Test func queuesLookupsForTheHostPerWord() throws {
+        let outbox = OutboxStore(database: try AppDatabase.inMemory())
+        try outbox.queueHostLookupCount(term: "猫", reading: "ねこ")
+        try outbox.queueHostLookupCount(term: " 猫", reading: "ねこ")
+        try outbox.queueHostLookupCount(term: "犬", reading: "いぬ")
+        #expect(try outbox.queuedHostLookupCount(term: "猫", reading: "ねこ") == 2)
+        #expect(try outbox.jobs(states: [.pending]).count == 2)
+
+        let claimed = try outbox.claimDueJobs(kinds: [.hachidoriLookupCount])
+        #expect(claimed.count == 2)
+        try outbox.queueHostLookupCount(term: "猫", reading: "ねこ")
+        #expect(try outbox.queuedHostLookupCount(term: "猫", reading: "ねこ") == 3, "in flight still counts")
+        let cat = try #require(claimed.first { (try? $0.job.decodePayload(HostLookupCountJob.self))?.term == "猫" })
+        _ = try outbox.markSent(try #require(cat.job.id))
+        #expect(try outbox.queuedHostLookupCount(term: "猫", reading: "ねこ") == 1)
+    }
+
     @Test func resetStartsEveryWordAgain() throws {
         let store = LookupCountStore(database: try AppDatabase.inMemory())
         try store.record(term: "猫", reading: "ねこ")

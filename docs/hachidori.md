@@ -1,6 +1,6 @@
 # Hachidori: research for linking the apps
 
-Research for making Yomu, Miru, Kiku and Hiku work with a [Hachidori](https://github.com/bee-san/hachidori) host (GPL-3.0). The work is tracked in issues #29–#40: `Packages/HachidoriKit` implements sections 1–4, and the Mac apps use it for lookups (Settings ▸ Lookup and Mining ▸ Hachidori). Sources were read at these versions:
+Research for making Yomu, Miru, Kiku and Hiku work with a [Hachidori](https://github.com/bee-san/hachidori) host (GPL-3.0). The work is tracked in issues #29–#40: `Packages/HachidoriKit` implements sections 1–4; the Mac apps use it for lookups, and every app for counts, the popup's settings and dictionaries (Settings ▸ Lookup and Mining ▸ Hachidori). Sources were read at these versions:
 
 | Name here | Project | Version |
 | --- | --- | --- |
@@ -166,8 +166,10 @@ The host's headless AnkiConnect already accepts exactly what our apps send (medi
 
 ## 8. What doesn't fit on iOS, and what we'd do instead
 
-- **No background socket.** iOS suspends apps in the background, so `/link` is open only while an app is in front. The apps connect on launch and when they come forward, and sync then; there's no live link in the background.
-- **Offline.** A linked browser just fails offline. An iPhone app is offline often, so it looks up locally with its copy of the host's dictionaries and queues its changes (section 4 for counts). That's our own behaviour, not the spec's.
+- **No background socket.** iOS suspends apps in the background, so `/link` is open only while an app is in front. The apps connect on launch and when they come forward (`HachidoriLink.reconnectNow` cuts the backoff short), and sync then; there's no live link in the background.
+- **Offline.** A linked browser just fails offline. An iPhone app is offline often, so it looks up locally with its copy of the host's dictionaries and queues its changes. That's our own behaviour, not the spec's:
+  - **Counts** (every platform, the Mac included): each counted lookup also goes into the app's outbox (`hachidoriLookupCount`, one job per headword holding a count). The handler sends `hd_lookup_stats_record` once per lookup and takes each one off the job as it goes; an `outcomeUnknown` isn't resent, as in Hachidori. While linked, the popup shows `hd_lookup_stats_read` plus what's still queued, and the local row takes that number, so the count shown offline continues from the host's.
+  - **Settings:** the host's popup options are saved as ours whenever they come in, so the popup looks the same offline; Settings ▸ Popup stays read-only while Hachidori is on.
 - **Local Network.** Reaching a LAN address prompts for Local Network access (our apps already declare it); a Tailscale address doesn't. Plain `ws://` is allowed by our existing ATS settings.
 - **Finding the host.** The relay doesn't advertise itself (no Bonjour), so "find it" can only try a remembered address; otherwise the address is typed, as in Hachidori's own Sharing page.
 - **The API key in `options.anki`.** Every linked client receives the host's AnkiConnect key. Our apps keep their own Anki settings and shouldn't copy it.

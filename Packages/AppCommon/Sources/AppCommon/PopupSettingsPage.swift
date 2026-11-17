@@ -12,12 +12,15 @@ public struct PopupSettingsPage: View {
 
     public init() {}
 
+    /// Hachidori is on: its settings apply, and are kept for when it's away.
+    private var followsHachidori: Bool { environment.hachidori != nil }
+
     public var body: some View {
         let lookup = environment.lookup
         Form {
-            if lookup.followsHost {
+            if followsHachidori {
                 Section {
-                    Label("These follow your Hachidori host while it's linked. Change them in Hachidori.", systemImage: "bird")
+                    Label("These follow your Hachidori host, also while it can't be reached. Change them in Hachidori.", systemImage: "bird")
                         .accessibilityIdentifier("popup.followsHachidori")
                 }
             }
@@ -71,7 +74,7 @@ public struct PopupSettingsPage: View {
             }
         }
         .formStyle(.grouped)
-        .disabled(lookup.followsHost)
+        .disabled(followsHachidori)
         .navigationTitle("Popup")
         .task {
             do {

@@ -64,6 +64,8 @@ public final class CommonEnvironment {
     /// Dictionary zips to import at launch (UI tests only).
     @ObservationIgnored public var pendingDictionaryImports: [URL] = []
     @ObservationIgnored private var started = false
+    /// The Hachidori link for the lookup-count handler, which is made before the link.
+    @ObservationIgnored private let hachidoriLink = HachidoriLinkBox()
 
     /// What an app's own outbox handlers (e.g. reading or watch progress) are built from.
     public struct HandlerContext {
@@ -147,6 +149,8 @@ public final class CommonEnvironment {
                 syncScheduler: ankiSync
             ))
         }
+        let hachidoriLink = hachidoriLink
+        handlers.append(HachidoriCountHandler(store: outbox, link: { hachidoriLink.link }))
         worker = OutboxWorker(store: outbox, mediaStorage: outboxMedia, handlers: handlers)
         let worker = worker
         mining = MiningService(outbox: outbox, media: outboxMedia, settings: ankiSettings, minedWords: minedWords,
@@ -179,6 +183,11 @@ public final class CommonEnvironment {
         try? await lookup.reload()
         loadedDictionaries = (try? dictionaries.dictionaries()) ?? []
         applyHachidoriSettings()
+        #if canImport(UIKit)
+        NotificationCenter.default.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.hachidori?.reconnectNow() }
+        }
+        #endif
         dictionaryUpdater.start()
         Task {
             // At launch, then every 30 minutes while the app runs (word marks follow reviews in Anki).
@@ -245,18 +254,21 @@ public final class CommonEnvironment {
         applyHachidoriSettings()
     }
 
-    /// The link to the Hachidori host in the settings, while it's on: dictionaries are copied
-    /// from and sent to it (Settings ▸ Dictionaries) on every platform.
+    /// The link to the Hachidori host in the settings, while it's on: on every platform its lookup
+    /// counts and popup settings apply, and dictionaries are copied from and sent to it.
     public private(set) var hachidori: HostConnection?
 
     /// Links to the Hachidori host in the settings, if it's on. Only the Mac apps look up on the
-    /// host; on iOS the apps keep looking up locally (docs/hachidori.md section 8).
+    /// host; on iOS the apps keep looking up locally, and link when they come to the front
+    /// (iOS keeps no link in the background; docs/hachidori.md section 8).
     func applyHachidoriSettings() {
         let settings = hachidoriSettings
         guard settings.enabled, let url = HachidoriLink.linkURL(from: settings.address) else {
             hachidori?.stop()
             hachidori = nil
+            hachidoriLink.link = nil
             lookup.host = nil
+            lookup.hostCounts = nil
             return
         }
         if hachidori?.link.url == url { return }
@@ -264,10 +276,22 @@ public final class CommonEnvironment {
         let client = Self.hachidoriClient
         let connection = HostConnection(link: HachidoriLink(url: url, clientName: client.name, clientVersion: client.version))
         hachidori = connection
-        #if os(macOS)
+        hachidoriLink.link = connection.link
+        // Back in touch: send the lookups counted meanwhile.
+        connection.onLinked = { [weak self] in self?.syncNow(retryWaiting: true) }
         lookup.host = connection
+        #if os(macOS)
+        lookup.looksUpOnHost = true
         #endif
+        lookup.hostCounts = (outbox, { [weak self] in self?.syncNow() })
         connection.start()
+    }
+
+    /// Settings ▸ Hachidori ▸ Sync Now: links again at once if it isn't linked, and sends what's
+    /// waiting (the host's records come in by themselves while linked).
+    public func syncHachidori() {
+        hachidori?.reconnectNow()
+        syncNow(retryWaiting: true)
     }
 
     /// Settings ▸ Hachidori's Test Connection: the hello of the host at `address`, without linking to it.
@@ -373,4 +397,9 @@ public final class CommonEnvironment {
     public static var buildNumber: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
     }
+}
+
+/// The Hachidori link, read by the outbox handler (made before the link is).
+@MainActor final class HachidoriLinkBox {
+    var link: HachidoriLink?
 }

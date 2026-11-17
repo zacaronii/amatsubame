@@ -84,6 +84,19 @@ public struct LookupCountStore: Sendable {
         }
     }
 
+    /// Sets a word's count to the linked host's (its count plus what's still queued for it), so
+    /// it shows the same number offline.
+    public func setCount(term: String, reading: String, to count: Int, at date: Date = Date()) throws {
+        let term = Self.normalized(term), reading = Self.normalized(reading)
+        try database.writer.write { db in
+            var row = try LookupCountRecord.fetchOne(db, key: ["term": term, "reading": reading])
+                ?? LookupCountRecord(term: term, reading: reading, lookupCount: 0, firstLookedUpAt: date, lastLookedUpAt: date)
+            guard row.lookupCount != count else { return }
+            row.lookupCount = count
+            try row.save(db)
+        }
+    }
+
     public func count(term: String, reading: String) throws -> Int {
         try database.reader.read { db in
             try LookupCountRecord.fetchOne(db, key: ["term": Self.normalized(term), "reading": Self.normalized(reading)])?.lookupCount ?? 0
@@ -111,5 +124,58 @@ public struct LookupCountStore: Sendable {
 
     public func save(_ settings: PopupSettings) throws {
         try database.writer.write { try settings.save($0) }
+    }
+}
+
+/// Lookups of one headword still to count on the Hachidori host (`OutboxJobKind.hachidoriLookupCount`).
+/// The host has no batch form (docs/hachidori.md section 4), so they go one
+/// `hd_lookup_stats_record` at a time and get the time they're sent.
+public struct HostLookupCountJob: Codable, Equatable, Sendable {
+    public var term: String
+    public var reading: String
+    public var count: Int
+
+    public init(term: String, reading: String, count: Int) {
+        self.term = term
+        self.reading = reading
+        self.count = count
+    }
+}
+
+extension OutboxStore {
+    static func hostCountKey(term: String, reading: String) -> String {
+        "hachidori.count:\(LookupCountStore.normalized(term))\t\(LookupCountStore.normalized(reading))"
+    }
+
+    /// Queues one lookup for the host: added to the word's waiting job, or a new job when there's
+    /// none (or it's being sent).
+    public func queueHostLookupCount(term: String, reading: String) throws {
+        let key = Self.hostCountKey(term: term, reading: reading)
+        let now = now()
+        try database.writer.write { db in
+            if var job = try OutboxJob.filter(Column("coalesceKey") == key && Column("state") == OutboxJobState.pending).fetchOne(db),
+               var payload = try? job.decodePayload(HostLookupCountJob.self) {
+                payload.count += 1
+                job.payload = try JSONEncoder().encode(payload)
+                job.updatedAt = now
+                try job.update(db)
+                return
+            }
+            let payload = HostLookupCountJob(term: LookupCountStore.normalized(term), reading: LookupCountStore.normalized(reading), count: 1)
+            var job = OutboxJob(kind: .hachidoriLookupCount, coalesceKey: key, payload: try JSONEncoder().encode(payload), state: .pending,
+                                attempts: 0, lastError: nil, nextAttemptAt: now, createdAt: now, updatedAt: now)
+            try job.insert(db)
+        }
+    }
+
+    /// Lookups of a word not yet counted on the host (waiting or being sent).
+    public func queuedHostLookupCount(term: String, reading: String) throws -> Int {
+        let key = Self.hostCountKey(term: term, reading: reading)
+        return try database.reader.read { db in
+            try OutboxJob.filter(Column("coalesceKey") == key)
+                .filter([OutboxJobState.pending.rawValue, OutboxJobState.inFlight.rawValue].contains(Column("state")))
+                .fetchAll(db)
+                .reduce(0) { $0 + ((try? $1.decodePayload(HostLookupCountJob.self))?.count ?? 0) }
+        }
     }
 }
