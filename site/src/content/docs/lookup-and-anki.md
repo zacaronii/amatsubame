@@ -281,11 +281,19 @@ When AnkiConnect can't be reached (you're away from home, or the computer is asl
 device and send themselves when it's back. The top of Settings shows what's waiting, with **Sync
 Now**; **Settings ▸ Advanced ▸ Waiting to Sync** lists them by kind.
 
-### Syncing to AnkiWeb
+### Syncing
 
-In the Anki settings, **Sync to AnkiWeb After Adding** asks Anki to sync about 10 seconds after new
-cards arrive (once for a batch), so they reach AnkiMobile and your other devices. **Sync Anki Now**
-syncs straight away.
+In the Anki settings, **Sync After Adding** asks the Anki behind AnkiConnect to sync about 10 seconds
+after new cards arrive (once for a batch), so they reach AnkiMobile and your other devices. It syncs
+with whatever sync server that Anki uses: AnkiWeb, or your own. **Sync Anki Now** syncs straight away.
+
+- **Anki on a computer:** sign in to sync in Anki first (**Sync** in the main window).
+- **A headless AnkiConnect server** that syncs after every change on its own (Hachidori's does) needs
+  neither. Leave Sync After Adding off.
+- **AnkiConnect Android** can't sync this way; AnkiDroid syncs on its own schedule.
+
+If Anki needs a one-way full sync (after a note type change, for example), the sync stops with a
+message: sync once in Anki and choose which side to keep.
 
 ## Sharing the setup between apps
 

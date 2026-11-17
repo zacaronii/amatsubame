@@ -362,6 +362,25 @@ import Testing
         if case .synced = outcome {} else { Issue.record("expected the retry to sync, got \(outcome)") }
     }
 
+    /// Desktop AnkiConnect, the headless server and AnkiConnect Android each refuse in their own words.
+    @Test(arguments: [
+        ("sync: auth not configured", "isn't signed in"),
+        ("Sync is not configured. Set ANKI_SYNC_ENDPOINT.", "isn't signed in"),
+        ("Sync status 2 not one of [0, 1] - see SyncCollectionResponse.ChangesRequired", "full sync"),
+        ("The sync server's collection is empty. Upload this one with the fullSync action", "full sync"),
+        ("unsupported action", "can't sync"),
+    ])
+    func refusalsAreExplained(error: String, expected: String) async throws {
+        let body = try JSONSerialization.data(withJSONObject: ["result": NSNull(), "error": error])
+        let (client, _) = client([String(decoding: body, as: UTF8.self)])
+        let scheduler = AnkiSyncScheduler(busyRetryDelay: .milliseconds(10), makeClient: { client }, isEnabled: { true })
+        guard case .failed(_, let message) = await scheduler.syncNow() else {
+            Issue.record("expected a failure")
+            return
+        }
+        #expect(message.contains(expected), "\(message)")
+    }
+
     @Test func settingsFromBeforeTheSyncOptionDecode() throws {
         let old = #"{"deck":"D","noteType":"Lapis","fields":{},"tags":[],"pictureMaxPixels":1200}"#
         let settings = try JSONDecoder().decode(AnkiSettings.self, from: Data(old.utf8))
