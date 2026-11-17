@@ -146,8 +146,10 @@ struct SetupDictionariesStep: View {
                   subtitle: "Word lookups use these. They're stored on this \(StorageSummary.deviceName) and work offline.",
                   buttonTitle: buttonTitle, canContinue: hasRequired && !updater.isInstalling,
                   action: { flow.advance(from: .dictionaries) }) {
+            SetupHachidoriCard(onCopied: refresh)
             VStack(alignment: .leading, spacing: 6) {
-                Text("Recommended").font(.footnote).foregroundStyle(.secondary).padding(.leading, 16)
+                Text(rememberedHachidori ? "Or Download the Recommended Ones" : "Recommended")
+                    .font(.footnote).foregroundStyle(.secondary).padding(.leading, 16)
                 SetupCard {
                     RecommendedDictionaryRows(selection: $selection, installed: installed, removed: removed)
                         .padding(.horizontal, 16)
@@ -189,8 +191,14 @@ struct SetupDictionariesStep: View {
             guard !started else { return }
             started = true
             selection = RecommendedDictionaries.defaultSelection.subtracting(installed).subtracting(removed)
-            if !selection.isEmpty { install() }
+            // With a Hachidori address already known (another app's setup), its copy is the
+            // likely choice: nothing downloads until one is picked.
+            if !selection.isEmpty, !rememberedHachidori { install() }
         }
+    }
+
+    private var rememberedHachidori: Bool {
+        !flow.common.hachidoriSettings.address.isEmpty
     }
 
     private var hasRequired: Bool {

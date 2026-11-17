@@ -53,6 +53,37 @@ final class SetupUITests: XCTestCase {
         _ = key
     }
 
+    /// Dictionaries from Hachidori (#40): the test host's address from `HACHIDORI_LINK_URL`, its
+    /// dictionaries copied (after the recommended downloads that start on their own), then Done
+    /// lists them. Several minutes: Hachidori's copies are a few hundred MB.
+    func testUseHachidoriAtDictionaries() throws {
+        let (url, key, hachidori) = try {
+            let v = try TestAccounts.require("KAVITA_URL", "TEST_KAVITA_KEY", "HACHIDORI_LINK_URL")
+            return (v[0], v[1], v[2])
+        }()
+        let app = fresh()
+        app.launch()
+        app.buttons["setup.getStarted"].tap()
+        XCTAssertTrue(app.waitForTitle("Connect Kavita"))
+        app.type(url, into: "setup.server.url")
+        app.type(key, into: "setup.server.key")
+        app.buttons["setup.continue"].tap()
+        let connected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS 'libraries found'"),
+                                                  object: app.element("setup.server.status"))
+        XCTAssertEqual(XCTWaiter.wait(for: [connected], timeout: 30), .completed)
+        app.tapContinue()
+        XCTAssertTrue(app.waitForTitle("Which libraries are Japanese?"))
+        app.tapContinue()
+
+        XCTAssertTrue(app.waitForTitle("Get dictionaries"))
+        app.type(hachidori, into: "setup.hachidori.address")
+        app.buttons["setup.hachidori.copy"].tap()
+        XCTAssertTrue(app.element("setup.hachidori.done").waitForExistence(timeout: 900), "copied from Hachidori")
+        XCTAssertTrue(app.element("setup.hachidori.done").label.contains("Matches Hachidori"))
+        app.tapContinue()
+        XCTAssertTrue(app.waitForTitle("Connect Anki"))
+    }
+
     /// Server, libraries (the guess), dictionaries (the recommended set, live), stopping at
     /// Anki and resuming there, no Anki, each extra, Done; then an update from Check Now.
     func testWholeSetupResumesAndUpdates() throws {
