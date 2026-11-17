@@ -43,9 +43,11 @@ public struct KavitaSeries: Codable, Equatable, Identifiable, Hashable, Sendable
     public var pages: Int
     public var pagesRead: Int
     public var latestReadDate: Date?
+    /// When the series was added to Kavita.
+    public var created: Date?
 
     public init(id: Int, name: String, localizedName: String? = nil, sortName: String? = nil, libraryId: Int,
-                format: Int, pages: Int, pagesRead: Int, latestReadDate: Date? = nil) {
+                format: Int, pages: Int, pagesRead: Int, latestReadDate: Date? = nil, created: Date? = nil) {
         self.id = id
         self.name = name
         self.localizedName = localizedName
@@ -55,6 +57,7 @@ public struct KavitaSeries: Codable, Equatable, Identifiable, Hashable, Sendable
         self.pages = pages
         self.pagesRead = pagesRead
         self.latestReadDate = latestReadDate
+        self.created = created
     }
 
     public var isEpub: Bool { format == KavitaFormat.epub }
@@ -285,7 +288,7 @@ extension KavitaServerProgress {
 
 extension KavitaSeries {
     enum CodingKeys: String, CodingKey {
-        case id, name, localizedName, sortName, libraryId, format, pages, pagesRead, latestReadDate
+        case id, name, localizedName, sortName, libraryId, format, pages, pagesRead, latestReadDate, created
     }
 
     public init(from decoder: any Decoder) throws {
@@ -299,6 +302,7 @@ extension KavitaSeries {
         pages = try container.decode(Int.self, forKey: .pages)
         pagesRead = try container.decode(Int.self, forKey: .pagesRead)
         latestReadDate = try container.decodeIfPresent(Date.self, forKey: .latestReadDate)?.nilIfUnset
+        created = try container.decodeIfPresent(Date.self, forKey: .created)?.nilIfUnset
     }
 }
 

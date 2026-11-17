@@ -4,6 +4,7 @@
    "Name": "\"Example Idol Show\"",
    "Id": "fa4e000000000000000000000000002d",
    "PremiereDate": "2030-01-07T00:00:00.0000000Z",
+   "DateCreated": "2030-02-01T12:00:00.1234567Z",
    "OfficialRating": "TV-14",
    "ChannelId": null,
    "CommunityRating": 8.61,

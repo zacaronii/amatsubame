@@ -41,6 +41,8 @@ public struct JellyfinItem: Decodable, Identifiable, Equatable, Hashable, Sendab
     public var imageTags: [String: String]?
     public var seriesPrimaryImageTag: String?
     public var userData: JellyfinUserData?
+    /// When it was added to the library (with `fields=DateCreated`: library lists ask for it).
+    public var dateCreated: Date?
     /// Present when requested with `fields=MediaStreams` (episodes lists) or on `item(id:)`.
     public var mediaStreams: [JellyfinMediaStream]?
     public var mediaSources: [JellyfinMediaSource]?
