@@ -55,9 +55,7 @@ struct PlayerSettingsView: View {
                     }
                     .accessibilityIdentifier("settings.playback")
                     NavigationLink {
-                        Form { DownloadSettingsSection { _ in } }
-                            .formStyle(.grouped)
-                            .navigationTitle("Downloads")
+                        Self.downloads
                     } label: {
                         SettingsRowLabel("Downloads", subtitle: "Wi-Fi or cellular", systemImage: "arrow.down.circle.fill", color: .blue)
                     }
@@ -75,9 +73,7 @@ struct PlayerSettingsView: View {
                 }
 
                 LookupAndMiningSection {
-                    AnkiSettingsPage(environment: environment.common) {
-                        CardPicturePicker()
-                    }
+                    Self.anki(environment)
                 }
 
                 StatsSettingsLink()
@@ -85,22 +81,14 @@ struct PlayerSettingsView: View {
                 SettingsFooterSection(storageTotal: storageTotal) {
                     StorageView()
                 } advanced: {
-                    AdvancedSettingsView(kinds: [.ankiNote, .jellyfinProgress, .jellyfinSubtitle],
-                                         extraLogs: ["dev-setup.log", "nowplaying.log"].map { URL.applicationSupportDirectory.appending(path: $0) })
+                    Self.advanced
                 } about: {
                     AboutView(appCredits: Self.credits)
                 }
             }
             .formStyle(.grouped)
             .navigationTitle("Settings")
-            .navigationDestination(for: ServerKind.self) { kind in
-                switch kind {
-                case .jellyfin: JellyfinSettingsView(environment: environment.common)
-                case .anki: AnkiSettingsPage(environment: environment.common) { CardPicturePicker() }
-                case .kaku: KakuSettingsView(environment: environment.common)
-                case .kavita, .audiobookshelf: EmptyView()
-                }
-            }
+            .navigationDestination(for: ServerKind.self) { Self.serverPage($0, environment: environment) }
             .task { measureStorage() }
             .task(id: accounts[.jellyfin]?.baseURL) {
                 libraryIDs = try? await environment.jellyfinClient()?.views().map(\.id)
@@ -125,8 +113,36 @@ struct PlayerSettingsView: View {
 
     private var accounts: [ServerKind: ServerAccount] { environment.common.serverAccounts }
 
-    private var statusItems: [StatusItem] {
-        [
+    static var advanced: some View {
+        AdvancedSettingsView(kinds: [.ankiNote, .jellyfinProgress, .jellyfinSubtitle],
+                             extraLogs: ["dev-setup.log", "nowplaying.log"].map { URL.applicationSupportDirectory.appending(path: $0) })
+    }
+
+    static var downloads: some View {
+        Form { DownloadSettingsSection { _ in } }
+            .formStyle(.grouped)
+            .navigationTitle("Downloads")
+    }
+
+    static func anki(_ environment: PlayerEnvironment) -> some View {
+        AnkiSettingsPage(environment: environment.common) { CardPicturePicker() }
+    }
+
+    /// What a link to a server opens.
+    @ViewBuilder static func serverPage(_ kind: ServerKind, environment: PlayerEnvironment) -> some View {
+        switch kind {
+        case .jellyfin: JellyfinSettingsView(environment: environment.common)
+        case .anki: anki(environment)
+        case .kaku: KakuSettingsView(environment: environment.common)
+        case .kavita, .audiobookshelf: EmptyView()
+        }
+    }
+
+    private var statusItems: [StatusItem] { Self.statusItems(environment) }
+
+    static func statusItems(_ environment: PlayerEnvironment) -> [StatusItem] {
+        let accounts = environment.common.serverAccounts
+        return [
             StatusItem("Jellyfin", isSetUp: accounts[.jellyfin] != nil) {
                 _ = try await environment.jellyfinClient()?.currentUser()
             },
@@ -151,6 +167,39 @@ struct PlayerSettingsView: View {
         storageTotal = (downloads + subtitles + environment.common.dictionaries.totalBytes()).storageText
     }
 }
+
+#if os(macOS)
+/// The Mac's Settings window: the same pages as the list above, each in the sidebar.
+struct MacSettingsView: View {
+    @Environment(PlayerEnvironment.self) private var environment
+
+    var body: some View {
+        MacSettingsWindow(groups: [
+            MacSettingsGroup(pages: [.overview(PlayerSettingsView.statusItems(environment))]),
+            MacSettingsGroup("Watching", pages: [
+                MacSettingsPage("jellyfin", title: "Jellyfin", systemImage: "server.rack") { JellyfinSettingsView(environment: environment.common) },
+                MacSettingsPage("libraries", title: "Libraries", systemImage: "books.vertical") { JellyfinLibrariesSettingsView() },
+                MacSettingsPage("subtitles", title: "Subtitles", systemImage: "captions.bubble") { SubtitlesSettingsView() },
+                MacSettingsPage("playback", title: "Playback", systemImage: "play.rectangle") { PlaybackSettingsView() },
+                MacSettingsPage("downloads", title: "Downloads", systemImage: "arrow.down.circle") { PlayerSettingsView.downloads },
+                MacSettingsPage("shortcuts", title: "Keyboard Shortcuts", systemImage: "keyboard") { PlayerShortcutsView() },
+            ]),
+        ] + MacSettingsGroup.shared {
+            PlayerSettingsView.anki(environment)
+        } + [
+            .footer {
+                StorageView()
+            } advanced: {
+                PlayerSettingsView.advanced
+            } about: {
+                AboutView(appCredits: PlayerSettingsView.credits)
+            },
+        ]) { kind in
+            PlayerSettingsView.serverPage(kind, environment: environment)
+        }
+    }
+}
+#endif
 
 /// Settings ▸ Watching ▸ Subtitles: where Japanese subtitles come from.
 struct SubtitlesSettingsView: View {

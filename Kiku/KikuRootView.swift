@@ -29,7 +29,7 @@ struct KikuRootView: View {
     @State private var resets: [KikuTab: Int] = [:]
     #if os(macOS)
     @State private var destination = SidebarDestination<KikuTab, String>.tab(.listen)
-    @Environment(\.openSettings) private var openSettings
+    @Environment(\.openWindow) private var openWindow
     #endif
 
     var body: some View {
@@ -118,9 +118,10 @@ struct KikuRootView: View {
         }
         .yomuMissingAlert(environment, inPlayer: false)
         // Menu shortcuts and buttons switch tabs; Settings is its own window.
+        .opensSettingsForUITests()
         .onChange(of: environment.tabRequests) {
             let tab = environment.selectedTab
-            if tab == .settings { openSettings() } else if destination != .tab(tab) { destination = .tab(tab) }
+            if tab == .settings { openWindow(id: MacSettingsWindow.sceneID) } else if destination != .tab(tab) { destination = .tab(tab) }
         }
         .onChange(of: destination) { _, destination in
             if case .tab(let tab) = destination, environment.selectedTab != tab { environment.selectedTab = tab }

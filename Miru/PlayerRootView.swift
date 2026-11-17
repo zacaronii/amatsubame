@@ -30,7 +30,7 @@ struct PlayerRootView: View {
     @State private var resets: [PlayerTab: Int] = [:]
     #if os(macOS)
     @State private var destination = SidebarDestination<PlayerTab, String>.tab(.watch)
-    @Environment(\.openSettings) private var openSettings
+    @Environment(\.openWindow) private var openWindow
     #endif
 
     var body: some View {
@@ -113,9 +113,10 @@ struct PlayerRootView: View {
             }
         }
         // Menu shortcuts and links switch tabs; Settings is its own window.
+        .opensSettingsForUITests()
         .onChange(of: environment.tabRequests) {
             let tab = environment.selectedTab
-            if tab == .settings { openSettings() } else if destination != .tab(tab) { destination = .tab(tab) }
+            if tab == .settings { openWindow(id: MacSettingsWindow.sceneID) } else if destination != .tab(tab) { destination = .tab(tab) }
         }
         .onChange(of: destination) { _, destination in
             if case .tab(let tab) = destination, environment.selectedTab != tab { environment.selectedTab = tab }

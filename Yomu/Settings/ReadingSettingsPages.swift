@@ -102,7 +102,9 @@ struct StorageView: View {
                 HStack {
                     SettingsRowLabel("Cache", value: cacheBytes.storageText, systemImage: "externaldrive.fill", color: .gray)
                     Button("Clear", role: .destructive) { confirmsClearCache = true }
+                        #if os(iOS)
                         .buttonStyle(.borderless)
+                        #endif
                         .disabled(cacheBytes == 0)
                         .accessibilityIdentifier("downloads.clearCache")
                 }

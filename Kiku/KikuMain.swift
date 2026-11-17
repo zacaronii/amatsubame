@@ -50,14 +50,17 @@ struct KikuApp: App {
         }
         #endif
         #if os(macOS)
-        // ⌘, : today's Settings pages in their own window.
-        Settings {
-            KikuSettingsView()
-                .frame(minWidth: 560, minHeight: 480)
+        // ⌘, : Settings in its own window, its pages in a sidebar. A window rather than a
+        // Settings scene, whose toolbar puts a page's back button under its title.
+        Window("Settings", id: MacSettingsWindow.sceneID) {
+            MacSettingsView()
                 .tint(Color("AccentColor"))
                 .environment(environment)
                 .environment(environment.common)
         }
+        .defaultSize(width: 860, height: 640)
+        .windowResizability(.contentMinSize)
+        .commands { MacSettingsCommands() }
         #endif
     }
 

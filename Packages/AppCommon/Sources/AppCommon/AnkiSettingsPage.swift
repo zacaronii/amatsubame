@@ -30,15 +30,12 @@ public struct AnkiSettingsPage<CardExtras: View>: View {
                 SecureField("API Key (optional)", text: $connection.apiKey)
                     .credentialEntry()
                     .accessibilityIdentifier("anki.key")
-                Button("Test Connection") {
+                ConnectionTestRow(status: connection.status, disabled: !connection.canTest, identifier: "anki.test") {
                     Task {
                         await connection.testAndSave()
                         await cards.load()
                     }
                 }
-                .disabled(!connection.canTest)
-                .accessibilityIdentifier("anki.test")
-                ConnectionStatusView(status: connection.status)
             } header: {
                 Text("Connection")
             } footer: {
@@ -115,7 +112,7 @@ public struct AnkiSettingsPage<CardExtras: View>: View {
                 }
 
                 Section {
-                    Button("Remove Server", role: .destructive) { connection.remove() }
+                    ConfirmedRemoveButton.removeServer("AnkiConnect") { connection.remove() }
                 }
             }
         }
