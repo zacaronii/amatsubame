@@ -134,7 +134,7 @@ struct AnimatedClipContext: MiningContext {
             switch body["action"] as? String {
             case "findNotes":
                 let query = (body["params"] as? [String: Any])?["query"] as? String ?? ""
-                return (200, Data((query.hasSuffix("prop:ivl>=21") ? #"{"result":[2],"error":null}"# : #"{"result":[1,2,3],"error":null}"#).utf8))
+                return (200, Data((query.hasSuffix("is:review -is:learn prop:ivl>=21") ? #"{"result":[2],"error":null}"# : #"{"result":[1,2,3],"error":null}"#).utf8))
             case "notesInfo": return (200, Data(notes.utf8))
             default: return (200, Data(#"{"result":null,"error":"unsupported"}"#.utf8))
             }
@@ -142,7 +142,7 @@ struct AnimatedClipContext: MiningContext {
         let client = AnkiConnectClient(baseURL: URL(string: "http://anki.test")!, http: HTTPClient(transport: stub))
         try await service.refreshMinedWords(using: client)
         let queries = try stub.requests.compactMap { try ($0.jsonBody()["params"] as? [String: Any])?["query"] as? String }
-        #expect(queries == [#"deck:"日本語::Mining""#, #"deck:"日本語::Mining" prop:ivl>=21"#])
+        #expect(queries == [#"deck:"日本語::Mining""#, #"deck:"日本語::Mining" is:review -is:learn prop:ivl>=21"#])
         let marks = service.wordMarks()
         #expect(marks.state(expression: "食べる", reading: "たべる") == .learning)
         #expect(marks.state(expression: "戦争", reading: "せんそう") == .known)
