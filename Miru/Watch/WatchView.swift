@@ -31,6 +31,20 @@ struct LibraryStack: View {
         .playbackPresentation($playback)
     }
 }
+
+/// A show or movie pinned to the Mac's sidebar, with its own navigation.
+struct PinnedStack: View {
+    let pin: PinnedItem
+    @State private var playback: PlaybackSession?
+
+    var body: some View {
+        NavigationStack {
+            SeriesView(series: JellyfinItem(id: pin.id, name: pin.title, type: pin.kind), playback: $playback)
+                .navigationDestination(for: JellyfinItem.self) { WatchDestination(item: $0, playback: $playback) }
+        }
+        .playbackPresentation($playback)
+    }
+}
 #endif
 
 /// Home: Today, Continue Watching (in progress), Next Up and each library's newest shows.

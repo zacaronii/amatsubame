@@ -97,6 +97,9 @@ struct PlayerRootView: View {
         return MacSidebarSplit(
             selection: $destination,
             main: [PlayerTab.watch, .lines, .stats].map { SidebarRow(.tab($0), title: $0.title, systemImage: $0.systemImage) },
+            pinned: environment.common.pins.items,
+            pinIcon: { $0.kind == "Movie" ? "film" : "tv" },
+            unpin: { environment.common.pins.unpin($0.id) },
             downloaded: SidebarRow(.downloaded, title: "Downloaded", systemImage: "arrow.down.circle",
                                    count: environment.downloader.records.values.filter { $0.state == .done }.count),
             libraries: libraries.map {
@@ -107,6 +110,8 @@ struct PlayerRootView: View {
             case .tab(.lines): LinesView()
             case .tab(.stats): stats
             case .tab: WatchView()
+            case .pinned(let id):
+                if let pin = environment.common.pins.items.first(where: { $0.id == id }) { PinnedStack(pin: pin) }
             case .downloaded: NavigationStack { DownloadedEpisodesView() }
             case .library(let id):
                 if let library = libraries.first(where: { $0.id == id }) { LibraryStack(library: library) }

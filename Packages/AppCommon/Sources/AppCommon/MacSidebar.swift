@@ -1,9 +1,12 @@
 #if os(macOS)
+import Core
 import SwiftUI
 
-/// Where the Mac's sidebar can go: an app's main destination, what's downloaded, or one library.
+/// Where the Mac's sidebar can go: an app's main destination, a pinned page (by its
+/// `PinnedItem` id), what's downloaded, or one library.
 public enum SidebarDestination<Tab: Hashable, Library: Hashable>: Hashable {
     case tab(Tab)
+    case pinned(String)
     case downloaded
     case library(Library)
 }
@@ -23,8 +26,8 @@ public struct SidebarRow<ID: Hashable>: Identifiable {
     }
 }
 
-/// The Mac's main window: a sidebar of the app's main destinations, On This Mac ▸ Downloaded and
-/// the libraries, each opening its own screen. iPhone and iPad keep the system `TabView`.
+/// The Mac's main window: a sidebar of the app's main destinations, the pinned pages, On This
+/// Mac ▸ Downloaded and the libraries, each opening its own screen. iPhone and iPad keep the system `TabView`.
 ///
 /// Not `TabView(.sidebarAdaptable)`: on the Mac it shares one navigation column between the
 /// tabs, and once another tab had shown, a path the code set crashed (`comparisonTypeMismatch`)
@@ -34,6 +37,9 @@ public struct MacSidebarSplit<Tab: Hashable, Library: Hashable, Detail: View>: V
 
     @Binding var selection: Destination
     let main: [SidebarRow<Destination>]
+    let pinned: [PinnedItem]
+    let pinIcon: (PinnedItem) -> String
+    let unpin: (PinnedItem) -> Void
     let downloaded: SidebarRow<Destination>?
     let libraries: [SidebarRow<Destination>]
     let detail: (Destination) -> Detail
@@ -41,10 +47,17 @@ public struct MacSidebarSplit<Tab: Hashable, Library: Hashable, Detail: View>: V
     @State private var resets: [Destination: Int] = [:]
     @SceneStorage("sidebar.shown") private var sidebarShown = true
 
-    public init(selection: Binding<Destination>, main: [SidebarRow<Destination>], downloaded: SidebarRow<Destination>?,
-                libraries: [SidebarRow<Destination>], @ViewBuilder detail: @escaping (Destination) -> Detail) {
+    /// `pinned`: the Pinned section (none hides it), each row with `pinIcon`'s symbol and an
+    /// Unpin item in its context menu.
+    public init(selection: Binding<Destination>, main: [SidebarRow<Destination>], pinned: [PinnedItem] = [],
+                pinIcon: @escaping (PinnedItem) -> String = { _ in "pin" }, unpin: @escaping (PinnedItem) -> Void = { _ in },
+                downloaded: SidebarRow<Destination>?, libraries: [SidebarRow<Destination>],
+                @ViewBuilder detail: @escaping (Destination) -> Detail) {
         _selection = selection
         self.main = main
+        self.pinned = pinned
+        self.pinIcon = pinIcon
+        self.unpin = unpin
         self.downloaded = downloaded
         self.libraries = libraries
         self.detail = detail
@@ -56,6 +69,16 @@ public struct MacSidebarSplit<Tab: Hashable, Library: Hashable, Detail: View>: V
             List(selection: Binding<Destination?>(get: { selection }, set: { if let new = $0 { selection = new } })) {
                 Section {
                     ForEach(main) { row($0) }
+                }
+                if !pinned.isEmpty {
+                    Section("Pinned") {
+                        ForEach(pinned) { item in
+                            row(SidebarRow(.pinned(item.id), title: item.title, systemImage: pinIcon(item)))
+                                .contextMenu {
+                                    Button("Unpin", systemImage: "pin.slash") { unpin(item) }
+                                }
+                        }
+                    }
                 }
                 if let downloaded {
                     Section("On This Mac") { row(downloaded) }
@@ -71,6 +94,10 @@ public struct MacSidebarSplit<Tab: Hashable, Library: Hashable, Detail: View>: V
         } detail: {
             detail(selection)
                 .id(DetailKey(destination: selection, reset: resets[selection, default: 0]))
+        }
+        // The pinned page that's showing was unpinned: back to the first destination.
+        .onChange(of: pinned.map(\.id)) { _, ids in
+            if case .pinned(let id) = selection, !ids.contains(id), let first = main.first { selection = first.id }
         }
     }
 
