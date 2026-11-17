@@ -201,8 +201,10 @@ public struct DownloadSettingsSection<Extra: View>: View {
 
     public var body: some View {
         Section {
+            #if os(iOS)
             Toggle("Download over Cellular", isOn: binding(\.allowsCellular))
                 .accessibilityIdentifier("downloads.cellular")
+            #endif
             extra(Binding(get: { settings }, set: { settings = $0; try? $0.save(environment.database) }))
         } header: {
             Text("Downloads")

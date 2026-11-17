@@ -47,7 +47,10 @@ struct YomuApp: App {
         }
         .defaultSize(width: 860, height: 640)
         .windowResizability(.contentMinSize)
-        .commands { MacSettingsCommands() }
+        .commands {
+            MacSettingsCommands()
+            AboutCommands(appCredits: SettingsView.credits)
+        }
         #endif
     }
 

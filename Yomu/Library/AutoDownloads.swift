@@ -125,7 +125,11 @@ struct AutoDownloadSettingsView: View {
                     .accessibilityIdentifier("autoDownloads.library")
                 }
             } footer: {
+                #if os(macOS)
+                Text("Once you start a series, the volume you're reading and the next ones download automatically. Off for every library unless you turn it on.")
+                #else
                 Text("Once you start a series, the volume you're reading and the next ones download automatically, over Wi-Fi unless Download over Cellular is on (Settings ▸ Downloads). Off for every library unless you turn it on.")
+                #endif
             }
         }
         .navigationTitle("Automatic Downloads")

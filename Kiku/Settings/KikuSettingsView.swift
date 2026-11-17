@@ -77,8 +77,16 @@ struct KikuSettingsView: View {
         Form {
             Section {
                 SkipIntervalPickers()
+            } header: {
+                #if os(macOS)
+                Text("Skip Intervals")
+                #endif
             } footer: {
+                #if os(macOS)
+                Text("For media keys, Control Center and AirPods. The player's own buttons jump by lines.")
+                #else
                 Text("For the Lock Screen, AirPods and CarPlay. The player's own buttons jump by lines.")
+                #endif
             }
         }
         .formStyle(.grouped)

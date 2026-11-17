@@ -49,7 +49,10 @@ struct MiruApp: App {
         }
         .defaultSize(width: 860, height: 640)
         .windowResizability(.contentMinSize)
-        .commands { MacSettingsCommands() }
+        .commands {
+            MacSettingsCommands()
+            AboutCommands(appCredits: PlayerSettingsView.credits)
+        }
         #endif
     }
 
@@ -99,6 +102,19 @@ struct PlayerMenus: Commands {
         #endif
     }
 
+    /// The Subtitles menu: the lines and the subtitles. Everything else is in Playback.
+    static let subtitleSections: [PlayerShortcut.Section] = [.lines, .subtitles]
+    static let playbackSections = PlayerShortcut.Section.allCases.filter { !subtitleSections.contains($0) }
+
+    @ViewBuilder private func menuSections(_ sections: [PlayerShortcut.Section]) -> some View {
+        ForEach(sections) { section in
+            ForEach(PlayerShortcut.available.filter { $0.section == section }) { shortcut in
+                menuItem(shortcut)
+            }
+            if section != sections.last { Divider() }
+        }
+    }
+
     /// The menu's wording follows what the item would do now.
     private func title(_ shortcut: PlayerShortcut) -> String {
         switch shortcut {
@@ -111,15 +127,9 @@ struct PlayerMenus: Commands {
     }
 
     var body: some Commands {
-        CommandMenu("Playback") {
-            // Built from PlayerShortcut, like the keys and the cheat sheet.
-            ForEach(PlayerShortcut.Section.allCases) { section in
-                ForEach(PlayerShortcut.available.filter { $0.section == section }) { shortcut in
-                    menuItem(shortcut)
-                }
-                Divider()
-            }
-        }
+        // Built from PlayerShortcut, like the keys and the cheat sheet.
+        CommandMenu("Playback") { menuSections(Self.playbackSections) }
+        CommandMenu("Subtitles") { menuSections(Self.subtitleSections) }
         CommandGroup(after: .sidebar) {
             ForEach(Array(Self.shortcutTabs.enumerated()), id: \.offset) { index, tab in
                 Button(tab.title) { environment.selectedTab = tab }

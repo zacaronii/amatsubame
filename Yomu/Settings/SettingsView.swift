@@ -52,8 +52,8 @@ struct SettingsView: View {
                     Text("Read-Along plays a matching audiobook with the text. It's optional.")
                 }
 
-                LookupAndMiningSection(footnote: "Books only; manga pages aren\u{2019}t marked.") {
-                    AnkiSettingsPage(environment: environment.common)
+                LookupAndMiningSection {
+                    Self.anki(environment)
                 }
 
                 StatsSettingsLink()
@@ -80,17 +80,23 @@ struct SettingsView: View {
         }
     }
 
+    static let credits = [
+        ("nemu-ocr-coreml", "Apache-2.0", "Manga text detection and recognition models, downloaded in Settings."),
+    ]
+
     static var about: some View {
-        AboutView(appCredits: [
-            ("nemu-ocr-coreml", "Apache-2.0", "Manga text detection and recognition models, downloaded in Settings."),
-        ])
+        AboutView(appCredits: credits)
+    }
+
+    static func anki(_ environment: AppEnvironment) -> some View {
+        AnkiSettingsPage(environment: environment.common, wordMarksNote: "Books only; manga pages aren\u{2019}t marked.")
     }
 
     /// What a link to a server opens.
     @ViewBuilder static func serverPage(_ kind: ServerKind, environment: AppEnvironment) -> some View {
         switch kind {
         case .kavita: KavitaSettingsView(environment: environment.common)
-        case .anki: AnkiSettingsPage(environment: environment.common)
+        case .anki: anki(environment)
         case .audiobookshelf: AudiobookshelfSettingsView(environment: environment.common, tokens: environment.audiobookshelfTokens, appName: "Yomu")
         case .kaku: KakuSettingsView(environment: environment.common)
         case .jellyfin: EmptyView()
@@ -160,7 +166,7 @@ struct MacSettingsView: View {
                 MacSettingsPage("readAlong", title: "Read-Along", systemImage: "headphones") { ReadAlongSettingsView() },
             ]),
         ] + MacSettingsGroup.shared {
-            AnkiSettingsPage(environment: environment.common)
+            SettingsView.anki(environment)
         } + [
             .footer {
                 StorageView()

@@ -184,7 +184,7 @@ and work anywhere; copy Hachidori's dictionaries to have the same ones.
 
 ## Word marks
 
-With **Mark Words by Anki State** on (in Settings ▸ Lookup and Mining), the apps underline words by
+With **Mark Words by Anki State** on (in Settings ▸ Anki, under Word Marks), the apps underline words by
 where they stand in your Anki mining deck: words you haven't mined, and words you're still learning,
 are underlined; words you know stay plain. A word counts as known once its card's interval is 21 days
 or more. Cards waiting to be sent count as learning. Marks need Anki: until AnkiConnect is connected

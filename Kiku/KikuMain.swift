@@ -60,7 +60,10 @@ struct KikuApp: App {
         }
         .defaultSize(width: 860, height: 640)
         .windowResizability(.contentMinSize)
-        .commands { MacSettingsCommands() }
+        .commands {
+            MacSettingsCommands()
+            AboutCommands()
+        }
         #endif
     }
 
