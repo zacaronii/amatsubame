@@ -12,6 +12,7 @@ public struct HachidoriSettingsPage: View {
     @State private var address = ""
     @State private var loaded = false
     @State private var test: TestResult?
+    @State private var waiting = 0
 
     enum TestResult {
         case testing
@@ -66,12 +67,33 @@ public struct HachidoriSettingsPage: View {
                     }
                 }
                 Section {
+                    LabeledContent("Last Synced") {
+                        if let synced = environment.hachidori?.lastSynced {
+                            Text(synced, format: .relative(presentation: .named))
+                        } else {
+                            Text("Not yet")
+                        }
+                    }
+                    LabeledContent("Waiting to Send", value: waiting == 0 ? "Nothing" : "\(waiting) \(waiting == 1 ? "word's lookups" : "words' lookups")")
+                        .accessibilityIdentifier("hachidori.waiting")
+                    Button("Sync Now") { environment.syncHachidori() }
+                        .accessibilityIdentifier("hachidori.syncNow")
+                } header: {
+                    Text("Sync")
+                } footer: {
+                    #if os(macOS)
+                    Text("Lookups made while Hachidori can't be reached are counted there once it's back.")
+                    #else
+                    Text("The app links to Hachidori when it opens or comes back to the front. Lookups made while Hachidori can't be reached are counted there once it's back, at that time.")
+                    #endif
+                }
+                Section {
                     #if os(macOS)
                     Label("Words are looked up on Hachidori, with its dictionaries.", systemImage: "character.book.closed.ja")
-                    Label("Lookup counts are Hachidori's, shared with your browser.", systemImage: "number")
-                    Label("The popup follows Hachidori's settings (first meaning, lookup counts, opacity).", systemImage: "text.bubble")
-                    Label("Words marked known or ignored in Hachidori get no word mark.", systemImage: "checkmark.circle")
                     #endif
+                    Label("Lookup counts are Hachidori's, shared with your browser.", systemImage: "number")
+                    Label("The popup follows Hachidori's settings (first meaning, lookup counts, opacity), and keeps them when it can't be reached.", systemImage: "text.bubble")
+                    Label("Words marked known or ignored in Hachidori get no word mark.", systemImage: "checkmark.circle")
                     Label("Copy Hachidori's dictionaries, or send yours to it, in Settings ▸ Dictionaries.", systemImage: "arrow.down.circle")
                 } header: {
                     Text("While Linked")
@@ -79,13 +101,18 @@ public struct HachidoriSettingsPage: View {
                     #if os(macOS)
                     Text("When Hachidori can't be reached, lookups use this Mac's own dictionaries and counts. Cards still go to your Anki through this app's own settings.")
                     #else
-                    Text("Words are still looked up with this device's own dictionaries, so lookups stay fast and work anywhere.")
+                    Text("Words are still looked up with this device's own dictionaries, so lookups stay fast and work anywhere. Cards still go to your Anki through this app's own settings.")
                     #endif
                 }
             }
         }
         .formStyle(.grouped)
         .navigationTitle("Hachidori")
+        .task {
+            do {
+                for try await counts in environment.outbox.observeWaitingCounts() { waiting = counts[.hachidoriLookupCount] ?? 0 }
+            } catch {}
+        }
         .onAppear {
             let settings = environment.hachidoriSettings
             enabled = settings.enabled

@@ -271,6 +271,25 @@ import Testing
         #expect(await link.status == .stopped)
     }
 
+    /// After a long backoff, `reconnectNow` tries at once (the app came to the front).
+    @Test func reconnectsNowInsteadOfWaiting() async throws {
+        let host = FakeHost(hello: nil)
+        host.refuse(true)
+        var timing = Self.fast
+        timing.backoffBase = .seconds(60)
+        timing.backoffMax = .seconds(60)
+        let link = HachidoriLink(url: URL(string: "ws://host.example:8771/link")!, clientName: "Yomu", clientVersion: "0.3.0",
+                                 transport: host, timing: timing)
+        await link.start()
+        await waitUntil { if case .waiting = await link.status { true } else { false } }
+        host.state.withLock { $0.hello = try? fixture("hello") }
+        host.refuse(false)
+        await link.reconnectNow()
+        await waitUntil { if case .linked = await link.status { true } else { false } }
+        guard case .linked = await link.status else { Issue.record("still waiting"); return }
+        await link.stop()
+    }
+
     @Test func probesAnAddressOnce() async throws {
         let url = URL(string: "ws://host.example:8771/link")!
         let host = FakeHost(hello: try fixture("hello"))

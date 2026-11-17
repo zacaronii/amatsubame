@@ -165,23 +165,28 @@ Hachidori** in the same section. Each zip you then import is sent to Hachidori a
 here (replacing Hachidori's copy of the same dictionary). The apps don't keep the zip afterwards, so a
 dictionary imported earlier has to be imported again to send it.
 
-### Looking up on the Mac
+### While linked
 
-While the Mac apps are linked:
+On every device:
 
-- Words are looked up on Hachidori, with its dictionaries.
-- Lookup counts are Hachidori's, so a word you look up in the browser and in Yomu counts twice in the
-  same place.
-- The popup follows Hachidori's settings (brief definitions, lookup counts, background opacity); the
-  Popup page shows them but you change them in Hachidori.
+- Lookup counts are Hachidori's, so a word you look up in the browser and in Yomu counts in the same
+  place. Lookups made while Hachidori can't be reached are counted there once it's back (at that
+  time: Hachidori keeps no other time for them). Settings ▸ Hachidori shows how many words are
+  waiting, when the apps last heard from Hachidori, and **Sync Now**.
+- The popup follows Hachidori's settings (brief definitions, lookup counts, background opacity), and
+  keeps them while Hachidori can't be reached. The Popup page shows them; you change them in
+  Hachidori.
 - Words you marked known or ignored in Hachidori aren't underlined.
 - Cards still go to your Anki through the apps' own Anki settings.
 
-When Hachidori can't be reached, the apps look up with the Mac's own dictionaries and keep trying to
-link in the background. Hachidori has no password, so only use it over your home network or a private
-network such as Tailscale, never over the internet. The setting is shared by the apps that share a
-setup. On iPhone and iPad the apps keep looking up with their own dictionaries, so lookups stay fast
-and work anywhere; copy Hachidori's dictionaries to have the same ones.
+On the Mac, words are also looked up on Hachidori, with its dictionaries; when it can't be reached,
+the apps look up with the Mac's own dictionaries and keep trying to link in the background. On iPhone
+and iPad the apps keep looking up with their own dictionaries, so lookups stay fast and work anywhere
+(copy Hachidori's dictionaries to have the same ones). iOS doesn't keep the link while an app is in
+the background, so the apps link again when they open or come back to the front.
+
+Hachidori has no password, so only use it over your home network or a private network such as
+Tailscale, never over the internet. The setting is shared by the apps that share a setup.
 
 ## Word marks
 
