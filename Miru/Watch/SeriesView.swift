@@ -249,6 +249,8 @@ struct SeriesView: View {
         .navigationTitle(series.name)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #else
+        .pinnable(id: series.id, kind: series.type, title: series.name)
         #endif
         .toolbar {
             if !episodes.isEmpty {

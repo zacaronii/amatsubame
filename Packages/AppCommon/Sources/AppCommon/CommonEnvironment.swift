@@ -33,6 +33,8 @@ public final class CommonEnvironment {
     public let minedWords: MinedWordStore
     /// What the user chose to keep on the device (each app fills it with its own kind).
     public let downloads: DownloadStore
+    /// What's pinned to the Mac's sidebar.
+    public let pins: Pins
     public let mining: MiningService
     /// Reading, watching and lookups for the Stats tab.
     public let activity: ActivityLog
@@ -126,6 +128,7 @@ public final class CommonEnvironment {
         ankiSettings = AnkiSettingsStore(database: setupDatabase)
         minedWords = MinedWordStore(database: setupDatabase)
         downloads = DownloadStore(database: database)
+        pins = Pins(store: PinStore(database: database))
         outboxMedia = OutboxMediaStorage(directory: mediaDirectory)
 
         let audio = lookup.audio

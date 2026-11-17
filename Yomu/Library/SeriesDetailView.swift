@@ -72,6 +72,9 @@ struct SeriesDetailView: View {
             }
         }
         .navigationTitle(series.displayName)
+        #if os(macOS)
+        .pinnable(id: String(series.id), kind: series.isEpub ? "book" : "series", title: series.displayName)
+        #endif
         .toolbar {
             if contents != nil {
                 ToolbarItem(placement: .primaryAction) {

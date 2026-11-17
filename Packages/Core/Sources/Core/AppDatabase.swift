@@ -703,6 +703,16 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v38_pinned") { db in
+            // Series, shows and books pinned to the Mac's sidebar (each app its own).
+            try db.create(table: "pinnedItem") { t in
+                t.primaryKey("id", .text)
+                t.column("kind", .text).notNull()
+                t.column("title", .text).notNull()
+                t.column("pinnedAt", .datetime).notNull()
+            }
+        }
+
         return migrator
     }
 }

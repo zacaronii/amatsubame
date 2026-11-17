@@ -113,11 +113,14 @@ struct RootView: View {
     }
 
     #if os(macOS)
-    /// The Mac's window: Home, Dictionary and Stats, what's downloaded, and each library.
+    /// The Mac's window: Home, Dictionary and Stats, pinned series, what's downloaded, and each library.
     private var sidebar: some View {
         MacSidebarSplit(
             selection: $destination,
             main: [AppTab.library, .dictionary, .stats].map { SidebarRow(.tab($0), title: $0.title, systemImage: $0.systemImage) },
+            pinned: environment.common.pins.items,
+            pinIcon: { $0.kind == "book" ? "book.closed" : "books.vertical" },
+            unpin: { environment.common.pins.unpin($0.id) },
             downloaded: SidebarRow(.downloaded, title: "Downloaded", systemImage: "arrow.down.circle",
                                    count: environment.downloader.records.values.filter { $0.state == .done }.count),
             libraries: sidebarLibraries.map {
@@ -128,6 +131,15 @@ struct RootView: View {
             case .tab(.dictionary): SearchView()
             case .tab(.stats): stats
             case .tab: LibraryView()
+            case .pinned(let id):
+                NavigationStack {
+                    if let series = Int(id).flatMap({ try? environment.kavitaLibrary.cachedSeries(id: $0) }) {
+                        SeriesDetailView(series: series)
+                    } else {
+                        ContentUnavailableView("Series Not Found", systemImage: "books.vertical",
+                                               description: Text("Open its library to load it again."))
+                    }
+                }
             case .downloaded: NavigationStack { DownloadedVolumesView() }
             case .library(let id):
                 if let library = sidebarLibraries.first(where: { $0.id == id }) {
