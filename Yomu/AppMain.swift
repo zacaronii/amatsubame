@@ -36,7 +36,16 @@ struct YomuApp: App {
             await scheduleOutboxRefresh()
         }
         #endif
-
+        #if os(macOS)
+        // ⌘, : today's Settings pages in their own window.
+        Settings {
+            SettingsView()
+                .frame(minWidth: 560, minHeight: 480)
+                .tint(Color("AccentColor"))
+                .environment(environment)
+                .environment(environment.common)
+        }
+        #endif
     }
 
     /// Asks iOS to wake the app later to send anything still queued.
@@ -54,6 +63,15 @@ struct ReaderMenus: Commands {
     let environment: AppEnvironment
     @FocusedValue(\.readerPaging) private var paging
     @FocusedValue(\.readerClose) private var close
+
+    /// ⌘1… for each tab; on the Mac, Settings is ⌘, instead.
+    static var shortcutTabs: [AppTab] {
+        #if os(macOS)
+        AppTab.allCases.filter { $0 != .settings }
+        #else
+        AppTab.allCases
+        #endif
+    }
 
     var body: some Commands {
         CommandMenu("Reader") {
@@ -74,7 +92,7 @@ struct ReaderMenus: Commands {
             .keyboardShortcut("f", modifiers: .command)
         }
         CommandGroup(after: .sidebar) {
-            ForEach(Array(AppTab.allCases.enumerated()), id: \.offset) { index, tab in
+            ForEach(Array(Self.shortcutTabs.enumerated()), id: \.offset) { index, tab in
                 Button(tab.title) {
                     close?()
                     environment.selectedTab = tab

@@ -128,7 +128,7 @@ struct LibraryView: View {
                     content
                 }
             }
-            .navigationTitle("Library")
+            .navigationTitle(AppTab.library.title)
             .navigationDestination(for: KavitaLibrary.self) { SeriesGridView(library: $0) }
             // From the iPad's sidebar: the library on its own, in this tab.
             .onChange(of: environment.requestedLibrary, initial: true) { _, library in

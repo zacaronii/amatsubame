@@ -64,7 +64,9 @@ final class AppEnvironment {
         }
     }
     /// The tab showing (menu shortcuts ⌘1–⌘4 switch it).
-    var selectedTab = AppTab.library
+    var selectedTab = AppTab.library { didSet { tabRequests &+= 1 } }
+    /// Bumped by every switch, to the same tab too: the Mac's sidebar follows it from a library row.
+    private(set) var tabRequests = 0
     /// A library picked in the iPad's sidebar: the Library tab opens it.
     var requestedLibrary: KavitaLibrary?
     /// On the Mac, the volume being read in the main window (replacing the tabs while it's open).

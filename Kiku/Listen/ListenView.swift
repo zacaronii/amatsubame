@@ -10,6 +10,20 @@ enum ListenRoute: Hashable {
     case book(String)
 }
 
+/// What a Listen route opens (also in the Mac's library rows).
+struct ListenDestination: View {
+    let route: ListenRoute
+
+    var body: some View {
+        switch route {
+        case .library: LibraryView()
+        case .only(let library): LibraryView(only: library)
+        case .show(let id): ShowView(itemId: id)
+        case .book(let id): BookView(itemId: id)
+        }
+    }
+}
+
 /// The Listen tab (K1): today's numbers, Continue Listening, New Episodes, and the Library. On
 /// a wide screen the home stays on the left and shows open on the right.
 struct ListenView: View {
@@ -49,12 +63,7 @@ struct ListenView: View {
             .navigationTitle("Listen")
             .searchable(text: $query, prompt: "Shows and episodes")
         } destination: { route in
-            switch route {
-            case .library: LibraryView()
-            case .only(let library): LibraryView(only: library)
-            case .show(let id): ShowView(itemId: id)
-            case .book(let id): BookView(itemId: id)
-            }
+            ListenDestination(route: route)
         } empty: {
             // Wide, nothing picked yet: the library beside the home screen.
             LibraryView()
