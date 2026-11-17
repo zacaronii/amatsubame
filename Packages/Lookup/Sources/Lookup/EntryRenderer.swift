@@ -1,3 +1,4 @@
+import Core
 import Dictionary
 import Foundation
 
@@ -22,15 +23,31 @@ public enum EntryRenderer {
         }
     }
 
-    public static func entries(_ results: [TermLookupResult], mined: [Bool]? = nil, lookupCount: LookupCount? = nil,
-                               summary: SummaryOptions? = nil) -> String {
+    /// `statuses` (one per result) adds the Known and Ignore buttons, pressed for the word's mark.
+    public static func entries(_ results: [TermLookupResult], mined: [Bool]? = nil, statuses: [WordStatus?]? = nil,
+                               lookupCount: LookupCount? = nil, summary: SummaryOptions? = nil) -> String {
         if results.isEmpty {
             return "<div class=\"no-results\">No results</div>"
         }
         return results.enumerated().map { index, result in
-            entry(result, index: index, mined: mined.map { index < $0.count && $0[index] }, lookupCount: index == 0 ? lookupCount : nil,
-                  summary: summary)
+            entry(result, index: index, mined: mined.map { index < $0.count && $0[index] },
+                  status: statuses.map { index < $0.count ? $0[index] : nil },
+                  lookupCount: index == 0 ? lookupCount : nil, summary: summary)
         }.joined()
+    }
+
+    /// Hachidori's Mark as known and Ignore, as toggles: pressed shows the word's mark.
+    static func statusButtons(_ result: TermLookupResult, index: Int, status: WordStatus?) -> String {
+        let headword = HTML.escape(result.expression)
+        func button(_ action: WordStatus, label: String, path: String) -> String {
+            "<button class=\"status-button\" data-action=\"\(action.rawValue)\" data-index=\"\(index)\" data-headword=\"\(headword)\" "
+                + "aria-pressed=\"\(status == action)\" aria-label=\"\(label)\" title=\"\(label)\">"
+                + "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"\(path)\"/></svg></button>"
+        }
+        return button(.known, label: "Mark as known",
+                      path: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1.9 14.5-4.2-4.2 1.4-1.4 2.8 2.8 6.4-6.4 1.4 1.4z")
+            + button(.ignored, label: "Ignore",
+                     path: "M12 7a5 5 0 0 1 4.64 6.83l2.92 2.92A11.8 11.8 0 0 0 23 12c-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16A4.86 4.86 0 0 1 12 7zM2 4.27l2.74 2.74A11.8 11.8 0 0 0 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84L19.73 22 21 20.73 3.27 3zm5.53 5.53 1.55 1.55A3 3 0 0 0 12 15c.22 0 .44-.03.65-.08l1.55 1.55A5 5 0 0 1 7.53 9.8zm4.31-.78 3.15 3.15.01-.16a3 3 0 0 0-3-3z")
     }
 
     /// Hachidori's wording (render/popup.js formatLookupCount).
@@ -48,8 +65,9 @@ public enum EntryRenderer {
         return "<div class=\"source\" lang=\"ja\">\(HTML.escape(before))<mark>\(HTML.escape(match))</mark>\(HTML.escape(after))</div>"
     }
 
-    static func entry(_ result: TermLookupResult, index: Int, mined: Bool? = nil, lookupCount: LookupCount? = nil,
-                      summary: SummaryOptions? = nil) -> String {
+    /// `status`: nil leaves out the Known and Ignore buttons; `.some(nil)` shows them unpressed.
+    static func entry(_ result: TermLookupResult, index: Int, mined: Bool? = nil, status: WordStatus?? = nil,
+                      lookupCount: LookupCount? = nil, summary: SummaryOptions? = nil) -> String {
         var html = "<article class=\"entry\" data-index=\"\(index)\">"
         html += "<header class=\"headword\"><div class=\"headword-text\"><span class=\"expression\" lang=\"ja\">\(headword(result))</span>"
         if let summary, let compact = CompactDefinitionSummary.extract(result.glossaries, preferredDictionary: summary.dictionary,
@@ -57,6 +75,7 @@ public enum EntryRenderer {
             html += compactSummary(compact)
         }
         html += "</div>"
+        if let status { html += statusButtons(result, index: index, status: status) }
         html += "<button class=\"audio-button\" data-action=\"audio\" data-index=\"\(index)\" aria-label=\"Play audio\">"
             + "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 9v6h4l5 4V5L8 9H4zm12.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z\"/></svg></button>"
         if let mined {

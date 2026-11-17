@@ -176,7 +176,8 @@ On every device:
 - The popup follows Hachidori's settings (brief definitions, lookup counts, background opacity), and
   keeps them while Hachidori can't be reached. The Popup page shows them; you change them in
   Hachidori.
-- Words you marked known or ignored in Hachidori aren't underlined.
+- Words marked known or ignored are one list with Hachidori's: marking a word in the apps marks it
+  in Hachidori too, and the other way round (see Known and ignored words below).
 - Cards still go to your Anki through the apps' own Anki settings.
 
 On the Mac, words are also looked up on Hachidori, with its dictionaries; when it can't be reached,
@@ -204,6 +205,23 @@ in Hiku. The apps refresh them from Anki when they open and every 30 minutes aft
 If you also study from other decks (a premade vocabulary deck, say), add them in the Anki settings
 under **Word Marks ▸ Also Mark Words From**. Words you've started studying in those decks show as
 known.
+
+### Known and ignored words
+
+While words are marked, each entry in the popup has two small buttons beside the audio button, like
+Hachidori's **Mark as known** and **Ignore**:
+
+- **Known** (the check) is for a word you know without a card for it.
+- **Ignore** (the crossed-out eye) is for a word you don't want marked, such as a name.
+
+Tap the pressed one again to clear it. Known and ignored words are never underlined, whatever their
+Anki cards say. The list is shared by every app that shares a setup (Hiku's popup has the buttons
+too), and you can see it, remove words from it, or paste in a list of words you know (one per line,
+in dictionary form) in Settings ▸ Anki ▸ **Known and Ignored Words**.
+
+With Hachidori on, the list is Hachidori's as well. A word you mark in the apps goes to Hachidori (or
+waits until it's reachable), and words marked in Hachidori come to the apps. When you turn Hachidori
+on, the words already marked in the apps are added to its list.
 
 ## Anki
 

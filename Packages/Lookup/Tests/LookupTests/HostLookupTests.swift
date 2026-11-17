@@ -9,11 +9,14 @@ import Testing
 /// (one result only the host has) and `hd_lookup_stats_read` (count 9).
 final class ScriptedHost: SharingTransport {
     let options: JSONValue
+    /// More of the hello's snapshot (beside `options`).
+    let snapshot: [String: JSONValue]
     let lookups = Mutex(0)
     let records = Mutex(0)
 
-    init(options: JSONValue) {
+    init(options: JSONValue, snapshot: [String: JSONValue] = [:]) {
         self.options = options
+        self.snapshot = snapshot
     }
 
     func connect(to url: URL, origin: String) async throws -> any SharingSocket {
@@ -50,7 +53,7 @@ final class ScriptedHost: SharingTransport {
             switch frame["kind"]?.string {
             case "hello":
                 deliver(["kind": "hello", "protocol": 1, "version": "test", "name": "Test host", "dictionaryCount": 1,
-                         "capabilities": [], "snapshot": ["options": host.options]])
+                         "capabilities": [], "snapshot": .object(host.snapshot.merging(["options": host.options]) { $1 })])
             case "request":
                 if let id = frame["id"], let message = frame["message"], let response = host.reply(to: message) {
                     deliver(["kind": "reply", "id": id, "response": response])
@@ -90,8 +93,8 @@ final class ScriptedHost: SharingTransport {
 }
 
 @Suite @MainActor struct HostLookupTests {
-    func linked(_ service: LookupService, options: JSONValue = [:]) async throws -> ScriptedHost {
-        let host = ScriptedHost(options: options)
+    func linked(_ service: LookupService, options: JSONValue = [:], snapshot: [String: JSONValue] = [:]) async throws -> ScriptedHost {
+        let host = ScriptedHost(options: options, snapshot: snapshot)
         let connection = HostConnection(link: HachidoriLink(url: URL(string: "ws://host.example:8771/link")!, clientName: "Tests",
                                                             clientVersion: "0", transport: host))
         service.host = connection
@@ -105,7 +108,7 @@ final class ScriptedHost: SharingTransport {
     @Test func linkedLookupsUseTheHostAndItsCounts() async throws {
         let service = try await LookupServiceTests().makeService()
         let outbox = OutboxStore(database: try AppDatabase.inMemory())
-        service.hostCounts = (outbox, {})
+        service.hostOutbox = (outbox, {})
         let host = try await linked(service)
         let page = await service.lookup(text: "映画を見る", utf16Offset: 0)
         #expect(page.results.first?.glossaries.first?.dictionary == "Host Dictionary")
@@ -125,7 +128,7 @@ final class ScriptedHost: SharingTransport {
     @Test func linkedWithoutHostLookups() async throws {
         let service = try await LookupServiceTests().makeService()
         let outbox = OutboxStore(database: try AppDatabase.inMemory())
-        service.hostCounts = (outbox, {})
+        service.hostOutbox = (outbox, {})
         let host = try await linked(service)
         service.looksUpOnHost = false
         let page = await service.lookup(text: "映画", utf16Offset: 0)

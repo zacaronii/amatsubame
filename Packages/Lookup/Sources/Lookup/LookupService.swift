@@ -48,7 +48,9 @@ public final class LookupService {
     public let library: DictionaryLibrary
     public let audio: AudioService
     /// Set when Anki is available; adds the Add to Anki button to entries.
-    public var mining: MiningService?
+    public var mining: MiningService? {
+        didSet { mining?.markedByHand = Set(wordStatuses.keys) }
+    }
     public private(set) var styles: [String: String] = [:]
     /// Counts lookups for the Stats tab (the app's own database).
     public var activity: ActivityLog?
@@ -66,13 +68,20 @@ public final class LookupService {
             guard oldValue !== host else { return }
             oldValue?.stop()
             host?.onOptions = { [weak self] options in self?.keep(options) }
+            host?.onWordStatus = { [weak self] overrides in self?.adopt(overrides) }
         }
     }
     /// Words are looked up on the host while it's linked (the Mac apps). iPhone and iPad look up
     /// with their own copies, which stay fast and work anywhere (docs/hachidori.md section 8).
     public var looksUpOnHost = false
-    /// Where lookups to count on the host wait (the app's outbox), and what sends them.
-    public var hostCounts: (outbox: OutboxStore, queued: @MainActor () -> Void)?
+    /// Where lookups to count and word marks for the host wait (the app's outbox), and what sends them.
+    public var hostOutbox: (outbox: OutboxStore, queued: @MainActor () -> Void)?
+    /// Words marked known or ignored by hand, in the setup's database (shared by the apps).
+    public let wordStatusStore: WordStatusStore
+    /// Whether Hachidori is on (Settings ▸ Hachidori), linked or not: marks then wait for it.
+    public var sharesWithHost: () -> Bool = { false }
+    /// Those marks, by headword.
+    public private(set) var wordStatuses: [String: WordStatus] = [:]
     /// Linked to a Hachidori host: counts and the popup's settings are the host's.
     public var followsHost: Bool { host?.isLinked == true }
     /// Settings ▸ Popup in effect: the host's while linked (Hachidori's options), else ours,
@@ -111,6 +120,58 @@ public final class LookupService {
         database = history ?? library.database
         counts = LookupCountStore(database: library.database)
         storedPopupSettings = (try? counts.settings()) ?? PopupSettings()
+        wordStatusStore = WordStatusStore(database: library.database)
+        wordStatuses = (try? wordStatusStore.statuses()) ?? [:]
+    }
+
+    // MARK: Known and ignored words
+
+    /// Re-reads the marks (another app may have changed them) and hands them to the word marks.
+    public func reloadWordStatuses() {
+        let statuses = (try? wordStatusStore.statuses()) ?? [:]
+        if statuses != wordStatuses { wordStatuses = statuses }
+        mining?.markedByHand = Set(statuses.keys)
+    }
+
+    public func wordStatus(of headword: String) -> WordStatus? {
+        wordStatuses[WordStatusStore.normalized(headword)]
+    }
+
+    /// The popup's Known or Ignore: sets the word to `status`, or clears it when it already has
+    /// it (as Hachidori's toggles do). With a Hachidori host on, the change is queued for it.
+    /// Returns the word's mark afterwards.
+    @discardableResult
+    public func toggleWordStatus(_ status: WordStatus, for headword: String) -> WordStatus? {
+        let next: WordStatus? = wordStatus(of: headword) == status ? nil : status
+        setWordStatus(next, for: [headword])
+        return next
+    }
+
+    /// Marks words known or ignored, or clears them (nil).
+    public func setWordStatus(_ status: WordStatus?, for headwords: [String]) {
+        for headword in headwords {
+            try? wordStatusStore.set(status, for: headword, host: sharesWithHost())
+            try? hostOutbox?.outbox.queueHostWordStatus(headword)
+        }
+        hostOutbox?.queued()
+        reloadWordStatuses()
+    }
+
+    /// Settings ▸ Known Words ▸ Add: marks a list of words known.
+    @discardableResult
+    public func addKnownWords(_ headwords: [String]) -> Int {
+        let added = (try? wordStatusStore.addKnown(headwords, host: sharesWithHost())) ?? 0
+        if hostOutbox != nil {
+            for headword in headwords { try? hostOutbox?.outbox.queueHostWordStatus(headword) }
+            hostOutbox?.queued()
+        }
+        reloadWordStatuses()
+        return added
+    }
+
+    /// The host's list came in: it becomes ours, except for changes it hasn't had yet.
+    private func adopt(_ overrides: WordStatusOverrides) {
+        if (try? wordStatusStore.adoptHost(known: overrides.known, ignored: overrides.ignored)) == true { reloadWordStatuses() }
     }
 
     public func setShowsLookupCounts(_ shows: Bool) {
@@ -186,11 +247,11 @@ public final class LookupService {
         var page = page
         if showsLookupCounts {
             page.lookupCount = (try? counts.record(term: first.expression, reading: first.reading))?.lookupCount
-            if let host, let hostCounts {
-                try? hostCounts.outbox.queueHostLookupCount(term: first.expression, reading: first.reading)
-                hostCounts.queued()
+            if let host, let hostOutbox {
+                try? hostOutbox.outbox.queueHostLookupCount(term: first.expression, reading: first.reading)
+                hostOutbox.queued()
                 if let counted = await host.lookupCount(term: first.expression, reading: first.reading),
-                   let queued = try? hostCounts.outbox.queuedHostLookupCount(term: first.expression, reading: first.reading) {
+                   let queued = try? hostOutbox.outbox.queuedHostLookupCount(term: first.expression, reading: first.reading) {
                     page.lookupCount = counted + queued
                     try? counts.setCount(term: first.expression, reading: first.reading, to: counted + queued)
                 }
@@ -230,6 +291,8 @@ public final class LookupService {
     public func document(for page: LookupResultPage, nativeBackground: Bool = false) -> String {
         let source = page.source.map(EntryRenderer.source) ?? ""
         let mined = mining.map { mining in page.results.map(mining.isMined) }
+        // Known and Ignore while words are marked, as in Hachidori (they're about the marks).
+        let statuses = mining?.marksWords == true ? page.results.map { wordStatus(of: $0.expression) } : nil
         let setting = min(max(popupSettings.backgroundOpacityPercent, 0), 100)
         let opacity = nativeBackground ? 0 : setting
         let halo = Self.haloStrength(opacityPercent: setting)
@@ -240,7 +303,7 @@ public final class LookupService {
             ? .init(dictionary: popupSettings.compactDefinitionSummaryDictionary, count: popupSettings.compactDefinitionSummaryCount)
             : nil
         let dictionaryStyles = looksUpOnHost && followsHost ? styles.merging(host?.styles ?? [:]) { $1 } : styles
-        return LookupPage.document(body: source + EntryRenderer.entries(page.results, mined: mined, lookupCount: count, summary: summary),
+        return LookupPage.document(body: source + EntryRenderer.entries(page.results, mined: mined, statuses: statuses, lookupCount: count, summary: summary),
                                    dictionaryStyles: dictionaryStyles, extraCSS: accentCSS)
     }
 

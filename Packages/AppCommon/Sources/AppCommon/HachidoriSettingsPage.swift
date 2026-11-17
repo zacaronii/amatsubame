@@ -13,6 +13,7 @@ public struct HachidoriSettingsPage: View {
     @State private var loaded = false
     @State private var test: TestResult?
     @State private var waiting = 0
+    @State private var waitingMarks = 0
 
     enum TestResult {
         case testing
@@ -74,7 +75,7 @@ public struct HachidoriSettingsPage: View {
                             Text("Not yet")
                         }
                     }
-                    LabeledContent("Waiting to Send", value: waiting == 0 ? "Nothing" : "\(waiting) \(waiting == 1 ? "word's lookups" : "words' lookups")")
+                    LabeledContent("Waiting to Send", value: waitingText)
                         .accessibilityIdentifier("hachidori.waiting")
                     Button("Sync Now") { environment.syncHachidori() }
                         .accessibilityIdentifier("hachidori.syncNow")
@@ -82,9 +83,9 @@ public struct HachidoriSettingsPage: View {
                     Text("Sync")
                 } footer: {
                     #if os(macOS)
-                    Text("Lookups made while Hachidori can't be reached are counted there once it's back.")
+                    Text("Lookups and words marked while Hachidori can't be reached go to it once it's back.")
                     #else
-                    Text("The app links to Hachidori when it opens or comes back to the front. Lookups made while Hachidori can't be reached are counted there once it's back, at that time.")
+                    Text("The app links to Hachidori when it opens or comes back to the front. Lookups and words marked while Hachidori can't be reached go to it once it's back (the lookups at that time).")
                     #endif
                 }
                 Section {
@@ -93,7 +94,7 @@ public struct HachidoriSettingsPage: View {
                     #endif
                     Label("Lookup counts are Hachidori's, shared with your browser.", systemImage: "number")
                     Label("The popup follows Hachidori's settings (first meaning, lookup counts, opacity), and keeps them when it can't be reached.", systemImage: "text.bubble")
-                    Label("Words marked known or ignored in Hachidori get no word mark.", systemImage: "checkmark.circle")
+                    Label("Words marked known or ignored, here or in Hachidori, are one list (Settings ▸ Anki ▸ Known and Ignored Words).", systemImage: "checkmark.circle")
                     Label("Copy Hachidori's dictionaries, or send yours to it, in Settings ▸ Dictionaries.", systemImage: "arrow.down.circle")
                 } header: {
                     Text("While Linked")
@@ -110,7 +111,10 @@ public struct HachidoriSettingsPage: View {
         .navigationTitle("Hachidori")
         .task {
             do {
-                for try await counts in environment.outbox.observeWaitingCounts() { waiting = counts[.hachidoriLookupCount] ?? 0 }
+                for try await counts in environment.outbox.observeWaitingCounts() {
+                    waiting = counts[.hachidoriLookupCount] ?? 0
+                    waitingMarks = counts[.hachidoriWordStatus] ?? 0
+                }
             } catch {}
         }
         .onAppear {
@@ -119,6 +123,13 @@ public struct HachidoriSettingsPage: View {
             address = settings.address
             loaded = true
         }
+    }
+
+    private var waitingText: String {
+        let parts = [waiting == 0 ? nil : "\(waiting) \(waiting == 1 ? "word's lookups" : "words' lookups")",
+                     waitingMarks == 0 ? nil : "\(waitingMarks) \(waitingMarks == 1 ? "known or ignored word" : "known or ignored words")"]
+            .compactMap { $0 }
+        return parts.isEmpty ? "Nothing" : parts.formatted(.list(type: .and))
     }
 
     private var isTesting: Bool {

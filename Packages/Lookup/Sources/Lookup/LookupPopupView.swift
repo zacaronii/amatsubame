@@ -1,3 +1,4 @@
+import Core
 import Dictionary
 import SwiftUI
 
@@ -43,6 +44,11 @@ public final class LookupPopupModel: Identifiable {
         let html = service.document(for: page, nativeBackground: true)
         documents[page.id] = html
         return html
+    }
+
+    /// Every page's HTML but this one's is built again (a word's mark changed).
+    func forgetDocuments(except page: LookupResultPage.ID) {
+        documents = documents.filter { $0.key == page }
     }
 
     func forgetDocument(_ page: LookupResultPage.ID) {
@@ -193,6 +199,11 @@ public struct LookupPopupView: View {
             service.audio.play(term: result.expression, reading: result.reading)
         case .mine(let index):
             mine(index, on: page, allowDuplicate: false)
+        case .wordStatus(let index, let status):
+            guard page.results.indices.contains(index) else { return }
+            // The page already shows the change; the other pages are built again with it.
+            service.toggleWordStatus(status, for: page.results[index].expression)
+            model.forgetDocuments(except: page.id)
         }
     }
 }

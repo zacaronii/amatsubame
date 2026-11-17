@@ -5,6 +5,8 @@ public enum OutboxJobKind: String, Codable, CaseIterable, Sendable, DatabaseValu
     case ankiNote, kavitaProgress, jellyfinProgress, jellyfinSubtitle, audiobookshelfProgress
     /// Lookups to count on a linked Hachidori host (`HostLookupCountJob`).
     case hachidoriLookupCount
+    /// A word marked known or ignored (or cleared) to tell the Hachidori host (`WordStatusJob`).
+    case hachidoriWordStatus
 }
 
 public enum OutboxJobState: String, Codable, Sendable, DatabaseValueConvertible {

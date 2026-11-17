@@ -713,6 +713,16 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v39_word_status") { db in
+            // Words marked known or ignored by hand (Hachidori's wordStatusOverrides), in the setup.
+            try db.create(table: "wordStatus") { t in
+                t.primaryKey("headword", .text)
+                t.column("status", .text)
+                t.column("updatedAt", .datetime).notNull()
+                t.column("pendingHost", .boolean).notNull().defaults(to: false)
+            }
+        }
+
         return migrator
     }
 }
