@@ -91,6 +91,7 @@ public struct DictionariesView: View {
                 Text("Yomitan dictionary zips: term dictionaries (Jitendex), frequency lists (Jiten) and pitch accent dictionaries.")
             }
         }
+        .settingsListWidth()
         .navigationTitle("Dictionaries")
         .toolbar {
             #if os(iOS)

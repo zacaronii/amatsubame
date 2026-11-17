@@ -62,6 +62,7 @@ public struct OutboxView: View {
                 }
             }
         }
+        .settingsListWidth()
         .navigationTitle(kind?.waitingTitle ?? "Waiting to Sync")
         .toolbar {
             Button("Sync Now", systemImage: "arrow.triangle.2.circlepath") { environment.syncNow(retryWaiting: true) }

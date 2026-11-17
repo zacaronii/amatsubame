@@ -30,16 +30,15 @@ struct JellyfinSettingsView: View {
             }
             Section {
                 if model.isSignedIn {
-                    Button("Test Connection") { Task { await model.testConnection() } }
-                        .disabled(model.status == .working)
-                    Button("Sign Out", role: .destructive) { Task { await model.signOut() } }
+                    ConnectionTestRow(status: model.status, disabled: model.status == .working) { Task { await model.testConnection() } }
+                    ConfirmedRemoveButton.signOut("Jellyfin") { Task { await model.signOut() } }
                 } else {
                     Button("Sign In") { Task { await model.signIn() } }
                         .disabled(!model.canSignIn)
-                    Button("Test Connection") { Task { await model.testConnection() } }
-                        .disabled(model.urlText.isEmpty || model.status == .working)
+                    ConnectionTestRow(status: model.status, disabled: model.urlText.isEmpty || model.status == .working) {
+                        Task { await model.testConnection() }
+                    }
                 }
-                ConnectionStatusView(status: model.status)
             }
         }
         .formStyle(.grouped)

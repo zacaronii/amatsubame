@@ -29,7 +29,7 @@ public struct AboutView: View {
     }
 
     public var body: some View {
-        List {
+        Form {
             Section {
                 LabeledContent("Version", value: "\(CommonEnvironment.appVersion) (\(CommonEnvironment.buildNumber))")
             }
@@ -66,6 +66,7 @@ public struct AboutView: View {
                 }
             }
         }
+        .formStyle(.grouped)
         .navigationTitle("About")
         .task { dictionaries = (try? environment.dictionaries.dictionaries()) ?? [] }
     }

@@ -8,7 +8,7 @@ struct OCRSettingsView: View {
 
     var body: some View {
         let store = environment.ocrModels
-        List {
+        Form {
             Section {
                 switch store.state {
                 case .notInstalled:
@@ -37,6 +37,7 @@ struct OCRSettingsView: View {
                 Text("Detects speech bubbles and reads them on this device (manga-ocr and a comic text detector, Apache-2.0). Downloaded once from Hugging Face.")
             }
         }
+        .formStyle(.grouped)
         .navigationTitle("Manga Text Recognition")
         .onChange(of: store.state) { _, state in
             // Downloaded volumes waiting for their text can be read now.

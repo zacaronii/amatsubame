@@ -50,7 +50,7 @@ struct RootView: View {
     @State private var linkedSession: ReaderSession?
     #else
     @State private var destination = SidebarDestination<AppTab, Int>.tab(.library)
-    @Environment(\.openSettings) private var openSettings
+    @Environment(\.openWindow) private var openWindow
     #endif
 
     var body: some View {
@@ -141,9 +141,10 @@ struct RootView: View {
         .task(id: environment.hiddenLibraries) { loadSidebarLibraries() }
         .onReceive(NotificationCenter.default.publisher(for: .kavitaLibrariesDidChange)) { _ in loadSidebarLibraries() }
         // Menu shortcuts and links switch tabs; Settings is its own window.
+        .opensSettingsForUITests()
         .onChange(of: environment.tabRequests) {
             let tab = environment.selectedTab
-            if tab == .settings { openSettings() } else if destination != .tab(tab) { destination = .tab(tab) }
+            if tab == .settings { openWindow(id: MacSettingsWindow.sceneID) } else if destination != .tab(tab) { destination = .tab(tab) }
         }
         .onChange(of: destination) { _, destination in
             if case .tab(let tab) = destination, environment.selectedTab != tab { environment.selectedTab = tab }

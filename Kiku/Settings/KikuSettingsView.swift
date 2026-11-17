@@ -31,23 +31,13 @@ struct KikuSettingsView: View {
                     }
                     .accessibilityIdentifier("settings.transcripts")
                     NavigationLink {
-                        Form {
-                            Section {
-                                SkipIntervalPickers()
-                            } footer: {
-                                Text("For the Lock Screen, AirPods and CarPlay. The player's own buttons jump by lines.")
-                            }
-                        }
-                        .formStyle(.grouped)
-                        .navigationTitle("Playback")
+                        Self.playback
                     } label: {
                         SettingsRowLabel("Playback", subtitle: "Lock Screen skip intervals", systemImage: "play.circle.fill", color: .red)
                     }
                     .accessibilityIdentifier("settings.playback")
                     NavigationLink {
-                        Form { DownloadSettingsSection { _ in } }
-                            .formStyle(.grouped)
-                            .navigationTitle("Downloads")
+                        Self.downloads
                     } label: {
                         SettingsRowLabel("Downloads", subtitle: "Wi-Fi or cellular", systemImage: "arrow.down.circle.fill", color: .blue)
                     }
@@ -67,22 +57,14 @@ struct KikuSettingsView: View {
                 SettingsFooterSection(storageTotal: storageTotal) {
                     StorageView()
                 } advanced: {
-                    AdvancedSettingsView(kinds: [.ankiNote, .audiobookshelfProgress],
-                                         extraLogs: [URL.applicationSupportDirectory.appending(path: "dev-setup.log")])
+                    Self.advanced
                 } about: {
                     AboutView(appCredits: [])
                 }
             }
             .formStyle(.grouped)
             .navigationTitle("Settings")
-            .navigationDestination(for: ServerKind.self) { kind in
-                switch kind {
-                case .audiobookshelf: AudiobookshelfSettingsView(environment: environment.common, tokens: environment.tokens, appName: "Kiku")
-                case .kaku: KakuSettingsView(environment: environment.common)
-                case .anki: AnkiSettingsPage(environment: environment.common)
-                case .kavita, .jellyfin: EmptyView()
-                }
-            }
+            .navigationDestination(for: ServerKind.self) { Self.serverPage($0, environment: environment) }
             .onAppear {
                 let downloads = environment.downloader.records.values.reduce(Int64(0)) { $0 + ($1.state == .done ? ($1.bytesTotal ?? 0) : $1.bytesDone) }
                 let transcripts = Int64((try? environment.transcripts.approximateBytes()) ?? 0)
@@ -91,8 +73,44 @@ struct KikuSettingsView: View {
         }
     }
 
-    private var statusItems: [StatusItem] {
-        [
+    static var playback: some View {
+        Form {
+            Section {
+                SkipIntervalPickers()
+            } footer: {
+                Text("For the Lock Screen, AirPods and CarPlay. The player's own buttons jump by lines.")
+            }
+        }
+        .formStyle(.grouped)
+        .navigationTitle("Playback")
+    }
+
+    static var downloads: some View {
+        Form { DownloadSettingsSection { _ in } }
+            .formStyle(.grouped)
+            .navigationTitle("Downloads")
+    }
+
+    static var advanced: some View {
+        AdvancedSettingsView(kinds: [.ankiNote, .audiobookshelfProgress],
+                             extraLogs: [URL.applicationSupportDirectory.appending(path: "dev-setup.log")])
+    }
+
+    /// What a link to a server opens.
+    @ViewBuilder static func serverPage(_ kind: ServerKind, environment: KikuEnvironment) -> some View {
+        switch kind {
+        case .audiobookshelf: AudiobookshelfSettingsView(environment: environment.common, tokens: environment.tokens, appName: "Kiku")
+        case .kaku: KakuSettingsView(environment: environment.common)
+        case .anki: AnkiSettingsPage(environment: environment.common)
+        case .kavita, .jellyfin: EmptyView()
+        }
+    }
+
+    private var statusItems: [StatusItem] { Self.statusItems(environment) }
+
+    static func statusItems(_ environment: KikuEnvironment) -> [StatusItem] {
+        let accounts = environment.common.serverAccounts
+        return [
             StatusItem("Audiobookshelf", isSetUp: accounts[.audiobookshelf] != nil) {
                 _ = try await environment.audiobookshelfClient()?.me()
             },
@@ -108,6 +126,40 @@ struct KikuSettingsView: View {
         ]
     }
 }
+
+#if os(macOS)
+/// The Mac's Settings window: the same pages as the list above, each in the sidebar.
+struct MacSettingsView: View {
+    @Environment(KikuEnvironment.self) private var environment
+
+    var body: some View {
+        MacSettingsWindow(groups: [
+            MacSettingsGroup(pages: [.overview(KikuSettingsView.statusItems(environment))]),
+            MacSettingsGroup("Listening", pages: [
+                MacSettingsPage("audiobookshelf", title: "Audiobookshelf", systemImage: "server.rack") {
+                    KikuSettingsView.serverPage(.audiobookshelf, environment: environment)
+                },
+                MacSettingsPage("libraries", title: "Libraries", systemImage: "books.vertical") { KikuLibrariesSettingsView() },
+                MacSettingsPage("transcripts", title: "Transcripts", systemImage: "text.quote") { KakuSettingsView(environment: environment.common) },
+                MacSettingsPage("playback", title: "Playback", systemImage: "play.circle") { KikuSettingsView.playback },
+                MacSettingsPage("downloads", title: "Downloads", systemImage: "arrow.down.circle") { KikuSettingsView.downloads },
+            ]),
+        ] + MacSettingsGroup.shared {
+            AnkiSettingsPage(environment: environment.common)
+        } + [
+            .footer {
+                StorageView()
+            } advanced: {
+                KikuSettingsView.advanced
+            } about: {
+                AboutView(appCredits: [])
+            },
+        ]) { kind in
+            KikuSettingsView.serverPage(kind, environment: environment)
+        }
+    }
+}
+#endif
 
 /// Settings ▸ Storage: what Kiku keeps on this device.
 struct StorageView: View {

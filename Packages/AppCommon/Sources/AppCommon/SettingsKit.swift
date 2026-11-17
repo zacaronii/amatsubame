@@ -67,6 +67,20 @@ public struct SettingsRowLabel: View {
     }
 }
 
+public extension View {
+    /// A Settings page that's a list (to reorder its rows) rather than a form: as wide as the
+    /// forms' groups in the Mac's Settings window. Nothing changes on iPhone and iPad.
+    @ViewBuilder func settingsListWidth() -> some View {
+        #if os(macOS)
+        GeometryReader { geometry in
+            contentMargins(.horizontal, max(0, (geometry.size.width - MacSettingsWindow.pageWidth) / 2 + 20))
+        }
+        #else
+        self
+        #endif
+    }
+}
+
 public extension ServerAccount {
     /// "kavita.example.ts.net · reader": where it is and who's signed in.
     var hostAndAccount: String {

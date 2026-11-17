@@ -201,6 +201,7 @@ struct HachidoriDictionariesPage: View {
         .overlay {
             if copy?.loaded != true { ProgressView() }
         }
+        .settingsListWidth()
         .navigationTitle("Copy from Hachidori")
         .task {
             let model = HachidoriDictionaryCopy(environment: environment)

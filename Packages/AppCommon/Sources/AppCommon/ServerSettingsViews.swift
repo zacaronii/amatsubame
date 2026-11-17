@@ -27,6 +27,94 @@ public struct ConnectionStatusView: View {
     }
 }
 
+/// Test Connection and what it found. On the Mac one row, Status, with the button on its
+/// right; on iPhone and iPad the button with the result under it.
+public struct ConnectionTestRow: View {
+    let status: ConnectionStatus
+    let disabled: Bool
+    let identifier: String?
+    let action: () -> Void
+
+    public init(status: ConnectionStatus, disabled: Bool = false, identifier: String? = nil, action: @escaping () -> Void) {
+        self.status = status
+        self.disabled = disabled
+        self.identifier = identifier
+        self.action = action
+    }
+
+    public var body: some View {
+        #if os(macOS)
+        LabeledContent("Status") {
+            HStack(spacing: 10) {
+                if status == .idle {
+                    Text("Not tested").foregroundStyle(.secondary)
+                } else {
+                    ConnectionStatusView(status: status)
+                }
+                button
+            }
+        }
+        #else
+        button
+        ConnectionStatusView(status: status)
+        #endif
+    }
+
+    @ViewBuilder private var button: some View {
+        let button = Button("Test Connection", action: action).disabled(disabled)
+        if let identifier {
+            button.accessibilityIdentifier(identifier)
+        } else {
+            button
+        }
+    }
+}
+
+/// Sign Out and Remove Server. On the Mac it asks first; on iPhone and iPad it acts at once,
+/// as it always has.
+public struct ConfirmedRemoveButton: View {
+    let title: String
+    let question: String
+    let message: String
+    let action: () -> Void
+    @State private var asking = false
+
+    public init(_ title: String, question: String, message: String, action: @escaping () -> Void) {
+        self.title = title
+        self.question = question
+        self.message = message
+        self.action = action
+    }
+
+    public var body: some View {
+        #if os(macOS)
+        Button("\(title)…", role: .destructive) { asking = true }
+            .confirmationDialog(question, isPresented: $asking) {
+                Button(title, role: .destructive, action: action)
+            } message: {
+                Text(message)
+            }
+        #else
+        Button(title, role: .destructive, action: action)
+        #endif
+    }
+}
+
+public extension ConfirmedRemoveButton {
+    /// Remove Server for `name` (Kavita, Kaku, AnkiConnect).
+    static func removeServer(_ name: String, action: @escaping () -> Void) -> ConfirmedRemoveButton {
+        ConfirmedRemoveButton("Remove Server", question: "Remove \(name)?",
+                              message: "Its address and key are forgotten here. Nothing changes on the server, and you can add it again.",
+                              action: action)
+    }
+
+    /// Sign Out of `name` (Jellyfin, Audiobookshelf).
+    static func signOut(_ name: String, action: @escaping () -> Void) -> ConfirmedRemoveButton {
+        ConfirmedRemoveButton("Sign Out", question: "Sign out of \(name)?",
+                              message: "You'll need to sign in again to use it.", action: action)
+    }
+}
+
 public extension View {
     func urlEntry() -> some View {
         #if os(iOS)
