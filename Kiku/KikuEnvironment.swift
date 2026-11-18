@@ -27,6 +27,10 @@ final class KikuEnvironment {
     var requestedLibrary: AudiobookshelfLibrary?
     /// Shows, new episodes and progress from Audiobookshelf, shared by the tabs.
     @ObservationIgnored private(set) lazy var library = PodcastLibrary(environment: self)
+    #if os(iOS)
+    /// Kiku on Apple Watch: what's playing goes to the watch, its buttons come back.
+    @ObservationIgnored private(set) lazy var watch = WatchBridge(environment: self)
+    #endif
     /// The episode loaded in the player (the mini player shows it), and whether the full player is open.
     private(set) var playback: PlaybackModel?
     var showsPlayer = false
@@ -256,9 +260,18 @@ final class KikuEnvironment {
     func mark(_ source: AudioMark.Source) -> AudioMark? {
         guard let playback else { return nil }
         let entry = playback.entry
+        return mark(source, itemId: entry.itemId, episodeId: entry.episode.id, showTitle: entry.showTitle,
+                    episodeTitle: entry.episode.title, time: playback.audio.currentTime)
+    }
+
+    /// Marks a place in an episode whether or not it's loaded (a mark the watch made while the
+    /// phone was out of reach, delivered later).
+    @discardableResult
+    func mark(_ source: AudioMark.Source, itemId: String, episodeId: String, showTitle: String, episodeTitle: String,
+              time: Double) -> AudioMark? {
         guard let mark = try? marks.add(AudioMark(
-            itemId: entry.itemId, episodeId: entry.episode.id, showTitle: entry.showTitle, episodeTitle: entry.episode.title,
-            time: playback.audio.currentTime, createdAt: .now, source: source)) else { return nil }
+            itemId: itemId, episodeId: episodeId, showTitle: showTitle, episodeTitle: episodeTitle,
+            time: time, createdAt: .now, source: source)) else { return nil }
         lastMark = mark
         return mark
     }
