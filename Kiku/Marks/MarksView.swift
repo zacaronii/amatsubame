@@ -259,6 +259,7 @@ private struct MarkCard: View {
         case .nowPlaying: "From Now Playing"
         case .player: "In the player"
         case .headphones: "With headphones"
+        case .carPlay: "In CarPlay"
         }
         let time = mark.createdAt.formatted(date: .omitted, time: .shortened)
         let calendar = Calendar.current
