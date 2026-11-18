@@ -17,7 +17,7 @@ settings:
     # with AMATSUBAME_APP_GROUP = YES (Config/Signing.xcconfig), which needs a paid developer team.
     SWIFT_VERSION: "6.0"
     CODE_SIGN_STYLE: Automatic
-    MARKETING_VERSION: "0.3.0"
+    MARKETING_VERSION: "0.3.1"
     CURRENT_PROJECT_VERSION: "1"
     # The apps only use encryption through Apple's networking (HTTPS) and the video player's TLS.
     INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
