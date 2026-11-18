@@ -1,5 +1,6 @@
 import AppCommon
 import AudiobookshelfKit
+import AVFoundation
 import Core
 import Foundation
 import Lookup
@@ -61,9 +62,15 @@ final class PlaybackModel: Identifiable, LineLookupHost {
         audio.onEnd = { [weak self] in self?.finished() }
         audio.onFailure = { [weak self] in self?.recoverStream() }
         audio.onPlayStateChange = { [weak self] playing in self?.playStateChanged(playing) }
-        // AirPods: double press goes to the next line (as in Miru), triple press marks.
-        audio.onNextTrack = { [weak self] in self?.nextLine() }
-        audio.onPreviousTrack = { [weak environment] in
+        // AirPods: double press goes to the next line (as in Miru), triple press marks. A car's
+        // steering-wheel buttons send the same commands, but skip there (CarPlay has a Mark button).
+        audio.onNextTrack = { [weak self] in
+            guard let self else { return }
+            if Self.playsInCar { audio.skip(by: audio.skipIntervals.forward) } else { nextLine() }
+        }
+        audio.onPreviousTrack = { [weak self, weak environment] in
+            guard let self else { return }
+            if Self.playsInCar { return audio.skip(by: -audio.skipIntervals.backward) }
             if environment?.mark(.headphones) != nil { MarkChime.play() }
         }
         let settings = ListenSettings.load(environment.common.database)
@@ -195,6 +202,15 @@ final class PlaybackModel: Identifiable, LineLookupHost {
         guard !sentences.isEmpty else { return audio.skip(by: -audio.skipIntervals.backward) }
         audio.seek(to: TranscriptFollow.previousTarget(from: audio.currentTime, in: sentences))
         follows = true
+    }
+
+    /// The audio is going to a car (CarPlay, wired or wireless).
+    static var playsInCar: Bool {
+        #if os(iOS)
+        AVAudioSession.sharedInstance().currentRoute.outputs.contains { $0.portType == .carAudio }
+        #else
+        false
+        #endif
     }
 
     func nextLine() {
