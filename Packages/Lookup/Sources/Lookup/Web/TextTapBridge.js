@@ -42,6 +42,7 @@
     const action = target.closest?.('[data-action]');
     if (action) {
       event.preventDefault();
+      if (action.classList.contains('status-button')) toggleStatus(action);
       post({kind: action.dataset.action, index: Number(action.dataset.index)});
       return;
     }
@@ -54,6 +55,16 @@
     if (link) return; // external links are opened by the native navigation delegate
     tapAt(event.clientX, event.clientY);
   });
+
+  // Known and Ignore toggle like Hachidori's: pressing the pressed one clears the word's mark.
+  // Every entry of the same headword follows (the native side keeps the same rule).
+  function toggleStatus(button) {
+    const pressed = button.getAttribute('aria-pressed') !== 'true';
+    for (const other of document.querySelectorAll('.status-button')) {
+      if (other.dataset.headword !== button.dataset.headword) continue;
+      other.setAttribute('aria-pressed', String(pressed && other.dataset.action === button.dataset.action));
+    }
+  }
 
   // Looks up the character at a point (viewport coordinates), or reports a miss.
   function tapAt(x, y) {

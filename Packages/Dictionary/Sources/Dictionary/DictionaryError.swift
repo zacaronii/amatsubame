@@ -5,8 +5,9 @@ public enum DictionaryError: Error, Equatable, LocalizedError {
     /// The zip has no entries (only its index), as a broken release can be.
     case empty
     case alreadyInstalled(title: String, revision: String?)
-    case unreadable(String)
     case notFound
+    /// Made by a newer hoshidicts than the app's (`DictionaryFormat.newer`).
+    case newerFormat
 
     public var errorDescription: String? {
         switch self {
@@ -14,8 +15,8 @@ public enum DictionaryError: Error, Equatable, LocalizedError {
         case .empty: "The dictionary has no entries."
         case .alreadyInstalled(let title, let revision):
             "\(title) \(revision.map { "(\($0)) " } ?? "")is already installed."
-        case .unreadable(let title): "\(title) couldn't be loaded. Try deleting and re-importing it."
         case .notFound: "That dictionary isn't installed."
+        case .newerFormat: "This dictionary was made by a newer version of hoshidicts. Update the app to use it."
         }
     }
 }

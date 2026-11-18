@@ -2,9 +2,9 @@ import Anki
 import Core
 import SwiftUI
 
-/// Settings ▸ Lookup and Mining ▸ Anki: the AnkiConnect connection and how cards are made,
-/// on one page. `cardExtras`: the app's own rows in Cards
-/// (Miru's Card Picture).
+/// Settings ▸ Lookup and Mining ▸ Anki: the AnkiConnect connection, how cards are made, and
+/// word marks, on one page. `cardExtras`: the app's own rows in Cards (Miru's Card Picture).
+/// `wordMarksNote`: what the marks cover in this app.
 public struct AnkiSettingsPage<CardExtras: View>: View {
     @Environment(CommonEnvironment.self) private var environment
     @State private var connection: AnkiSettingsModel
@@ -12,12 +12,15 @@ public struct AnkiSettingsPage<CardExtras: View>: View {
     private let cardExtras: CardExtras
     /// Shows the picture size (pages): Miru's picture setting replaces it.
     private let showsPictureSize: Bool
+    private let wordMarksNote: String?
 
-    public init(environment: CommonEnvironment, showsPictureSize: Bool = true, @ViewBuilder cardExtras: () -> CardExtras = { EmptyView() }) {
+    public init(environment: CommonEnvironment, showsPictureSize: Bool = true, wordMarksNote: String? = nil,
+                @ViewBuilder cardExtras: () -> CardExtras = { EmptyView() }) {
         _connection = State(initialValue: AnkiSettingsModel(environment: environment))
         _cards = State(initialValue: CardSettingsModel(environment: environment))
         self.cardExtras = cardExtras()
         self.showsPictureSize = showsPictureSize
+        self.wordMarksNote = wordMarksNote
     }
 
     public var body: some View {
@@ -30,15 +33,12 @@ public struct AnkiSettingsPage<CardExtras: View>: View {
                 SecureField("API Key (optional)", text: $connection.apiKey)
                     .credentialEntry()
                     .accessibilityIdentifier("anki.key")
-                Button("Test Connection") {
+                ConnectionTestRow(status: connection.status, disabled: !connection.canTest, identifier: "anki.test") {
                     Task {
                         await connection.testAndSave()
                         await cards.load()
                     }
                 }
-                .disabled(!connection.canTest)
-                .accessibilityIdentifier("anki.test")
-                ConnectionStatusView(status: connection.status)
             } header: {
                 Text("Connection")
             } footer: {
@@ -74,22 +74,29 @@ public struct AnkiSettingsPage<CardExtras: View>: View {
                     Text("Tags are separated by spaces. The picture is the page or video frame the word came from.")
                 }
 
-                if cards.decks.contains(where: { $0 != cards.settings.deck }) {
-                    Section {
+                Section {
+                    WordMarksToggle()
+                    if showsMarkDecks {
                         NavigationLink {
                             MarkDecksView(model: cards)
                         } label: {
                             LabeledContent("Also Mark Words From", value: cards.settings.markDecks.isEmpty ? "None" : cards.settings.markDecks.joined(separator: ", "))
                         }
-                    } header: {
-                        Text("Word Marks")
-                    } footer: {
-                        Text("Words already studied in these decks show as known.")
                     }
+                    NavigationLink {
+                        KnownWordsView()
+                    } label: {
+                        LabeledContent("Known and Ignored Words", value: environment.lookup.wordStatuses.count.formatted())
+                    }
+                    .accessibilityIdentifier("anki.knownWords")
+                } header: {
+                    Text("Word Marks")
+                } footer: {
+                    Text(wordMarksFooter)
                 }
 
                 Section {
-                    Toggle("Sync to AnkiWeb After Adding", isOn: $cards.settings.syncAfterAdding)
+                    Toggle("Sync After Adding", isOn: $cards.settings.syncAfterAdding)
                     Button {
                         Task { await cards.syncNow() }
                     } label: {
@@ -109,19 +116,28 @@ public struct AnkiSettingsPage<CardExtras: View>: View {
                         EmptyView()
                     }
                 } header: {
-                    Text("AnkiWeb")
+                    Text("Sync")
                 } footer: {
-                    Text("Sends new cards to AnkiMobile about 10 seconds after they arrive, once for a batch.")
+                    Text("Asks Anki to sync with its sync server (AnkiWeb or your own) about 10 seconds after new cards arrive, once for a batch, so they reach your other devices. Leave it off if your AnkiConnect server already syncs after each card.")
                 }
 
                 Section {
-                    Button("Remove Server", role: .destructive) { connection.remove() }
+                    ConfirmedRemoveButton.removeServer("AnkiConnect") { connection.remove() }
                 }
             }
         }
         .formStyle(.grouped)
         .navigationTitle("Anki")
         .task { await cards.load() }
+    }
+
+    private var showsMarkDecks: Bool {
+        cards.decks.contains { $0 != cards.settings.deck }
+    }
+
+    private var wordMarksFooter: String {
+        [WordMarksToggle.footer, wordMarksNote, showsMarkDecks ? "Words already studied in the other decks show as known." : nil]
+            .compactMap { $0 }.joined(separator: " ")
     }
 }
 

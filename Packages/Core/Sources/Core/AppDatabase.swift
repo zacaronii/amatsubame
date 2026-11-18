@@ -688,6 +688,48 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v36_popup_blur") { db in
+            // Settings ▸ Popup ▸ Background Blur: 0–100 %, 50 by default (the blur the apps had).
+            try db.alter(table: "popupSettings") { t in
+                t.add(column: "backgroundBlurPercent", .integer).notNull().defaults(to: 50)
+            }
+        }
+
+        migrator.registerMigration("v37_no_popup_blur") { db in
+            // The blur is always full now, like Hachidori's (fading a material cross-fades a
+            // sharp and a blurred copy of what's behind): the setting goes.
+            try db.alter(table: "popupSettings") { t in
+                t.drop(column: "backgroundBlurPercent")
+            }
+        }
+
+        migrator.registerMigration("v38_pinned") { db in
+            // Series, shows and books pinned to the Mac's sidebar (each app its own).
+            try db.create(table: "pinnedItem") { t in
+                t.primaryKey("id", .text)
+                t.column("kind", .text).notNull()
+                t.column("title", .text).notNull()
+                t.column("pinnedAt", .datetime).notNull()
+            }
+        }
+
+        migrator.registerMigration("v39_word_status") { db in
+            // Words marked known or ignored by hand (Hachidori's wordStatusOverrides), in the setup.
+            try db.create(table: "wordStatus") { t in
+                t.primaryKey("headword", .text)
+                t.column("status", .text)
+                t.column("updatedAt", .datetime).notNull()
+                t.column("pendingHost", .boolean).notNull().defaults(to: false)
+            }
+        }
+
+        migrator.registerMigration("v40_watch_live_text") { db in
+            // Kiku: Live Text on Apple Watch (off until turned on in Settings ▸ Playback).
+            try db.alter(table: "listenSettings") { t in
+                t.add(column: "watchLiveText", .boolean).notNull().defaults(to: false)
+            }
+        }
+
         return migrator
     }
 }

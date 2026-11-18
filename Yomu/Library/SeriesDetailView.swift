@@ -72,6 +72,9 @@ struct SeriesDetailView: View {
             }
         }
         .navigationTitle(series.displayName)
+        #if os(macOS)
+        .pinnable(id: String(series.id), kind: series.isEpub ? "book" : "series", title: series.displayName)
+        #endif
         .toolbar {
             if contents != nil {
                 ToolbarItem(placement: .primaryAction) {
@@ -98,7 +101,11 @@ struct SeriesDetailView: View {
                 }
             }
         } message: {
+            #if os(macOS)
+            Text("They stay on this Mac until you remove them.")
+            #else
             Text("They stay on this device until you remove them. Downloads wait for Wi-Fi unless cellular downloads are on in Settings.")
+            #endif
         }
         .sheet(item: $chaptersOf) { volume in
             NavigationStack {

@@ -104,7 +104,7 @@ final class KikuPlayerUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Playback paused · resumes when you close this"].waitForExistence(timeout: 5))
         XCTAssertEqual(playPause.value as? String, "paused")
         XCTAssertTrue(app.buttons["lookup.playClip"].exists)
-        app.swipeDown(velocity: .fast)
+        app.closeLookup()
         let resumed = expectation(for: NSPredicate(format: "value == 'playing'"), evaluatedWith: playPause)
         wait(for: [resumed], timeout: 5)
 
@@ -210,7 +210,7 @@ final class KikuMarksAndStatsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["1 to mine"].exists)
         marked.descendants(matching: .any)["subtitle.line"].firstMatch.tap()
         XCTAssertTrue(app.buttons["lookup.playClip"].waitForExistence(timeout: 5))
-        app.swipeDown(velocity: .fast)
+        app.closeLookup()
         XCTAssertTrue(app.buttons["mark.clear"].waitForExistence(timeout: 5))
         app.buttons["mark.clear"].tap()
         XCTAssertTrue(app.staticTexts["Marks you make while listening show up here."].waitForExistence(timeout: 5))

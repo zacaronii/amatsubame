@@ -146,6 +146,16 @@ import Testing
         #expect(try store.marks().state(expression: "戦争", reading: "せんそう") == .known, "a duplicate stays known")
     }
 
+    /// Hachidori's kana rule: a word with no note of its own takes the state of a kana spelling.
+    @Test func kanaSpellingsLendTheirState() throws {
+        try store.replaceAnkiWords([("かわいい", "", true), ("面白い", "おもしろい", false)])
+        let marks = try store.marks()
+        #expect(marks.state(expression: "可愛い", reading: "かわいい") == .known, "a note for the kana spelling")
+        #expect(marks.state(expression: "おもしろい", reading: "おもしろい") == .learning, "a note read in this kana")
+        #expect(marks.state(expression: "白い", reading: "しろい") == .notInAnki)
+        #expect(marks.state(expression: "カワイイ", reading: "かわいい") == .known, "katakana written, read かわいい")
+    }
+
     @Test func sentCardBecomesAnAnkiWordAndSurvivesCancelCleanup() throws {
         try store.markQueued(expression: "必死", reading: "ひっし", jobId: 1)
         try store.markInAnki(expression: "必死", reading: "ひっし")

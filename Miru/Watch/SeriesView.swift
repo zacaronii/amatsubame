@@ -14,6 +14,11 @@ struct JellyfinLibraryView: View {
     @State private var shelf = Shelf.all
     /// (checked, to check) while a Japanese Audio Only library's series are checked.
     @State private var audioCheck: (Int, Int)?
+    #if os(macOS)
+    // The Mac's toolbar filter and sort; Downloaded is in the sidebar instead.
+    @AppStorage("library.filter") private var filter = LibraryFilter.all
+    @AppStorage("library.sort") private var sort = LibrarySort.title
+    #endif
 
     /// All · Unwatched · Downloaded (something of it is on this device).
     enum Shelf: String, CaseIterable {
@@ -29,6 +34,10 @@ struct JellyfinLibraryView: View {
             let downloaded = Set(environment.downloader.records.values.filter { $0.state == .done }.compactMap(\.seriesKey))
             items = items.filter { downloaded.contains($0.id) }
         }
+        #if os(macOS)
+        items = items.filtered(filter, sortedBy: sort, progress: \.progress, title: \.name,
+                               added: \.dateCreated, opened: { $0.userData?.lastPlayedDate })
+        #endif
         return search.isEmpty ? items : items.filter { $0.name.localizedCaseInsensitiveContains(search) }
     }
 
@@ -40,12 +49,14 @@ struct JellyfinLibraryView: View {
                     .foregroundStyle(.secondary)
                     .padding(.horizontal)
             }
+            #if os(iOS)
             Picker("Show", selection: $shelf) {
                 ForEach(Shelf.allCases, id: \.self) { Text($0.rawValue).tag($0) }
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)
             .accessibilityIdentifier("library.filter")
+            #endif
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 110, maximum: 180), spacing: 16, alignment: .top)], spacing: 20) {
                 ForEach(filtered) { item in
                     NavigationLink(value: item) {
@@ -74,8 +85,16 @@ struct JellyfinLibraryView: View {
                 ContentUnavailableView("No Japanese Audio", systemImage: "waveform",
                                        description: Text("Nothing in this library has a Japanese audio track."))
             } else if filtered.isEmpty && search.isEmpty && !items.isEmpty {
+                #if os(macOS)
+                switch filter {
+                case .started: ContentUnavailableView("Nothing Being Watched", systemImage: "play.circle")
+                case .finished: ContentUnavailableView("Nothing Watched", systemImage: "checkmark.circle")
+                default: ContentUnavailableView("All Watched", systemImage: "checkmark.circle")
+                }
+                #else
                 ContentUnavailableView(shelf == .downloaded ? "Nothing Downloaded" : "All Watched",
                                        systemImage: shelf == .downloaded ? "arrow.down.circle" : "checkmark.circle")
+                #endif
             }
         }
         #if os(iOS)
@@ -86,6 +105,9 @@ struct JellyfinLibraryView: View {
         #endif
         .navigationTitle(library.name)
         .navigationSubtitle(japaneseOnly ? "Japanese audio only" : "")
+        #if os(macOS)
+        .libraryToolbar(filter: $filter, sort: $sort, words: .watching)
+        #endif
         .refreshable {
             CoverLoader.recheck()
             await load()
@@ -114,6 +136,16 @@ struct JellyfinLibraryView: View {
             guard !error.isCancellation else { return }
             self.error = error.localizedDescription
         }
+    }
+}
+
+extension JellyfinItem {
+    /// A series is started once an episode is watched (Jellyfin's played percentage counts
+    /// episodes); a movie once it has a resume point.
+    var progress: LibraryProgress {
+        guard let userData else { return .notStarted }
+        if userData.played == true { return .finished }
+        return (userData.playedPercentage ?? 0) > 0 || (userData.playbackPositionTicks ?? 0) > 0 ? .started : .notStarted
     }
 }
 
@@ -217,6 +249,8 @@ struct SeriesView: View {
         .navigationTitle(series.name)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #else
+        .pinnable(id: series.id, kind: series.type, title: series.name)
         #endif
         .toolbar {
             if !episodes.isEmpty {
@@ -242,7 +276,11 @@ struct SeriesView: View {
                 Task { await environment.downloader.download(items) }
             }
         } message: {
+            #if os(macOS)
+            Text("Each is the original file, often 1–2 GB.")
+            #else
             Text("Each is the original file, often 1–2 GB. They wait for Wi-Fi unless cellular downloads are on in Settings.")
+            #endif
         }
         .refreshable { await loadEpisodes() }
         .task { await loadSeasons() }

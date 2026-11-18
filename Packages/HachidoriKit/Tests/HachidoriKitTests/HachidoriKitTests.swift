@@ -116,7 +116,7 @@ import Testing
                      "pitches": [["dictionary": "Kanjium", "pitches": [["position": 1, "nasal": [], "devoice": [2]]]]]],
         ]]]
         let result = try #require(try HostLookupPage(response: response).results.first)
-        #expect(result.score == 2)
+        #expect(result.score == 1.6, "kept as the host sent it")
         #expect(result.pitches == [PitchGroup(dictionary: "Kanjium", accents: [PitchAccent(downstep: 1, devoice: [2])])])
     }
 }
@@ -250,6 +250,50 @@ import Testing
         await link.stop()
     }
 
+    /// The network went away silently: a request that times out finds the socket dead and drops it.
+    @Test func aDeadSocketIsDroppedAfterATimeout() async throws {
+        let host = FakeHost(hello: try fixture("hello"))
+        let link = link(host)
+        await link.start()
+        await waitUntil { if case .linked = await link.status { true } else { false } }
+        host.socket?.state.withLock { $0.answersPings = false }
+        await #expect(throws: HachidoriError.timedOut) { try await link.request("hoshidicts-offscreen", "hd_status") }
+        await waitUntil { host.connections == 2 }
+        #expect(host.connections == 2)
+        await link.stop()
+    }
+
+    /// A timeout on a live socket (a slow host) keeps the link.
+    @Test func aLiveSocketIsKeptAfterATimeout() async throws {
+        let host = FakeHost(hello: try fixture("hello"))
+        let link = link(host)
+        await link.start()
+        await #expect(throws: HachidoriError.timedOut) { try await link.request("hoshidicts-offscreen", "hd_status") }
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(host.connections == 1)
+        await link.stop()
+    }
+
+    /// Airplane mode: the link drops at once, and links again when the network is back.
+    @Test func followsTheNetwork() async throws {
+        let host = FakeHost(hello: try fixture("hello"))
+        var timing = Self.fast
+        timing.backoffBase = .seconds(60)
+        timing.backoffMax = .seconds(60)
+        let link = HachidoriLink(url: URL(string: "ws://host.example:8771/link")!, clientName: "Yomu", clientVersion: "0.3.0",
+                                 transport: host, timing: timing)
+        await link.start()
+        await waitUntil { if case .linked = await link.status { true } else { false } }
+        await link.networkChanged(available: false)
+        await waitUntil { if case .waiting = await link.status { true } else { false } }
+        guard case .waiting = await link.status else { Issue.record("still linked"); return }
+        await link.networkChanged(available: true)
+        await waitUntil { if case .linked = await link.status { true } else { false } }
+        guard case .linked = await link.status else { Issue.record("not linked again"); return }
+        #expect(host.connections == 2)
+        await link.stop()
+    }
+
     @Test func withoutAHostRequestsFailAndTheLinkKeepsTrying() async throws {
         let host = FakeHost(hello: nil)
         host.refuse(true)
@@ -270,6 +314,39 @@ import Testing
         await link.stop()
         #expect(await link.status == .stopped)
     }
+
+    /// After a long backoff, `reconnectNow` tries at once (the app came to the front).
+    @Test func reconnectsNowInsteadOfWaiting() async throws {
+        let host = FakeHost(hello: nil)
+        host.refuse(true)
+        var timing = Self.fast
+        timing.backoffBase = .seconds(60)
+        timing.backoffMax = .seconds(60)
+        let link = HachidoriLink(url: URL(string: "ws://host.example:8771/link")!, clientName: "Yomu", clientVersion: "0.3.0",
+                                 transport: host, timing: timing)
+        await link.start()
+        await waitUntil { if case .waiting = await link.status { true } else { false } }
+        host.state.withLock { $0.hello = try? fixture("hello") }
+        host.refuse(false)
+        await link.reconnectNow()
+        await waitUntil { if case .linked = await link.status { true } else { false } }
+        guard case .linked = await link.status else { Issue.record("still waiting"); return }
+        await link.stop()
+    }
+
+    @Test func probesAnAddressOnce() async throws {
+        let url = URL(string: "ws://host.example:8771/link")!
+        let host = FakeHost(hello: try fixture("hello"))
+        let hello = try await HachidoriLink.probe(url: url, clientName: "Yomu", clientVersion: "0.3.0", transport: host)
+        #expect(hello.name == "Hachidori Docker host")
+        #expect(host.connections == 1)
+
+        let away = FakeHost(hello: nil)
+        away.refuse(true)
+        await #expect(throws: HachidoriError.notLinked) {
+            try await HachidoriLink.probe(url: url, clientName: "Yomu", clientVersion: "0.3.0", transport: away, timeout: .milliseconds(200))
+        }
+    }
 }
 
 /// Against a real host, read only (no counts, no writes): `HACHIDORI_LINK_URL=ws://<host>:8771/link swift test`.
@@ -285,5 +362,41 @@ struct LiveLinkTests {
         #expect(!(try await link.styles().isEmpty))
         _ = try await link.lookupCount(term: "食べる", reading: "たべる")
         await link.stop()
+
+        let hello = try await HachidoriLink.probe(url: url, clientName: "Amatsubame tests", clientVersion: "0.3.0")
+        #expect(hello.dictionaryCount > 0)
+    }
+
+    /// The relay answers WebSocket pings (how a silently dead link is found).
+    @Test func aRealHostAnswersPings() async throws {
+        let url = try #require(ProcessInfo.processInfo.environment["HACHIDORI_LINK_URL"].flatMap(HachidoriLink.linkURL))
+        let socket = try await URLSessionSharingTransport().connect(to: url, origin: HachidoriLink.origin)
+        #expect(await socket.ping(timeout: .seconds(3)))
+        socket.close()
+    }
+
+    /// Copies the host's smallest dictionary (read-only): list, download, unpack, look up.
+    @Test func copiesADictionaryFromARealHost() async throws {
+        let url = try #require(ProcessInfo.processInfo.environment["HACHIDORI_LINK_URL"].flatMap(HachidoriLink.linkURL))
+        let link = HachidoriLink(url: url, clientName: "Amatsubame tests", clientVersion: "0.3.0")
+        await link.start()
+        _ = try await link.lookup("食べる")
+        let state = await link.records.dictionaries
+        await link.stop()
+        let exports = HostDictionaryExports(baseURL: try #require(HostDictionaryExports.apiURL(forLink: url)))
+        let list = try await exports.list()
+        #expect(Set(list.map(\.id)) == Set(state.map(\.id)), "every dictionary in dictionaryState can be exported")
+        let grammar = try #require(list.first { $0.title.hasPrefix("Bee's Ultimate Grammar") }, "needs Bee's Grammar on the host")
+        let work = temporaryFolder()
+        try await exports.download(grammar.id, to: work.appending(path: "export.zip"))
+        try HostDictionaryExports.unpack(work.appending(path: "export.zip"), into: work.appending(path: "dictionary"))
+        #expect(DictionaryFormat(folder: work.appending(path: "dictionary")) != .missing)
+        let engine = DictionaryEngine()
+        let rejected = await engine.configure([EngineDictionary(title: grammar.title, folder: work.appending(path: "dictionary"),
+                                                                hasTerms: true, hasFrequencies: false, hasPitches: false, hasKanji: false)],
+                                              frequencySortTitle: nil)
+        #expect(rejected.isEmpty)
+        #expect(await engine.lookup("ために").first?.glossaries.first?.dictionary == grammar.title)
+        try? FileManager.default.removeItem(at: work)
     }
 }

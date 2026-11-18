@@ -12,6 +12,11 @@ struct SeriesGridView: View {
     @State private var search = ""
     @State private var shelf = Shelf.all
     @State private var cacheBytes = 0
+    #if os(macOS)
+    // The Mac's toolbar filter and sort; Downloaded is in the sidebar instead.
+    @AppStorage("library.filter") private var filter = LibraryFilter.all
+    @AppStorage("library.sort") private var sort = LibrarySort.title
+    #endif
 
     /// All · Reading (started, not finished) · Downloaded.
     enum Shelf: String, CaseIterable {
@@ -22,7 +27,11 @@ struct SeriesGridView: View {
         // Offline, only series with something downloaded can be read.
         let downloaded = environment.downloadedSeriesIds
         var series = environment.isLibraryOffline || shelf == .downloaded ? series.filter { downloaded.contains($0.id) } : series
-        if shelf == .reading { series = series.filter { $0.pagesRead > 0 && $0.pagesRead < $0.pages } }
+        if shelf == .reading { series = series.filter { $0.progress == .started } }
+        #if os(macOS)
+        series = series.filtered(filter, sortedBy: sort, progress: \.progress, title: { $0.sortName ?? $0.name },
+                                 added: \.created, opened: \.latestReadDate)
+        #endif
         guard !search.isEmpty else { return series }
         return series.filter { $0.displayName.localizedCaseInsensitiveContains(search) || $0.name.localizedCaseInsensitiveContains(search) }
     }
@@ -35,12 +44,9 @@ struct SeriesGridView: View {
                     .foregroundStyle(.secondary)
                     .padding(.horizontal)
             }
-            Picker("Show", selection: $shelf) {
-                ForEach(Shelf.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal)
-            .accessibilityIdentifier("shelf.filter")
+            #if os(iOS)
+            shelfPicker.padding(.horizontal)
+            #endif
             if shelf == .downloaded {
                 OnDeviceCard(downloads: downloadedBytes, cache: Int64(cacheBytes))
                     .padding(.horizontal)
@@ -60,19 +66,24 @@ struct SeriesGridView: View {
             if series.isEmpty && isRefreshing {
                 ProgressView()
             } else if filtered.isEmpty && search.isEmpty && !isRefreshing {
-                if shelf == .reading {
-                    ContentUnavailableView("Nothing Being Read", systemImage: "book",
-                                           description: Text("Series you've started and haven't finished show here."))
-                } else if environment.isLibraryOffline || shelf == .downloaded {
-                    ContentUnavailableView("Nothing Downloaded", systemImage: "wifi.slash",
-                                           description: Text("Series with downloaded volumes show here while you're offline."))
+                #if os(macOS)
+                if filter == .notStarted, !environment.isLibraryOffline {
+                    ContentUnavailableView("Nothing Unread", systemImage: "book.closed")
+                } else if filter == .finished, !environment.isLibraryOffline {
+                    ContentUnavailableView("Nothing Finished", systemImage: "checkmark.circle")
                 } else {
-                    ContentUnavailableView("No Series", systemImage: "books.vertical")
+                    emptyShelf(reading: filter == .started)
                 }
+                #else
+                emptyShelf(reading: shelf == .reading)
+                #endif
             }
         }
         .searchable(text: $search, prompt: "Filter")
         .navigationTitle(library.name)
+        #if os(macOS)
+        .libraryToolbar(filter: $filter, sort: $sort, words: .reading)
+        #endif
         .refreshable {
             CoverLoader.recheck()
             await load()
@@ -83,6 +94,29 @@ struct SeriesGridView: View {
             cacheBytes = await environment.books.unpinnedBytes() + ((try? environment.pageCache.unpinnedBytes()) ?? 0)
         }
     }
+
+    @ViewBuilder
+    private func emptyShelf(reading: Bool) -> some View {
+        if reading {
+            ContentUnavailableView("Nothing Being Read", systemImage: "book",
+                                   description: Text("Series you've started and haven't finished show here."))
+        } else if environment.isLibraryOffline || shelf == .downloaded {
+            ContentUnavailableView("Nothing Downloaded", systemImage: "wifi.slash",
+                                   description: Text("Series with downloaded volumes show here while you're offline."))
+        } else {
+            ContentUnavailableView("No Series", systemImage: "books.vertical")
+        }
+    }
+
+    #if os(iOS)
+    private var shelfPicker: some View {
+        Picker("Show", selection: $shelf) {
+            ForEach(Shelf.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+        }
+        .pickerStyle(.segmented)
+        .accessibilityIdentifier("shelf.filter")
+    }
+    #endif
 
     /// Everything downloaded on this device (all libraries), as Settings ▸ Storage counts it.
     private var downloadedBytes: Int64 {
@@ -105,6 +139,12 @@ struct SeriesGridView: View {
             self.error = environment.isLibraryOffline ? "Offline: showing downloaded series."
                 : series.isEmpty ? error.localizedDescription : "Offline: showing saved list."
         }
+    }
+}
+
+extension KavitaSeries {
+    var progress: LibraryProgress {
+        pagesRead == 0 ? .notStarted : pages > 0 && pagesRead >= pages ? .finished : .started
     }
 }
 

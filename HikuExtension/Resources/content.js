@@ -49,15 +49,17 @@
     down = null;
     if (!enabled || !start || !event.isPrimary) return;
     if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > 10 || event.timeStamp - start.time > 500) return;
-    // With a popup open, a tap on the page only closes it: on a page full of text
-    // nearly every tap lands on a word. The next tap looks up. Links and buttons too: the tap
-    // closes the popup instead of following them.
-    if (popupOpen()) {
-      request++;
-      swallowsClick = true;
-      return hide();
+    if (event.target.closest?.(controls)) {
+      // With a popup open, a link or button only closes it, instead of being followed.
+      if (popupOpen()) {
+        request++;
+        swallowsClick = true;
+        hide();
+      }
+      return;
     }
-    if (event.target.closest?.(controls)) return;
+    // Another word replaces an open popup with its own (as in the apps); a tap that finds
+    // nothing closes it (a miss, or no result).
     window.lookupBridge?.tapAt(event.clientX, event.clientY);
   }, true);
   document.addEventListener('pointercancel', () => { down = null; }, true);
@@ -131,12 +133,23 @@
     if (duration) setTimeout(() => toast.textContent === text && say(null), duration);
   }
 
+  /// What's behind the popup, blurred like the apps' lightest material (always full strength;
+  /// Background Opacity is the tint the popup's page draws over it).
+  function backdrop() {
+    const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    return `blur(18px) saturate(1.5) brightness(${dark ? 0.72 : 1.08})`;
+  }
+
+  /// The popup at `rect`'s word.
   function show(id, rect, stats) {
     if (!host) {
       host = document.createElement('div');
       const shadow = host.attachShadow({mode: 'closed'});
       frame = document.createElement('iframe');
-      frame.setAttribute('style', 'border:0;width:100%;height:100%;border-radius:12px;background:Canvas;color-scheme:light dark;');
+      // No background of its own: the popup's page draws it at Settings ▸ Popup ▸ Background
+      // Opacity, so the page behind shows through. The frame's color-scheme matches the
+      // popup's (light dark), or Safari would paint the frame opaque.
+      frame.setAttribute('style', 'border:0;width:100%;height:100%;border-radius:12px;background:transparent;color-scheme:light dark;');
       shadow.append(frame);
       document.documentElement.append(host);
     }
@@ -148,6 +161,7 @@
     host.setAttribute('style', important([
       'position:absolute', `left:${left}px`, `top:${top}px`, `width:${width}px`, `height:${height}px`,
       'z-index:2147483647', 'display:block', 'box-shadow:0 6px 24px rgba(0,0,0,.35)', 'border-radius:12px',
+      `-webkit-backdrop-filter:${backdrop()}`, `backdrop-filter:${backdrop()}`,
     ]));
     const query = stats ? '?' + new URLSearchParams(Object.entries(stats)).toString() : '';
     frame.src = browser.runtime.getURL('popup-frame.html') + query + '#' + id;

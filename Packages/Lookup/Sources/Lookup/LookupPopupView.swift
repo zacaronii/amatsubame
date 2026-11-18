@@ -1,9 +1,10 @@
+import Core
 import Dictionary
 import SwiftUI
 
 /// The shared lookup popup: a stack of result pages so tapping a word inside a
-/// definition opens it, with Back to return. Readers present this as a sheet or
-/// overlay; the Search screen embeds it.
+/// definition opens it, with Back to return. Apps show it with `lookupOverlay` (a card by
+/// the word, or a bottom panel); the Search screen embeds it.
 @MainActor @Observable
 public final class LookupPopupModel: Identifiable {
     public private(set) var pages: [LookupResultPage] = []
@@ -11,6 +12,9 @@ public final class LookupPopupModel: Identifiable {
     public var canGoBack: Bool { pages.count > 1 }
     /// Picture and source for cards mined from this popup (set by readers).
     public var context: (any MiningContext)?
+    /// The looked-up word on screen, in window coordinates: the popup goes beside it
+    /// (`lookupOverlay`). Nil puts it along the bottom.
+    public var anchor: CGRect?
     /// Results mined while the popup is open, per page.
     var minedIndices: [LookupResultPage.ID: Set<Int>] = [:]
     /// Lookup counts recorded after a page was shown (a search left on screen), per page.
@@ -40,6 +44,11 @@ public final class LookupPopupModel: Identifiable {
         let html = service.document(for: page, nativeBackground: true)
         documents[page.id] = html
         return html
+    }
+
+    /// Every page's HTML but this one's is built again (a word's mark changed).
+    func forgetDocuments(except page: LookupResultPage.ID) {
+        documents = documents.filter { $0.key == page }
     }
 
     func forgetDocument(_ page: LookupResultPage.ID) {
@@ -103,6 +112,7 @@ public struct LookupPopupView: View {
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 8)
+                .lookupPopupTextHalo(service)
                 Divider()
             }
             if let page = model.current {
@@ -189,13 +199,20 @@ public struct LookupPopupView: View {
             service.audio.play(term: result.expression, reading: result.reading)
         case .mine(let index):
             mine(index, on: page, allowDuplicate: false)
+        case .wordStatus(let index, let status):
+            guard page.results.indices.contains(index) else { return }
+            // The page already shows the change; the other pages are built again with it.
+            service.toggleWordStatus(status, for: page.results[index].expression)
+            model.forgetDocuments(except: page.id)
         }
     }
 }
 
-/// The popup's background at the chosen opacity (Settings ▸ Popup, Hachidori's Background
-/// opacity): behind the bar, the page (drawn transparent) and the bottom edge alike, with a
-/// sheet's or popover's own background cleared so what's behind shows through.
+/// The popup's background: what's behind, blurred by the lightest material at full strength,
+/// under the popup colour at the chosen opacity (Settings ▸ Popup, Hachidori's Background
+/// opacity: a tint only). Behind the bar, the page (drawn transparent) and the bottom edge
+/// alike, with a sheet's or popover's own background cleared so what's behind shows through.
+/// (Fading the material instead cross-fades a sharp and a blurred copy of what's behind.)
 struct PopupBackground: ViewModifier {
     let service: LookupService
     var enabled = true
@@ -205,6 +222,7 @@ struct PopupBackground: ViewModifier {
         if enabled {
             content
                 .background(color.ignoresSafeArea())
+                .background(.ultraThinMaterial)
                 .presentationBackground(.clear)
         } else {
             content
@@ -218,11 +236,33 @@ struct PopupBackground: ViewModifier {
     }
 }
 
+/// A soft halo around text that sits on a see-through popup (popup.css `text-shadow`, the same
+/// three layers): black in dark mode, white in light, strongest at 0 % opacity and gone by 70 %.
+struct PopupTextHalo: ViewModifier {
+    let service: LookupService
+    @Environment(\.colorScheme) private var colorScheme
+
+    func body(content: Content) -> some View {
+        let strength = LookupService.haloStrength(opacityPercent: service.popupSettings.backgroundOpacityPercent)
+        let halo: Color = colorScheme == .dark ? .black : .white
+        // A CSS blur radius is about twice SwiftUI's shadow radius.
+        content
+            .shadow(color: halo.opacity(0.95 * strength), radius: 0.5)
+            .shadow(color: halo.opacity(0.75 * strength), radius: 1.5)
+            .shadow(color: halo.opacity(0.60 * strength), radius: 3, y: 1)
+    }
+}
+
 public extension View {
     /// For a wrapper around `LookupPopupView(…, drawsBackground: false)`: the popup's background
     /// behind the whole wrapper.
     func lookupPopupBackground(_ service: LookupService) -> some View {
         modifier(PopupBackground(service: service))
+    }
+
+    /// The popup's text halo, for native text on the popup's background (headers, bars).
+    func lookupPopupTextHalo(_ service: LookupService) -> some View {
+        modifier(PopupTextHalo(service: service))
     }
 }
 

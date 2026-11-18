@@ -94,7 +94,7 @@ extension TermLookupResult {
             expression: term.expression,
             reading: term.reading,
             rules: words(term.rules),
-            score: Int((term.score ?? 0).rounded()),
+            score: term.score ?? 0,
             // Like our engine, the host lists the trace from the surface form inward; Yomitan shows base outward.
             inflections: (result.trace ?? []).map { Inflection(name: $0.name, description: $0.description ?? "") }.reversed(),
             preprocessorSteps: result.preprocessorSteps ?? 0,

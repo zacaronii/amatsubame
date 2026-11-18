@@ -148,9 +148,13 @@ public final class MiningService {
         return true
     }
 
+    /// A known card, as Hachidori's Anki index has it: in review (not being relearned after a
+    /// lapse) with an interval of 21 days or more.
+    static let knownSearch = "is:review -is:learn prop:ivl>=21"
+
     /// Reloads the words in the mining deck (for the popup's check and word marks): every
-    /// note in the deck from Settings ▸ Cards, and which have a card with an interval of 21
-    /// days or more (known). The rest are learning, including new cards not studied yet.
+    /// note in the deck from Settings ▸ Cards, and which have a known card (`knownSearch`).
+    /// The rest are learning, including new cards and cards being relearned.
     public func refreshMinedWords(using client: AnkiConnectClient) async throws {
         let settings = try settingsStore.settings()
         let wordField = settings.fields.first { $0.value == .slot(.expression) }?.key
@@ -158,7 +162,7 @@ public final class MiningService {
         guard let wordField else { return }
         let deck = "deck:\"\(Self.searchEscaped(settings.deck))\""
         let ids = try await client.findNotes(deck)
-        let known = Set(try await client.findNotes("\(deck) prop:ivl>=21"))
+        let known = Set(try await client.findNotes("\(deck) \(Self.knownSearch)"))
         var words: [(expression: String, reading: String, known: Bool)] = []
         for start in stride(from: 0, to: ids.count, by: 500) {
             let notes = try await client.notesInfo(Array(ids[start..<min(start + 500, ids.count)]))
@@ -173,7 +177,7 @@ public final class MiningService {
         for other in settings.markDecks where other != settings.deck {
             let search = "deck:\"\(Self.searchEscaped(other))\""
             let studied = try await client.findNotes("\(search) -is:new")
-            let known = Set(try await client.findNotes("\(search) prop:ivl>=21"))
+            let known = Set(try await client.findNotes("\(search) \(Self.knownSearch)"))
             for start in stride(from: 0, to: studied.count, by: 500) {
                 for note in try await client.notesInfo(Array(studied[start..<min(start + 500, studied.count)])) {
                     guard let expression = note.firstFieldValue?.plainWord, !expression.isEmpty else { continue }
@@ -187,7 +191,12 @@ public final class MiningService {
 
     /// The mined words' states, for marking text.
     public func wordMarks() -> WordMarks {
-        (try? minedWords.marks()) ?? .empty
+        (try? minedWords.marks(markedByHand: markedByHand)) ?? .empty
+    }
+
+    /// Words marked known or ignored by hand (`LookupService.wordStatuses`): never marked.
+    public var markedByHand: Set<String> = [] {
+        didSet { if markedByHand != oldValue { revision += 1 } }
     }
 
     /// Whether words are marked: the setting is on and Anki is connected. Without Anki there are

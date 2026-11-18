@@ -13,12 +13,25 @@ enum PlayerTab: Hashable, CaseIterable {
         case .settings: "Settings"
         }
     }
+
+    var systemImage: String {
+        switch self {
+        case .watch: "play.rectangle"
+        case .lines: "text.quote"
+        case .stats: "chart.bar"
+        case .settings: "gearshape"
+        }
+    }
 }
 
 struct PlayerRootView: View {
     @Environment(PlayerEnvironment.self) private var environment
     /// Bumped when the selected tab is tapped again: its screen starts over from the top.
     @State private var resets: [PlayerTab: Int] = [:]
+    #if os(macOS)
+    @State private var destination = SidebarDestination<PlayerTab, String>.tab(.watch)
+    @Environment(\.openWindow) private var openWindow
+    #endif
 
     var body: some View {
         #if DEBUG
@@ -51,7 +64,7 @@ struct PlayerRootView: View {
         // A video covers the main window (sidebar included); the tabs stay underneath, so
         // closing returns to the same series page.
         ZStack {
-            tabs
+            sidebar
                 // The Watch tab's toolbar would act on the hidden tabs.
                 .toolbar(environment.playingSession == nil ? .automatic : .hidden, for: .windowToolbar)
             if let session = environment.playingSession {
@@ -77,24 +90,66 @@ struct PlayerRootView: View {
         }
     }
 
+    #if os(macOS)
+    /// The Mac's window: Watch, Lines and Stats, what's downloaded, and each library.
+    private var sidebar: some View {
+        let libraries = environment.libraries.filter { !environment.hiddenLibraries.contains($0.id) }
+        return MacSidebarSplit(
+            selection: $destination,
+            main: [PlayerTab.watch, .lines, .stats].map { SidebarRow(.tab($0), title: $0.title, systemImage: $0.systemImage) },
+            pinned: environment.common.pins.items,
+            pinIcon: { $0.kind == "Movie" ? "film" : "tv" },
+            unpin: { environment.common.pins.unpin($0.id) },
+            downloaded: SidebarRow(.downloaded, title: "Downloaded", systemImage: "arrow.down.circle",
+                                   count: environment.downloader.records.values.filter { $0.state == .done }.count),
+            libraries: libraries.map {
+                SidebarRow(.library($0.id), title: $0.name, systemImage: $0.collectionType == "movies" ? "film" : "tv")
+            }
+        ) { destination in
+            switch destination {
+            case .tab(.lines): LinesView()
+            case .tab(.stats): stats
+            case .tab: WatchView()
+            case .pinned(let id):
+                if let pin = environment.common.pins.items.first(where: { $0.id == id }) { PinnedStack(pin: pin) }
+            case .downloaded: NavigationStack { DownloadedEpisodesView() }
+            case .library(let id):
+                if let library = libraries.first(where: { $0.id == id }) { LibraryStack(library: library) }
+            }
+        }
+        // Menu shortcuts and links switch tabs; Settings is its own window.
+        .opensSettingsForUITests()
+        .onChange(of: environment.tabRequests) {
+            let tab = environment.selectedTab
+            if tab == .settings { openWindow(id: MacSettingsWindow.sceneID) } else if destination != .tab(tab) { destination = .tab(tab) }
+        }
+        .onChange(of: destination) { _, destination in
+            if case .tab(let tab) = destination, environment.selectedTab != tab { environment.selectedTab = tab }
+        }
+    }
+    #endif
+
+    private var stats: some View {
+        StatsView(kind: .watching, environment: environment.common) { series in
+            JellyfinImage(itemId: series.key, aspectRatio: 2 / 3, placeholder: "tv")
+        }
+    }
+
     private var tabs: some View {
         TabView(selection: tabSelection) {
-            Tab(PlayerTab.watch.title, systemImage: "play.rectangle", value: .watch) {
+            Tab(PlayerTab.watch.title, systemImage: PlayerTab.watch.systemImage, value: .watch) {
                 WatchView()
                     .id(resets[.watch])
             }
-            Tab(PlayerTab.lines.title, systemImage: "text.quote", value: .lines) {
+            Tab(PlayerTab.lines.title, systemImage: PlayerTab.lines.systemImage, value: .lines) {
                 // Tapped again: back to the list (not rebuilt with `.id`: on the iPhone Duo that
                 // left the old back button in the side column).
                 LinesView(reset: resets[.lines, default: 0])
             }
-            Tab(PlayerTab.stats.title, systemImage: "chart.bar", value: .stats) {
-                StatsView(kind: .watching, environment: environment.common) { series in
-                    JellyfinImage(itemId: series.key, aspectRatio: 2 / 3, placeholder: "tv")
-                }
-                .id(resets[.stats])
+            Tab(PlayerTab.stats.title, systemImage: PlayerTab.stats.systemImage, value: .stats) {
+                stats.id(resets[.stats])
             }
-            Tab(PlayerTab.settings.title, systemImage: "gearshape", value: .settings) {
+            Tab(PlayerTab.settings.title, systemImage: PlayerTab.settings.systemImage, value: .settings) {
                 PlayerSettingsView()
                     .id(resets[.settings])
             }

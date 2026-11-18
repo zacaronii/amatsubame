@@ -142,7 +142,10 @@ struct PagedReaderView: View {
     private func handleTap(at x: CGFloat, width: CGFloat) {
         // Releasing a long press also ends a tap; it started a selection, not a page turn.
         guard !model.isSelecting else { return }
-        if x < width / 3 {
+        // With the popup open, a tap outside the text only closes it.
+        if model.popup != nil {
+            model.popup = nil
+        } else if x < width / 3 {
             turn(physicalLeft: true)
         } else if x > width * 2 / 3 {
             turn(physicalLeft: false)

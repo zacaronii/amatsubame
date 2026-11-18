@@ -197,17 +197,20 @@ public struct ListenSettings: Codable, Equatable, Sendable, FetchableRecord, Per
     public var hiddenLibraries: [String] = []
     /// The player shows the transcript (its speech-bubble button), for every episode.
     public var showsTranscript = true
+    /// Live Text on Apple Watch: the playing episode's transcript is sent to the watch.
+    public var watchLiveText = false
 
     public static let skipChoices: [Double] = [10, 15, 30, 45, 60]
     public static let speeds: [Double] = [0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2]
 
     public init(skipBackward: Double = 15, skipForward: Double = 30, speed: Double = 1, hiddenLibraries: [String] = [],
-                showsTranscript: Bool = true) {
+                showsTranscript: Bool = true, watchLiveText: Bool = false) {
         self.skipBackward = skipBackward
         self.skipForward = skipForward
         self.speed = speed
         self.hiddenLibraries = hiddenLibraries
         self.showsTranscript = showsTranscript
+        self.watchLiveText = watchLiveText
     }
 
     public static func load(_ database: AppDatabase) -> ListenSettings {

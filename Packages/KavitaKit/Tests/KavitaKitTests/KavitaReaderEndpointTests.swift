@@ -63,6 +63,7 @@ import Testing
         #expect(series.count == 5)
         #expect(series.filter(\.isEpub).map(\.id) == [67, 83])
         #expect(series.first?.latestReadDate != nil)
+        #expect(series.first?.created != nil)
         #expect(transport.requests[0].httpMethod == "POST")
     }
 

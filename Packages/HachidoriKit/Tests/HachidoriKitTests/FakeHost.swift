@@ -78,6 +78,8 @@ final class FakeSocket: SharingSocket {
         var waiter: CheckedContinuation<String, Error>?
         var closed = false
         var sent: [String] = []
+        /// False: the connection is gone without anyone noticing (airplane mode).
+        var answersPings = true
     }
 
     weak let host: FakeHost?
@@ -121,6 +123,10 @@ final class FakeSocket: SharingSocket {
                 state.inbox.append(text)
             }
         }
+    }
+
+    func ping(timeout: Duration) async -> Bool {
+        state.withLock { $0.answersPings && !$0.closed }
     }
 
     /// The connection drops.

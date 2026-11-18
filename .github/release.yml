@@ -5,6 +5,8 @@ changelog:
     labels:
       - chore
       - test
+      # Fixes to something not yet released (README ▸ Branches).
+      - follow-up
       - duplicate
       - invalid
       - wontfix

@@ -198,6 +198,7 @@ Each milestone runs in order and ends with something testable; milestone 0 decid
    - Built 2026-11-06, all of it before the milestone 3 verdict:
      - **Read in Yomu:** Kiku opens Yomu through a link carrying the time (docs/kiku.md, docs/yomu.md).
      - **AirPods marks:** a triple press marks, with a chime; a double press goes to the next line. CarPlay as an app needs Apple's approval, but its Now Playing and steering-wheel buttons send the same commands.
+     - **CarPlay** (built 2026-11-17, once Apple granted the CarPlay audio entitlement): Listen Now and Library tabs, and Now Playing with speed, Mark and a book's chapters (docs/kiku.md).
      - **Kaku 1.4** transcribes Jellyfin episodes on request with its own Jellyfin API key, and Miru's Subtitles sheet asks for them (docs/kaku.md, docs/miru.md). Jellyfin items share the queue as `jf:<id>`, rather than adding a source column.
      - **Shared client:** `KakuClient` stays in AudiobookshelfKit. It needs that package's paths, and Miru already linked it through AppCommon.
    - Also fixed: #57 (the screen dims during playback).

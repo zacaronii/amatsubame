@@ -88,6 +88,8 @@ struct BookView: View {
         .navigationTitle(book?.title ?? "")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #else
+        .pinnable(id: itemId, kind: "book", title: book?.title ?? "")
         #endif
         .task(id: itemId) {
             await environment.library.loadBook(itemId)

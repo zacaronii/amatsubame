@@ -3,6 +3,10 @@ import GRDB
 
 public enum OutboxJobKind: String, Codable, CaseIterable, Sendable, DatabaseValueConvertible {
     case ankiNote, kavitaProgress, jellyfinProgress, jellyfinSubtitle, audiobookshelfProgress
+    /// Lookups to count on a linked Hachidori host (`HostLookupCountJob`).
+    case hachidoriLookupCount
+    /// A word marked known or ignored (or cleared) to tell the Hachidori host (`WordStatusJob`).
+    case hachidoriWordStatus
 }
 
 public enum OutboxJobState: String, Codable, Sendable, DatabaseValueConvertible {
@@ -285,6 +289,18 @@ public struct OutboxStore: Sendable {
             job.updatedAt = now
             try job.update(db)
             return true
+        }
+    }
+
+    /// Records how far a job in flight got (a count sent one lookup at a time), so a retry
+    /// sends only the rest.
+    public func saveProgress(_ id: Int64, payload: Data) throws {
+        let now = now()
+        try database.writer.write { db in
+            guard var job = try OutboxJob.fetchOne(db, key: id) else { throw OutboxError.jobNotFound }
+            job.payload = payload
+            job.updatedAt = now
+            try job.update(db)
         }
     }
 

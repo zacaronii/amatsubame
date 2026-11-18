@@ -1,3 +1,4 @@
+import Core
 import Dictionary
 import SwiftUI
 import WebKit
@@ -11,6 +12,8 @@ public enum LookupWebEvent: Equatable, Sendable {
     case audio(index: Int)
     /// The Add to Anki button of a result.
     case mine(index: Int)
+    /// A result's Known or Ignore button.
+    case wordStatus(index: Int, status: WordStatus)
 }
 
 /// Where the popup's dictionary images come from: the local engine, and while linked the host.
@@ -152,6 +155,8 @@ struct LookupWebView {
                 if let index = body["index"] as? Int { onEvent(.audio(index: index)) }
             case "mine":
                 if let index = body["index"] as? Int { onEvent(.mine(index: index)) }
+            case "known", "ignored":
+                if let index = body["index"] as? Int, let status = WordStatus(rawValue: kind) { onEvent(.wordStatus(index: index, status: status)) }
             default:
                 break
             }

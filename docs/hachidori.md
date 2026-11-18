@@ -1,6 +1,6 @@
 # Hachidori: research for linking the apps
 
-Research for making Yomu, Miru, Kiku and Hiku work with a [Hachidori](https://github.com/bee-san/hachidori) host (GPL-3.0). The work is tracked in issues #29–#40: `Packages/HachidoriKit` implements sections 1–4, and the Mac apps use it for lookups (Settings ▸ Lookup and Mining ▸ Hachidori). Sources were read at these versions:
+Research for making Yomu, Miru, Kiku and Hiku work with a [Hachidori](https://github.com/bee-san/hachidori) host (GPL-3.0). The work is tracked in issues #29–#40: `Packages/HachidoriKit` implements sections 1–4; the Mac apps use it for lookups, and every app for counts, the popup's settings and dictionaries (Settings ▸ Lookup and Mining ▸ Hachidori). Sources were read at these versions:
 
 | Name here | Project | Version |
 | --- | --- | --- |
@@ -8,7 +8,7 @@ Research for making Yomu, Miru, Kiku and Hiku work with a [Hachidori](https://gi
 | Hachidori 0.3.2 | the same, as pinned by hachidori-docker | 5f986e47 (0.3.2 + 5) |
 | relay | bee-san/hachidori-anki | v0.0.5 (deployed), v0.0.6 |
 | hachidori-docker | ksyasuda/hachidori-docker | b89564d |
-| hoshidicts (ours) | Manhhao/hoshidicts, vendored | e6af33e1 |
+| hoshidicts (ours) | Manhhao/hoshidicts, vendored until 2026-11-15; now bee-san's fork (Vendor/hoshidicts/VENDORED.md) | e6af33e1 |
 | hoshidicts (Hachidori's) | bee-san/hoshidicts fork | 20019e4b (0.3.2), 088ac5de (latest) |
 
 The test host is hachidori-docker on a home server, reached over the LAN or Tailscale only (it has no authentication or TLS). Its address is a contributor-specific detail and isn't recorded here.
@@ -146,7 +146,7 @@ The count chip ("Looked up N time(s)") appears only on the **first** result, aft
 | Note type and fields | Our Lapis preset, field names from `modelFieldNames` | The host's Templates (`{expression}`, `{glossary}`… markers), rendered by the host |
 | Media | Anything via `storeMediaFile`: picture, sentence audio, word audio | A JPEG screenshot (≤ 6 MiB) and text-to-speech WAV only; word audio from the host's URL sources. **No sentence audio** |
 | Duplicates | `addNote` with `duplicateScope: "deck"` | The Template's scope (note type on the test host); the host's index covers the first Template only |
-| Word marks | Our `findNotes` queries (`prop:ivl>=21`, `-is:new`) | `hd_anki_word_status` (known/learning/unknown) plus `wordStatusOverrides`, per request online |
+| Word marks | Our `findNotes` queries (`is:review -is:learn prop:ivl>=21` like Hachidori's, `-is:new`) | `hd_anki_word_status` (known/learning/unknown) plus `wordStatusOverrides`, per request online |
 | Offline | Outbox: the card is rendered at mine time and sent later | Impossible: a submission needs the host's live lookup result, engine `generation` and a per-process `configKey`, all invalid after a restart or dictionary change |
 | Auth | AnkiConnect API key | The relay has none |
 
@@ -154,8 +154,10 @@ The host's headless AnkiConnect already accepts exactly what our apps send (medi
 
 ## 7. Dictionary exports
 
-- `GET /dictionaries` lists `{id, title, revision, size, fileName}`; `GET /dictionaries/<id>` streams a one-dictionary **Hachidori backup archive**: a stored (uncompressed) ZIP64 with `hachidori-backup.json` and the dictionary's **compiled hoshidicts folder**, not a Yomitan zip.
-- **Our engine can't load those folders.** Hachidori uses bee-san's hoshidicts fork, which writes format markers `.hoshidicts_5`/`_6` (term scores stored as doubles, an extra `scan.idx`). Our vendored engine reads `_1`–`_4` and silently skips anything else. Upstream hoshidicts has since written its own, different `_5` (a perfect-hash table), so the two `_5`s must never be mixed. Bee's fork does read our `_3`/`_4`.
+- `GET /dictionaries` lists `{id, title, revision, size, fileName}`; `GET /dictionaries/<id>` streams a one-dictionary **Hachidori backup archive**: a stored (uncompressed) ZIP64 with `hachidori-backup.json` and the dictionary's **compiled hoshidicts folder** (`dictionaries/0/`), not a Yomitan zip. Both are on the **Yomitan API port (19633)**, not the relay's 8771; hachidori-docker serves them there itself (its list reply is the engine's, `{type, ok, dictionaries}`), and an unknown id is a 404.
+- `hachidori-backup.json` carries the host's whole `options`, **AnkiConnect URL and key included**. `HostDictionaryExports.unpack` extracts only the dictionary folder and never reads it; the folder's own `index.json` has the title, revision and links, and the kinds come from `dictionaryState` (`index.json` counts frequencies and pitches together as `termMeta`).
+- Sending one the other way is `linked-import-v1` (Hachidori's `extension/linked-import.js`): target `hachidori-linked-import`, `hd_import_begin {fileName, size, replace}` → `{token, chunkBytes}` (1 MiB), `hd_import_chunk {token, offset, data: base64}` strictly in order, `hd_import_commit {token}` (the host's import reply) or `hd_import_abort`. Yomitan zips only (MDX is refused), at most 512 MiB in hachidori-docker, whose commit waits for an import or update already running. `HachidoriLink.sendDictionary` implements it (#36).
+- **Our engine now loads those folders.** Hachidori uses bee-san's hoshidicts fork, which writes format markers `.hoshidicts_5`/`_6` (term scores stored as doubles, an extra `scan.idx`). Upstream hoshidicts has since written its own, different `_5` (a perfect-hash table), so the two `_5`s must never be mixed. Since 2026-11-15 the apps vendor bee's fork at the commit the latest Hachidori release pins (a newer engine reads every older format, including the `_3`/`_4` folders our earlier engine wrote); `DictionaryFormat` flags a folder from a newer engine instead of skipping it silently.
 - Size: the archives are about the compiled size: Jitendex 99 MB, JMnedict 76 MB, Jiten frequency 72 MB, Bee's Kanji 61 MB, Bee's Grammar 35 MB (about 336 MB for Hachidori's five defaults). The Yomitan zips are 2–5 times smaller, and importing one takes well under a second on a Mac.
 - Two ways to give an iPhone the host's dictionaries:
   1. **Re-import the same Yomitan zips** from each dictionary's `downloadUrl` in `dictionaryState`, at the revision the host has. Our engine is unchanged and downloads are small; the host's personal dictionary is rebuilt locally from `customDictionarySource.text`.
@@ -164,8 +166,11 @@ The host's headless AnkiConnect already accepts exactly what our apps send (medi
 
 ## 8. What doesn't fit on iOS, and what we'd do instead
 
-- **No background socket.** iOS suspends apps in the background, so `/link` is open only while an app is in front. The apps connect on launch and when they come forward, and sync then; there's no live link in the background.
-- **Offline.** A linked browser just fails offline. An iPhone app is offline often, so it looks up locally with its copy of the host's dictionaries and queues its changes (section 4 for counts). That's our own behaviour, not the spec's.
+- **No background socket.** iOS suspends apps in the background, so `/link` is open only while an app is in front. The apps connect on launch and when they come forward (`HachidoriLink.reconnectNow` cuts the backoff short), and sync then; there's no live link in the background.
+- **Offline.** A linked browser just fails offline. An iPhone app is offline often, so it looks up locally with its copy of the host's dictionaries and queues its changes. That's our own behaviour, not the spec's:
+  - **Counts** (every platform, the Mac included): each counted lookup also goes into the app's outbox (`hachidoriLookupCount`, one job per headword holding a count). The handler sends `hd_lookup_stats_record` once per lookup and takes each one off the job as it goes; an `outcomeUnknown` isn't resent, as in Hachidori. While linked, the popup shows `hd_lookup_stats_read` plus what's still queued, and the local row takes that number, so the count shown offline continues from the host's.
+  - **Known and ignored words** (#86): `WordStatusStore` keeps the list in the setup's database, so every app has it with or without a host; `WordMarks` never marks those words. With Hachidori on, a change is kept with `pendingHost` (a cleared word as a row without a status) and queued as `hachidoriWordStatus` (one job per word, carrying only the word); the handler sends the word's current mark with `hd_word_status_override`, which changes only that headword, so apps and browsers never conflict. On each link, any app queues every waiting word (Hiku's extension doesn't link, so its marks go with the next app), and the host's `wordStatusOverrides` replace ours except for words still waiting. Turning Hachidori on marks every local word waiting, so they join the host's list; turning it off drops the waiting flags.
+  - **Settings:** the host's popup options are saved as ours whenever they come in, so the popup looks the same offline; Settings ▸ Popup stays read-only while Hachidori is on.
 - **Local Network.** Reaching a LAN address prompts for Local Network access (our apps already declare it); a Tailscale address doesn't. Plain `ws://` is allowed by our existing ATS settings.
 - **Finding the host.** The relay doesn't advertise itself (no Bonjour), so "find it" can only try a remembered address; otherwise the address is typed, as in Hachidori's own Sharing page.
 - **The API key in `options.anki`.** Every linked client receives the host's AnkiConnect key. Our apps keep their own Anki settings and shouldn't copy it.

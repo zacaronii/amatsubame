@@ -70,6 +70,10 @@ public final class BrowserService {
             case .status:
                 return status(prepareMs: prepared)
             case .lookup(let text, let offset, let title, let url):
+                // Settings ▸ Popup and the known words may have changed in an app since this
+                // extension process started.
+                common.lookup.reloadPopupSettings()
+                common.lookup.reloadWordStatuses()
                 let lookupStart = ContinuousClock.now
                 let page = await common.lookup.lookup(text: text, utf16Offset: offset)
                 let lookupMs = Self.milliseconds(ContinuousClock.now - lookupStart)
@@ -95,6 +99,11 @@ public final class BrowserService {
                 return await saveAnki(url: url, apiKey: apiKey, deck: deck)
             case .marks(let texts):
                 return await marks(texts)
+            case .wordStatus(let id, let index, let status):
+                guard let result = result(id, index) else { return ["error": "Look the word up again."] }
+                common.lookup.reloadWordStatuses()
+                let now = common.lookup.toggleWordStatus(status, for: result.expression)
+                return ["status": now?.rawValue ?? NSNull()]
             }
         } catch {
             return ["error": error.localizedDescription]
@@ -117,6 +126,7 @@ public final class BrowserService {
             minedWordsRefreshed = .now
             await common.refreshMinedWords()
         }
+        common.lookup.reloadWordStatuses()
         let states = common.mining.wordMarks()
         var marks: [[[Any]]] = []
         for text in texts {

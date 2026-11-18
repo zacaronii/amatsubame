@@ -56,8 +56,10 @@ final class MarksModel: LineLookupHost {
 
     /// The lines under a mark, and which one it's likely about.
     func window(for mark: AudioMark) -> (lines: ArraySlice<AudioSentence>, marked: Int)? {
-        // Lock Screen, AirPods and Shortcut marks come a moment late; the player's button doesn't.
-        TranscriptFollow.markWindow(at: mark.time, in: sentences[mark.key] ?? [], guessesEarlier: mark.source != .player)
+        // Lock Screen, AirPods and Shortcut marks come a moment late; the player's button and
+        // a line chosen in Live Text don't.
+        TranscriptFollow.markWindow(at: mark.time, in: sentences[mark.key] ?? [],
+                                    guessesEarlier: mark.source != .player && mark.source != .watchLine)
     }
 
     /// Marks whose lines contain `query` (Marks search's "In your marks").

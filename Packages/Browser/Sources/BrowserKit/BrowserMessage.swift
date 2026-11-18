@@ -1,3 +1,4 @@
+import Core
 import Foundation
 
 /// A message from the extension's JavaScript (via `browser.runtime.sendNativeMessage`).
@@ -21,6 +22,8 @@ public enum BrowserRequest: Equatable, Sendable {
     case saveAnki(url: String, apiKey: String, deck: String)
     /// Word marks for a page's paragraphs (texts without furigana), as in Yomu's books.
     case marks(texts: [String])
+    /// A result's Known or Ignore button: toggles the word's mark.
+    case wordStatus(id: String, index: Int, status: WordStatus)
 
     /// Paragraphs per marks message, and the most of each that's split into words.
     static let maxMarkTexts = 40
@@ -54,6 +57,10 @@ public enum BrowserRequest: Equatable, Sendable {
         case "marks":
             guard let texts = message["texts"] as? [String], !texts.isEmpty, texts.count <= Self.maxMarkTexts else { return nil }
             self = .marks(texts: texts.map { String($0.utf16.prefix(Self.maxMarkTextLength)) ?? $0 })
+        case "wordStatus":
+            guard let id = string("id"), let index = Self.int(message["index"]), index >= 0,
+                  let status = string("status").flatMap(WordStatus.init(rawValue:)) else { return nil }
+            self = .wordStatus(id: id, index: index, status: status)
         default:
             return nil
         }

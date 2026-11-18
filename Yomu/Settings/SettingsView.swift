@@ -52,8 +52,8 @@ struct SettingsView: View {
                     Text("Read-Along plays a matching audiobook with the text. It's optional.")
                 }
 
-                LookupAndMiningSection(footnote: "Books only; manga pages aren\u{2019}t marked.") {
-                    AnkiSettingsPage(environment: environment.common)
+                LookupAndMiningSection {
+                    Self.anki(environment)
                 }
 
                 StatsSettingsLink()
@@ -61,32 +61,51 @@ struct SettingsView: View {
                 SettingsFooterSection(storageTotal: storageTotal) {
                     StorageView()
                 } advanced: {
-                    AdvancedSettingsView(kinds: [.ankiNote, .kavitaProgress, .audiobookshelfProgress],
-                                         extraLogs: [URL.applicationSupportDirectory.appending(path: "dev-setup.log")]) {
-                        LookupTimingsToggle()
-                    }
+                    Self.advanced
                 } about: {
-                    AboutView(appCredits: [
-                        ("nemu-ocr-coreml", "Apache-2.0", "Manga text detection and recognition models, downloaded in Settings."),
-                    ])
+                    Self.about
                 }
             }
             .formStyle(.grouped)
             .navigationTitle("Settings")
-            .navigationDestination(for: ServerKind.self) { kind in
-                switch kind {
-                case .kavita: KavitaSettingsView(environment: environment.common)
-                case .anki: AnkiSettingsPage(environment: environment.common)
-                case .audiobookshelf: AudiobookshelfSettingsView(environment: environment.common, tokens: environment.audiobookshelfTokens, appName: "Yomu")
-                case .kaku: KakuSettingsView(environment: environment.common)
-                case .jellyfin: EmptyView()
-                }
-            }
+            .navigationDestination(for: ServerKind.self) { Self.serverPage($0, environment: environment) }
             .task { await measureStorage() }
         }
     }
 
-    private var statusItems: [StatusItem] {
+    static var advanced: some View {
+        AdvancedSettingsView(kinds: [.ankiNote, .kavitaProgress, .audiobookshelfProgress],
+                             extraLogs: [URL.applicationSupportDirectory.appending(path: "dev-setup.log")]) {
+            LookupTimingsToggle()
+        }
+    }
+
+    static let credits = [
+        ("nemu-ocr-coreml", "Apache-2.0", "Manga text detection and recognition models, downloaded in Settings."),
+    ]
+
+    static var about: some View {
+        AboutView(appCredits: credits)
+    }
+
+    static func anki(_ environment: AppEnvironment) -> some View {
+        AnkiSettingsPage(environment: environment.common, wordMarksNote: "Books only; manga pages aren\u{2019}t marked.")
+    }
+
+    /// What a link to a server opens.
+    @ViewBuilder static func serverPage(_ kind: ServerKind, environment: AppEnvironment) -> some View {
+        switch kind {
+        case .kavita: KavitaSettingsView(environment: environment.common)
+        case .anki: anki(environment)
+        case .audiobookshelf: AudiobookshelfSettingsView(environment: environment.common, tokens: environment.audiobookshelfTokens, appName: "Yomu")
+        case .kaku: KakuSettingsView(environment: environment.common)
+        case .jellyfin: EmptyView()
+        }
+    }
+
+    private var statusItems: [StatusItem] { Self.statusItems(environment) }
+
+    static func statusItems(_ environment: AppEnvironment) -> [StatusItem] {
         let accounts = environment.serverAccounts
         return [
             StatusItem("Kavita", isSetUp: accounts[.kavita] != nil) {
@@ -130,6 +149,38 @@ struct SettingsView: View {
         storageTotal = (downloads + cache + models + environment.common.dictionaries.totalBytes()).storageText
     }
 }
+
+#if os(macOS)
+/// The Mac's Settings window: the same pages as the list above, each in the sidebar.
+struct MacSettingsView: View {
+    @Environment(AppEnvironment.self) private var environment
+
+    var body: some View {
+        MacSettingsWindow(groups: [
+            MacSettingsGroup(pages: [.overview(SettingsView.statusItems(environment))]),
+            MacSettingsGroup("Reading", pages: [
+                MacSettingsPage("kavita", title: "Kavita", systemImage: "server.rack") { KavitaSettingsView(environment: environment.common) },
+                MacSettingsPage("libraries", title: "Libraries", systemImage: "books.vertical") { LibrariesSettingsView() },
+                MacSettingsPage("downloads", title: "Downloads", systemImage: "arrow.down.circle") { ReadingDownloadsView() },
+                MacSettingsPage("ocr", title: "Manga Text Recognition", systemImage: "text.viewfinder") { OCRSettingsView() },
+                MacSettingsPage("readAlong", title: "Read-Along", systemImage: "headphones") { ReadAlongSettingsView() },
+            ]),
+        ] + MacSettingsGroup.shared {
+            SettingsView.anki(environment)
+        } + [
+            .footer {
+                StorageView()
+            } advanced: {
+                SettingsView.advanced
+            } about: {
+                SettingsView.about
+            },
+        ]) { kind in
+            SettingsView.serverPage(kind, environment: environment)
+        }
+    }
+}
+#endif
 
 #Preview {
     let environment = AppEnvironment.preview()

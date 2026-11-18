@@ -1,12 +1,12 @@
 import SwiftUI
 
-/// Settings ▸ Lookup: whether words are marked by their state in the mining deck.
+/// Settings ▸ Anki ▸ Word Marks: whether words are marked by their state in the mining deck.
 public struct WordMarksToggle: View {
     @Environment(CommonEnvironment.self) private var environment
 
     public init() {}
 
-    /// The Lookup section's footer, saying what the marks mean.
+    /// The Word Marks footer, saying what the marks mean.
     public static let footer = "Underlines words you haven\u{2019}t mined, and words you\u{2019}re still learning. Known words stay plain."
 
     public var body: some View {

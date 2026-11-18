@@ -10,7 +10,10 @@ public struct AudioMark: Codable, Equatable, Hashable, Sendable, Identifiable, F
     public enum Source: String, Codable, Sendable {
         /// `nowPlaying` was Now Playing's bookmark, tried in milestone 3: iOS 26 doesn't show it.
         /// `headphones` is an AirPods triple press (or a car's previous-track button).
-        case player, shortcut, nowPlaying, headphones
+        /// `carPlay` is the Mark button on CarPlay's Now Playing; `watch` is Kiku on Apple Watch.
+        /// `watchLine` is a line chosen in the watch's Live Text: the mark is at its start and
+        /// about that line (like the player's button, not a moment late).
+        case player, shortcut, nowPlaying, headphones, carPlay, watch, watchLine
     }
 
     public var id: Int64?

@@ -17,6 +17,13 @@ Tap a word to open the popup:
 - **Kiku:** a word in the transcript.
 - **Hiku:** Japanese text on any web page in Safari.
 
+On a Mac, an iPad, or an iPhone held sideways, the popup opens as a card right by the word: below it,
+or above it for subtitles near the bottom, and beside it in vertical text and manga. On an iPhone held
+upright it slides up from the bottom; drag its top edge up to see more, or down to close it. Either way
+what's behind shows through it, blurred (see **Background opacity** below). With a popup
+open, tap another word to look it up straight away, or tap somewhere with nothing to look up (a
+margin, a space, punctuation) or press Esc to close it.
+
 The lookup finds the longest word that starts where you tapped, including conjugated forms, so
 食べられなかった finds 食べる. Yomu also has a **Dictionary** tab where you can type a search (romaji
 works too).
@@ -50,9 +57,11 @@ Settings ▸ Lookup and Mining ▸ **Popup** turns them off (your past counts ar
 
 ### Background opacity
 
-Settings ▸ Lookup and Mining ▸ **Popup** ▸ **Background Opacity** sets how much of the page, video or
-transcript shows through behind the popup, from 0 to 100% (85% by default, as in Hachidori). Text
-stays opaque.
+The popup is like frosted glass: what's behind it is always blurred. Settings ▸ Lookup and Mining ▸
+**Popup** ▸ **Background Opacity** sets how much of the popup's colour lies over that blur, from 0 to
+100% (85% by default, as in Hachidori): the lower it is, the more of the page, video or transcript
+shows through. The text always stays solid, and at low opacity it gets a soft halo (dark in dark mode,
+light in light mode) so it stays readable over anything; the halo fades out as the opacity goes up.
 
 ### Brief definitions
 
@@ -94,8 +103,8 @@ Setup downloads [Hachidori](https://github.com/bee-san/hachidori)'s default dict
 | Jiten Frequency | How common each word is in anime, novels and games |
 | Bee's Ultimate Grammar Dictionary | Grammar points, with examples |
 
-**Kanjium** (pitch accent) is offered too, unticked: Hachidori's set has no pitch accent dictionary,
-so tick it if you want the pitch graph in the popup and the pitch fields on your cards.
+**Kanjium** (pitch accent) is offered too, unticked: tick it if you want the pitch graph in the popup
+and the pitch fields on your cards.
 
 Each keeps its own licence; they're listed in **Settings ▸ About**.
 
@@ -130,34 +139,69 @@ show **Auto**.
 - Imported dictionaries don't update unless their own files say they can and where from.
 - If you delete a recommended dictionary, the apps remember and don't pick it again by themselves.
 
-## Hachidori on the Mac
+## Hachidori
 
 If you use [Hachidori](https://github.com/bee-san/hachidori) in your browser and share it from a
-computer or a Docker host, the Mac apps can look words up on it too: Settings ▸ Lookup and Mining ▸
-**Hachidori**. Turn on **Use Hachidori** and enter the address of the computer sharing it (port 8771
-unless you changed it).
+computer or a Docker host, the apps can link to it: Settings ▸ Lookup and Mining ▸ **Hachidori**. Turn
+on **Use Hachidori** and enter the address of the computer sharing it (port 8771 unless you changed
+it). **Test Connection** checks an address before you link to it: it shows the host's name, its
+Hachidori version and how many dictionaries it has. While linked, the Status section shows the same.
 
-While the apps are linked:
+### Copying Hachidori's dictionaries
 
-- Words are looked up on Hachidori, with its dictionaries.
-- Lookup counts are Hachidori's, so a word you look up in the browser and in Yomu counts twice in the
-  same place.
-- The popup follows Hachidori's settings (brief definitions, lookup counts, background opacity); the
-  Popup page shows them but you change them in Hachidori.
-- Words you marked known or ignored in Hachidori aren't underlined.
+Setup's dictionaries step has **Use Hachidori** at the top: enter the address and tap **Copy from
+Hachidori** to link to it and copy its dictionaries there and then. Setup starts downloading the
+recommended dictionaries by itself unless an address is already known (from another app's setup); the
+copy waits for those to finish and then only fetches what differs.
+
+While linked, Settings ▸ Lookup and Mining ▸ **Dictionaries** ▸ **Copy from Hachidori** lists
+Hachidori's dictionaries and whether each is new to this device, newer than the copy here, or the
+same. Tap **Copy** to download what's new or newer, at exactly Hachidori's versions (a dictionary you
+pinned to an older release stays on that release), then match Hachidori's order and which ones are
+on. Dictionaries that are only on the device stay, after Hachidori's.
+
+- Hachidori sends its own ready-to-use copies, about two to five times the size of the dictionary
+  files: its five recommended dictionaries take about 340 MB. Nothing downloads until you tap Copy.
+- Copies don't update themselves; copy again after updating them in Hachidori.
+- A dictionary made by a newer version of Hachidori's engine than the app has says so; update the app.
+
+To add a dictionary file you import on a device to Hachidori too, turn on **Also Add Imports to
+Hachidori** in the same section. Each zip you then import is sent to Hachidori after it's installed
+here (replacing Hachidori's copy of the same dictionary). The apps don't keep the zip afterwards, so a
+dictionary imported earlier has to be imported again to send it.
+
+### While linked
+
+On every device:
+
+- Lookup counts are Hachidori's, so a word you look up in the browser and in Yomu counts in the same
+  place. Lookups made while Hachidori can't be reached are counted there once it's back (at that
+  time: Hachidori keeps no other time for them). Settings ▸ Hachidori shows how many words are
+  waiting, when the apps last heard from Hachidori, and **Sync Now**.
+- The popup follows Hachidori's settings (brief definitions, lookup counts, background opacity), and
+  keeps them while Hachidori can't be reached. The Popup page shows them; you change them in
+  Hachidori.
+- Words marked known or ignored are one list with Hachidori's: marking a word in the apps marks it
+  in Hachidori too, and the other way round (see Known and ignored words below).
 - Cards still go to your Anki through the apps' own Anki settings.
 
-When Hachidori can't be reached, the apps look up with the Mac's own dictionaries and keep trying to
-link in the background. Hachidori has no password, so only use it over your home network or a private
-network such as Tailscale, never over the internet. The setting is shared by the apps that share a
-setup. On iPhone and iPad the apps keep looking up with their own dictionaries for now.
+On the Mac, words are also looked up on Hachidori, with its dictionaries; when it can't be reached,
+the apps look up with the Mac's own dictionaries and keep trying to link in the background. On iPhone
+and iPad the apps keep looking up with their own dictionaries, so lookups stay fast and work anywhere
+(copy Hachidori's dictionaries to have the same ones). iOS doesn't keep the link while an app is in
+the background, so the apps link again when they open or come back to the front.
+
+Hachidori has no password, so only use it over your home network or a private network such as
+Tailscale, never over the internet. The setting is shared by the apps that share a setup.
 
 ## Word marks
 
-With **Mark Words by Anki State** on (in Settings ▸ Lookup and Mining), the apps underline words by
+With **Mark Words by Anki State** on (in Settings ▸ Anki, under Word Marks), the apps underline words by
 where they stand in your Anki mining deck: words you haven't mined, and words you're still learning,
 are underlined; words you know stay plain. A word counts as known once its card's interval is 21 days
-or more. Cards waiting to be sent count as learning. Marks need Anki: until AnkiConnect is connected
+or more, and stops counting while you relearn it after forgetting it. Cards waiting to be sent count as
+learning. A word with no card of its own takes the state of a card that spells it in kana, so a card
+for かわいい also covers 可愛い (and the other way round). Marks need Anki: until AnkiConnect is connected
 they stay off, since every word would otherwise look unmined.
 
 Marks show in Yomu's books (not on manga pages), Miru's subtitles, Kiku's transcripts and web pages
@@ -166,6 +210,23 @@ in Hiku. The apps refresh them from Anki when they open and every 30 minutes aft
 If you also study from other decks (a premade vocabulary deck, say), add them in the Anki settings
 under **Word Marks ▸ Also Mark Words From**. Words you've started studying in those decks show as
 known.
+
+### Known and ignored words
+
+While words are marked, each entry in the popup has two small buttons beside the audio button, like
+Hachidori's **Mark as known** and **Ignore**:
+
+- **Known** (the check) is for a word you know without a card for it.
+- **Ignore** (the crossed-out eye) is for a word you don't want marked, such as a name.
+
+Tap the pressed one again to clear it. Known and ignored words are never underlined, whatever their
+Anki cards say. The list is shared by every app that shares a setup (Hiku's popup has the buttons
+too), and you can see it, remove words from it, or paste in a list of words you know (one per line,
+in dictionary form) in Settings ▸ Anki ▸ **Known and Ignored Words**.
+
+With Hachidori on, the list is Hachidori's as well. A word you mark in the apps goes to Hachidori (or
+waits until it's reachable), and words marked in Hachidori come to the apps. When you turn Hachidori
+on, the words already marked in the apps are added to its list.
 
 ## Anki
 
@@ -251,11 +312,19 @@ When AnkiConnect can't be reached (you're away from home, or the computer is asl
 device and send themselves when it's back. The top of Settings shows what's waiting, with **Sync
 Now**; **Settings ▸ Advanced ▸ Waiting to Sync** lists them by kind.
 
-### Syncing to AnkiWeb
+### Syncing
 
-In the Anki settings, **Sync to AnkiWeb After Adding** asks Anki to sync about 10 seconds after new
-cards arrive (once for a batch), so they reach AnkiMobile and your other devices. **Sync Anki Now**
-syncs straight away.
+In the Anki settings, **Sync After Adding** asks the Anki behind AnkiConnect to sync about 10 seconds
+after new cards arrive (once for a batch), so they reach AnkiMobile and your other devices. It syncs
+with whatever sync server that Anki uses: AnkiWeb, or your own. **Sync Anki Now** syncs straight away.
+
+- **Anki on a computer:** sign in to sync in Anki first (**Sync** in the main window).
+- **A headless AnkiConnect server** that syncs after every change on its own (Hachidori's does) needs
+  neither. Leave Sync After Adding off.
+- **AnkiConnect Android** can't sync this way; AnkiDroid syncs on its own schedule.
+
+If Anki needs a one-way full sync (after a note type change, for example), the sync stops with a
+message: sync once in Anki and choose which side to keep.
 
 ## Sharing the setup between apps
 

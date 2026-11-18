@@ -220,7 +220,7 @@ final class ReaderUITests: XCTestCase {
         XCTAssertFalse(toast.exists, "manual OCR said: \(toast.exists ? toast.label : "")")
         XCTAssertTrue(popup.exists, "the drawn box was read and looked up")
         snapshot("manual-box")
-        app.swipeDown(velocity: .fast)
+        app.closeLookup()
         XCTAssertEqual(try pageCounter(), start, "the long press must not turn the page")
     }
 
@@ -272,7 +272,7 @@ final class ReaderUITests: XCTestCase {
         sleep(8) // past the undo window: the first send fails
 
         // Close the popup and the reader, then look at the queue.
-        app.swipeDown(velocity: .fast)
+        app.closeLookup()
         XCTAssertTrue(app.webViews.firstMatch.waitForNonExistence(timeout: 5), "popup closed")
         // The black margin above the page toggles the controls (no text there).
         reader.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.08)).tap()

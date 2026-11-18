@@ -35,7 +35,10 @@ struct LongStripReaderView: View {
                     model.pagesShown(first: first, lastVisible: last)
                 }
             }
-            .onTapGesture { if !model.isSelecting { model.showsChrome.toggle() } }
+            .onTapGesture {
+                guard !model.isSelecting else { return }
+                if model.popup != nil { model.popup = nil } else { model.showsChrome.toggle() }
+            }
             .manualSelectionGesture(model)
             .scrollDisabled(model.isSelecting)
         }

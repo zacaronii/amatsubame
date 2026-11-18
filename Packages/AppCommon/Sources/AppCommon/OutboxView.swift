@@ -62,6 +62,7 @@ public struct OutboxView: View {
                 }
             }
         }
+        .settingsListWidth()
         .navigationTitle(kind?.waitingTitle ?? "Waiting to Sync")
         .toolbar {
             Button("Sync Now", systemImage: "arrow.triangle.2.circlepath") { environment.syncNow(retryWaiting: true) }
@@ -291,6 +292,8 @@ extension OutboxJobKind {
         case .jellyfinProgress: "Watch Positions for Jellyfin"
         case .jellyfinSubtitle: "Subtitles for Jellyfin"
         case .audiobookshelfProgress: "Listening Positions for Audiobookshelf"
+        case .hachidoriLookupCount: "Lookup Counts for Hachidori"
+        case .hachidoriWordStatus: "Known Words for Hachidori"
         }
     }
 
@@ -302,6 +305,8 @@ extension OutboxJobKind {
         case .jellyfinProgress: ("watch position", "watch positions")
         case .jellyfinSubtitle: ("subtitle", "subtitles")
         case .audiobookshelfProgress: ("listening position", "listening positions")
+        case .hachidoriLookupCount: ("word's lookups", "words' lookups")
+        case .hachidoriWordStatus: ("known or ignored word", "known or ignored words")
         }
         return "\(count) \(count == 1 ? one : many)"
     }
@@ -313,6 +318,8 @@ extension OutboxJobKind {
         case .jellyfinProgress: "Jellyfin progress"
         case .jellyfinSubtitle: "Jellyfin subtitles"
         case .audiobookshelfProgress: "Audiobookshelf progress"
+        case .hachidoriLookupCount: "Hachidori lookup count"
+        case .hachidoriWordStatus: "Hachidori known word"
         }
     }
 }

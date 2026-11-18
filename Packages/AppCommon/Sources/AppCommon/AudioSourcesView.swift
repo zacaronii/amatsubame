@@ -51,6 +51,7 @@ public struct AudioSourcesView: View {
                 }
             }
         }
+        .settingsListWidth()
         .navigationTitle("Audio Sources")
         .toolbar {
             #if os(iOS)

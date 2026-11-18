@@ -63,8 +63,6 @@ public final class WordMarkCache {
         for word in words {
             let state = marks.state(expression: word.expression, reading: word.reading)
             guard state != .known, word.offset + word.length <= utf16.count else { continue }
-            // Marked known or ignored in Hachidori (while linked).
-            if service.followsHost, service.host?.hidesMark(for: word.expression) == true { continue }
             let start = String(decoding: utf16[..<word.offset], as: UTF16.self).count
             let count = String(decoding: utf16[word.offset..<word.offset + word.length], as: UTF16.self).count
             for index in start..<start + count { result[index] = state }

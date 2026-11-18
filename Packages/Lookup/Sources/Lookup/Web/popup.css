@@ -1,40 +1,52 @@
+/* The popup is glass: what's behind is blurred (by the view showing the page, or Hiku's frame),
+   tinted with --background-color at Background Opacity. Tags, chips and example cards are
+   see-through too, with a 1px edge, so they read over anything behind. */
 :root {
   color-scheme: light dark;
-  --text-color: #1c1c1e;
+  --text-color: #000000;
   --fg: var(--text-color);
   --background-color: #ffffff;
   --canvas: var(--background-color);
-  --secondary: #6e6e73;
+  --secondary: #3a3a40;
   --separator: rgba(60, 60, 67, 0.18);
   --accent: #0a84ff;
   --on-accent: #ffffff;
-  --tag-background: #e5e5ea;
-  --example-background: #f2f2f7;
+  --tag-background: rgba(255, 255, 255, 0.45);
+  --chip-edge: rgba(0, 0, 0, 0.18);
+  --example-background: rgba(255, 255, 255, 0.40);
   --example-word: #0a6fd8;
-  --badge-background: #eef3ff;
+  --badge-background: rgba(255, 255, 255, 0.45);
+  /* The text halo's colour, as r g b. */
+  --halo: 255 255 255;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --text-color: #f2f2f7;
+    --text-color: #ffffff;
     --background-color: #1c1c1e;
-    --secondary: #a1a1a6;
+    --secondary: #dadae0;
     --separator: rgba(84, 84, 88, 0.6);
-    --tag-background: #3a3a3c;
-    --example-background: #2c2c2e;
+    --tag-background: rgba(0, 0, 0, 0.30);
+    --chip-edge: rgba(255, 255, 255, 0.35);
+    --example-background: rgba(0, 0, 0, 0.28);
     --example-word: #64b5ff;
-    --badge-background: #1f2a3d;
+    --badge-background: rgba(0, 0, 0, 0.30);
+    --halo: 0 0 0;
   }
 }
-/* Hachidori's Background opacity (--popup-opacity, set per page): what's behind the popup shows
-   through its background; text and the cards inside stay opaque. */
+/* Hachidori's Background opacity (--popup-opacity, set per page): the tint over what's behind. */
 html {
   -webkit-text-size-adjust: 100%; min-height: 100%;
   background: color-mix(in srgb, var(--background-color) var(--popup-opacity, 100%), transparent);
 }
+/* A halo that keeps text readable on a see-through popup: strongest at 0 % opacity, gone by 70 %
+   (--popup-halo, set per page; LookupPopupView's native bar draws the same). */
 body {
   margin: 0; padding: 12px 16px 32px;
   font: -apple-system-body; font-family: -apple-system, "Hiragino Sans", sans-serif;
   color: var(--text-color); background: transparent;
+  text-shadow: 0 0 1px rgb(var(--halo) / calc(0.95 * var(--popup-halo, 0))),
+               0 0 3px rgb(var(--halo) / calc(0.75 * var(--popup-halo, 0))),
+               0 1px 6px rgb(var(--halo) / calc(0.60 * var(--popup-halo, 0)));
   line-height: 1.5; -webkit-user-select: text; user-select: text;
   -webkit-tap-highlight-color: transparent;
 }
@@ -75,17 +87,26 @@ body {
 .mine-button .done, .mine-button.mined .add { display: none; }
 .mine-button.mined .done { display: inline; }
 .mine-button.mined { color: var(--accent); background: var(--tag-background); }
+/* Known and Ignore (Hachidori's Mark as known / Ignore): smaller, quiet until pressed. */
+.status-button {
+  flex: none; border: none; padding: 0; cursor: pointer; width: 36px; height: 36px; border-radius: 18px;
+  display: inline-flex; align-items: center; justify-content: center; align-self: center;
+  color: var(--secondary); background: transparent;
+}
+.status-button svg { width: 20px; height: 20px; fill: currentColor; }
+.status-button[aria-pressed="true"] { color: var(--accent); background: var(--tag-background); }
 .inflections { margin-top: 4px; font-size: 0.8em; color: var(--secondary); }
 .inflection-separator { margin: 0 0.35em; }
 .frequencies { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
-.frequency { display: inline-flex; border-radius: 6px; overflow: hidden; font-size: 0.75em; }
+.frequency { display: inline-flex; border-radius: 6px; overflow: hidden; font-size: 0.75em; border: 1px solid var(--chip-edge); }
 .frequency-dictionary { background: var(--accent); color: white; padding: 1px 6px; }
 .frequency-value { background: var(--badge-background); padding: 1px 6px; }
 /* Lookup count ("Looked up 3 times"), after the first result's frequencies, as Hachidori draws it
    (render/reader.css .gsm-hoshidicts-lookup-stats): a pill whose place is kept, as wide as
    "Looked up 99 times", while the count is on its way. */
 .lookup-count {
-  display: inline-block; padding: 1px 8px; border: 1px solid var(--tag-background); border-radius: 999px;
+  display: inline-block; padding: 1px 8px; border: 1px solid var(--chip-edge); border-radius: 999px;
+  background: var(--tag-background);
   font-size: 0.75em; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.2; text-align: center;
 }
 .lookup-count::before { display: block; height: 0; visibility: hidden; content: attr(data-placeholder); }
@@ -118,7 +139,7 @@ body {
 [data-sc-content="examples"] li[lang="en"] { font-size: 0.85em; color: var(--secondary); }
 .example-word { color: var(--example-word); }
 .glossary-header { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 4px; }
-.tag { font-size: 0.7em; padding: 1px 5px; border-radius: 4px; background: var(--tag-background); }
+.tag { font-size: 0.7em; padding: 1px 5px; border-radius: 4px; background: var(--tag-background); border: 1px solid var(--chip-edge); }
 .gloss-list { margin: 0; padding-left: 1.4em; }
 .gloss-content ul, .gloss-content ol { padding-left: 1.4em; margin: 0.2em 0; }
 .gloss-sc-table-container { overflow-x: auto; }

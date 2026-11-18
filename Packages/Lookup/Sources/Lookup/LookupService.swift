@@ -2,6 +2,7 @@ import Core
 import Dictionary
 import Foundation
 import GRDB
+import HachidoriKit
 
 /// The text a lookup came from, with the matched span (UTF-16 offsets).
 public struct LookupSource: Equatable, Sendable {
@@ -47,7 +48,9 @@ public final class LookupService {
     public let library: DictionaryLibrary
     public let audio: AudioService
     /// Set when Anki is available; adds the Add to Anki button to entries.
-    public var mining: MiningService?
+    public var mining: MiningService? {
+        didSet { mining?.markedByHand = Set(wordStatuses.keys) }
+    }
     public private(set) var styles: [String: String] = [:]
     /// Counts lookups for the Stats tab (the app's own database).
     public var activity: ActivityLog?
@@ -58,17 +61,38 @@ public final class LookupService {
     public let counts: LookupCountStore
     /// Settings ▸ Popup as stored in the setup (shared by the apps).
     public private(set) var storedPopupSettings: PopupSettings
-    /// Settings ▸ Hachidori: the host lookups go to while it's linked (the Mac apps). Nil looks
-    /// up locally only.
+    /// Settings ▸ Hachidori: the linked host. Its counts and popup settings apply on every
+    /// platform; lookups go to it only with `looksUpOnHost`. Nil: nothing is shared.
     public var host: HostConnection? {
-        didSet { if oldValue !== host { oldValue?.stop() } }
+        didSet {
+            guard oldValue !== host else { return }
+            oldValue?.stop()
+            host?.onOptions = { [weak self] options in self?.keep(options) }
+            host?.onWordStatus = { [weak self] overrides in self?.adopt(overrides) }
+        }
     }
-    /// Linked to a Hachidori host: lookups, counts and the popup's settings are the host's.
+    /// Words are looked up on the host while it's linked (the Mac apps). iPhone and iPad look up
+    /// with their own copies, which stay fast and work anywhere (docs/hachidori.md section 8).
+    public var looksUpOnHost = false
+    /// Where lookups to count and word marks for the host wait (the app's outbox), and what sends them.
+    public var hostOutbox: (outbox: OutboxStore, queued: @MainActor () -> Void)?
+    /// Words marked known or ignored by hand, in the setup's database (shared by the apps).
+    public let wordStatusStore: WordStatusStore
+    /// Whether Hachidori is on (Settings ▸ Hachidori), linked or not: marks then wait for it.
+    public var sharesWithHost: () -> Bool = { false }
+    /// Those marks, by headword.
+    public private(set) var wordStatuses: [String: WordStatus] = [:]
+    /// Linked to a Hachidori host: counts and the popup's settings are the host's.
     public var followsHost: Bool { host?.isLinked == true }
-    /// Settings ▸ Popup in effect: the host's while linked (Hachidori's options), else ours.
+    /// Settings ▸ Popup in effect: the host's while linked (Hachidori's options), else ours,
+    /// which keep the host's last ones (so they hold offline).
     public var popupSettings: PopupSettings {
         guard followsHost, let options = host?.options else { return storedPopupSettings }
-        var settings = storedPopupSettings
+        return Self.settings(storedPopupSettings, following: options)
+    }
+
+    static func settings(_ settings: PopupSettings, following options: HostOptions) -> PopupSettings {
+        var settings = settings
         settings.showLookupCounts = options.showLookupCounts
         settings.showCompactDefinitionSummary = options.showCompactDefinitionSummary
         settings.compactDefinitionSummaryCount = options.compactDefinitionSummaryCount
@@ -76,6 +100,12 @@ public final class LookupService {
             ? nil : options.compactDefinitionSummaryDictionary
         settings.backgroundOpacityPercent = options.popupOpacityPercent
         return settings
+    }
+
+    /// Saves the host's popup settings as ours, for when it isn't reachable.
+    private func keep(_ options: HostOptions) {
+        let following = Self.settings(storedPopupSettings, following: options)
+        if following != storedPopupSettings { updatePopupSettings { $0 = following } }
     }
     /// Settings ▸ Popup ▸ Lookup Counts: count lookups and show "Looked up N times".
     public var showsLookupCounts: Bool { popupSettings.showLookupCounts }
@@ -90,6 +120,58 @@ public final class LookupService {
         database = history ?? library.database
         counts = LookupCountStore(database: library.database)
         storedPopupSettings = (try? counts.settings()) ?? PopupSettings()
+        wordStatusStore = WordStatusStore(database: library.database)
+        wordStatuses = (try? wordStatusStore.statuses()) ?? [:]
+    }
+
+    // MARK: Known and ignored words
+
+    /// Re-reads the marks (another app may have changed them) and hands them to the word marks.
+    public func reloadWordStatuses() {
+        let statuses = (try? wordStatusStore.statuses()) ?? [:]
+        if statuses != wordStatuses { wordStatuses = statuses }
+        mining?.markedByHand = Set(statuses.keys)
+    }
+
+    public func wordStatus(of headword: String) -> WordStatus? {
+        wordStatuses[WordStatusStore.normalized(headword)]
+    }
+
+    /// The popup's Known or Ignore: sets the word to `status`, or clears it when it already has
+    /// it (as Hachidori's toggles do). With a Hachidori host on, the change is queued for it.
+    /// Returns the word's mark afterwards.
+    @discardableResult
+    public func toggleWordStatus(_ status: WordStatus, for headword: String) -> WordStatus? {
+        let next: WordStatus? = wordStatus(of: headword) == status ? nil : status
+        setWordStatus(next, for: [headword])
+        return next
+    }
+
+    /// Marks words known or ignored, or clears them (nil).
+    public func setWordStatus(_ status: WordStatus?, for headwords: [String]) {
+        for headword in headwords {
+            try? wordStatusStore.set(status, for: headword, host: sharesWithHost())
+            try? hostOutbox?.outbox.queueHostWordStatus(headword)
+        }
+        hostOutbox?.queued()
+        reloadWordStatuses()
+    }
+
+    /// Settings ▸ Known Words ▸ Add: marks a list of words known.
+    @discardableResult
+    public func addKnownWords(_ headwords: [String]) -> Int {
+        let added = (try? wordStatusStore.addKnown(headwords, host: sharesWithHost())) ?? 0
+        if hostOutbox != nil {
+            for headword in headwords { try? hostOutbox?.outbox.queueHostWordStatus(headword) }
+            hostOutbox?.queued()
+        }
+        reloadWordStatuses()
+        return added
+    }
+
+    /// The host's list came in: it becomes ours, except for changes it hasn't had yet.
+    private func adopt(_ overrides: WordStatusOverrides) {
+        if (try? wordStatusStore.adoptHost(known: overrides.known, ignored: overrides.ignored)) == true { reloadWordStatuses() }
     }
 
     public func setShowsLookupCounts(_ shows: Bool) {
@@ -138,7 +220,7 @@ public final class LookupService {
 
     /// The host's results while linked, else (or when it doesn't answer) the local dictionaries'.
     private func terms(_ text: String, maxResults: Int? = nil) async -> [TermLookupResult] {
-        if !text.isEmpty, let host, let found = await host.lookup(text, maxResults: maxResults) { return found }
+        if looksUpOnHost, !text.isEmpty, let host, let found = await host.lookup(text, maxResults: maxResults) { return found }
         if let maxResults { return await library.engine.lookup(text, maxResults: maxResults) }
         return await library.engine.lookup(text)
     }
@@ -154,16 +236,26 @@ public final class LookupService {
 
     /// One visit to a page of results (a tap, a link in a definition, a submitted search):
     /// kept in history, and counted the way Hachidori counts lookups: +1 for the first result's
-    /// headword and reading, once per visit (Back and re-rendering don't count again). While
-    /// linked to a Hachidori host the count is the host's (`hd_lookup_stats_record`).
+    /// headword and reading, once per visit (Back and re-rendering don't count again).
+    ///
+    /// With a Hachidori host set, the lookup is also queued for it (`hd_lookup_stats_record`
+    /// through the outbox, so it's sent when the host is reachable), and while linked the count
+    /// shown is the host's plus what's still queued, which the word's own count then takes.
     @discardableResult
     public func record(_ page: LookupResultPage) async -> LookupResultPage {
         guard let first = page.results.first else { return page }
         var page = page
-        if let host, host.isLinked {
-            page.lookupCount = await host.recordLookup(term: first.expression, reading: first.reading)
-        } else if showsLookupCounts {
+        if showsLookupCounts {
             page.lookupCount = (try? counts.record(term: first.expression, reading: first.reading))?.lookupCount
+            if let host, let hostOutbox {
+                try? hostOutbox.outbox.queueHostLookupCount(term: first.expression, reading: first.reading)
+                hostOutbox.queued()
+                if let counted = await host.lookupCount(term: first.expression, reading: first.reading),
+                   let queued = try? hostOutbox.outbox.queuedHostLookupCount(term: first.expression, reading: first.reading) {
+                    page.lookupCount = counted + queued
+                    try? counts.setCount(term: first.expression, reading: first.reading, to: counted + queued)
+                }
+            }
         }
         let entry = LookupHistoryRecord(query: page.query, expression: first.expression, reading: first.reading)
         let limit = Self.historyLimit
@@ -188,26 +280,37 @@ public final class LookupService {
         _ = try? database.writer.write { try LookupHistoryRecord.deleteAll($0) }
     }
 
+    /// How strong the text halo is at a background opacity: 1 at 0 %, fading to 0 by 70 %, where
+    /// the popup colour alone keeps text readable.
+    public static func haloStrength(opacityPercent: Int) -> Double {
+        max(0, 1 - Double(min(max(opacityPercent, 0), 100)) / 70)
+    }
+
     /// The full HTML document for a page of results. With `nativeBackground`, the page stays
     /// transparent and the view showing it draws the background (`LookupPopupView`).
     public func document(for page: LookupResultPage, nativeBackground: Bool = false) -> String {
         let source = page.source.map(EntryRenderer.source) ?? ""
         let mined = mining.map { mining in page.results.map(mining.isMined) }
-        let opacity = nativeBackground ? 0 : min(max(popupSettings.backgroundOpacityPercent, 0), 100)
+        // Known and Ignore while words are marked, as in Hachidori (they're about the marks).
+        let statuses = mining?.marksWords == true ? page.results.map { wordStatus(of: $0.expression) } : nil
+        let setting = min(max(popupSettings.backgroundOpacityPercent, 0), 100)
+        let opacity = nativeBackground ? 0 : setting
+        let halo = Self.haloStrength(opacityPercent: setting)
         let accentCSS = (accent.map { ":root { --accent: \($0.color); --on-accent: \($0.onColor); }" } ?? "")
-            + ":root { --popup-opacity: \(opacity)%; }"
+            + ":root { --popup-opacity: \(opacity)%; --popup-halo: \(String(format: "%.3f", halo)); }"
         let count: EntryRenderer.LookupCount? = showsLookupCounts ? .init(page.lookupCount) : nil
         let summary: EntryRenderer.SummaryOptions? = popupSettings.showCompactDefinitionSummary
             ? .init(dictionary: popupSettings.compactDefinitionSummaryDictionary, count: popupSettings.compactDefinitionSummaryCount)
             : nil
-        let dictionaryStyles = followsHost ? styles.merging(host?.styles ?? [:]) { $1 } : styles
-        return LookupPage.document(body: source + EntryRenderer.entries(page.results, mined: mined, lookupCount: count, summary: summary),
+        let dictionaryStyles = looksUpOnHost && followsHost ? styles.merging(host?.styles ?? [:]) { $1 } : styles
+        return LookupPage.document(body: source + EntryRenderer.entries(page.results, mined: mined, statuses: statuses, lookupCount: count, summary: summary),
                                    dictionaryStyles: dictionaryStyles, extraCSS: accentCSS)
     }
 
     /// A dictionary image for the popup: from the local dictionaries, else from the host.
     func mediaFile(dictionary: String, path: String) async -> Data? {
         if let data = await library.engine.mediaFile(dictionary: dictionary, path: path) { return data }
+        guard looksUpOnHost else { return nil }
         return await host?.media(dictionary: dictionary, path: path)
     }
 }

@@ -12,12 +12,25 @@ enum KikuTab: Hashable, CaseIterable {
         case .settings: "Settings"
         }
     }
+
+    var systemImage: String {
+        switch self {
+        case .listen: "headphones"
+        case .marks: "bookmark"
+        case .stats: "chart.bar"
+        case .settings: "gearshape"
+        }
+    }
 }
 
 struct KikuRootView: View {
     @Environment(KikuEnvironment.self) private var environment
     /// Bumped when the selected tab is tapped again: its screen starts over from the top.
     @State private var resets: [KikuTab: Int] = [:]
+    #if os(macOS)
+    @State private var destination = SidebarDestination<KikuTab, String>.tab(.listen)
+    @Environment(\.openWindow) private var openWindow
+    #endif
 
     var body: some View {
         main
@@ -39,7 +52,7 @@ struct KikuRootView: View {
         // The player covers the main window; the tabs stay underneath. The mini player is a bar
         // at the bottom (the tab bar accessory is iPhone and iPad only).
         ZStack {
-            tabs
+            sidebar
                 .safeAreaInset(edge: .bottom) {
                     if let playback = environment.playback, !environment.showsPlayer {
                         MiniPlayer(model: playback)
@@ -75,27 +88,82 @@ struct KikuRootView: View {
         }
     }
 
+    #if os(macOS)
+    /// The Mac's window: Listen, Marks and Stats, what's downloaded, and each library.
+    private var sidebar: some View {
+        let hidden = environment.library.hiddenLibraries
+        let libraries = environment.library.libraries.filter { !hidden.contains($0.id) }
+        return MacSidebarSplit(
+            selection: $destination,
+            main: [KikuTab.listen, .marks, .stats].map { SidebarRow(.tab($0), title: $0.title, systemImage: $0.systemImage) },
+            pinned: environment.common.pins.items,
+            pinIcon: { $0.kind == "book" ? "book.closed" : "dot.radiowaves.left.and.right" },
+            unpin: { environment.common.pins.unpin($0.id) },
+            downloaded: SidebarRow(.downloaded, title: "Downloaded", systemImage: "arrow.down.circle",
+                                   count: environment.downloader.records.values.filter { $0.state == .done }.count),
+            libraries: libraries.map {
+                SidebarRow(.library($0.id), title: $0.name, systemImage: $0.mediaType == .book ? "book.closed" : "dot.radiowaves.left.and.right")
+            }
+        ) { destination in
+            switch destination {
+            case .tab(.marks): MarksView()
+            case .tab(.stats): stats
+            case .tab: ListenView()
+            case .pinned(let id):
+                if let pin = environment.common.pins.items.first(where: { $0.id == id }) {
+                    NavigationStack {
+                        ListenDestination(route: pin.kind == "book" ? .book(pin.id) : .show(pin.id))
+                            .navigationDestination(for: ListenRoute.self) { ListenDestination(route: $0) }
+                    }
+                }
+            case .downloaded: NavigationStack { DownloadedEpisodesView() }
+            case .library(let id):
+                if let library = libraries.first(where: { $0.id == id }) {
+                    NavigationStack {
+                        LibraryView(only: library)
+                            .navigationDestination(for: ListenRoute.self) { ListenDestination(route: $0) }
+                    }
+                }
+            }
+        }
+        .yomuMissingAlert(environment, inPlayer: false)
+        // Menu shortcuts and buttons switch tabs; Settings is its own window.
+        .opensSettingsForUITests()
+        .onChange(of: environment.tabRequests) {
+            let tab = environment.selectedTab
+            if tab == .settings { openWindow(id: MacSettingsWindow.sceneID) } else if destination != .tab(tab) { destination = .tab(tab) }
+        }
+        .onChange(of: destination) { _, destination in
+            if case .tab(let tab) = destination, environment.selectedTab != tab { environment.selectedTab = tab }
+        }
+    }
+    #endif
+
+    private var stats: some View {
+        StatsView(kind: .listening, environment: environment.common) { series in
+            ShowCover(itemId: series.key)
+        }
+    }
+
     private var tabs: some View {
         TabView(selection: tabSelection) {
-            Tab(KikuTab.listen.title, systemImage: "headphones", value: .listen) {
+            Tab(KikuTab.listen.title, systemImage: KikuTab.listen.systemImage, value: .listen) {
                 // Tapped again: back to the home screen. Not rebuilt with `.id` like the other
                 // tabs: on the iPhone Duo that left the old back button in the side column.
                 ListenView(reset: resets[.listen, default: 0])
                     .clearOfBottomAccessory(environment.playback != nil)
             }
-            Tab(KikuTab.marks.title, systemImage: "bookmark", value: .marks) {
+            Tab(KikuTab.marks.title, systemImage: KikuTab.marks.systemImage, value: .marks) {
                 MarksView()
                     .clearOfBottomAccessory(environment.playback != nil)
                     .id(resets[.marks])
             }
-            Tab(KikuTab.stats.title, systemImage: "chart.bar", value: .stats) {
-                StatsView(kind: .listening, environment: environment.common) { series in
-                    ShowCover(itemId: series.key)
-                }
+            Tab(KikuTab.stats.title, systemImage: KikuTab.stats.systemImage, value: .stats) {
+                stats
                 .clearOfBottomAccessory(environment.playback != nil)
                 .id(resets[.stats])
             }
-            Tab(KikuTab.settings.title, systemImage: "gearshape", value: .settings) {
+            Tab(KikuTab.settings.title, systemImage: KikuTab.settings.systemImage, value: .settings) {
                 KikuSettingsView()
                     .clearOfBottomAccessory(environment.playback != nil)
                     .id(resets[.settings])

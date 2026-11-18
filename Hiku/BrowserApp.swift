@@ -15,7 +15,15 @@ struct BrowserApp: App {
         WindowGroup {
             SetupView(isShared: BrowserStorage.location().isShared)
                 .environment(environment)
-                .task { await environment.start() }
+                .task {
+                    #if DEBUG
+                    // UI tests' screenshots of the popup's glass in Safari set its opacity here.
+                    if let opacity = ProcessInfo.processInfo.environment["UITEST_POPUP_OPACITY"].flatMap(Int.init) {
+                        environment.lookup.updatePopupSettings { $0.backgroundOpacityPercent = opacity }
+                    }
+                    #endif
+                    await environment.start()
+                }
         }
     }
 

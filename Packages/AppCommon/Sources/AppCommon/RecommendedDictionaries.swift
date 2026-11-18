@@ -57,7 +57,7 @@ public enum RecommendedDictionaries {
             license: "Bee's Ultimate Grammar Dictionary by bee-san, compiled from the grammar references named in its index (github.com/bee-san/bees-ultimate-grammar-dictionary).",
             matchesTitle: { $0.hasPrefix("Bee's Ultimate Grammar") }),
         RecommendedDictionary(
-            id: "kanjium", name: "Kanjium", purpose: "Pitch accent (optional: not one of Hachidori's defaults)", approximateBytes: 1_100_000,
+            id: "kanjium", name: "Kanjium", purpose: "Pitch accent (optional)", approximateBytes: 1_100_000,
             downloadURL: URL(string: "https://github.com/toasted-nutbread/yomichan-pitch-accent-dictionary/releases/latest/download/kanjium_pitch_accents.zip")!,
             license: "Kanjium pitch accents by Uros Ozvatic (github.com/mifunetoshiro/kanjium), packaged by toasted-nutbread.",
             selectedByDefault: false,

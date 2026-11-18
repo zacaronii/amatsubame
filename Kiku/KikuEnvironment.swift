@@ -20,11 +20,17 @@ final class KikuEnvironment {
     /// Shared by every Audiobookshelf client, so an expired token is refreshed once.
     let tokens: AudiobookshelfTokens
     /// The tab showing (⌘1–⌘4 switch it).
-    var selectedTab = KikuTab.listen
+    var selectedTab = KikuTab.listen { didSet { tabRequests &+= 1 } }
+    /// Bumped by every switch, to the same tab too: the Mac's sidebar follows it from a library row.
+    private(set) var tabRequests = 0
     /// A library to open in the Listen tab (the iPad's and Mac's sidebar).
     var requestedLibrary: AudiobookshelfLibrary?
     /// Shows, new episodes and progress from Audiobookshelf, shared by the tabs.
     @ObservationIgnored private(set) lazy var library = PodcastLibrary(environment: self)
+    #if os(iOS)
+    /// Kiku on Apple Watch: what's playing goes to the watch, its buttons come back.
+    @ObservationIgnored private(set) lazy var watch = WatchBridge(environment: self)
+    #endif
     /// The episode loaded in the player (the mini player shows it), and whether the full player is open.
     private(set) var playback: PlaybackModel?
     var showsPlayer = false
@@ -36,6 +42,8 @@ final class KikuEnvironment {
     /// Shows with a downloaded episode (the Library's Downloaded filter).
     var downloadedShowIds: Set<String> { downloader.downloadedShowIds }
     @ObservationIgnored private var started = false
+    /// The app's environment, for scenes SwiftUI doesn't create (CarPlay). Set at launch.
+    static var current: KikuEnvironment?
 
     init(database: AppDatabase, secrets: any SecretStore, mediaDirectory: URL, dictionaryDirectory: URL,
          downloadsDirectory: URL = URL.applicationSupportDirectory.appending(path: "Downloads"), backgroundDownloads: Bool = true,
@@ -113,6 +121,11 @@ final class KikuEnvironment {
             sendsProgress: false, sendsCards: false
         )
         if env["UITEST_STATS"] != nil { seedStats(environment.common.activity, kind: .listening) }
+        if env["UITEST_KIKU_LIVE_TEXT"] != nil {
+            var settings = ListenSettings.load(environment.common.database)
+            settings.watchLiveText = true
+            try? settings.save(environment.common.database)
+        }
         if env["UITEST_KIKU_PLAYER"] != nil { environment.openUITestEpisode() }
         if env["UITEST_KIKU_BOOK"] != nil { environment.openUITestEpisode(book: true) }
         environment.common.pendingDictionaryImports = (env["UITEST_DICTIONARY_ZIPS"] ?? "")
@@ -252,9 +265,18 @@ final class KikuEnvironment {
     func mark(_ source: AudioMark.Source) -> AudioMark? {
         guard let playback else { return nil }
         let entry = playback.entry
+        return mark(source, itemId: entry.itemId, episodeId: entry.episode.id, showTitle: entry.showTitle,
+                    episodeTitle: entry.episode.title, time: playback.audio.currentTime)
+    }
+
+    /// Marks a place in an episode whether or not it's loaded (a mark the watch made while the
+    /// phone was out of reach, delivered later).
+    @discardableResult
+    func mark(_ source: AudioMark.Source, itemId: String, episodeId: String, showTitle: String, episodeTitle: String,
+              time: Double) -> AudioMark? {
         guard let mark = try? marks.add(AudioMark(
-            itemId: entry.itemId, episodeId: entry.episode.id, showTitle: entry.showTitle, episodeTitle: entry.episode.title,
-            time: playback.audio.currentTime, createdAt: .now, source: source)) else { return nil }
+            itemId: itemId, episodeId: episodeId, showTitle: showTitle, episodeTitle: episodeTitle,
+            time: time, createdAt: .now, source: source)) else { return nil }
         lastMark = mark
         return mark
     }

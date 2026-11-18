@@ -17,11 +17,17 @@ struct KikuApp: App {
         _environment = State(initialValue: environment)
         // For "Mark in Kiku" (the Action Button and Siri).
         AppDependencyManager.shared.add(dependency: environment)
+        // For CarPlay, which can launch the app without a phone window.
+        KikuEnvironment.current = environment
+        #if os(iOS)
+        // Here rather than in start(): the watch can wake Kiku with no window either.
+        environment.watch.start()
+        #endif
     }
 
     var body: some Scene {
         WindowGroup {
-            KikuRootView()
+            root
                 // Kiku orange; the Info.plist accent alone isn't applied.
                 .tint(Color("AccentColor"))
                 .environment(environment)
@@ -49,6 +55,35 @@ struct KikuApp: App {
             await environment.downloader.handleBackgroundEvents()
         }
         #endif
+        #if os(macOS)
+        // ⌘, : Settings in its own window, its pages in a sidebar. A window rather than a
+        // Settings scene, whose toolbar puts a page's back button under its title.
+        Window("Settings", id: MacSettingsWindow.sceneID) {
+            MacSettingsView()
+                .tint(Color("AccentColor"))
+                .environment(environment)
+                .environment(environment.common)
+        }
+        .defaultSize(width: 860, height: 640)
+        .windowResizability(.contentMinSize)
+        .commands {
+            MacSettingsCommands()
+            AboutCommands()
+        }
+        #endif
+    }
+
+    @ViewBuilder private var root: some View {
+        #if DEBUG
+        // UI tests' screenshots of the lookup popup's glass (PopupGlassGallery).
+        if let gallery = PopupGlassGallery.fromEnvironment() {
+            gallery
+        } else {
+            KikuRootView()
+        }
+        #else
+        KikuRootView()
+        #endif
     }
 
     /// Asks iOS to wake the app later to send anything still queued.
@@ -65,9 +100,18 @@ struct KikuApp: App {
 struct KikuMenus: Commands {
     let environment: KikuEnvironment
 
+    /// ⌘1… for each tab; on the Mac, Settings is ⌘, instead.
+    static var shortcutTabs: [KikuTab] {
+        #if os(macOS)
+        KikuTab.allCases.filter { $0 != .settings }
+        #else
+        KikuTab.allCases
+        #endif
+    }
+
     var body: some Commands {
         CommandGroup(after: .sidebar) {
-            ForEach(Array(KikuTab.allCases.enumerated()), id: \.offset) { index, tab in
+            ForEach(Array(Self.shortcutTabs.enumerated()), id: \.offset) { index, tab in
                 Button(tab.title) { environment.selectedTab = tab }
                     .keyboardShortcut(KeyEquivalent(Character(String(index + 1))), modifiers: .command)
             }

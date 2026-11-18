@@ -141,10 +141,48 @@ public final class DictionaryLibrary: Sendable {
         return try await install(folder, summary: summary, started: Date(), copy: true)
     }
 
+    /// What a compiled folder made elsewhere holds, by kind: its `index.json` counts frequencies
+    /// and pitches together.
+    public struct CompiledKinds: Equatable, Sendable {
+        public var terms: Int
+        public var frequencies: Int
+        public var pitches: Int
+        public var kanji: Int
+        public var media: Int
+
+        public init(terms: Int = 0, frequencies: Int = 0, pitches: Int = 0, kanji: Int = 0, media: Int = 0) {
+            self.terms = terms
+            self.frequencies = frequencies
+            self.pitches = pitches
+            self.kanji = kanji
+            self.media = media
+        }
+    }
+
+    /// Adds a compiled hoshidicts folder made elsewhere (a Hachidori host's export, unpacked),
+    /// moving it into place: no import. Its title and revision come from its `index.json`; a
+    /// newer revision of an installed dictionary (of the same title, or `replacing`'s id when
+    /// its title changed) replaces it, the same one is `alreadyInstalled`. It doesn't update
+    /// itself: a copy follows its source (copied again), not the dictionary's latest release.
+    @discardableResult
+    public func installCompiled(_ folder: URL, kinds: CompiledKinds, replacing: String? = nil) async throws -> DictionaryImportOutcome {
+        switch DictionaryFormat(folder: folder) {
+        case .newer: throw DictionaryError.newerFormat
+        case .missing: throw DictionaryError.importFailed("The dictionary folder is incomplete.")
+        case .supported: break
+        }
+        guard let title = Self.readIndex(in: folder)?.title, !title.isEmpty else {
+            throw DictionaryError.importFailed("The dictionary has no title.")
+        }
+        let summary = ImportSummary(title: title, terms: kinds.terms, meta: kinds.frequencies + kinds.pitches,
+                                    frequencies: kinds.frequencies, pitches: kinds.pitches, kanji: kinds.kanji, media: kinds.media)
+        return try await install(folder, summary: summary, started: Date(), copy: false, replacing: replacing, updatesItself: false)
+    }
+
     /// Moves (or copies) an imported hoshidicts folder into place and records it; a newer
     /// revision of an installed dictionary replaces it in place.
     private func install(_ imported: URL, summary: ImportSummary, started: Date, copy: Bool,
-                         replacing: String? = nil, catalogId: String? = nil) async throws -> DictionaryImportOutcome {
+                         replacing: String? = nil, catalogId: String? = nil, updatesItself: Bool = true) async throws -> DictionaryImportOutcome {
         let fileManager = FileManager.default
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         let index = Self.readIndex(in: imported) ?? DictionaryIndex()
@@ -199,11 +237,12 @@ public final class DictionaryLibrary: Sendable {
             } else {
                 try record.insert(db)
             }
-            // The revision is the installed zip's; the update address is its own index's.
+            // The revision is the installed zip's; the update address is its own index's. A copy
+            // (`updatesItself` false) keeps the addresses but no catalog entry, so it isn't updated.
             try DictionarySource(
-                dictionaryId: id, catalogId: catalogId ?? previousSource?.catalogId,
+                dictionaryId: id, catalogId: updatesItself ? catalogId ?? previousSource?.catalogId : nil,
                 indexUrl: index.indexUrl ?? previousSource?.indexUrl, downloadUrl: index.downloadUrl ?? previousSource?.downloadUrl,
-                isUpdatable: index.isUpdatable ?? false, checkedAt: previousSource?.checkedAt
+                isUpdatable: updatesItself && index.isUpdatable == true, checkedAt: previousSource?.checkedAt
             ).save(db)
         }
         try await reloadEngine()
@@ -333,7 +372,9 @@ public final class DictionaryLibrary: Sendable {
             EngineDictionary(title: $0.title, folder: folder(for: $0), hasTerms: $0.hasTerms,
                              hasFrequencies: $0.hasFrequencies, hasPitches: $0.hasPitches, hasKanji: $0.hasKanji)
         }
-        try await engine.configure(loaded, frequencySortTitle: sortTitle)
-        await scanner.configure(loaded, frequencySortTitle: sortTitle)
+        // A dictionary the engine rejects is left out of word marks too.
+        let rejected = await engine.configure(loaded, frequencySortTitle: sortTitle)
+        await scanner.configure(loaded.filter { !rejected.contains($0.title) },
+                                frequencySortTitle: sortTitle.flatMap { rejected.contains($0) ? nil : $0 })
     }
 }

@@ -97,6 +97,9 @@ struct ShowView: View {
             if environment.library.showEpisodes[itemId] == nil { ProgressView() }
         }
         .navigationTitle(show?.title ?? environment.library.showTitle(itemId))
+        #if os(macOS)
+        .pinnable(id: itemId, kind: "show", title: show?.title ?? environment.library.showTitle(itemId))
+        #endif
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif

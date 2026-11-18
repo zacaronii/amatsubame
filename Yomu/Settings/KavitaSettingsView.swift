@@ -19,13 +19,11 @@ struct KavitaSettingsView: View {
                 Text("Create an auth key in Kavita under User Settings → Auth Keys.")
             }
             Section {
-                Button("Test Connection") { Task { await model.testAndSave() } }
-                    .disabled(!model.canTest)
-                ConnectionStatusView(status: model.status)
+                ConnectionTestRow(status: model.status, disabled: !model.canTest) { Task { await model.testAndSave() } }
             }
             if model.isConfigured {
                 Section {
-                    Button("Remove Server", role: .destructive) { model.remove() }
+                    ConfirmedRemoveButton.removeServer("Kavita") { model.remove() }
                 }
             }
         }

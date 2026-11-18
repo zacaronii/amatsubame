@@ -38,6 +38,22 @@ struct MiruApp: App {
             await environment.downloader.handleBackgroundEvents()
         }
         #endif
+        #if os(macOS)
+        // ⌘, : Settings in its own window, its pages in a sidebar. A window rather than a
+        // Settings scene, whose toolbar puts a page's back button under its title.
+        Window("Settings", id: MacSettingsWindow.sceneID) {
+            MacSettingsView()
+                .tint(Color("AccentColor"))
+                .environment(environment)
+                .environment(environment.common)
+        }
+        .defaultSize(width: 860, height: 640)
+        .windowResizability(.contentMinSize)
+        .commands {
+            MacSettingsCommands()
+            AboutCommands(appCredits: PlayerSettingsView.credits)
+        }
+        #endif
     }
 
     /// Asks iOS to wake the app later to send anything still queued.
@@ -53,6 +69,15 @@ struct MiruApp: App {
 /// Menu bar: Playback (acts on the player in front) and tab shortcuts.
 struct PlayerMenus: Commands {
     let environment: PlayerEnvironment
+
+    /// ⌘1… for each tab; on the Mac, Settings is ⌘, instead.
+    static var shortcutTabs: [PlayerTab] {
+        #if os(macOS)
+        PlayerTab.allCases.filter { $0 != .settings }
+        #else
+        PlayerTab.allCases
+        #endif
+    }
     @FocusedValue(\.playback) private var playback
 
     /// Off while a sheet you type in is open (dictionary search, Find Subtitles), so typing
@@ -77,6 +102,19 @@ struct PlayerMenus: Commands {
         #endif
     }
 
+    /// The Subtitles menu: the lines and the subtitles. Everything else is in Playback.
+    static let subtitleSections: [PlayerShortcut.Section] = [.lines, .subtitles]
+    static let playbackSections = PlayerShortcut.Section.allCases.filter { !subtitleSections.contains($0) }
+
+    @ViewBuilder private func menuSections(_ sections: [PlayerShortcut.Section]) -> some View {
+        ForEach(sections) { section in
+            ForEach(PlayerShortcut.available.filter { $0.section == section }) { shortcut in
+                menuItem(shortcut)
+            }
+            if section != sections.last { Divider() }
+        }
+    }
+
     /// The menu's wording follows what the item would do now.
     private func title(_ shortcut: PlayerShortcut) -> String {
         switch shortcut {
@@ -89,17 +127,11 @@ struct PlayerMenus: Commands {
     }
 
     var body: some Commands {
-        CommandMenu("Playback") {
-            // Built from PlayerShortcut, like the keys and the cheat sheet.
-            ForEach(PlayerShortcut.Section.allCases) { section in
-                ForEach(PlayerShortcut.available.filter { $0.section == section }) { shortcut in
-                    menuItem(shortcut)
-                }
-                Divider()
-            }
-        }
+        // Built from PlayerShortcut, like the keys and the cheat sheet.
+        CommandMenu("Playback") { menuSections(Self.playbackSections) }
+        CommandMenu("Subtitles") { menuSections(Self.subtitleSections) }
         CommandGroup(after: .sidebar) {
-            ForEach(Array(PlayerTab.allCases.enumerated()), id: \.offset) { index, tab in
+            ForEach(Array(Self.shortcutTabs.enumerated()), id: \.offset) { index, tab in
                 Button(tab.title) { environment.selectedTab = tab }
                     .keyboardShortcut(KeyEquivalent(Character(String(index + 1))), modifiers: .command)
             }

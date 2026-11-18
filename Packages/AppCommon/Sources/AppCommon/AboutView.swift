@@ -6,7 +6,7 @@ public struct AboutView: View {
     @State private var dictionaries: [DictionaryRecord] = []
     private let credits: [(String, String, String)]
     private static let shared: [(String, String, String)] = [
-        ("hoshidicts", "GPL-3.0", "Yomitan dictionary import and lookup by Manhhao, with Yomitan's Japanese deinflection rules."),
+        ("hoshidicts", "GPL-3.0", "Yomitan dictionary import and lookup by Manhhao, in bee-san's fork that Hachidori uses, with Yomitan's Japanese deinflection rules."),
         ("Yomitan", "GPL-3.0", "Dictionary format, deinflection rules and structured-content rendering this app follows."),
         ("GRDB.swift", "MIT", "SQLite toolkit."),
         ("ZIPFoundation", "MIT", "Reading EPUB and subtitle archives."),
@@ -29,7 +29,7 @@ public struct AboutView: View {
     }
 
     public var body: some View {
-        List {
+        Form {
             Section {
                 LabeledContent("Version", value: "\(CommonEnvironment.appVersion) (\(CommonEnvironment.buildNumber))")
             }
@@ -66,7 +66,53 @@ public struct AboutView: View {
                 }
             }
         }
+        .formStyle(.grouped)
         .navigationTitle("About")
         .task { dictionaries = (try? environment.dictionaries.dictionaries()) ?? [] }
     }
 }
+
+#if os(macOS)
+import AppKit
+
+/// App menu ▸ About: the standard About window, with the open-source credits from Settings ▸ About.
+public struct AboutCommands: Commands {
+    let appCredits: [(String, String, String)]
+
+    /// `appCredits`: the app's own libraries, as in its Settings ▸ About.
+    public init(appCredits: [(String, String, String)] = []) {
+        self.appCredits = appCredits
+    }
+
+    public var body: some Commands {
+        CommandGroup(replacing: .appInfo) {
+            Button("About \(CommonEnvironment.appName)") {
+                NSApplication.shared.orderFrontStandardAboutPanel(options: [.credits: AboutView.creditsText(appCredits: appCredits)])
+                NSApplication.shared.activate()
+            }
+        }
+    }
+}
+
+extension AboutView {
+    /// The credits as the About window shows them: each library with its licence and use.
+    static func creditsText(appCredits: [(String, String, String)]) -> NSAttributedString {
+        let text = NSMutableAttributedString()
+        let small = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        paragraph.paragraphSpacing = 6
+        func add(_ string: String, font: NSFont, color: NSColor) {
+            text.append(NSAttributedString(string: string, attributes: [.font: font, .foregroundColor: color, .paragraphStyle: paragraph]))
+        }
+        add("Open Source\n", font: .boldSystemFont(ofSize: NSFont.systemFontSize), color: .labelColor)
+        for (name, license, note) in appCredits + shared {
+            add(name, font: .boldSystemFont(ofSize: NSFont.smallSystemFontSize), color: .labelColor)
+            add(" · \(license)\n", font: small, color: .secondaryLabelColor)
+            add("\(note)\n", font: small, color: .secondaryLabelColor)
+        }
+        add("\nEach dictionary's licence is in Settings ▸ About.", font: small, color: .secondaryLabelColor)
+        return text
+    }
+}
+#endif

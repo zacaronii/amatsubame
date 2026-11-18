@@ -50,17 +50,16 @@ public struct AudiobookshelfSettingsView: View {
             }
             Section {
                 if model.isSignedIn {
-                    Button("Test Connection") { Task { await model.testConnection() } }
-                        .disabled(model.status == .working)
-                    Button("Sign Out", role: .destructive) { model.signOut() }
+                    ConnectionTestRow(status: model.status, disabled: model.status == .working) { Task { await model.testConnection() } }
+                    ConfirmedRemoveButton.signOut("Audiobookshelf") { model.signOut() }
                 } else {
                     Button("Sign In") { Task { await model.signIn() } }
                         .disabled(!model.canSignIn)
                         .accessibilityIdentifier("audiobookshelf.signIn")
-                    Button("Test Connection") { Task { await model.testConnection() } }
-                        .disabled(model.urlText.isEmpty || model.status == .working)
+                    ConnectionTestRow(status: model.status, disabled: model.urlText.isEmpty || model.status == .working) {
+                        Task { await model.testConnection() }
+                    }
                 }
-                ConnectionStatusView(status: model.status)
             }
         }
         .formStyle(.grouped)
@@ -87,13 +86,11 @@ public struct KakuSettingsView: View {
                 Text("Kaku transcribes your Audiobookshelf podcasts and audiobooks, and Jellyfin episodes Jimaku has no subtitles for. The token is KAKU_API_TOKEN from its server settings.")
             }
             Section {
-                Button("Test Connection") { Task { await model.testAndSave() } }
-                    .disabled(!model.canTest)
-                ConnectionStatusView(status: model.status)
+                ConnectionTestRow(status: model.status, disabled: !model.canTest) { Task { await model.testAndSave() } }
             }
             if model.isConfigured {
                 Section {
-                    Button("Remove Server", role: .destructive) { model.remove() }
+                    ConfirmedRemoveButton.removeServer("Kaku") { model.remove() }
                 }
             }
         }

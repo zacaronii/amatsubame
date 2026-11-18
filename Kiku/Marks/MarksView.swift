@@ -1,6 +1,7 @@
 import AppCommon
 import AudiobookshelfKit
 import Core
+import Lookup
 import SwiftUI
 
 /// The Marks tab (K7/K8): marks made while listening, grouped by episode, to mine later; and
@@ -43,8 +44,8 @@ struct MarksView: View {
         }
         .onAppear { model?.reloadLines() }
         .onDisappear { model?.discard() }
-        .sheet(item: Binding(get: { model?.lookup.popup }, set: { if $0 == nil { model?.popupClosed() } })) { popup in
-            if let model { KikuLookupSheet(model: model, popup: popup) }
+        .lookupOverlay(model?.lookup.popup, service: environment.common.lookup, onClose: { model?.popupClosed() }) { popup in
+            if let model { KikuLookupPanel(model: model, popup: popup) }
         }
     }
 
@@ -258,6 +259,8 @@ private struct MarkCard: View {
         case .nowPlaying: "From Now Playing"
         case .player: "In the player"
         case .headphones: "With headphones"
+        case .carPlay: "In CarPlay"
+        case .watch, .watchLine: "On Apple Watch"
         }
         let time = mark.createdAt.formatted(date: .omitted, time: .shortened)
         let calendar = Calendar.current

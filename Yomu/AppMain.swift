@@ -36,7 +36,22 @@ struct YomuApp: App {
             await scheduleOutboxRefresh()
         }
         #endif
-
+        #if os(macOS)
+        // ⌘, : Settings in its own window, its pages in a sidebar. A window rather than a
+        // Settings scene, whose toolbar puts a page's back button under its title.
+        Window("Settings", id: MacSettingsWindow.sceneID) {
+            MacSettingsView()
+                .tint(Color("AccentColor"))
+                .environment(environment)
+                .environment(environment.common)
+        }
+        .defaultSize(width: 860, height: 640)
+        .windowResizability(.contentMinSize)
+        .commands {
+            MacSettingsCommands()
+            AboutCommands(appCredits: SettingsView.credits)
+        }
+        #endif
     }
 
     /// Asks iOS to wake the app later to send anything still queued.
@@ -54,6 +69,15 @@ struct ReaderMenus: Commands {
     let environment: AppEnvironment
     @FocusedValue(\.readerPaging) private var paging
     @FocusedValue(\.readerClose) private var close
+
+    /// ⌘1… for each tab; on the Mac, Settings is ⌘, instead.
+    static var shortcutTabs: [AppTab] {
+        #if os(macOS)
+        AppTab.allCases.filter { $0 != .settings }
+        #else
+        AppTab.allCases
+        #endif
+    }
 
     var body: some Commands {
         CommandMenu("Reader") {
@@ -74,7 +98,7 @@ struct ReaderMenus: Commands {
             .keyboardShortcut("f", modifiers: .command)
         }
         CommandGroup(after: .sidebar) {
-            ForEach(Array(AppTab.allCases.enumerated()), id: \.offset) { index, tab in
+            ForEach(Array(Self.shortcutTabs.enumerated()), id: \.offset) { index, tab in
                 Button(tab.title) {
                     close?()
                     environment.selectedTab = tab

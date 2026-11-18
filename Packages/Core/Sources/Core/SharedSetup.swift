@@ -20,7 +20,7 @@ public struct SharedSetup: Sendable {
                                 "lookupCount", "popupSettings", "hachidoriSettings"]
     public static let sharedServerKinds: Set<ServerKind> = [.anki]
     /// Changes other running apps must reload for (the rest is read fresh on each use).
-    public static let reloadTables = ["dictionary", "dictionarySettings", "hachidoriSettings"]
+    public static let reloadTables = ["dictionary", "dictionarySettings", "hachidoriSettings", "wordStatus"]
     /// The shared Keychain items (the AnkiConnect key), in the App Group's access group.
     public static let keychainService = "com.amatsubame.shared"
 

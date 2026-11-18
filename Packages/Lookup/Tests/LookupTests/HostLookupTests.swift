@@ -6,14 +6,17 @@ import Synchronization
 import Testing
 
 /// A Hachidori relay and host in memory: hello with `options`, and answers to `hd_lookup`
-/// (one result only the host has) and `hd_lookup_stats_record` (count 9).
+/// (one result only the host has) and `hd_lookup_stats_read` (count 9).
 final class ScriptedHost: SharingTransport {
     let options: JSONValue
+    /// More of the hello's snapshot (beside `options`).
+    let snapshot: [String: JSONValue]
     let lookups = Mutex(0)
     let records = Mutex(0)
 
-    init(options: JSONValue) {
+    init(options: JSONValue, snapshot: [String: JSONValue] = [:]) {
         self.options = options
+        self.snapshot = snapshot
     }
 
     func connect(to url: URL, origin: String) async throws -> any SharingSocket {
@@ -29,7 +32,7 @@ final class ScriptedHost: SharingTransport {
                 "term": ["expression": "映画", "reading": "えいが", "rules": "n", "score": 0,
                          "glossaries": [["dictionary": "Host Dictionary", "glossary": #"["a film on the host"]"#]]],
             ]]]
-        case "hd_lookup_stats_record":
+        case "hd_lookup_stats_read":
             records.withLock { $0 += 1 }
             return ["ok": true, "statistics": ["term": "映画", "reading": "えいが", "lookupCount": 9]]
         default:
@@ -50,7 +53,7 @@ final class ScriptedHost: SharingTransport {
             switch frame["kind"]?.string {
             case "hello":
                 deliver(["kind": "hello", "protocol": 1, "version": "test", "name": "Test host", "dictionaryCount": 1,
-                         "capabilities": [], "snapshot": ["options": host.options]])
+                         "capabilities": [], "snapshot": .object(host.snapshot.merging(["options": host.options]) { $1 })])
             case "request":
                 if let id = frame["id"], let message = frame["message"], let response = host.reply(to: message) {
                     deliver(["kind": "reply", "id": id, "response": response])
@@ -90,11 +93,12 @@ final class ScriptedHost: SharingTransport {
 }
 
 @Suite @MainActor struct HostLookupTests {
-    func linked(_ service: LookupService, options: JSONValue = [:]) async throws -> ScriptedHost {
-        let host = ScriptedHost(options: options)
+    func linked(_ service: LookupService, options: JSONValue = [:], snapshot: [String: JSONValue] = [:]) async throws -> ScriptedHost {
+        let host = ScriptedHost(options: options, snapshot: snapshot)
         let connection = HostConnection(link: HachidoriLink(url: URL(string: "ws://host.example:8771/link")!, clientName: "Tests",
                                                             clientVersion: "0", transport: host))
         service.host = connection
+        service.looksUpOnHost = true
         connection.start()
         for _ in 0..<200 where !service.followsHost { try await Task.sleep(for: .milliseconds(10)) }
         try #require(service.followsHost)
@@ -103,21 +107,38 @@ final class ScriptedHost: SharingTransport {
 
     @Test func linkedLookupsUseTheHostAndItsCounts() async throws {
         let service = try await LookupServiceTests().makeService()
+        let outbox = OutboxStore(database: try AppDatabase.inMemory())
+        service.hostOutbox = (outbox, {})
         let host = try await linked(service)
         let page = await service.lookup(text: "映画を見る", utf16Offset: 0)
         #expect(page.results.first?.glossaries.first?.dictionary == "Host Dictionary")
-        #expect(page.lookupCount == 9, "the host's count")
-        #expect(try service.counts.count(term: "映画", reading: "えいが") == 0, "nothing counted locally")
+        #expect(page.lookupCount == 10, "the host's 9 and this one, still queued")
+        #expect(try outbox.queuedHostLookupCount(term: "映画", reading: "えいが") == 1)
+        #expect(try service.counts.count(term: "映画", reading: "えいが") == 10, "kept for offline")
         #expect(host.lookups.withLock { $0 } == 1)
 
         let search = await service.search("映画")
         #expect(search.results.first?.glossaries.first?.dictionary == "Host Dictionary")
-        #expect(await service.recordSearch(search) == 9)
+        #expect(await service.recordSearch(search) == 11)
         #expect(host.records.withLock { $0 } == 2)
         service.host = nil
     }
 
-    @Test func theHostsPopupSettingsApplyWhileLinked() async throws {
+    /// iPhone and iPad look up locally while linked; counts and settings are still the host's.
+    @Test func linkedWithoutHostLookups() async throws {
+        let service = try await LookupServiceTests().makeService()
+        let outbox = OutboxStore(database: try AppDatabase.inMemory())
+        service.hostOutbox = (outbox, {})
+        let host = try await linked(service)
+        service.looksUpOnHost = false
+        let page = await service.lookup(text: "映画", utf16Offset: 0)
+        #expect(page.results.first?.glossaries.first?.dictionary == "Terms")
+        #expect(page.lookupCount == 10)
+        #expect(host.lookups.withLock { $0 } == 0)
+        service.host = nil
+    }
+
+    @Test func theHostsPopupSettingsApplyWhileLinkedAndAreKept() async throws {
         let service = try await LookupServiceTests().makeService()
         _ = try await linked(service, options: ["revision": 3, "showCompactDefinitionSummary": true, "popupOpacityPercent": 40,
                                                 "showLookupCounts": false])
@@ -125,10 +146,11 @@ final class ScriptedHost: SharingTransport {
         #expect(service.popupSettings.backgroundOpacityPercent == 40)
         #expect(!service.showsLookupCounts)
         #expect(await service.lookup(text: "映画", utf16Offset: 0).lookupCount == nil, "the host doesn't count")
-        #expect(service.storedPopupSettings.backgroundOpacityPercent == 85, "our own settings are kept")
+        #expect(service.storedPopupSettings.backgroundOpacityPercent == 40, "kept for when the host is away")
 
         service.host = nil
-        #expect(service.popupSettings.backgroundOpacityPercent == 85)
+        #expect(service.popupSettings.backgroundOpacityPercent == 40)
+        #expect(!service.showsLookupCounts)
     }
 
     @Test func withoutTheHostLookupsStayLocal() async throws {

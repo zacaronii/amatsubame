@@ -99,6 +99,7 @@ public struct HostDictionary: Equatable, Sendable, Decodable {
     public var frequencyCount: Int?
     public var pitchCount: Int?
     public var kanjiCount: Int?
+    public var mediaCount: Int?
     public var isUpdatable: Bool?
     public var indexUrl: String?
     public var downloadUrl: String?

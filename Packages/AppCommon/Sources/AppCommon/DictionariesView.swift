@@ -1,5 +1,6 @@
 import Core
 import Dictionary
+import HachidoriKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -14,9 +15,12 @@ public struct DictionariesView: View {
     @State private var urlText = ""
     @State private var importing: ImportProgress?
     @State private var message: String?
+    /// While linked to Hachidori: send each imported zip to it too (#36).
+    @AppStorage("dictionaries.sendsImportsToHachidori") private var sendsImportsToHachidori = false
 
     struct ImportProgress: Equatable {
         var name: String
+        var verb = "Importing"
         var started = Date()
     }
 
@@ -29,7 +33,8 @@ public struct DictionariesView: View {
             }
             Section {
                 ForEach(Array(records.enumerated()), id: \.element.id) { index, record in
-                    DictionaryRow(record: record, updatesItself: selfUpdating.contains(record.id)) { enabled in
+                    DictionaryRow(record: record, updatesItself: selfUpdating.contains(record.id),
+                                  problem: DictionaryFormat(folder: environment.dictionaries.folder(for: record)).problem) { enabled in
                         Task { await run { try await environment.dictionaries.setEnabled(record.id, enabled) } }
                     }
                     .reorderMenu(index: index, count: records.count, move: move)
@@ -54,6 +59,25 @@ public struct DictionariesView: View {
                 }
             }
             DictionaryUpdatesSection()
+            if let hachidori = environment.hachidori {
+                Section {
+                    NavigationLink {
+                        HachidoriDictionariesPage()
+                    } label: {
+                        Label("Copy from Hachidori…", systemImage: "arrow.down.circle")
+                    }
+                    .disabled(!hachidori.isLinked)
+                    .accessibilityIdentifier("dictionaries.copyFromHachidori")
+                    Toggle("Also Add Imports to Hachidori", isOn: $sendsImportsToHachidori)
+                        .accessibilityIdentifier("dictionaries.sendsImportsToHachidori")
+                } header: {
+                    Text("Hachidori")
+                } footer: {
+                    Text(hachidori.isLinked
+                         ? "Copy Hachidori's dictionaries at its exact versions, with its order and on/off. Dictionary files you import here can go to Hachidori too."
+                         : "Hachidori isn't reachable right now.")
+                }
+            }
             Section {
                 NavigationLink {
                     AddRecommendedView()
@@ -67,6 +91,7 @@ public struct DictionariesView: View {
                 Text("Yomitan dictionary zips: term dictionaries (Jitendex), frequency lists (Jiten) and pitch accent dictionaries.")
             }
         }
+        .settingsListWidth()
         .navigationTitle("Dictionaries")
         .toolbar {
             #if os(iOS)
@@ -79,7 +104,7 @@ public struct DictionariesView: View {
                 TimelineView(.periodic(from: importing.started, by: 1)) { context in
                     VStack(spacing: 12) {
                         ProgressView()
-                        Text("Importing \(importing.name)…")
+                        Text("\(importing.verb) \(importing.name)…")
                         Text("\(Int(context.date.timeIntervalSince(importing.started)))s").monospacedDigit().foregroundStyle(.secondary)
                     }
                     .padding(24)
@@ -128,9 +153,13 @@ public struct DictionariesView: View {
         do {
             let (file, response) = try await URLSession.shared.download(from: url)
             guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
-            let zip = file.deletingLastPathComponent().appending(path: "\(UUID().uuidString).zip")
+            // Its own name in a folder of its own (Hachidori shows the name of a zip sent to it).
+            let folder = file.deletingLastPathComponent().appending(path: UUID().uuidString)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: folder) }
+            let name = url.lastPathComponent.isEmpty ? "dictionary" : url.lastPathComponent
+            let zip = folder.appending(path: name.lowercased().hasSuffix(".zip") ? name : name + ".zip")
             try FileManager.default.moveItem(at: file, to: zip)
-            defer { try? FileManager.default.removeItem(at: zip) }
             await importZip(zip, name: url.lastPathComponent)
             urlText = ""
         } catch {
@@ -147,8 +176,22 @@ public struct DictionariesView: View {
             try await environment.lookup.reload()
             let verb = outcome.replacedPrevious ? "Updated" : "Imported"
             message = "\(verb) \(outcome.dictionary.title) in \(String(format: "%.1f", outcome.seconds))s."
+            if sendsImportsToHachidori, let link = environment.hachidori?.link {
+                await send(url, title: outcome.dictionary.title, to: link)
+            }
         } catch {
             message = error.localizedDescription
+        }
+    }
+
+    /// Sends an imported zip to Hachidori, replacing its copy of the same title.
+    private func send(_ zip: URL, title: String, to link: HachidoriLink) async {
+        importing = ImportProgress(name: "\(title) to Hachidori", verb: "Sending")
+        do {
+            try await link.sendDictionary(zip, replace: true)
+            message = (message ?? "") + " Added it to Hachidori too."
+        } catch {
+            message = (message ?? "") + " Couldn't add it to Hachidori: \(error.localizedDescription)"
         }
     }
 
@@ -177,6 +220,8 @@ public struct DictionariesView: View {
 private struct DictionaryRow: View {
     let record: DictionaryRecord
     let updatesItself: Bool
+    /// Why the engine can't load it (a newer format, or a broken folder).
+    let problem: String?
     let onToggle: (Bool) -> Void
 
     var body: some View {
@@ -193,6 +238,11 @@ private struct DictionaryRow: View {
                                 .background(.tint.opacity(0.15), in: .capsule)
                         }
                         Text(details).font(.caption).foregroundStyle(.secondary)
+                    }
+                    if let problem {
+                        Label(problem, systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
                     }
                 }
                 if updatesItself {

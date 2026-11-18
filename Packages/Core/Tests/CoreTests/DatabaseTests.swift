@@ -27,7 +27,7 @@ import Testing
             "localSubtitle",
             "autoDownloadSetting",
             "activitySession", "lookupEvent", "statsState", "lookupCount", "popupSettings", "hachidoriSettings",
-            "japaneseOnlyJellyfinLibrary", "jellyfinAudioCheck",
+            "japaneseOnlyJellyfinLibrary", "jellyfinAudioCheck", "pinnedItem", "wordStatus",
             "audioTranscript", "audioSentence", "audioSentenceSearch", "listenSettings", "audiobookshelfCache", "audioMark", "readAlongPair",
             "bookLength", "kechimochiCache",
         ])
