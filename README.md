@@ -14,7 +14,7 @@ idea: never touching down out of Japanese.
 | --- | --- | --- |
 | **Yomu** | 読む, to read | Manga and EPUBs from Kavita: on-device manga OCR (tap a speech bubble to look a word up), vertical or horizontal EPUBs, and read-along with a paired Audiobookshelf audiobook |
 | **Miru** | 見る, to watch | Jellyfin video through mpv with tappable Japanese subtitles, subtitles from Jimaku with Auto-Sync, and Lines: a searchable history of the lines you've watched |
-| **Kiku** | 聞く, to listen | Audiobookshelf podcasts and audiobooks with tappable transcripts from Kaku, plus marks: mark what you just heard (AirPods, Action Button, Siri) and mine it later |
+| **Kiku** | 聞く, to listen | Audiobookshelf podcasts and audiobooks with tappable transcripts from Kaku, plus marks: mark what you just heard (AirPods, Action Button, Siri, CarPlay, Apple Watch) and mine it later |
 | **Hiku** | 引く, to look up | A Safari Web Extension: tap Japanese text on any page for the same popup, and mine it to Anki |
 | **Kaku** | 書く, to write down | A transcription server (Whisper large-v3 on an NVIDIA GPU) that writes timed Japanese transcripts of your Audiobookshelf libraries for Kiku and Yomu, and subtitles for Jellyfin episodes on request |
 

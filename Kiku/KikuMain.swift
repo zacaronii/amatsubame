@@ -19,6 +19,10 @@ struct KikuApp: App {
         AppDependencyManager.shared.add(dependency: environment)
         // For CarPlay, which can launch the app without a phone window.
         KikuEnvironment.current = environment
+        #if os(iOS)
+        // Here rather than in start(): the watch can wake Kiku with no window either.
+        environment.watch.start()
+        #endif
     }
 
     var body: some Scene {
