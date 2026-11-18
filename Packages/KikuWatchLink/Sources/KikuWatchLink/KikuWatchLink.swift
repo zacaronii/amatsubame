@@ -132,8 +132,10 @@ public enum WatchCommand: Codable, Equatable, Sendable {
     case markLine(key: String, line: Int)
     /// Plays the line's clip on the phone.
     case replayLine(key: String, line: Int)
-    /// Looks up the word at a character of the line, on the phone.
+    /// Looks up the word at a character of the line, on the phone (which pauses until `endLookup`).
     case lookUp(key: String, line: Int, character: Int)
+    /// The lookup closed: the phone plays again if the lookup paused it.
+    case endLookup
     /// Adds the card for that lookup, on the phone (through its outbox).
     case addCard(key: String, line: Int, character: Int)
     /// Live Text's transcript (by `WatchTranscript.id`), the lines from `from` on.

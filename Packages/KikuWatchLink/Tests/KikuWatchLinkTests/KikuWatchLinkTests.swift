@@ -48,7 +48,7 @@ import Testing
         #expect(WatchMessages.state(from: WatchMessages.context(WatchState(nowPlaying: nil))) == WatchState(nowPlaying: nil))
         let commands: [WatchCommand] = [.togglePlay, .skipBackward, .skipForward, .mark, .markLine(key: "show/ep", line: 3),
                                         .replayLine(key: "show/ep", line: 3), .lookUp(key: "show/ep", line: 3, character: 5),
-                                        .addCard(key: "show/ep", line: 3, character: 5), .transcriptPart(id: "show/ep#abc", from: 40)]
+                                        .addCard(key: "show/ep", line: 3, character: 5), .endLookup, .transcriptPart(id: "show/ep#abc", from: 40)]
         for command in commands {
             #expect(WatchMessages.command(from: WatchMessages.message(command)) == command)
         }
