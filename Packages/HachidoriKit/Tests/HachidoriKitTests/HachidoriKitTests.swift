@@ -250,6 +250,50 @@ import Testing
         await link.stop()
     }
 
+    /// The network went away silently: a request that times out finds the socket dead and drops it.
+    @Test func aDeadSocketIsDroppedAfterATimeout() async throws {
+        let host = FakeHost(hello: try fixture("hello"))
+        let link = link(host)
+        await link.start()
+        await waitUntil { if case .linked = await link.status { true } else { false } }
+        host.socket?.state.withLock { $0.answersPings = false }
+        await #expect(throws: HachidoriError.timedOut) { try await link.request("hoshidicts-offscreen", "hd_status") }
+        await waitUntil { host.connections == 2 }
+        #expect(host.connections == 2)
+        await link.stop()
+    }
+
+    /// A timeout on a live socket (a slow host) keeps the link.
+    @Test func aLiveSocketIsKeptAfterATimeout() async throws {
+        let host = FakeHost(hello: try fixture("hello"))
+        let link = link(host)
+        await link.start()
+        await #expect(throws: HachidoriError.timedOut) { try await link.request("hoshidicts-offscreen", "hd_status") }
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(host.connections == 1)
+        await link.stop()
+    }
+
+    /// Airplane mode: the link drops at once, and links again when the network is back.
+    @Test func followsTheNetwork() async throws {
+        let host = FakeHost(hello: try fixture("hello"))
+        var timing = Self.fast
+        timing.backoffBase = .seconds(60)
+        timing.backoffMax = .seconds(60)
+        let link = HachidoriLink(url: URL(string: "ws://host.example:8771/link")!, clientName: "Yomu", clientVersion: "0.3.0",
+                                 transport: host, timing: timing)
+        await link.start()
+        await waitUntil { if case .linked = await link.status { true } else { false } }
+        await link.networkChanged(available: false)
+        await waitUntil { if case .waiting = await link.status { true } else { false } }
+        guard case .waiting = await link.status else { Issue.record("still linked"); return }
+        await link.networkChanged(available: true)
+        await waitUntil { if case .linked = await link.status { true } else { false } }
+        guard case .linked = await link.status else { Issue.record("not linked again"); return }
+        #expect(host.connections == 2)
+        await link.stop()
+    }
+
     @Test func withoutAHostRequestsFailAndTheLinkKeepsTrying() async throws {
         let host = FakeHost(hello: nil)
         host.refuse(true)
@@ -321,6 +365,14 @@ struct LiveLinkTests {
 
         let hello = try await HachidoriLink.probe(url: url, clientName: "Amatsubame tests", clientVersion: "0.3.0")
         #expect(hello.dictionaryCount > 0)
+    }
+
+    /// The relay answers WebSocket pings (how a silently dead link is found).
+    @Test func aRealHostAnswersPings() async throws {
+        let url = try #require(ProcessInfo.processInfo.environment["HACHIDORI_LINK_URL"].flatMap(HachidoriLink.linkURL))
+        let socket = try await URLSessionSharingTransport().connect(to: url, origin: HachidoriLink.origin)
+        #expect(await socket.ping(timeout: .seconds(3)))
+        socket.close()
     }
 
     /// Copies the host's smallest dictionary (read-only): list, download, unpack, look up.

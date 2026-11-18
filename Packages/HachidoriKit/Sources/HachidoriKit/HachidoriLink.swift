@@ -31,6 +31,8 @@ public actor HachidoriLink {
         public var linkWait: Duration = .seconds(5)
         /// How long a reply may take (Mangatan: 15 s).
         public var reply: Duration = .seconds(15)
+        /// After an unanswered request, how long the socket may take to answer a ping before it's dropped.
+        public var pingWait: Duration = .seconds(2)
         /// Reconnect after min(`backoffMax`, `backoffBase`·2ⁿ) (Hachidori: 0.5–10 s).
         public var backoffBase: Duration = .milliseconds(500)
         public var backoffMax: Duration = .seconds(10)
@@ -165,6 +167,13 @@ public actor HachidoriLink {
         endBackoff()
     }
 
+    /// The device's network went away or came back. A WebSocket isn't told when it goes (airplane
+    /// mode), so without this the link would look linked and every request would wait out its
+    /// timeout; drop it now, and link again at once when the network is back.
+    public func networkChanged(available: Bool) {
+        if available { endBackoff() } else { socket?.close() }
+    }
+
     /// Ends the backoff wait (only the one with `id`, when given: an earlier wait's timer
     /// mustn't cut a later one short).
     private func endBackoff(_ id: UUID? = nil) {
@@ -254,9 +263,18 @@ public actor HachidoriLink {
                     return
                 }
                 try? await Task.sleep(for: reply)
+                guard self.pending[id] != nil else { return }
                 self.finish(id, .failure(.timedOut))
+                await self.dropUnlessAlive(socket)
             }
         }.get()
+    }
+
+    /// A request went unanswered: unless the socket answers a ping soon, the connection is gone
+    /// without the socket noticing, so close it (the run loop then links again).
+    private func dropUnlessAlive(_ socket: any SharingSocket) async {
+        guard !(await socket.ping(timeout: timing.pingWait)) else { return }
+        socket.close()
     }
 
     private func finish(_ id: Int, _ result: Result<JSONValue, HachidoriError>) {
