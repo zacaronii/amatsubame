@@ -75,26 +75,31 @@ private struct NowPlayingControls: View {
         }
     }
 
+    /// Each button takes a third of the width and 40 pt of height, so they're easy to hit.
     private var controls: some View {
-        HStack {
+        HStack(spacing: 0) {
             Button { session.send(.skipBackward) } label: {
-                Image(systemName: Self.skipSymbol("gobackward", playing.skipBackward))
+                controlImage(Self.skipSymbol("gobackward", playing.skipBackward), size: 24)
             }
             .accessibilityLabel("Back \(Int(playing.skipBackward)) seconds")
             Button { session.send(.togglePlay) } label: {
-                Image(systemName: playing.isPlaying ? "pause.fill" : "play.fill").font(.title3)
+                controlImage(playing.isPlaying ? "pause.fill" : "play.fill", size: 30)
             }
             .accessibilityLabel(playing.isPlaying ? "Pause" : "Play")
             .accessibilityIdentifier("watch.playPause")
             Button { session.send(.skipForward) } label: {
-                Image(systemName: Self.skipSymbol("goforward", playing.skipForward))
+                controlImage(Self.skipSymbol("goforward", playing.skipForward), size: 24)
             }
             .accessibilityLabel("Forward \(Int(playing.skipForward)) seconds")
         }
         .buttonStyle(.plain)
-        .font(.title3)
-        .frame(maxWidth: .infinity)
-        .labelStyle(.iconOnly)
+    }
+
+    private func controlImage(_ symbol: String, size: CGFloat) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: size, weight: .medium))
+            .frame(maxWidth: .infinity, minHeight: 40)
+            .contentShape(.rect)
     }
 
     /// "gobackward.15": SF Symbols has 5–90 s in these steps; others use the plain arrow.
