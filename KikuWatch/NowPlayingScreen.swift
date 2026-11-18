@@ -74,6 +74,8 @@ private struct NowPlayingControls: View {
             // Takes the crown: it turns the iPhone's volume, as in Apple's Now Playing.
             PhoneVolume().scaleEffect(0.55).frame(width: 26, height: 26)
         }
+        // Clear of the Live Text button in the top corner.
+        .padding(.top, session.liveTextOn ? 10 : 0)
     }
 
     private func progress(at date: Date) -> some View {

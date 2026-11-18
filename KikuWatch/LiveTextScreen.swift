@@ -176,23 +176,29 @@ private struct FocusedLine: View {
             WordFlow(text: line.text, highlighted: highlighted) { character in
                 session.lookUp(line, character: character)
             }
-            Text(line.start.watchClock)
-                .font(.system(size: 11).monospacedDigit())
-                .foregroundStyle(.secondary)
-            HStack(spacing: 6) {
-                Button { session.markLine(line) } label: {
-                    Label(isChosen ? "Mark" : "Mark Line", systemImage: "bookmark").font(.footnote.weight(.semibold))
-                }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("watch.liveText.markLine")
+            // The time and small buttons on one row, so the transcript keeps the screen.
+            HStack(spacing: 4) {
+                Text(line.start.watchClock)
+                    .font(.system(size: 11).monospacedDigit())
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
                 if isChosen {
                     Button { session.replay(line) } label: {
-                        Label("Replay", systemImage: "play.fill").font(.footnote.weight(.semibold))
+                        Label("Replay", systemImage: "play.fill")
                     }
                     .buttonStyle(.bordered)
                     .accessibilityIdentifier("watch.liveText.replay")
                 }
+                Button { session.markLine(line) } label: {
+                    Label(isChosen ? "Mark" : "Mark Line", systemImage: "bookmark")
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("watch.liveText.markLine")
             }
+            .font(.caption2.weight(.semibold))
+            .buttonBorderShape(.capsule)
+            .controlSize(.mini)
+            .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.vertical, 2)
     }

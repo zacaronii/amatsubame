@@ -28,6 +28,8 @@ final class WatchBridge: NSObject, WCSessionDelegate {
     private var lastLookup: (command: WatchCommand, page: LookupResultPage)?
     /// Replay paused the episode: it plays again when the clip ends.
     private var resumesAfterClip = false
+    /// A lookup from the watch paused the episode: it plays again when the watch closes it.
+    private var resumesAfterLookup = false
 
     init(environment: KikuEnvironment) {
         self.environment = environment
@@ -142,6 +144,8 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         let audio = playback.audio
         switch command {
         case .togglePlay:
+            // Played or paused by hand: closing the lookup leaves it be.
+            resumesAfterLookup = false
             audio.toggle()
         case .skipBackward:
             audio.skip(by: -audio.skipIntervals.backward)
@@ -164,8 +168,16 @@ final class WatchBridge: NSObject, WCSessionDelegate {
             replay(line, in: playback)
         case let .lookUp(key, position, character):
             guard let line = line(key, position, in: playback) else { return reply("That episode isn't playing any more") }
+            // As a tap in the transcript does: pause while you read it.
+            if audio.isPlaying {
+                resumesAfterLookup = true
+                audio.pause()
+            }
             let page = await lookUp(line, character: character)
-            guard let first = page.results.first, let source = page.source else { return reply("No dictionary entry") }
+            guard let first = page.results.first, let source = page.source else {
+                resumeAfterLookup(playback)
+                return reply("No dictionary entry")
+            }
             lastLookup = (command, page)
             let start = LineLookup.characterIndex(utf16: source.utf16Offset, in: source.text)
             let end = LineLookup.characterIndex(utf16: source.utf16Offset + source.utf16Length, in: source.text)
@@ -188,11 +200,19 @@ final class WatchBridge: NSObject, WCSessionDelegate {
             } catch {
                 return reply("Set up Anki in Kiku's settings to add cards")
             }
+        case .endLookup:
+            resumeAfterLookup(playback)
         case let .transcriptPart(id, from):
             guard let part = transcriptPart(id, from: from, of: playback) else { return reply("That transcript isn't playing any more") }
             return WatchReply(transcriptPart: part, state: currentState())
         }
         return WatchReply(state: currentState())
+    }
+
+    private func resumeAfterLookup(_ playback: PlaybackModel) {
+        guard resumesAfterLookup else { return }
+        resumesAfterLookup = false
+        if !playback.audio.isPlaying { playback.audio.play() }
     }
 
     private func reply(_ message: String) -> WatchReply {

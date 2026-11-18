@@ -103,6 +103,7 @@ final class WatchSession: NSObject, WCSessionDelegate {
 
     func closeLookup() {
         lookup = nil
+        send(.endLookup)
     }
 
     private func replied(_ reply: WatchReply?, to command: WatchCommand) {
@@ -127,7 +128,7 @@ final class WatchSession: NSObject, WCSessionDelegate {
         case .addCard:
             if reply.cardAdded == true {
                 WKInterfaceDevice.current().play(.success)
-                lookup = nil
+                closeLookup()
                 confirmation = Confirmation(symbol: "plus.circle.fill", title: "Card added", detail: reply.message ?? "")
             } else {
                 failed(reply.message ?? "Couldn't add the card")
@@ -143,7 +144,7 @@ final class WatchSession: NSObject, WCSessionDelegate {
             } else if let next = part.next {
                 send(.transcriptPart(id: part.id, from: next))
             }
-        case .togglePlay, .skipBackward, .skipForward, .replayLine:
+        case .togglePlay, .skipBackward, .skipForward, .replayLine, .endLookup:
             if let message = reply.message { show(message) }
         }
     }
@@ -171,6 +172,8 @@ final class WatchSession: NSObject, WCSessionDelegate {
         case .transcriptPart:
             // Asked again when the phone is back.
             fetching = nil
+            return
+        case .endLookup:
             return
         default:
             return show("Your iPhone is out of reach")
