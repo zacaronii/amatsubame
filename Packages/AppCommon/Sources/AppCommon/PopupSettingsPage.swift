@@ -17,6 +17,7 @@ public struct PopupSettingsPage: View {
 
     public var body: some View {
         let lookup = environment.lookup
+        // The sections are disabled, not the Form: a disabled Form doesn't scroll on iOS.
         Form {
             if followsHachidori {
                 Section {
@@ -45,6 +46,7 @@ public struct PopupSettingsPage: View {
             } footer: {
                 Text("Full definitions stay available below. Without a summary dictionary, the first dictionary with a definition is used.")
             }
+            .disabled(followsHachidori)
             Section {
                 LabeledContent("Background Opacity") {
                     HStack {
@@ -61,6 +63,7 @@ public struct PopupSettingsPage: View {
             } footer: {
                 Text("What shows through is always blurred, and text stays solid; at low opacity it gets a soft halo so it stays readable.")
             }
+            .disabled(followsHachidori)
             Section {
                 Toggle("Record and Show Lookup Counts", isOn: Binding { lookup.showsLookupCounts } set: { lookup.setShowsLookupCounts($0) })
                     .accessibilityIdentifier("popup.lookupCounts")
@@ -72,9 +75,9 @@ public struct PopupSettingsPage: View {
                 Text(resetDone ? "Lookup counts were reset."
                      : "See how often you look up a word. Turning this off keeps your past counts. Counts are shared by the apps that share this setup.")
             }
+            .disabled(followsHachidori)
         }
         .formStyle(.grouped)
-        .disabled(followsHachidori)
         .navigationTitle("Popup")
         .task {
             do {
