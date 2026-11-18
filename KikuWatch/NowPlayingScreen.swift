@@ -2,8 +2,9 @@ import KikuWatchLink
 import SwiftUI
 import WatchKit
 
-/// The one screen: what's playing on the iPhone, its controls and a large Mark button; or a calm
-/// note when nothing is. The crown turns the iPhone's volume.
+/// The first screen: what's playing on the iPhone, its controls and a large Mark button; or a
+/// calm note when nothing is. The crown turns the iPhone's volume. With Live Text on, the
+/// top-left button opens the transcript.
 struct NowPlayingScreen: View {
     @Environment(WatchSession.self) private var session
 
@@ -15,11 +16,25 @@ struct NowPlayingScreen: View {
                 NothingPlaying()
             }
             if let confirmation = session.confirmation {
-                MarkedCard(confirmation: confirmation)
+                ConfirmationCard(confirmation: confirmation)
                     .transition(.opacity)
             }
         }
         .animation(.easeInOut(duration: 0.2), value: session.confirmation)
+        .toolbar {
+            if session.liveTextOn, session.nowPlaying != nil {
+                ToolbarItem(placement: .topBarLeading) {
+                    NavigationLink {
+                        LiveTextScreen()
+                    } label: {
+                        // White on the tinted button (the default glyph took the tint, and vanished).
+                        Image(systemName: "text.quote").foregroundStyle(.white)
+                    }
+                    .accessibilityLabel("Live Text")
+                    .accessibilityIdentifier("watch.liveText")
+                }
+            }
+        }
     }
 }
 
@@ -147,13 +162,13 @@ private struct NothingPlaying: View {
     }
 }
 
-/// The brief card after a mark, over the whole screen; `WatchSession` takes it away.
-private struct MarkedCard: View {
+/// The brief card after a mark or a card added, over the whole screen; `WatchSession` takes it away.
+struct ConfirmationCard: View {
     let confirmation: WatchSession.Confirmation
 
     var body: some View {
         VStack(spacing: 8) {
-            Image(systemName: "bookmark.fill").font(.title).foregroundStyle(.tint)
+            Image(systemName: confirmation.symbol).font(.title).foregroundStyle(.tint)
             Text(confirmation.title).font(.headline)
             Text(confirmation.detail).font(.caption2).foregroundStyle(.secondary).multilineTextAlignment(.center)
         }

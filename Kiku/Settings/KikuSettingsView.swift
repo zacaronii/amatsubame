@@ -88,10 +88,34 @@ struct KikuSettingsView: View {
                 Text("For the Lock Screen, AirPods and CarPlay. The player's own buttons jump by lines.")
                 #endif
             }
+            #if os(iOS)
+            WatchLiveTextSection()
+            #endif
         }
         .formStyle(.grouped)
         .navigationTitle("Playback")
     }
+
+    #if os(iOS)
+    /// Live Text on Apple Watch (docs/watch.md): off by default; off, no transcripts go to the watch.
+    private struct WatchLiveTextSection: View {
+        @Environment(KikuEnvironment.self) private var environment
+        @State private var isOn = false
+
+        var body: some View {
+            Section {
+                Toggle("Live Text on Apple Watch", isOn: $isOn)
+                    .accessibilityIdentifier("settings.watchLiveText")
+            } footer: {
+                Text("Kiku on your Apple Watch shows the transcript as it plays. Tap a word there to look it up, and add the card from your wrist.")
+            }
+            .onAppear { isOn = environment.watch.liveText }
+            .onChange(of: isOn) { _, on in
+                if on != environment.watch.liveText { environment.watch.setLiveText(on) }
+            }
+        }
+    }
+    #endif
 
     static var downloads: some View {
         Form { DownloadSettingsSection { _ in } }

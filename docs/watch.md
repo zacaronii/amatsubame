@@ -8,8 +8,8 @@ iPhone through WatchConnectivity. Playing on the watch by itself is out of scope
 
 | Piece | Where | What it does |
 | --- | --- | --- |
-| `KikuWatchLink` | `Packages/KikuWatchLink` | The Codable messages both sides use (`WatchNowPlaying`, `WatchState`, `WatchCommand`, `WatchReply`, `WatchQueuedMark`), how they're packed into WatchConnectivity dictionaries (`WatchMessages`), the position worked out from a sample, and `WatchStateStore` (what the complication reads). Tested with `swift test`. |
-| `WatchBridge` | `Kiku/Watch` (iOS only) | The phone's side: sends the state, carries out the watch's buttons. Started in `KikuApp.init`, since the watch can wake Kiku with no window. |
+| `KikuWatchLink` | `Packages/KikuWatchLink` | The Codable messages both sides use (`WatchNowPlaying`, `WatchState`, `WatchCommand`, `WatchReply`, `WatchQueuedMark`, and Live Text's `WatchTranscript`, `WatchTranscriptPart`, `WatchLookup`), how they're packed into WatchConnectivity dictionaries (`WatchMessages`), the position worked out from a sample, `LineFollow` (which line is playing, shared with Kiku's `TranscriptFollow`), `WatchStateStore` (what the complication reads) and `WatchTranscriptStore` (the watch's last five transcripts). Tested with `swift test`. |
+| `WatchBridge` | `Kiku/Watch` (iOS only) | The phone's side: sends the state, answers the watch (buttons, Live Text's transcript, lookups, cards). Started in `KikuApp.init`, since the watch can wake Kiku with no window. |
 | `KikuWatch` | `KikuWatch/` | The watch app (watchOS 26, `$(BUNDLE_ID_PREFIX).kiku.watchkitapp`), embedded in Kiku's iOS app (Embed Watch Content). |
 | `KikuWatchWidgets` | `KikuWatchWidgets/` | The complication and Smart Stack widget, embedded in the watch app. |
 
@@ -28,9 +28,10 @@ iPhone through WatchConnectivity. Playing on the watch by itself is out of scope
 
 ## Screens
 
-1. **Now Playing:** cover, title, chapter (or show), progress with elapsed and remaining time, skip back / play-pause / skip forward, and a large Mark button in Kiku orange.
-2. **Marked:** a sheet that closes itself after 2.5 s.
+1. **Now Playing:** cover, title, chapter (or show), progress with elapsed and remaining time, skip back / play-pause / skip forward (each a third of the width, 40 pt high), and a large Mark button in Kiku orange. With Live Text on, a button at the top left opens it.
+2. **Marked / Card added:** a card over the screen that goes after 2.5 s (an overlay: a sheet presented from here never showed).
 3. **Nothing playing:** the glyph and "Start something in Kiku on your iPhone".
+4. **Live Text:** below.
 
 ## Complication and Smart Stack
 
@@ -46,8 +47,20 @@ The watch app and widget use the App Group entitlements the other targets use (`
 ## Testing
 
 - `swift test` in `Packages/KikuWatchLink`: message round trips, the worked-out position (time, rate, pause, the end), what counts as news, keys, and clock text.
-- By hand: the `KikuWatch` scheme in a watch simulator paired with an iPhone simulator running Kiku. WatchConnectivity works between paired simulators.
+- `swift test` also covers Live Text: the line followed from the worked-out position, transcripts split into parts that fit a message and put together again, the watch's store, and the new commands and replies.
+- By hand: the `KikuWatch` scheme in a watch simulator paired with an iPhone simulator running Kiku. WatchConnectivity works between paired simulators (messages and context; not `transferFile`). Install the watch app and open it before launching Kiku, or Kiku sees no watch app. Launch Kiku with `UITEST_KIKU=1 UITEST_KIKU_PLAYER=1` for an episode with a transcript, plus `UITEST_KIKU_LIVE_TEXT=1` to turn Live Text on and `UITEST_DICTIONARY_ZIPS` for lookups.
 
-## Later: Live Text (v2)
+## Live Text
 
-An optional transcript feed on the watch (behind a Settings toggle, off by default): the phone sends an item's sentences once with `transferFile`, and the watch follows the current line from the same state messages. Not built yet.
+The transcript on the watch, so you can mine on the go. Off by default: Kiku ▸ Settings ▸ Playback ▸ "Live Text on Apple Watch" (`ListenSettings.watchLiveText`, Core migration `v40_watch_live_text`; the toggle calls `WatchBridge.setLiveText`). Off, no transcript leaves the phone.
+
+- **Getting the transcript:** with Live Text on and the player showing a transcript, `WatchNowPlaying.transcript` names it (`<key>#<Kaku fingerprint>`). A watch without that transcript asks for it with `transcriptPart(id:from:)`, and the phone answers in parts of about 40 KB of lines (`WatchTranscript.part`, under WatchConnectivity's 64 KB message limit; `WatchTranscriptAssembly` puts them together). Lines carry position, start, end and text (`TappableLine.sentence`, so character indices match the phone's lookup); no word timings. The watch keeps the last five on disk (`WatchTranscriptStore`).
+  - Why messages, not `transferFile` as first planned: the watch simulator never hands transferred files to the app (`handleIncomingFile` is logged, the delegate isn't called), so it couldn't be tested; and Live Text needs the phone reachable for lookups anyway. A transcript of a long episode is a few parts.
+- **Following:** no extra traffic. The watch works the position out from the v1 state and finds the line with `LineFollow` (the same as the player's `TranscriptFollow.index`); a drift over 1.5 s already makes the phone send a fresh state.
+- **Screen:** the earlier lines (up to 150) dimmed at 13 pt, the line playing at 20 pt with its time and **Mark Line**. Lines after it aren't shown. A `TimelineView` redraws twice a second while playing, once a minute with the wrist down (`isLuminanceReduced`: text dimmed, no scroll animation); on wrist raise it jumps to the line playing.
+- **Crown:** scrolling (`onScrollPhaseChange` → interacting) leaves follow mode. Tapping an earlier line chooses it: it grows, with **Mark** and **Replay**. **Back to now** follows again.
+- **Words:** the focused line is a flow of per-character views (SwiftUI's `Text` doesn't report which character was tapped). A tap sends `lookUp(key:line:character:)`; the phone runs the transcript's lookup (`LookupService.lookup(text:utf16Offset:showSource:)`, so it's counted and kept in history, without pausing) and answers with a `WatchLookup`: the matched range (highlighted), headword, reading, the first compact-summary meaning, the first frequency, the lookup count and whether it's mined.
+- **Add card:** `addCard` mines the first result on the phone with `MiningService.mine` and the player's `miningContext(for:)` (the line's audio and the cover), through the outbox, so it works with Anki unreachable. The watch shows "Card added · 雨 · <deck>".
+- **Mark Line:** a mark at the line's start with source `watchLine` (no migration: the source is text). Marks treats it like the player's button (`guessesEarlier: false`), so it shows that line, not the one before. Out of reach, it's queued like Mark with `WatchQueuedMark.wholeLine`.
+- **Replay:** the line's clip through the player's clip path (`PlaybackModel.playClip`); the episode pauses for it and plays again when the clip ends.
+- Lines are named by episode key and position; if the phone has moved to another episode, it says so instead of acting on the wrong line.

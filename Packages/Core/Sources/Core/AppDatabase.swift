@@ -723,6 +723,13 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v40_watch_live_text") { db in
+            // Kiku: Live Text on Apple Watch (off until turned on in Settings ▸ Playback).
+            try db.alter(table: "listenSettings") { t in
+                t.add(column: "watchLiveText", .boolean).notNull().defaults(to: false)
+            }
+        }
+
         return migrator
     }
 }
