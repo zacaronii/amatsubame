@@ -38,6 +38,8 @@ final class KikuEnvironment {
     /// Shows with a downloaded episode (the Library's Downloaded filter).
     var downloadedShowIds: Set<String> { downloader.downloadedShowIds }
     @ObservationIgnored private var started = false
+    /// The app's environment, for scenes SwiftUI doesn't create (CarPlay). Set at launch.
+    static var current: KikuEnvironment?
 
     init(database: AppDatabase, secrets: any SecretStore, mediaDirectory: URL, dictionaryDirectory: URL,
          downloadsDirectory: URL = URL.applicationSupportDirectory.appending(path: "Downloads"), backgroundDownloads: Bool = true,

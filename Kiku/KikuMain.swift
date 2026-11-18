@@ -17,6 +17,8 @@ struct KikuApp: App {
         _environment = State(initialValue: environment)
         // For "Mark in Kiku" (the Action Button and Siri).
         AppDependencyManager.shared.add(dependency: environment)
+        // For CarPlay, which can launch the app without a phone window.
+        KikuEnvironment.current = environment
     }
 
     var body: some Scene {

@@ -16,4 +16,14 @@ AMATSUBAME_DEVICE_ENTITLEMENTS = $(AMATSUBAME_DEVICE_ENTITLEMENTS_$(AMATSUBAME_A
 AMATSUBAME_MAC_SUFFIX_YES = -AppGroup
 AMATSUBAME_MAC_SUFFIX_NO =
 AMATSUBAME_MAC_SUFFIX = $(AMATSUBAME_MAC_SUFFIX_$(AMATSUBAME_APP_GROUP))
+
+// CarPlay (Kiku only): needs the CarPlay audio entitlement granted to your team and the CarPlay
+// Audio capability on Kiku's App ID, so it's off on devices unless Signing.local.xcconfig sets
+// AMATSUBAME_CARPLAY = YES. Simulator builds always have it. Yomu, Miru and Hiku never do.
+AMATSUBAME_CARPLAY = NO
+KIKU_DEVICE_ENTITLEMENTS_YES_YES = Kiku/Resources/Kiku-AppGroup-CarPlay.entitlements
+KIKU_DEVICE_ENTITLEMENTS_YES_NO = Shared/SharedSetup.entitlements
+KIKU_DEVICE_ENTITLEMENTS_NO_YES = Kiku/Resources/Kiku-CarPlay.entitlements
+KIKU_DEVICE_ENTITLEMENTS_NO_NO =
+KIKU_DEVICE_ENTITLEMENTS = $(KIKU_DEVICE_ENTITLEMENTS_$(AMATSUBAME_APP_GROUP)_$(AMATSUBAME_CARPLAY))
 #include? "Signing.local.xcconfig"
