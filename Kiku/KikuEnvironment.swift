@@ -12,6 +12,9 @@ final class KikuEnvironment {
     let common: CommonEnvironment
     /// Local listening positions (the same store Miru uses for watching), keyed "<item>/<episode>".
     let listenProgress: WatchProgressStore
+    /// Listening reported to Audiobookshelf as sessions (its stats and history).
+    let sessions: ListeningSessionReporter
+    @ObservationIgnored private let sendsProgress: Bool
     let transcripts: AudioTranscriptStore
     /// "Mark now, mine later": marks made while listening.
     let marks: AudioMarkStore
@@ -50,15 +53,19 @@ final class KikuEnvironment {
          startupError: String? = nil, sendsProgress: Bool = true, sendsCards: Bool = true, sharedSetup: SharedSetup? = nil) {
         let tokens = AudiobookshelfTokens(secrets: secrets)
         self.tokens = tokens
-        common = CommonEnvironment(
+        let common = CommonEnvironment(
             database: database, secrets: secrets, mediaDirectory: mediaDirectory, dictionaryDirectory: dictionaryDirectory,
             startupError: startupError, sendsCards: sendsCards, sharedSetup: sharedSetup,
             appHandlers: { context in
                 guard sendsProgress else { return [] }
                 let makeClient = AudioServers.audiobookshelfClientFactory(accounts: context.accounts, tokens: tokens, http: context.http)
-                return [AudiobookshelfProgressHandler(makeClient: makeClient)]
+                return [AudiobookshelfProgressHandler(makeClient: makeClient), AudiobookshelfSessionHandler(makeClient: makeClient)]
             }
         )
+        self.common = common
+        self.sendsProgress = sendsProgress
+        sessions = ListeningSessionReporter(outbox: common.outbox, device: .current(clientName: "Kiku"),
+                                            syncNow: { common.syncNow(retryWaiting: false) })
         // Kiku orange (its AccentColor), with dark brown text on filled buttons.
         common.lookup.accent = ("#F79A3E", "#3A1A05")
         listenProgress = WatchProgressStore(database: database)
@@ -226,6 +233,14 @@ final class KikuEnvironment {
         async let common: Void = common.start()
         async let downloads: Void = downloader.start()
         _ = await (common, downloads)
+        // Listening from before Kiku reported sessions (#103), once.
+        if sendsProgress, audiobookshelfClient() != nil {
+            ListeningSessionBackfill.runOnce(activity: self.common.activity, outbox: self.common.outbox,
+                                             device: .current(clientName: "Kiku")) { [listenProgress] key in
+                (try? listenProgress.progress(itemId: key)).flatMap { $0 }.map { ($0.position, $0.duration) }
+            }
+            self.common.syncNow(retryWaiting: false)
+        }
     }
 
     /// After a network change or coming back to the app: tries again what couldn't reach

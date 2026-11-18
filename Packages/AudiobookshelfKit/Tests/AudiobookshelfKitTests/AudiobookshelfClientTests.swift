@@ -286,3 +286,24 @@ func fixture(_ name: String) throws -> Data { try Fixture.data(name, in: .module
         await #expect(throws: ConnectionError.unauthorized) { try await client(transport).transcript(itemId: "a", episodeId: "b") }
     }
 }
+
+@Suite struct AudiobookshelfSessionTests {
+    @Test func aSessionHasAudiobookshelfsFields() throws {
+        let device = AudiobookshelfDeviceInfo(deviceId: "d", clientName: "Kiku", clientVersion: "0.4.0", model: "iPhone16,2")
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Tokyo")!
+        // 2026-11-18 23:30 in Tokyo, 14:30 UTC.
+        let start = Date(timeIntervalSince1970: 1_795_012_200)
+        let session = AudiobookshelfSessionPayload(
+            id: "s", libraryItemId: "li", episodeId: "", mediaType: "book", duration: 100, deviceInfo: device,
+            startTime: 5, currentTime: 9, timeListening: 4, startedAt: start, updatedAt: start + 4, calendar: calendar)
+        let json = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(session)) as? [String: Any])
+        #expect(json["episodeId"] == nil)
+        #expect(json["date"] as? String == "2026-11-18")
+        #expect(json["dayOfWeek"] as? String == "Wednesday")
+        #expect(json["startedAt"] as? Int64 == 1_795_012_200_000)
+        #expect(json["updatedAt"] as? Int64 == 1_795_012_204_000)
+        #expect(json["playMethod"] as? Int == 3)
+        #expect((json["deviceInfo"] as? [String: Any])?["clientName"] as? String == "Kiku")
+    }
+}
