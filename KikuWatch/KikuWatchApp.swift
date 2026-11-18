@@ -7,7 +7,7 @@ struct KikuWatchApp: App {
 
     var body: some Scene {
         WindowGroup {
-            NowPlayingScreen()
+            NavigationStack { NowPlayingScreen() }
                 .tint(Color("AccentColor"))
                 .environment(session)
                 .task { session.start() }

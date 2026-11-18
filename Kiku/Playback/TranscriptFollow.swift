@@ -1,22 +1,13 @@
 import Core
 import Foundation
+import KikuWatchLink
 
 /// Which transcript line goes with a playback time, and where the line buttons jump.
 enum TranscriptFollow {
     /// The line playing at `time`: the last one started by then (it stays current through the
-    /// pause after it). Nil before the first line.
+    /// pause after it). Nil before the first line. Live Text on the watch follows the same way.
     static func index(at time: Double, in sentences: [AudioSentence]) -> Int? {
-        var low = 0
-        var high = sentences.count
-        while low < high {
-            let middle = (low + high) / 2
-            if sentences[middle].start <= time + 0.05 {
-                low = middle + 1
-            } else {
-                high = middle
-            }
-        }
-        return low == 0 ? nil : low - 1
+        LineFollow.index(at: time, in: sentences, start: \.start)
     }
 
     /// How far into a line "previous" restarts it rather than going back one.

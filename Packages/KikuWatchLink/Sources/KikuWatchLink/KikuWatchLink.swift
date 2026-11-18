@@ -22,10 +22,13 @@ public struct WatchNowPlaying: Codable, Equatable, Sendable {
     public var skipForward: Double
     /// A small JPEG of the cover (100 px at most).
     public var artwork: Data?
+    /// Live Text's transcript for this episode (`WatchTranscript.id`): set with Live Text on and
+    /// a transcript on the phone. The watch asks for it if it doesn't have it.
+    public var transcript: String?
 
     public init(itemId: String, episodeId: String, title: String, subtitle: String, chapter: String? = nil,
                 position: Double, duration: Double, rate: Double, isPlaying: Bool, sampledAt: Date,
-                skipBackward: Double = 15, skipForward: Double = 30, artwork: Data? = nil) {
+                skipBackward: Double = 15, skipForward: Double = 30, artwork: Data? = nil, transcript: String? = nil) {
         self.itemId = itemId
         self.episodeId = episodeId
         self.title = title
@@ -39,6 +42,7 @@ public struct WatchNowPlaying: Codable, Equatable, Sendable {
         self.skipBackward = skipBackward
         self.skipForward = skipForward
         self.artwork = artwork
+        self.transcript = transcript
     }
 
     /// "<item>/<episode>", or a book's "<item>" (Kiku's progress key).
@@ -61,7 +65,7 @@ public struct WatchNowPlaying: Codable, Equatable, Sendable {
     public func predicts(_ newer: WatchNowPlaying, tolerance: Double = 1.5) -> Bool {
         key == newer.key && title == newer.title && chapter == newer.chapter && rate == newer.rate
             && isPlaying == newer.isPlaying && duration == newer.duration
-            && skipBackward == newer.skipBackward && skipForward == newer.skipForward
+            && skipBackward == newer.skipBackward && skipForward == newer.skipForward && transcript == newer.transcript
             && abs(position(at: newer.sampledAt) - newer.position) <= tolerance
     }
 }
@@ -69,9 +73,19 @@ public struct WatchNowPlaying: Codable, Equatable, Sendable {
 /// The phone's whole state for the watch: nil when nothing is loaded in Kiku.
 public struct WatchState: Codable, Equatable, Sendable {
     public var nowPlaying: WatchNowPlaying?
+    /// Live Text on Apple Watch is on in Kiku's settings.
+    public var liveText: Bool
 
-    public init(nowPlaying: WatchNowPlaying?) {
+    public init(nowPlaying: WatchNowPlaying?, liveText: Bool = false) {
         self.nowPlaying = nowPlaying
+        self.liveText = liveText
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        nowPlaying = try container.decodeIfPresent(WatchNowPlaying.self, forKey: .nowPlaying)
+        // A state saved before Live Text.
+        liveText = try container.decodeIfPresent(Bool.self, forKey: .liveText) ?? false
     }
 }
 
@@ -85,25 +99,45 @@ public struct WatchQueuedMark: Codable, Equatable, Sendable {
     public var subtitle: String
     public var position: Double
     public var markedAt: Date
+    /// A line chosen in Live Text: `position` is its start, and the mark is about that line.
+    public var wholeLine: Bool?
 
-    public init(itemId: String, episodeId: String, title: String, subtitle: String, position: Double, markedAt: Date) {
+    public init(itemId: String, episodeId: String, title: String, subtitle: String, position: Double, markedAt: Date,
+                wholeLine: Bool? = nil) {
         self.itemId = itemId
         self.episodeId = episodeId
         self.title = title
         self.subtitle = subtitle
         self.position = position
         self.markedAt = markedAt
+        self.wholeLine = wholeLine
     }
 
     public init(_ playing: WatchNowPlaying, at date: Date) {
         self.init(itemId: playing.itemId, episodeId: playing.episodeId, title: playing.title,
                   subtitle: playing.subtitle, position: playing.position(at: date), markedAt: date)
     }
+
+    /// Live Text's Mark Line: at the line's start.
+    public init(line: WatchTranscript.Line, of playing: WatchNowPlaying, at date: Date) {
+        self.init(itemId: playing.itemId, episodeId: playing.episodeId, title: playing.title,
+                  subtitle: playing.subtitle, position: line.start, markedAt: date, wholeLine: true)
+    }
 }
 
-/// A button on the watch, sent with `sendMessage`.
-public enum WatchCommand: String, Codable, Sendable {
+/// A button on the watch, sent with `sendMessage`. Live Text's name a line by the episode key
+/// and its position, so a line from an episode that's no longer playing isn't confused with one.
+public enum WatchCommand: Codable, Equatable, Sendable {
     case togglePlay, skipBackward, skipForward, mark
+    case markLine(key: String, line: Int)
+    /// Plays the line's clip on the phone.
+    case replayLine(key: String, line: Int)
+    /// Looks up the word at a character of the line, on the phone.
+    case lookUp(key: String, line: Int, character: Int)
+    /// Adds the card for that lookup, on the phone (through its outbox).
+    case addCard(key: String, line: Int, character: Int)
+    /// Live Text's transcript (by `WatchTranscript.id`), the lines from `from` on.
+    case transcriptPart(id: String, from: Int)
 }
 
 /// The phone's answer to a command.
@@ -112,12 +146,22 @@ public struct WatchReply: Codable, Equatable, Sendable {
     public var message: String?
     /// For a mark: where it was made, in seconds.
     public var markedAt: Double?
+    /// For a lookup: the word.
+    public var lookup: WatchLookup?
+    /// For a card: it was queued (`message` has the word and the deck).
+    public var cardAdded: Bool?
+    /// For `transcriptPart`: the lines.
+    public var transcriptPart: WatchTranscriptPart?
     /// The state after the command, so the watch needn't wait for the next context.
     public var state: WatchState
 
-    public init(message: String? = nil, markedAt: Double? = nil, state: WatchState) {
+    public init(message: String? = nil, markedAt: Double? = nil, lookup: WatchLookup? = nil, cardAdded: Bool? = nil,
+                transcriptPart: WatchTranscriptPart? = nil, state: WatchState) {
         self.message = message
         self.markedAt = markedAt
+        self.lookup = lookup
+        self.cardAdded = cardAdded
+        self.transcriptPart = transcriptPart
         self.state = state
     }
 }

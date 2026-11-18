@@ -121,6 +121,11 @@ final class KikuEnvironment {
             sendsProgress: false, sendsCards: false
         )
         if env["UITEST_STATS"] != nil { seedStats(environment.common.activity, kind: .listening) }
+        if env["UITEST_KIKU_LIVE_TEXT"] != nil {
+            var settings = ListenSettings.load(environment.common.database)
+            settings.watchLiveText = true
+            try? settings.save(environment.common.database)
+        }
         if env["UITEST_KIKU_PLAYER"] != nil { environment.openUITestEpisode() }
         if env["UITEST_KIKU_BOOK"] != nil { environment.openUITestEpisode(book: true) }
         environment.common.pendingDictionaryImports = (env["UITEST_DICTIONARY_ZIPS"] ?? "")
