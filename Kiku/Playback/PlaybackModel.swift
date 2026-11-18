@@ -287,6 +287,7 @@ final class PlaybackModel: Identifiable, LineLookupHost {
     func close() {
         saveProgress(force: true)
         flushListening()
+        environment.sessions.send()
         transcriptTask?.cancel()
         sleepTask?.cancel()
         clip.stop()
@@ -348,6 +349,7 @@ final class PlaybackModel: Identifiable, LineLookupHost {
         } else {
             saveProgress(force: true)
             flushListening()
+            environment.sessions.send()
         }
         lastTick = nil
     }
@@ -356,12 +358,16 @@ final class PlaybackModel: Identifiable, LineLookupHost {
         if sleepTimer == .endOfEpisode { sleepTimer = nil }
         saveProgress(force: true, finished: true)
         flushListening()
+        environment.sessions.send()
     }
 
     private func flushListening() {
         guard unlogged > 0 else { return }
         let subject = ActivitySubject(kind: .listening, seriesKey: entry.itemId, seriesTitle: entry.collectionTitle, itemKey: key)
         try? environment.common.activity.record(subject, seconds: unlogged)
+        environment.sessions.listened(unlogged, item: ListenedItem(itemId: entry.itemId, episodeId: entry.episode.id,
+                                                                   title: entry.episode.title, duration: audio.duration > 0 ? audio.duration : entry.duration),
+                                      position: audio.currentTime)
         unlogged = 0
     }
 

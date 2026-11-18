@@ -43,6 +43,8 @@ final class AppEnvironment {
     }
     /// Where the read-along audio was, for resuming offline.
     let listenProgress: WatchProgressStore
+    /// Read-along listening reported to Audiobookshelf as sessions (as "Yomu").
+    let sessions: ListeningSessionReporter
     /// Libraries turned off in Settings → Libraries.
     private(set) var hiddenLibraries: Set<Int> = []
     /// The last Kavita refresh couldn't reach the server (the device may still be online).
@@ -101,19 +103,23 @@ final class AppEnvironment {
         let http = HTTPClient()
         let tokens = AudiobookshelfTokens(secrets: secrets)
         audiobookshelfTokens = tokens
-        common = CommonEnvironment(
+        let common = CommonEnvironment(
             database: database, secrets: secrets, mediaDirectory: mediaDirectory, dictionaryDirectory: dictionaryDirectory,
             http: http, startupError: startupError, sendsCards: sendsCards, sharedSetup: sharedSetup,
             appHandlers: { context in
                 guard sendsProgress else { return [] }
+                let audiobookshelf = AudioServers.audiobookshelfClientFactory(accounts: context.accounts, tokens: tokens, http: context.http)
                 return [
                     KavitaProgressHandler(makeClient: Self.kavitaClientFactory(accounts: context.accounts, secrets: context.secrets, http: context.http)),
-                    // Read-along listening moves the audiobook's place too.
-                    AudiobookshelfProgressHandler(makeClient: AudioServers.audiobookshelfClientFactory(
-                        accounts: context.accounts, tokens: tokens, http: context.http)),
+                    // Read-along listening moves the audiobook's place too, and counts as listening.
+                    AudiobookshelfProgressHandler(makeClient: audiobookshelf),
+                    AudiobookshelfSessionHandler(makeClient: audiobookshelf),
                 ]
             }
         )
+        self.common = common
+        sessions = ListeningSessionReporter(outbox: common.outbox, device: .current(clientName: "Yomu"),
+                                            syncNow: { common.syncNow() })
         // Yomu green (its AccentColor), with dark text on filled buttons.
         common.lookup.accent = ("#3FC98F", "#04261A")
         kavitaLibrary = KavitaLibraryRepository(database: database)

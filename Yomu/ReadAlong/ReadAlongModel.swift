@@ -39,6 +39,9 @@ final class ReadAlongModel: BookReadAlongHost {
     @ObservationIgnored private var duration: Double = 0
     /// Turned on from the switch: listen from the page on screen, not where listening stopped.
     @ObservationIgnored private var startsFromPage = false
+    /// Listening not yet reported as an Audiobookshelf session (as Kiku counts it: real playback at any speed).
+    @ObservationIgnored private var unreported: Double = 0
+    @ObservationIgnored private var lastTick: Double?
 
     init(pair: ReadAlongPair, cues: ReadAlongCues, reader: BookReaderModel, environment: AppEnvironment, isOn: Bool) {
         self.pair = pair
@@ -197,6 +200,22 @@ final class ReadAlongModel: BookReadAlongHost {
         }
         // While playing: the player's first tick (0, before it seeks) isn't listening.
         if audio.isPlaying, abs(time - lastSaved) >= 15 { saveProgress() }
+        if audio.isPlaying, let lastTick {
+            let step = time - lastTick
+            if step > 0, step < 1.5 { unreported += 0.25 }
+        }
+        lastTick = time
+        if unreported >= 10 { reportListening() }
+    }
+
+    private func reportListening(send: Bool = false) {
+        if unreported > 0 {
+            environment.sessions.listened(unreported, item: ListenedItem(itemId: pair.itemId, episodeId: "",
+                                                                         duration: audio.duration > 0 ? audio.duration : duration),
+                                          position: audio.currentTime)
+            unreported = 0
+        }
+        if send { environment.sessions.send() }
     }
 
     private func playStateChanged(_ playing: Bool) {
@@ -208,7 +227,9 @@ final class ReadAlongModel: BookReadAlongHost {
         } else {
             // Only when it moved: stopping unplayed audio mustn't look like listening since reading.
             saveProgress(force: abs(audio.currentTime - lastSaved) > 1)
+            reportListening(send: true)
         }
+        lastTick = nil
     }
 
     // MARK: BookReadAlongHost
@@ -281,6 +302,7 @@ final class ReadAlongModel: BookReadAlongHost {
     func close() {
         // Only when the place moved, so an unchanged one doesn't look newer than reading since.
         saveProgress(force: abs(audio.currentTime - lastSaved) > 1)
+        reportListening(send: true)
         audio.stop()
         isLoaded = false
         ScreenAwake.set(false)

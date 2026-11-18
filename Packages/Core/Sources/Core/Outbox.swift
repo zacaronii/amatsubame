@@ -3,6 +3,8 @@ import GRDB
 
 public enum OutboxJobKind: String, Codable, CaseIterable, Sendable, DatabaseValueConvertible {
     case ankiNote, kavitaProgress, jellyfinProgress, jellyfinSubtitle, audiobookshelfProgress
+    /// A listening session for Audiobookshelf's stats (`AudiobookshelfSessionPayload`).
+    case audiobookshelfSession
     /// Lookups to count on a linked Hachidori host (`HostLookupCountJob`).
     case hachidoriLookupCount
     /// A word marked known or ignored (or cleared) to tell the Hachidori host (`WordStatusJob`).

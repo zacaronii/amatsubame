@@ -200,7 +200,11 @@ public struct AudiobookshelfClient: Sendable {
     }
 
     private func get<T: Decodable>(_ type: T.Type, _ path: String, query: [URLQueryItem] = []) async throws(ConnectionError) -> T {
-        let result = try await send(.get(url(path, query: query)))
+        try await sendDecoding(type, .get(url(path, query: query)))
+    }
+
+    func sendDecoding<T: Decodable>(_ type: T.Type, _ request: URLRequest) async throws(ConnectionError) -> T {
+        let result = try await send(request)
         do {
             return try JSONDecoder().decode(T.self, from: result.data)
         } catch {
