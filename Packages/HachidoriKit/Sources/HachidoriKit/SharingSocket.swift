@@ -1,11 +1,18 @@
 import Foundation
+import Synchronization
 
 /// One open `/link` connection: text frames in and out.
 public protocol SharingSocket: Sendable {
     func send(_ text: String) async throws
     /// The next text frame; throws once the connection closes.
     func receive() async throws -> String
+    /// Whether the other end answers a ping within `timeout`.
+    func ping(timeout: Duration) async -> Bool
     func close()
+}
+
+public extension SharingSocket {
+    func ping(timeout: Duration) async -> Bool { true }
 }
 
 /// Opens connections (a fake in tests).
@@ -44,6 +51,21 @@ public struct URLSessionSharingTransport: SharingTransport {
             case .string(let text): return text
             case .data(let data): return String(decoding: data, as: UTF8.self)
             @unknown default: return ""
+            }
+        }
+
+        func ping(timeout: Duration) async -> Bool {
+            let answered = Mutex(false)
+            return await withCheckedContinuation { continuation in
+                let resume: @Sendable (Bool) -> Void = { alive in
+                    guard answered.withLock({ done in defer { done = true }; return !done }) else { return }
+                    continuation.resume(returning: alive)
+                }
+                task.sendPing { error in resume(error == nil) }
+                Task {
+                    try? await Task.sleep(for: timeout)
+                    resume(false)
+                }
             }
         }
 

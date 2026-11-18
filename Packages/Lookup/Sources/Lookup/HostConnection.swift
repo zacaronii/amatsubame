@@ -1,6 +1,7 @@
 import Dictionary
 import Foundation
 import HachidoriKit
+import Network
 import Observation
 
 /// The link to a Hachidori host as the popup sees it (Settings ▸ Hachidori): whether it's linked,
@@ -27,6 +28,8 @@ public final class HostConnection {
     /// Each host dictionary's CSS, fetched once per link.
     public private(set) var styles: [String: String] = [:]
     @ObservationIgnored private var observing: Task<Void, Never>?
+    /// Tells the link when the network goes and comes back (airplane mode).
+    @ObservationIgnored private var network: (monitor: NWPathMonitor, task: Task<Void, Never>)?
     /// How long a tap waits for the host before looking up locally.
     static let lookupTimeout: Duration = .seconds(3)
 
@@ -54,11 +57,21 @@ public final class HostConnection {
                 await self.apply(update)
             }
         }
+        let monitor = NWPathMonitor()
+        let (paths, continuation) = AsyncStream.makeStream(of: Bool.self)
+        monitor.pathUpdateHandler = { continuation.yield($0.status == .satisfied) }
+        monitor.start(queue: DispatchQueue(label: "HostConnection.network"))
+        network = (monitor, Task {
+            for await available in paths { await link.networkChanged(available: available) }
+        })
     }
 
     public func stop() {
         observing?.cancel()
         observing = nil
+        network?.monitor.cancel()
+        network?.task.cancel()
+        network = nil
         let link = link
         Task { await link.stop() }
         status = .stopped
