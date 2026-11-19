@@ -19,6 +19,13 @@ struct PlayerView: View {
 
     var body: some View {
         player.yomuMissingAlert(environment, inPlayer: true)
+            .confirmationDialog("Where to continue?", isPresented: Binding(get: { model.resumeChoice != nil }, set: { _ in }),
+                                titleVisibility: .visible, presenting: model.resumeChoice) { choice in
+                Button("\(choice.newer.clockText) · \(choice.newerFrom)") { model.resume(at: choice.newer) }
+                Button("\(choice.mine.clockText) · This iPhone") { model.resume(at: choice.mine) }
+            } message: { choice in
+                Text("You listened up to \(choice.newer.clockText) on \(choice.newerFrom == "Apple Watch" ? "your Apple Watch" : "another device") more recently, but this iPhone was at \(choice.mine.clockText).")
+            }
     }
 
     private var player: some View {

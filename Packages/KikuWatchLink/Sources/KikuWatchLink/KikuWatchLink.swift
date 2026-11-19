@@ -210,12 +210,12 @@ public enum WatchMessages {
     public static func userInfo(_ mark: WatchQueuedMark) -> [String: Any] { encode(mark, as: queuedMark) }
     public static func queuedMark(from userInfo: [String: Any]) -> WatchQueuedMark? { decode(userInfo, queuedMark) }
 
-    private static func encode(_ value: some Encodable, as key: String) -> [String: Any] {
+    static func encode(_ value: some Encodable, as key: String) -> [String: Any] {
         guard let data = try? JSONEncoder().encode(value) else { return [:] }
         return [key: data]
     }
 
-    private static func decode<Value: Decodable>(_ dictionary: [String: Any], _ key: String) -> Value? {
+    static func decode<Value: Decodable>(_ dictionary: [String: Any], _ key: String) -> Value? {
         guard let data = dictionary[key] as? Data else { return nil }
         return try? JSONDecoder().decode(Value.self, from: data)
     }

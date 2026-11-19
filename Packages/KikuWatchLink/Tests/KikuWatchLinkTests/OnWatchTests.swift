@@ -76,6 +76,22 @@ import Testing
         #expect(WatchMessages.command(from: WatchMessages.message(WatchCommand.freshAccess)) == .freshAccess)
     }
 
+    @Test func listeningGrowsUntilAGapOrAnotherItem() {
+        var stretch = WatchListening(id: "s1", item: episode(), position: 100, rate: 1.25, at: added)
+        stretch.add(60, at: 175, rate: 1.25, on: added.addingTimeInterval(60))
+        #expect(stretch.seconds == 60 && stretch.startPosition == 100 && stretch.endPosition == 175)
+        #expect(stretch.continues("show/ep", at: added.addingTimeInterval(60 + 299)))
+        #expect(!stretch.continues("show/ep", at: added.addingTimeInterval(60 + 301)))
+        #expect(!stretch.continues("show/other", at: added.addingTimeInterval(61)))
+        stretch.add(5, at: 1800, rate: 1.25, on: added.addingTimeInterval(70), finished: true)
+        #expect(stretch.finished && stretch.endedAt == added.addingTimeInterval(70))
+        let sent = WatchMessages.userInfo(listening: [stretch])
+        #expect(WatchMessages.listening(from: sent) == [stretch])
+        #expect(WatchMessages.listening(from: WatchMessages.userInfo(removed: "x")) == nil)
+        let library = WatchLibrary(acknowledged: ["s1": stretch.endedAt])
+        #expect(WatchMessages.library(from: WatchMessages.context(WatchState(nowPlaying: nil), library: library))?.acknowledged["s1"] == stretch.endedAt)
+    }
+
     @Test func statusText() {
         #expect(WatchItemStatus(state: .waiting).text == "Waiting")
         #expect(WatchItemStatus(state: .waiting, message: "Waiting for your iPhone").text == "Waiting for your iPhone")

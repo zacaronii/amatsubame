@@ -38,6 +38,18 @@ final class PlaybackModel: Identifiable, LineLookupHost {
     /// The line looked up, for the popup's sentence bar.
     private(set) var lookupSentence: AudioSentence?
     private(set) var sleepTimer: SleepTimer?
+    /// The newest place is more than a minute behind where this phone was (listening on the
+    /// watch or another app since): the player asks which, rather than jump back silently.
+    private(set) var resumeChoice: ResumeChoice?
+
+    struct ResumeChoice: Equatable {
+        /// The newer place, and where it's from ("Apple Watch").
+        var newer: Double
+        var newerFrom: String
+        /// This phone's own.
+        var mine: Double
+        var plays: Bool
+    }
 
     var id: String { entry.id }
     var key: String { entry.id }
@@ -89,6 +101,13 @@ final class PlaybackModel: Identifiable, LineLookupHost {
         var position = time ?? LocalWatchProgress.resumePosition(
             local: local, server: entry.progress?.currentTime, serverDate: entry.progress?.updatedAt)
         if time == nil, entry.isFinished || (entry.duration > 0 && position > entry.duration - 5) { position = 0 }
+        var autoplay = autoplay
+        if time == nil, let choice = Self.resumeChoice(local: local, entry: entry, position: position, autoplay: autoplay,
+                                                       watchPlayedAt: watchPlayedAt) {
+            // Loaded at the newer place, paused until you choose.
+            resumeChoice = choice
+            autoplay = false
+        }
         if let problem = await episodeAudio.resolve(environment: environment) {
             audio.pauseWithError(problem)
             return
@@ -101,6 +120,32 @@ final class PlaybackModel: Identifiable, LineLookupHost {
             audio.setArtwork(image)
         }
         loadTranscript()
+    }
+
+    /// The phone's last place when it's more than a minute ahead of the newer one being resumed.
+    static func resumeChoice(local: LocalWatchProgress?, entry: EpisodeEntry, position: Double, autoplay: Bool,
+                             watchPlayedAt: Date?) -> ResumeChoice? {
+        guard let local, let server = entry.progress, server.updatedAt > local.updatedAt, !server.isFinished,
+              position == server.currentTime, local.position - position > 60,
+              local.duration <= 0 || local.duration - local.position >= 30 else { return nil }
+        let fromWatch = watchPlayedAt.map { abs($0.timeIntervalSince(server.updatedAt)) < 2 } ?? false
+        return ResumeChoice(newer: position, newerFrom: fromWatch ? "Apple Watch" : "Audiobookshelf", mine: local.position, plays: autoplay)
+    }
+
+    /// Continue from the place chosen.
+    func resume(at position: Double) {
+        guard let choice = resumeChoice else { return }
+        resumeChoice = nil
+        if position != choice.newer { audio.seek(to: position) }
+        if choice.plays { audio.play() }
+    }
+
+    private var watchPlayedAt: Date? {
+        #if os(iOS)
+        environment.watchLibrary.watchPlayedAt[key]
+        #else
+        nil
+        #endif
     }
 
     // MARK: Transcript

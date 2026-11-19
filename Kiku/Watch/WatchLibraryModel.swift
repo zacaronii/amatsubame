@@ -1,4 +1,5 @@
 #if os(iOS)
+import AppCommon
 import AudiobookshelfKit
 import Core
 import Foundation
@@ -24,9 +25,14 @@ final class WatchLibraryModel {
     private(set) var inventory: WatchInventory?
     /// A watch is paired and has Kiku (set by `WatchBridge`): Send to Watch shows only then.
     var isWatchAppInstalled = false
+    /// When listening from the watch last arrived (milestone 3).
+    private(set) var lastSynced: Date?
 
     @ObservationIgnored private unowned let environment: KikuEnvironment
     @ObservationIgnored private let store: KikuWatchItemStore
+    @ObservationIgnored private let listening: KikuWatchListeningStore
+    /// The last stretch from the watch per item key: when it ended (Continue from… names the watch).
+    @ObservationIgnored private(set) var watchPlayedAt: [String: Date] = [:]
     @ObservationIgnored private var access: WatchAccess?
     /// The list or the token changed: `WatchBridge` sends the context again.
     @ObservationIgnored var onChange: (() -> Void)?
@@ -41,13 +47,16 @@ final class WatchLibraryModel {
     init(environment: KikuEnvironment) {
         self.environment = environment
         store = KikuWatchItemStore(database: environment.common.database)
+        listening = KikuWatchListeningStore(database: environment.common.database)
         items = ((try? store.all()) ?? []).compactMap { try? JSONDecoder().decode(WatchItem.self, from: $0.item) }
+        lastSynced = try? listening.lastAppliedAt()
     }
 
     /// What the watch should have, with the token while there's anything to download.
     var library: WatchLibrary {
         WatchLibrary(items: items, access: items.isEmpty ? nil : access,
-                     places: Dictionary(uniqueKeysWithValues: items.compactMap { item in place(item.key).map { (item.key, $0) } }))
+                     places: Dictionary(uniqueKeysWithValues: items.compactMap { item in place(item.key).map { (item.key, $0) } }),
+                     acknowledged: (try? listening.recent()) ?? [:])
     }
 
     /// The newer of this phone's place and Audiobookshelf's, as the player resumes.
@@ -95,6 +104,75 @@ final class WatchLibraryModel {
 
     func received(_ inventory: WatchInventory) {
         self.inventory = inventory
+    }
+
+    // MARK: Listening from the watch (milestone 3)
+
+    /// Applies the watch's listening as if it had happened here: Stats, an Audiobookshelf session
+    /// (the watch's id, so sending it again only updates it), and the place when it's newer than
+    /// what the phone and Audiobookshelf have. Each stretch adds only what's new since the version
+    /// applied before. Returns what's applied now, for the watch to drop.
+    @discardableResult
+    func apply(_ stretches: [WatchListening], now: Date = .now) -> [String: Date] {
+        var applied: [String: Date] = [:]
+        for stretch in stretches.sorted(by: { $0.endedAt < $1.endedAt }) {
+            let before = (try? listening.applied(stretch.id)) ?? nil
+            if let before, before.endedAt >= stretch.endedAt {
+                applied[stretch.id] = before.endedAt
+                continue
+            }
+            let added = stretch.seconds - (before?.seconds ?? 0)
+            let item = items.first { $0.key == stretch.key }
+            if added > 0 {
+                let series = stretch.episodeId.isEmpty ? stretch.title : (item?.subtitle ?? stretch.title)
+                let subject = ActivitySubject(kind: .listening, seriesKey: stretch.itemId, seriesTitle: series, itemKey: stretch.key)
+                try? environment.common.activity.record(subject, at: stretch.endedAt, seconds: added)
+            }
+            let session = AudiobookshelfSessionPayload(
+                id: stretch.id, libraryItemId: stretch.itemId, episodeId: stretch.episodeId,
+                mediaType: stretch.episodeId.isEmpty ? "book" : "podcast", displayTitle: stretch.title, duration: stretch.duration,
+                deviceInfo: Self.watchDevice, startTime: stretch.startPosition, currentTime: stretch.endPosition,
+                timeListening: stretch.seconds, startedAt: stretch.startedAt, updatedAt: stretch.endedAt)
+            try? environment.common.outbox.enqueue(session, kind: .audiobookshelfSession, coalesceKey: session.coalesceKey)
+            moveProgress(for: stretch)
+            try? listening.markApplied(stretch.id, seconds: stretch.seconds, endedAt: stretch.endedAt, at: now)
+            watchPlayedAt[stretch.key] = max(watchPlayedAt[stretch.key] ?? .distantPast, stretch.endedAt)
+            applied[stretch.id] = stretch.endedAt
+        }
+        if !stretches.isEmpty {
+            lastSynced = now
+            environment.common.syncNow(retryWaiting: false)
+        }
+        return applied
+    }
+
+    /// The watch's place, unless the phone or Audiobookshelf has a newer one (the latest wins;
+    /// the player asks before going back a long way, `PlaybackModel.resumeChoice`).
+    private func moveProgress(for stretch: WatchListening) {
+        let key = stretch.key
+        let local = (try? environment.listenProgress.progress(itemId: key)) ?? nil
+        let server = environment.library.progress[key]
+        if let local, local.updatedAt >= stretch.endedAt { return }
+        if let server, server.updatedAt >= stretch.endedAt { return }
+        // What's playing on the phone right now is newer still.
+        if let playback = environment.playback, playback.key == key, playback.audio.isPlaying { return }
+        let duration = stretch.duration > 0 ? stretch.duration : (server?.duration ?? 0)
+        guard duration > 0 else { return }
+        let finished = stretch.finished || (server?.isFinished == true && stretch.endPosition >= duration - 5)
+        let time = finished ? duration : stretch.endPosition
+        let payload = AudiobookshelfProgressPayload(itemId: stretch.itemId, episodeId: stretch.episodeId, currentTime: time,
+                                                    duration: duration, isFinished: finished, reportedAt: stretch.endedAt)
+        try? environment.common.outbox.enqueue(payload, kind: .audiobookshelfProgress, coalesceKey: payload.coalesceKey)
+        environment.library.update(progress: AudiobookshelfProgress(
+            libraryItemId: stretch.itemId, episodeId: stretch.episodeId, duration: duration, progress: time / duration,
+            currentTime: time, isFinished: finished, lastUpdate: stretch.endedAt.timeIntervalSince1970 * 1000))
+    }
+
+    /// Audiobookshelf's device for the watch: its own id, made from this phone's.
+    static var watchDevice: AudiobookshelfDeviceInfo {
+        let phone = AudiobookshelfDeviceInfo.current(clientName: "Kiku")
+        return AudiobookshelfDeviceInfo(deviceId: "\(phone.deviceId)-watch", clientName: "Kiku on Apple Watch",
+                                        clientVersion: phone.clientVersion, model: "Apple Watch")
     }
 
     // MARK: Access

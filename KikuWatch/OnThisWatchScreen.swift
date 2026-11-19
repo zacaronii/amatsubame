@@ -41,6 +41,12 @@ struct OnThisWatchScreen: View {
                         }
                     }
             }
+            Section {
+                Button("Sync Now", systemImage: "arrow.triangle.2.circlepath") { Task { await session.syncNow() } }
+                    .accessibilityIdentifier("watch.syncNow")
+            } footer: {
+                Text(syncText)
+            }
             if let free = downloads.freeBytes {
                 Text("\(WatchItemStatus.size(free)) free")
                     .font(.caption2)
@@ -50,6 +56,17 @@ struct OnThisWatchScreen: View {
         }
         .navigationTitle("On This Watch")
         .task { await downloads.reconcile() }
+    }
+
+    /// "Synced 2 min ago", or what's still waiting for the phone.
+    private var syncText: String {
+        let log = session.player.log
+        if !log.pending.isEmpty {
+            let count = log.pending.count
+            return "\(count) listening \(count == 1 ? "session" : "sessions") waiting for your iPhone"
+        }
+        guard let synced = log.lastSynced else { return "Listening here goes to your iPhone when it's near." }
+        return "Synced \(synced.formatted(.relative(presentation: .named)))"
     }
 
     private func modeRow(_ mode: WatchSession.Mode, title: String, symbol: String) -> some View {
