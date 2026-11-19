@@ -1,6 +1,6 @@
 # Amatsubame: Japanese immersion apps
 
-Instructions for AI coding agents working on this repo. Focused apps in one repo, under the brand Amatsubame (names and icons: docs/NAMING.md). The original plan is docs/PLAN.md; the audio app and transcriber are planned in docs/AUDIO_PLAN.md. Read the doc for the area you're working on before starting, and plan larger changes before writing code.
+Instructions for AI coding agents working on this repo. Focused apps in one repo, under the brand Amatsubame (names and icons: docs/NAMING.md). The original plan is docs/PLAN.md; the audio app and transcriber are planned in docs/AUDIO_PLAN.md, and Kiku's automatic downloads and watch playback in docs/KIKU_PLAN.md. Read the doc for the area you're working on before starting, and plan larger changes before writing code.
 
 ## Project map
 The Xcode project is generated as `Amatsubame.xcodeproj` from `project.yml`.

@@ -2,7 +2,8 @@
 
 The iPhone is the brain: Kiku keeps playing on the phone, and the watch is a screen and a button.
 The watch app talks to no server (no Audiobookshelf, dictionary or Anki), only to Kiku on the
-iPhone through WatchConnectivity. Playing on the watch by itself is out of scope.
+iPhone through WatchConnectivity. Playing on the watch by itself is planned in
+[KIKU_PLAN.md](KIKU_PLAN.md) (milestones 2–5); until then this is the whole design.
 
 ## Pieces
 
