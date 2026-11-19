@@ -55,13 +55,85 @@ final class WatchSession: NSObject, WCSessionDelegate {
     @ObservationIgnored private var fetching: WatchTranscriptAssembly?
     /// What's on this watch (docs/KIKU_PLAN.md milestone 2).
     let downloads = WatchDownloads()
+    /// Plays it (#127).
+    let player = WatchPlayer()
 
-    var nowPlaying: WatchNowPlaying? { state?.nowPlaying }
-    /// Live Text is on in Kiku's settings on the phone.
-    var liveTextOn: Bool { state?.liveText ?? false }
+    /// What Now Playing controls: Kiku on the iPhone, or this watch's own player.
+    enum Mode: String {
+        case phone, watch
+    }
+
+    private(set) var mode: Mode = Mode(rawValue: UserDefaults.standard.string(forKey: "kiku.watch.mode") ?? "") ?? .phone {
+        didSet { UserDefaults.standard.set(mode.rawValue, forKey: "kiku.watch.mode") }
+    }
+
+    /// What Now Playing shows: the phone's, or this watch's own in Watch mode.
+    var nowPlaying: WatchNowPlaying? { mode == .watch ? player.nowPlaying : state?.nowPlaying }
+    /// Live Text is on in Kiku's settings on the phone (it follows the phone's player only).
+    var liveTextOn: Bool { mode == .phone && (state?.liveText ?? false) }
+
+    func setMode(_ mode: Mode) {
+        guard mode != self.mode else { return }
+        if mode == .phone { player.pause() }
+        self.mode = mode
+    }
+
+    /// Plays an item that's on this watch, here (switching to Watch mode).
+    func playOnWatch(_ item: WatchItem) async {
+        guard let file = downloads.file(for: item) else { return }
+        // The phone stops, so the two don't play at once.
+        if state?.nowPlaying?.isPlaying == true { send(.togglePlay) }
+        mode = .watch
+        await player.play(item, file: file)
+    }
+
+    /// The phone's list arrived: this watch's downloads follow it, and its places are taken
+    /// where they're newer than this watch's.
+    private func applyLibrary(_ library: WatchLibrary) async {
+        for (key, place) in library.places {
+            player.places.adopt(key, position: place.position, updatedAt: place.updatedAt)
+        }
+        await downloads.apply(library)
+        // Removed from the list while loaded: stop.
+        if let item = player.item, !downloads.items.contains(where: { $0.key == item.key }) { player.stop() }
+    }
+
+    /// Watch mode's buttons, on this watch's player. A mark waits for the phone, as an
+    /// out-of-reach one does, at this watch's position.
+    private func performHere(_ command: WatchCommand) {
+        switch command {
+        case .togglePlay:
+            Task { await player.toggle() }
+        case .skipBackward:
+            Task { await player.skip(by: -player.skipBackward) }
+        case .skipForward:
+            Task { await player.skip(by: player.skipForward) }
+        case .mark:
+            guard let playing = player.nowPlaying else { return }
+            let mark = WatchQueuedMark(playing, at: .now)
+            WCSession.default.transferUserInfo(WatchMessages.userInfo(mark))
+            WKInterfaceDevice.current().play(.success)
+            confirmation = Confirmation(title: "Marked \(mark.position.watchClock)", detail: "Mine it later in Marks on your iPhone.")
+        default:
+            break
+        }
+    }
 
     func start() {
         downloads.requestAccess = { [weak self] in await self?.requestAccess() }
+        #if DEBUG
+        // Simulator checks: plays "<item>/<episode>" here once it's on the watch (SIMCTL_CHILD_KIKU_WATCH_PLAY).
+        if let key = ProcessInfo.processInfo.environment["KIKU_WATCH_PLAY"] {
+            Task { [weak self] in
+                for _ in 0..<30 {
+                    if let self, let item = downloads.items.first(where: { $0.key == key }), downloads.file(for: item) != nil {
+                        return await playOnWatch(item)
+                    }
+                    try? await Task.sleep(for: .seconds(1))
+                }
+            }
+        }
+        #endif
         if let saved = WatchStateStore.load() { apply(saved, save: false) }
         guard WCSession.isSupported() else { return }
         WCSession.default.delegate = self
@@ -71,6 +143,9 @@ final class WatchSession: NSObject, WCSessionDelegate {
     // MARK: Buttons
 
     func send(_ command: WatchCommand) {
+        if mode == .watch, [.togglePlay, .skipBackward, .skipForward, .mark].contains(command) {
+            return performHere(command)
+        }
         let session = WCSession.default
         guard session.activationState == .activated, session.isReachable else {
             unreachable(command)
@@ -216,6 +291,11 @@ final class WatchSession: NSObject, WCSessionDelegate {
     // MARK: State
 
     private func apply(_ newState: WatchState, save: Bool = true) {
+        if let playing = newState.nowPlaying {
+            // The phone's skip intervals, for this watch's player too.
+            player.skipBackward = playing.skipBackward
+            player.skipForward = playing.skipForward
+        }
         let changed = state?.nowPlaying?.key != newState.nowPlaying?.key
             || state?.nowPlaying?.isPlaying != newState.nowPlaying?.isPlaying
             || state?.nowPlaying?.chapter != newState.nowPlaying?.chapter
@@ -255,7 +335,7 @@ final class WatchSession: NSObject, WCSessionDelegate {
         Task { @MainActor in
             self.isReachable = reachable
             if let state { self.apply(state) }
-            if let library { await self.downloads.apply(library) } else { await self.downloads.reconcile() }
+            if let library { await self.applyLibrary(library) } else { await self.downloads.reconcile() }
         }
     }
 
@@ -264,7 +344,7 @@ final class WatchSession: NSObject, WCSessionDelegate {
         let library = WatchMessages.library(from: applicationContext)
         Task { @MainActor in
             if let state { self.apply(state) }
-            if let library { await self.downloads.apply(library) }
+            if let library { await self.applyLibrary(library) }
         }
     }
 

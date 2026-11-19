@@ -98,15 +98,37 @@ public struct WatchAccess: Codable, Equatable, Sendable {
     }
 }
 
+/// A place in an item, and when it was there: the newer of the phone's and the watch's wins.
+public struct WatchPlace: Codable, Equatable, Sendable {
+    public var position: Double
+    public var updatedAt: Date
+
+    public init(position: Double, updatedAt: Date) {
+        self.position = position
+        self.updatedAt = updatedAt
+    }
+}
+
 /// The phone's list for the watch, and how to download it. No access: signed out on the phone,
 /// so the watch forgets its token (its downloads stay until removed).
 public struct WatchLibrary: Codable, Equatable, Sendable {
     public var items: [WatchItem]
     public var access: WatchAccess?
+    /// Where the phone (or Audiobookshelf) last was in each item, by key: the watch starts there
+    /// unless it played the item more recently itself.
+    public var places: [String: WatchPlace]
 
-    public init(items: [WatchItem] = [], access: WatchAccess? = nil) {
+    public init(items: [WatchItem] = [], access: WatchAccess? = nil, places: [String: WatchPlace] = [:]) {
         self.items = items
         self.access = access
+        self.places = places
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        items = try container.decode([WatchItem].self, forKey: .items)
+        access = try container.decodeIfPresent(WatchAccess.self, forKey: .access)
+        places = try container.decodeIfPresent([String: WatchPlace].self, forKey: .places) ?? [:]
     }
 }
 

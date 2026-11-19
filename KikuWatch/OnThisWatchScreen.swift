@@ -1,14 +1,23 @@
 import KikuWatchLink
 import SwiftUI
 
-/// What's on this watch, or on its way: each item's state (waiting, %, ready, failed with
-/// Retry), Remove, and the space left (docs/KIKU_PLAN.md milestone 2).
+/// Play On (the iPhone or this watch) and what's on this watch, or on its way: each item's
+/// state (waiting, %, ready, failed with Retry), Remove, and the space left (docs/KIKU_PLAN.md
+/// milestone 2). Tapping one that's ready plays it here.
 struct OnThisWatchScreen: View {
     @Environment(WatchSession.self) private var session
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         let downloads = session.downloads
         List {
+            Section("Play On") {
+                modeRow(.phone, title: "iPhone", symbol: "iphone")
+                modeRow(.watch, title: "This Watch", symbol: "applewatch")
+            }
+            if let problem = session.player.problem {
+                Text(problem).font(.footnote).foregroundStyle(.orange).listRowBackground(Color.clear)
+            }
             if downloads.items.isEmpty {
                 Text("Send episodes and books here from Kiku on your iPhone: Send to Watch, in the ⋯ menu or with a long press.")
                     .font(.footnote)
@@ -16,7 +25,16 @@ struct OnThisWatchScreen: View {
                     .listRowBackground(Color.clear)
             }
             ForEach(downloads.items) { item in
-                OnThisWatchRow(item: item, status: downloads.statuses[item.key] ?? WatchItemStatus(state: .waiting))
+                let status = downloads.statuses[item.key] ?? WatchItemStatus(state: .waiting)
+                Button {
+                    guard status.state == .ready else { return }
+                    Task {
+                        await session.playOnWatch(item)
+                        if session.player.problem == nil { dismiss() }
+                    }
+                } label: {
+                    OnThisWatchRow(item: item, status: status, isLoaded: session.player.item?.key == item.key)
+                }
                     .swipeActions {
                         Button("Remove", systemImage: "trash", role: .destructive) {
                             Task { await downloads.remove(item) }
@@ -33,16 +51,35 @@ struct OnThisWatchScreen: View {
         .navigationTitle("On This Watch")
         .task { await downloads.reconcile() }
     }
+
+    private func modeRow(_ mode: WatchSession.Mode, title: String, symbol: String) -> some View {
+        Button {
+            session.setMode(mode)
+            dismiss()
+        } label: {
+            HStack {
+                Label(title, systemImage: symbol)
+                Spacer()
+                if session.mode == mode { Image(systemName: "checkmark").foregroundStyle(.tint) }
+            }
+        }
+        .accessibilityIdentifier("watch.mode.\(mode.rawValue)")
+    }
 }
 
 private struct OnThisWatchRow: View {
     @Environment(WatchSession.self) private var session
     let item: WatchItem
     let status: WatchItemStatus
+    /// In this watch's player now.
+    var isLoaded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(item.title).font(.footnote.weight(.semibold)).lineLimit(2)
+            HStack(spacing: 4) {
+                if isLoaded { Image(systemName: "speaker.wave.2.fill").font(.caption2).foregroundStyle(.tint) }
+                Text(item.title).font(.footnote.weight(.semibold)).lineLimit(2)
+            }
             Text(item.subtitle).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
             Text(status.text)
                 .font(.caption2)
