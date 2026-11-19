@@ -49,6 +49,8 @@ final class EpisodeDownloader {
     @ObservationIgnored private var pausing: Set<Int64> = []
     @ObservationIgnored private var lastProgressWrite: [Int64: Date] = [:]
     @ObservationIgnored private var backgroundEventsDone: (() -> Void)?
+    /// Restarts after the system's transfer service lost a download, this launch (see `handle`).
+    @ObservationIgnored private var restarts: [Int64: Int] = [:]
 
     init(directory: URL, store: DownloadStore, database: AppDatabase, background: Bool = true,
          makeClient: @escaping @MainActor () -> AudiobookshelfClient?, saveTranscript: @escaping @MainActor (EpisodeEntry) async -> Void) {
@@ -87,9 +89,12 @@ final class EpisodeDownloader {
     private func reconcile() async {
         let tasks = await session.allTasks
         let live = Set(tasks.compactMap { Self.recordId(of: $0) })
-        for record in (try? store.all(kind: .audiobookshelfEpisode)) ?? [] where record.isActive {
+        for record in (try? store.all(kind: .audiobookshelfEpisode)) ?? [] where record.isActive || Self.wasDisconnected(record) {
             guard let id = record.id, !live.contains(id) else { continue }
-            if FileManager.default.fileExists(atPath: resumeFile(id).path(percentEncoded: false)) {
+            if Self.wasDisconnected(record) {
+                try? store.setState(id, .queued)
+                await startTransfer(record)
+            } else if FileManager.default.fileExists(atPath: resumeFile(id).path(percentEncoded: false)) {
                 try? store.setState(id, .paused)
             } else {
                 await startTransfer(record)
@@ -237,9 +242,18 @@ final class EpisodeDownloader {
         case .finished(let id, let file, let bytes):
             lastProgressWrite[id] = nil
             try? store.finish(id, file: file, bytes: bytes)
-        case .failed(let id, let message, let resumeData):
+        case .failed(let id, let message, let resumeData, let disconnected):
             lastProgressWrite[id] = nil
             if pausing.remove(id) != nil { return }
+            // The system's transfer service went away (an app update, a restart of it): not the
+            // download's fault, so it starts again, a few times a launch.
+            if disconnected, restarts[id, default: 0] < 3, let record = try? store.download(id: id) {
+                restarts[id, default: 0] += 1
+                if let resumeData { try? resumeData.write(to: resumeFile(id)) }
+                try? store.setState(id, .queued)
+                Task { await startTransfer(record) }
+                return
+            }
             if let resumeData {
                 try? resumeData.write(to: resumeFile(id))
                 try? store.setState(id, .paused, error: nil)
@@ -250,6 +264,12 @@ final class EpisodeDownloader {
             backgroundEventsDone?()
             backgroundEventsDone = nil
         }
+    }
+
+    /// A download that failed when the transfer service went away: started again on launch.
+    private static func wasDisconnected(_ record: DownloadRecord) -> Bool {
+        record.state == .failed
+            && record.error?.range(of: AudioDownloadDelegate.disconnectedMessage, options: .caseInsensitive) != nil
     }
 
     private func task(for id: Int64) async -> URLSessionTask? {
@@ -271,12 +291,15 @@ nonisolated final class AudioDownloadDelegate: NSObject, URLSessionDownloadDeleg
     enum Event: Sendable {
         case progress(Int64, done: Int64, total: Int64)
         case finished(Int64, file: String, bytes: Int64)
-        case failed(Int64, message: String, resumeData: Data?)
+        case failed(Int64, message: String, resumeData: Data?, disconnected: Bool = false)
         case backgroundEventsFinished
     }
 
     let directory: URL
     let send: @Sendable (Event) -> Void
+    /// The system's own text for NSURLErrorBackgroundSessionWasDisconnected (a plain NSError of
+    /// that code reads "The operation couldn't be completed"), which `wasDisconnected` matches.
+    static let disconnectedMessage = "Lost connection to background transfer service"
 
     init(directory: URL, send: @escaping @Sendable (Event) -> Void) {
         self.directory = directory
@@ -317,8 +340,11 @@ nonisolated final class AudioDownloadDelegate: NSObject, URLSessionDownloadDeleg
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: (any Error)?) {
         guard let error, let (id, _) = parts(task) else { return }
-        let resumeData = (error as NSError).userInfo[NSURLSessionDownloadTaskResumeData] as? Data
-        send(.failed(id, message: error.localizedDescription, resumeData: resumeData))
+        let nsError = error as NSError
+        let resumeData = nsError.userInfo[NSURLSessionDownloadTaskResumeData] as? Data
+        let disconnected = nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorBackgroundSessionWasDisconnected
+        send(.failed(id, message: disconnected ? Self.disconnectedMessage : error.localizedDescription,
+                     resumeData: resumeData, disconnected: disconnected))
     }
 
     #if os(iOS)
