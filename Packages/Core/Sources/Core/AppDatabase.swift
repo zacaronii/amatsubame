@@ -730,6 +730,16 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v41_audio_auto_downloads") { db in
+            // Kiku: download ahead, per podcast library ("library:<id>") or show ("show:<item id>").
+            try db.create(table: "audioAutoDownloadSetting") { t in
+                t.primaryKey("scope", .text)
+                t.column("ahead", .integer).notNull().defaults(to: 0)
+                t.column("order", .text).notNull().defaults(to: "newest")
+                t.column("isOn", .boolean)
+            }
+        }
+
         return migrator
     }
 }

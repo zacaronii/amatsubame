@@ -30,6 +30,8 @@ final class KikuEnvironment {
     var requestedLibrary: AudiobookshelfLibrary?
     /// Shows, new episodes and progress from Audiobookshelf, shared by the tabs.
     @ObservationIgnored private(set) lazy var library = PodcastLibrary(environment: self)
+    /// Download ahead (Settings ▸ Downloads ▸ Automatic Downloads, and each show's own setting).
+    @ObservationIgnored private(set) lazy var autoDownloads = AudioAutoDownloadManager(environment: self)
     #if os(iOS)
     /// Kiku on Apple Watch: what's playing goes to the watch, its buttons come back.
     @ObservationIgnored private(set) lazy var watch = WatchBridge(environment: self)
@@ -260,6 +262,7 @@ final class KikuEnvironment {
             showsPlayer = true
             return
         }
+        if playback != nil { autoDownloads.schedule() }
         playback?.close()
         let model = PlaybackModel(entry: entry, environment: self)
         playback = model
@@ -272,6 +275,7 @@ final class KikuEnvironment {
         playback?.close()
         playback = nil
         showsPlayer = false
+        autoDownloads.schedule()
     }
 
     /// Marks what's playing at its current position (the player, or the Action Button and Siri

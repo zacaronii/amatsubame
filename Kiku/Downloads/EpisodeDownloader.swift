@@ -15,8 +15,18 @@ struct DownloadedAudio: Codable, Equatable {
     /// The audio file's name in the downloads folder.
     var file: String
     var imageFile: String?
+    /// Why it's on the device; nil: downloaded by hand.
+    var reason: DownloadReason?
 
     var key: String { AudiobookshelfProgress.key(itemId: itemId, episodeId: episodeId) }
+}
+
+/// What downloaded an episode other than you.
+enum DownloadReason: String, Codable {
+    /// Download ahead (Settings ▸ Downloads ▸ Automatic Downloads, or the show's own setting).
+    case ahead
+    /// Download once started.
+    case started
 }
 
 /// Downloads episodes with a background URLSession, so they continue while the app is in the
@@ -95,8 +105,9 @@ final class EpisodeDownloader {
 
     // MARK: Actions
 
-    /// Downloads an episode: the transcript and cover first (small), then the audio.
-    func download(_ entry: EpisodeEntry) async {
+    /// Downloads an episode: the transcript and cover first (small), then the audio. `reason`
+    /// is nil for one you asked for.
+    func download(_ entry: EpisodeEntry, reason: DownloadReason? = nil) async {
         guard let client = makeClient() else {
             lastError = "Sign in to Audiobookshelf to download."
             return
@@ -109,7 +120,7 @@ final class EpisodeDownloader {
         let ext = audio.fileExtension
         var meta = DownloadedAudio(itemId: entry.itemId, episodeId: entry.episode.id, title: entry.episode.title,
                                    showTitle: entry.showTitle, duration: entry.episode.length, publishedAt: entry.episode.publishedAt,
-                                   ino: audio.ino, file: "\(entry.itemId)-\(entry.episode.id).\(ext)")
+                                   ino: audio.ino, file: "\(entry.itemId)-\(entry.episode.id).\(ext)", reason: reason)
         await saveTranscript(entry)
         if let request = try? await client.coverRequest(itemId: entry.itemId, width: 600),
            let (data, response) = try? await URLSession.shared.data(for: request),
