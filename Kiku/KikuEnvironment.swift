@@ -230,18 +230,17 @@ final class KikuEnvironment {
     func start() async {
         guard !started else { return }
         started = true
-        // The downloader keeps watching its records, so it never returns.
-        async let downloads: Void = downloader.start()
-        await common.start()
-        // Listening from before Kiku reported sessions (#103), once.
+        // Listening from before Kiku reported sessions (#103), once. Queued first: both starts
+        // below keep observing and never return, and the common one's first sync sends these.
         if sendsProgress, audiobookshelfClient() != nil {
-            ListeningSessionBackfill.runOnce(activity: self.common.activity, outbox: self.common.outbox,
+            ListeningSessionBackfill.runOnce(activity: common.activity, outbox: common.outbox,
                                              device: .current(clientName: "Kiku")) { [listenProgress] key in
                 (try? listenProgress.progress(itemId: key)).flatMap { $0 }.map { ($0.position, $0.duration) }
             }
-            self.common.syncNow(retryWaiting: false)
         }
-        await downloads
+        async let common: Void = common.start()
+        async let downloads: Void = downloader.start()
+        _ = await (common, downloads)
     }
 
     /// After a network change or coming back to the app: tries again what couldn't reach
