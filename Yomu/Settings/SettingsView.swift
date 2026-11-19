@@ -74,7 +74,7 @@ struct SettingsView: View {
     }
 
     static var advanced: some View {
-        AdvancedSettingsView(kinds: [.ankiNote, .kavitaProgress, .audiobookshelfProgress],
+        AdvancedSettingsView(kinds: [.ankiNote, .kavitaProgress, .audiobookshelfProgress, .audiobookshelfSession],
                              extraLogs: [URL.applicationSupportDirectory.appending(path: "dev-setup.log")]) {
             LookupTimingsToggle()
         }
