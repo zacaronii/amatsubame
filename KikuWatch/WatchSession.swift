@@ -87,9 +87,38 @@ final class WatchSession: NSObject, WCSessionDelegate {
         await player.play(item, file: file)
     }
 
+    /// Listening goes to the phone: straight away when it's near (its answer drops what it has),
+    /// otherwise queued with `transferUserInfo`, acknowledged later in its context.
+    private func sendListening(_ stretches: [WatchListening]) {
+        let session = WCSession.default
+        guard session.activationState == .activated else { return }
+        let message = WatchMessages.userInfo(listening: stretches)
+        // Each send has every pending stretch: an older copy still queued can go.
+        for transfer in session.outstandingUserInfoTransfers where WatchMessages.listening(from: transfer.userInfo) != nil {
+            transfer.cancel()
+        }
+        guard session.isReachable else {
+            session.transferUserInfo(message)
+            return
+        }
+        session.sendMessage(message) { @Sendable [weak self] reply in
+            let applied = WatchMessages.acknowledged(from: reply)
+            Task { @MainActor in if let applied { self?.player.log.acknowledge(applied) } }
+        } errorHandler: { @Sendable _ in
+            session.transferUserInfo(message)
+        }
+    }
+
+    /// Sync Now: what's waiting goes now, and the list is checked again.
+    func syncNow() async {
+        player.log.flush()
+        await downloads.reconcile()
+    }
+
     /// The phone's list arrived: this watch's downloads follow it, and its places are taken
     /// where they're newer than this watch's.
     private func applyLibrary(_ library: WatchLibrary) async {
+        player.log.acknowledge(library.acknowledged)
         for (key, place) in library.places {
             player.places.adopt(key, position: place.position, updatedAt: place.updatedAt)
         }
@@ -121,13 +150,20 @@ final class WatchSession: NSObject, WCSessionDelegate {
 
     func start() {
         downloads.requestAccess = { [weak self] in await self?.requestAccess() }
+        player.log.send = { [weak self] stretches in self?.sendListening(stretches) }
         #if DEBUG
         // Simulator checks: plays "<item>/<episode>" here once it's on the watch (SIMCTL_CHILD_KIKU_WATCH_PLAY).
         if let key = ProcessInfo.processInfo.environment["KIKU_WATCH_PLAY"] {
             Task { [weak self] in
                 for _ in 0..<30 {
                     if let self, let item = downloads.items.first(where: { $0.key == key }), downloads.file(for: item) != nil {
-                        return await playOnWatch(item)
+                        await playOnWatch(item)
+                        // KIKU_WATCH_PLAY_FOR=<seconds>: pauses after that long (listening goes to the phone).
+                        if let seconds = ProcessInfo.processInfo.environment["KIKU_WATCH_PLAY_FOR"].flatMap(Double.init) {
+                            try? await Task.sleep(for: .seconds(seconds))
+                            player.pause()
+                        }
+                        return
                     }
                     try? await Task.sleep(for: .seconds(1))
                 }
@@ -354,6 +390,7 @@ final class WatchSession: NSObject, WCSessionDelegate {
             self.isReachable = reachable
             guard reachable else { return }
             self.followTranscript()
+            self.player.log.flush()
             // Waiting for the phone's token: it's near again.
             await self.downloads.reconcile()
         }

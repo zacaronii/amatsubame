@@ -49,6 +49,11 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         followAccount()
     }
 
+    /// Sync Now on the phone: the list, the places and the acknowledgements go again.
+    func syncNow() {
+        send(currentState(), force: true)
+    }
+
     func setLiveText(_ on: Bool) {
         liveText = on
         var settings = ListenSettings.load(environment.common.database)
@@ -328,6 +333,15 @@ final class WatchBridge: NSObject, WCSessionDelegate {
                              replyHandler: @escaping ([String: Any]) -> Void) {
         let command = WatchMessages.command(from: message)
         nonisolated(unsafe) let reply = replyHandler
+        if let listening = WatchMessages.listening(from: message) {
+            // Sync Now from the watch, or listening sent while the phone is near.
+            Task { @MainActor in
+                let applied = self.environment.watchLibrary.apply(listening)
+                reply(WatchMessages.message(acknowledged: applied))
+                self.send(self.currentState(), force: true)
+            }
+            return
+        }
         Task { @MainActor in
             guard let command else { return reply([:]) }
             reply(WatchMessages.message(await self.perform(command)))
@@ -337,6 +351,14 @@ final class WatchBridge: NSObject, WCSessionDelegate {
     nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
         if let removed = WatchMessages.removedKey(from: userInfo) {
             Task { @MainActor in self.environment.watchLibrary.remove(removed) }
+            return
+        }
+        if let listening = WatchMessages.listening(from: userInfo) {
+            // The acknowledgement goes back in the context.
+            Task { @MainActor in
+                self.environment.watchLibrary.apply(listening)
+                self.send(self.currentState(), force: true)
+            }
             return
         }
         guard let queued = WatchMessages.queuedMark(from: userInfo) else { return }

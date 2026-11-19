@@ -117,11 +117,16 @@ public struct WatchLibrary: Codable, Equatable, Sendable {
     /// Where the phone (or Audiobookshelf) last was in each item, by key: the watch starts there
     /// unless it played the item more recently itself.
     public var places: [String: WatchPlace]
+    /// The watch's listening the phone has applied: each id with the `endedAt` of the version it
+    /// has. The watch drops a stretch once this covers it (the latest few hundred).
+    public var acknowledged: [String: Date]
 
-    public init(items: [WatchItem] = [], access: WatchAccess? = nil, places: [String: WatchPlace] = [:]) {
+    public init(items: [WatchItem] = [], access: WatchAccess? = nil, places: [String: WatchPlace] = [:],
+                acknowledged: [String: Date] = [:]) {
         self.items = items
         self.access = access
         self.places = places
+        self.acknowledged = acknowledged
     }
 
     public init(from decoder: any Decoder) throws {
@@ -129,6 +134,7 @@ public struct WatchLibrary: Codable, Equatable, Sendable {
         items = try container.decode([WatchItem].self, forKey: .items)
         access = try container.decodeIfPresent(WatchAccess.self, forKey: .access)
         places = try container.decodeIfPresent([String: WatchPlace].self, forKey: .places) ?? [:]
+        acknowledged = try container.decodeIfPresent([String: Date].self, forKey: .acknowledged) ?? [:]
     }
 }
 
@@ -203,4 +209,72 @@ public struct WatchInventory: Codable, Equatable, Sendable {
     private static func step(_ status: WatchItemStatus) -> Int {
         Int(((status.fraction ?? 0) * 10).rounded(.down))
     }
+}
+
+// MARK: Listening back to the phone (docs/KIKU_PLAN.md milestone 3)
+
+/// One stretch of listening on the watch to one item: like a Stats session, a pause longer than
+/// `WatchListening.gap` or another item starts the next. It's kept on the watch, and sent again
+/// as it grows, until the phone acknowledges the version it has (`WatchLibrary.acknowledged`).
+/// Its id is also the Audiobookshelf session's.
+public struct WatchListening: Codable, Equatable, Sendable, Identifiable {
+    /// Five minutes, as the phone's Stats count a session.
+    public static let gap: TimeInterval = 5 * 60
+
+    public var id: String
+    public var itemId: String
+    public var episodeId: String
+    public var title: String
+    public var duration: Double
+    public var startPosition: Double
+    public var endPosition: Double
+    /// Real playback, at any speed (not seeks).
+    public var seconds: Double
+    public var rate: Double
+    public var startedAt: Date
+    public var endedAt: Date
+    /// It played to the end.
+    public var finished: Bool
+
+    public init(id: String = UUID().uuidString.lowercased(), item: WatchItem, position: Double, rate: Double, at date: Date) {
+        self.id = id
+        itemId = item.itemId
+        episodeId = item.episodeId
+        title = item.title
+        duration = item.duration
+        startPosition = position
+        endPosition = position
+        seconds = 0
+        self.rate = rate
+        startedAt = date
+        endedAt = date
+        finished = false
+    }
+
+    public var key: String { episodeId.isEmpty ? itemId : "\(itemId)/\(episodeId)" }
+
+    /// Whether more listening to `key` at `date` belongs to this stretch.
+    public func continues(_ key: String, at date: Date) -> Bool {
+        self.key == key && date.timeIntervalSince(endedAt) <= Self.gap
+    }
+
+    /// `seconds` more of playback, now at `position`.
+    public mutating func add(_ seconds: Double, at position: Double, rate: Double, on date: Date, finished: Bool = false) {
+        self.seconds += max(seconds, 0)
+        endPosition = position
+        self.rate = rate
+        endedAt = max(endedAt, date)
+        if finished { self.finished = true }
+    }
+}
+
+public extension WatchMessages {
+    /// The watch's unacknowledged listening, sent with `transferUserInfo` (and `sendMessage`
+    /// when the phone is near, for Sync Now).
+    static func userInfo(listening: [WatchListening]) -> [String: Any] { encode(listening, as: "watchListening") }
+    static func listening(from userInfo: [String: Any]) -> [WatchListening]? { decode(userInfo, "watchListening") }
+
+    /// The phone's answer to listening sent with `sendMessage`: what it has applied.
+    static func message(acknowledged: [String: Date]) -> [String: Any] { encode(acknowledged, as: "acknowledged") }
+    static func acknowledged(from message: [String: Any]) -> [String: Date]? { decode(message, "acknowledged") }
 }

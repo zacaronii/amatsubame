@@ -36,6 +36,9 @@ struct OnWatchSection: View {
                     Text("Nothing yet. Send an episode or a book to your watch from its ⋯ menu, a long press on it, or the player.")
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
+                if !library.items.isEmpty {
+                    Button("Sync Now", systemImage: "arrow.triangle.2.circlepath") { environment.watch.syncNow() }
+                }
                 ForEach(library.items) { item in
                     OnWatchRow(item: item, status: library.status(item.key))
                         .swipeActions {
@@ -58,6 +61,9 @@ struct OnWatchSection: View {
         if let inventory = library.inventory {
             if let free = inventory.freeBytes { parts.append("\(WatchItemStatus.size(free)) free on the watch.") }
             parts.append("Last heard from \(inventory.updatedAt.formatted(.relative(presentation: .named))).")
+        }
+        if let synced = library.lastSynced {
+            parts.append("Listening on the watch last synced \(synced.formatted(.relative(presentation: .named))).")
         }
         return parts.joined(separator: " ")
     }

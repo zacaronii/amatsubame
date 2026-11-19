@@ -1,7 +1,8 @@
 # Kiku: automatic downloads and playing on the watch
 
 The plan for Kiku's next big update. It builds on a survey of other podcast and audiobook watch apps (Nov 2026;
-summary at the end). It changes docs/watch.md's scope: the watch can now play by itself.
+summary at the end). It changes docs/watch.md's scope: the watch can now play by itself. Milestones 1–3 are built
+(#111–#114, #126–#128); docs/watch.md describes what was built.
 
 ## Principles
 

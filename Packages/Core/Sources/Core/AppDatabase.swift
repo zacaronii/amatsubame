@@ -770,6 +770,18 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v45_kiku_watch_listening") { db in
+            // Kiku: listening on Apple Watch the phone has applied (milestone 3), by the watch's
+            // id: the version applied (its seconds and end), so a stretch sent again adds only
+            // what's new and one sent twice nothing.
+            try db.create(table: "kikuWatchListening") { t in
+                t.primaryKey("id", .text)
+                t.column("seconds", .double).notNull()
+                t.column("endedAt", .datetime).notNull()
+                t.column("appliedAt", .datetime).notNull()
+            }
+        }
+
         return migrator
     }
 }

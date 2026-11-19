@@ -20,6 +20,10 @@ final class WatchPlayer {
     @ObservationIgnored private var timeObserver: Any?
     @ObservationIgnored private var endObserver: NSObjectProtocol?
     @ObservationIgnored let places = WatchPlaces()
+    /// Listening, for the phone (milestone 3).
+    let log = WatchListeningLog()
+    /// The last time playback was counted.
+    @ObservationIgnored private var lastTick: Date?
     @ObservationIgnored private var commandsSet = false
     /// The position when nothing is loaded yet, and while a seek settles.
     @ObservationIgnored private var lastPosition: Double = 0
@@ -60,6 +64,9 @@ final class WatchPlayer {
     }
 
     func stop() {
+        countListening()
+        lastTick = nil
+        log.flush()
         savePlace()
         player?.pause()
         if let timeObserver { player?.removeTimeObserver(timeObserver) }
@@ -79,8 +86,11 @@ final class WatchPlayer {
     }
 
     func pause() {
+        countListening()
+        lastTick = nil
         player?.pause()
         isPlaying = false
+        log.flush()
         sample()
         savePlace()
     }
@@ -103,18 +113,23 @@ final class WatchPlayer {
         }
         player.playImmediately(atRate: Float(rate))
         isPlaying = true
+        lastTick = .now
         sample()
     }
 
     func skip(by seconds: Double) async {
         guard let player, let item else { return }
         let target = min(max(currentTime + seconds, 0), max(item.duration - 1, 0))
+        // What played before the skip counts; the skip itself doesn't.
+        countListening()
         await player.seek(to: CMTime(seconds: target, preferredTimescale: 600))
+        if isPlaying { lastTick = .now }
         sample()
         savePlace()
     }
 
     func setRate(_ rate: Double) {
+        countListening()
         self.rate = rate
         if isPlaying { player?.rate = Float(rate) }
         sample()
@@ -137,6 +152,7 @@ final class WatchPlayer {
         timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 5, preferredTimescale: 1), queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, self.isPlaying else { return }
+                self.countListening()
                 self.sample()
                 self.savePlace()
             }
@@ -145,12 +161,29 @@ final class WatchPlayer {
                                                              object: player.currentItem, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
+                if let item = self.item {
+                    self.countListening(finished: true)
+                    self.log.listened(0, item: item, position: item.duration, rate: self.rate, finished: true)
+                }
+                self.lastTick = nil
                 self.isPlaying = false
+                self.log.flush()
                 self.sample()
                 if let key = self.item?.key { self.places.finished(key) }
                 self.updateNowPlaying()
             }
         }
+    }
+
+    /// The playback since the last count, as listening (wall-clock time while playing, at any
+    /// speed; a gap of more than a minute between counts isn't trusted).
+    private func countListening(finished: Bool = false) {
+        guard isPlaying, let item, let lastTick else { return }
+        let now = Date()
+        let seconds = now.timeIntervalSince(lastTick)
+        self.lastTick = now
+        guard seconds > 0, seconds < 60 else { return }
+        log.listened(seconds, item: item, position: finished ? item.duration : currentTime, rate: rate, at: now)
     }
 
     private func sample() {
