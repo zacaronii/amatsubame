@@ -46,7 +46,18 @@ final class WatchLibraryModel {
 
     /// What the watch should have, with the token while there's anything to download.
     var library: WatchLibrary {
-        WatchLibrary(items: items, access: items.isEmpty ? nil : access)
+        WatchLibrary(items: items, access: items.isEmpty ? nil : access,
+                     places: Dictionary(uniqueKeysWithValues: items.compactMap { item in place(item.key).map { (item.key, $0) } }))
+    }
+
+    /// The newer of this phone's place and Audiobookshelf's, as the player resumes.
+    private func place(_ key: String) -> WatchPlace? {
+        let local = (try? environment.listenProgress.progress(itemId: key)) ?? nil
+        let server = environment.library.progress[key]
+        let serverPlace = server.map { WatchPlace(position: $0.isFinished ? 0 : $0.currentTime, updatedAt: $0.updatedAt) }
+        guard let local else { return serverPlace }
+        if let serverPlace, serverPlace.updatedAt >= local.updatedAt { return serverPlace }
+        return WatchPlace(position: local.position, updatedAt: local.updatedAt)
     }
 
     func contains(_ key: String) -> Bool { items.contains { $0.key == key } }

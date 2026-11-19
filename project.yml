@@ -215,6 +215,15 @@ targets:
     deploymentTarget: "26.0"
     sources:
       - path: KikuWatch
+        excludes:
+          - Info.plist
+    # Merged with the generated keys below: background audio, for playing on the watch (#127).
+    info:
+      path: KikuWatch/Info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UIBackgroundModes: [audio]
     settings:
       base:
         PRODUCT_NAME: KikuWatch

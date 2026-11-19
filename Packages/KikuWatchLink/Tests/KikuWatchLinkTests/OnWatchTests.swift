@@ -56,6 +56,14 @@ import Testing
         #expect(WatchMessages.library(from: WatchMessages.context(WatchState(nowPlaying: nil))) == nil)
     }
 
+    @Test func thePhonesPlacesTravelWithTheList() throws {
+        let library = WatchLibrary(items: [episode()], places: ["show/ep": WatchPlace(position: 312, updatedAt: added)])
+        #expect(WatchMessages.library(from: WatchMessages.context(WatchState(nowPlaying: nil), library: library))?.places["show/ep"]?.position == 312)
+        // A list from before places decodes with none.
+        let old = try JSONSerialization.data(withJSONObject: ["items": []])
+        #expect(try JSONDecoder().decode(WatchLibrary.self, from: old).places.isEmpty)
+    }
+
     @Test func theInventoryAndRemovalsRoundTrip() {
         let inventory = WatchInventory(items: ["show/ep": WatchItemStatus(state: .ready, bytesDone: 52_000_000)],
                                        freeBytes: 8_000_000_000, updatedAt: added)

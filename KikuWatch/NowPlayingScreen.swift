@@ -2,9 +2,10 @@ import KikuWatchLink
 import SwiftUI
 import WatchKit
 
-/// The first screen: what's playing on the iPhone, its controls and a large Mark button; or a
-/// calm note when nothing is. The crown turns the iPhone's volume. With Live Text on, the
-/// top-left button opens the transcript.
+/// The first screen: what's playing (on the iPhone, or in Watch mode on this watch), its
+/// controls and a large Mark button; or a calm note when nothing is. The crown turns the
+/// volume of whichever plays. With Live Text on, the top-left button opens the transcript; the
+/// top-right one shows the mode (a phone or a watch) and opens Play On and On This Watch.
 struct NowPlayingScreen: View {
     @Environment(WatchSession.self) private var session
 
@@ -12,8 +13,10 @@ struct NowPlayingScreen: View {
         ZStack {
             if let playing = session.nowPlaying {
                 NowPlayingControls(playing: playing)
+            } else if session.mode == .watch {
+                NothingPlaying(text: "Choose something on this watch: tap the watch button above.")
             } else {
-                NothingPlaying()
+                NothingPlaying(text: "Start something in Kiku on your iPhone")
             }
             if let confirmation = session.confirmation {
                 ConfirmationCard(confirmation: confirmation)
@@ -38,9 +41,9 @@ struct NowPlayingScreen: View {
                 NavigationLink {
                     OnThisWatchScreen()
                 } label: {
-                    Image(systemName: "applewatch").foregroundStyle(.white)
+                    Image(systemName: session.mode == .watch ? "applewatch" : "iphone").foregroundStyle(.white)
                 }
-                .accessibilityLabel("On This Watch")
+                .accessibilityLabel(session.mode == .watch ? "Playing on this watch" : "Playing on iPhone")
                 .accessibilityIdentifier("watch.onThisWatch")
             }
         }
@@ -80,8 +83,10 @@ private struct NowPlayingControls: View {
                 Text(playing.chapter ?? playing.subtitle).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 0)
-            // Takes the crown: it turns the iPhone's volume, as in Apple's Now Playing.
-            PhoneVolume().scaleEffect(0.55).frame(width: 26, height: 26)
+            // Takes the crown: it turns the volume of whichever plays, as in Apple's Now Playing.
+            Volume(origin: session.mode == .watch ? .local : .companion)
+                .id(session.mode)
+                .scaleEffect(0.55).frame(width: 26, height: 26)
         }
         // Clear of the Live Text button in the top corner.
         .padding(.top, session.liveTextOn ? 10 : 0)
@@ -155,6 +160,8 @@ private struct Artwork: View {
 }
 
 private struct NothingPlaying: View {
+    let text: String
+
     var body: some View {
         VStack(spacing: 10) {
             Image("KikuGlyph")
@@ -163,7 +170,7 @@ private struct NothingPlaying: View {
                 .foregroundStyle(.tint)
                 .frame(width: 48, height: 48)
                 .accessibilityHidden(true)
-            Text("Start something in Kiku on your iPhone")
+            Text(text)
                 .font(.footnote)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
@@ -190,10 +197,13 @@ struct ConfirmationCard: View {
     }
 }
 
-/// The iPhone's volume on the crown (`WKInterfaceVolumeControl` with the companion as origin).
-private struct PhoneVolume: WKInterfaceObjectRepresentable {
+/// The volume on the crown (`WKInterfaceVolumeControl`): the iPhone's (`.companion`), or this
+/// watch's own in Watch mode (`.local`).
+private struct Volume: WKInterfaceObjectRepresentable {
+    let origin: WKInterfaceVolumeControl.Origin
+
     func makeWKInterfaceObject(context: Context) -> WKInterfaceVolumeControl {
-        WKInterfaceVolumeControl(origin: .companion)
+        WKInterfaceVolumeControl(origin: origin)
     }
 
     func updateWKInterfaceObject(_ control: WKInterfaceVolumeControl, context: Context) {
