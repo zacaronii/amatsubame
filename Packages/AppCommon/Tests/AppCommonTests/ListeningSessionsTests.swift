@@ -78,4 +78,24 @@ import Testing
         #expect(first[0].currentTime == 500)
         #expect(UUID(uuidString: first[0].id) != nil)
     }
+
+    @Test func backfillLeavesOutListeningReportedAsItHappened() throws {
+        let defaults = try #require(UserDefaults(suiteName: "ListeningSessionsTests.\(UUID())"))
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let outbox = OutboxStore(database: try AppDatabase.inMemory())
+        _ = ListeningSessionReporter(outbox: outbox, device: Self.device, syncNow: {}, now: { start + 1000 }, defaults: defaults)
+        // A later reporter (the next launch) keeps the first time.
+        _ = ListeningSessionReporter(outbox: outbox, device: Self.device, syncNow: {}, now: { start + 9000 }, defaults: defaults)
+        let since = try #require(defaults.object(forKey: ListeningSessionBackfill.sinceKey) as? Date)
+        #expect(since == start + 1000)
+        let rows = [
+            ActivitySession(id: 1, kind: .listening, seriesKey: "li", seriesTitle: "Show", itemKey: "li/ep",
+                            start: start, end: start + 600, seconds: 600),
+            ActivitySession(id: 2, kind: .listening, seriesKey: "li", seriesTitle: "Show", itemKey: "li/ep",
+                            start: start + 2000, end: start + 2600, seconds: 600),
+        ]
+        let queued = ListeningSessionBackfill.sessions(rows, before: since, device: Self.device) { _ in nil }
+        #expect(queued.count == 1)
+        #expect(queued[0].startedAt == 1_800_000_000_000)
+    }
 }

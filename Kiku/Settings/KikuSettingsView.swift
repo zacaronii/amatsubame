@@ -124,7 +124,7 @@ struct KikuSettingsView: View {
     }
 
     static var advanced: some View {
-        AdvancedSettingsView(kinds: [.ankiNote, .audiobookshelfProgress],
+        AdvancedSettingsView(kinds: [.ankiNote, .audiobookshelfProgress, .audiobookshelfSession],
                              extraLogs: [URL.applicationSupportDirectory.appending(path: "dev-setup.log")])
     }
 

@@ -39,7 +39,9 @@ public final class ListeningSessionReporter {
     private var lastSent: Date?
     private var unsent = false
 
-    public init(outbox: OutboxStore, device: AudiobookshelfDeviceInfo, syncNow: @escaping () -> Void, now: @escaping () -> Date = Date.init) {
+    public init(outbox: OutboxStore, device: AudiobookshelfDeviceInfo, syncNow: @escaping () -> Void, now: @escaping () -> Date = Date.init,
+                defaults: UserDefaults = .standard) {
+        ListeningSessionBackfill.noteReportingStarted(now(), defaults: defaults)
         self.outbox = outbox
         self.device = device
         self.syncNow = syncNow
@@ -112,26 +114,35 @@ extension AudiobookshelfDeviceInfo {
 /// knows the item, when and how long, but not where in it). Each gets an id made from the
 /// device and the row, so sending them again changes nothing. They're dated at their start,
 /// earlier than any progress saved since, so Audiobookshelf never moves a place for them.
+/// Only rows from before the reporter first ran: later listening was reported as it happened.
 public enum ListeningSessionBackfill {
     static let doneKey = "audiobookshelf.sessionsBackfilled"
+    static let sinceKey = "audiobookshelf.sessionsReportedSince"
+
+    /// The first time this install reported listening; kept from then on.
+    static func noteReportingStarted(_ date: Date, defaults: UserDefaults) {
+        if defaults.object(forKey: sinceKey) == nil { defaults.set(date, forKey: sinceKey) }
+    }
 
     /// Queues them once per install (when Audiobookshelf is set up).
     @MainActor
     public static func runOnce(activity: ActivityLog, outbox: OutboxStore, device: AudiobookshelfDeviceInfo,
                                position: (String) -> (position: Double, duration: Double)?, defaults: UserDefaults = .standard) {
         guard !defaults.bool(forKey: doneKey), let rows = try? activity.sessions(kind: .listening) else { return }
-        for session in sessions(rows, device: device, position: position) {
+        let since = defaults.object(forKey: sinceKey) as? Date ?? .now
+        for session in sessions(rows, before: since, device: device, position: position) {
             try? outbox.enqueue(session, kind: .audiobookshelfSession, coalesceKey: session.coalesceKey)
         }
         defaults.set(true, forKey: doneKey)
     }
 
-    /// `position` gives an item key's last saved place and length, if known.
-    static func sessions(_ rows: [ActivitySession], device: AudiobookshelfDeviceInfo,
+    /// `position` gives an item key's last saved place and length, if known; rows from `since`
+    /// on are left out.
+    static func sessions(_ rows: [ActivitySession], before since: Date = .distantFuture, device: AudiobookshelfDeviceInfo,
                          position: (String) -> (position: Double, duration: Double)?,
                          calendar: Calendar = .current) -> [AudiobookshelfSessionPayload] {
         rows.compactMap { row in
-            guard row.kind == .listening, let rowId = row.id, row.seconds >= 1, !row.itemKey.isEmpty else { return nil }
+            guard row.kind == .listening, let rowId = row.id, row.seconds >= 1, !row.itemKey.isEmpty, row.start < since else { return nil }
             let parts = row.itemKey.split(separator: "/", maxSplits: 1).map(String.init)
             let item = ListenedItem(itemId: parts[0], episodeId: parts.count > 1 ? parts[1] : "", duration: 0)
             let place = position(row.itemKey)
