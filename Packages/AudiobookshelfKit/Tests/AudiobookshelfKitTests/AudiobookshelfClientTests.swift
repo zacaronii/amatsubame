@@ -306,4 +306,27 @@ func fixture(_ name: String) throws -> Data { try Fixture.data(name, in: .module
         #expect(json["playMethod"] as? Int == 3)
         #expect((json["deviceInfo"] as? [String: Any])?["clientName"] as? String == "Kiku")
     }
+
+    @Test func anUntitledEpisodeSessionGetsItsEpisodesTitle() async throws {
+        let date = Date(timeIntervalSince1970: 1_795_012_200)
+        let item = "00000000-0000-4000-8000-000000000007"
+        let session = AudiobookshelfSessionPayload(
+            id: "s", libraryItemId: item, episodeId: "00000000-0000-4000-8000-00000000000e", mediaType: "podcast", duration: 0,
+            deviceInfo: AudiobookshelfDeviceInfo(deviceId: "d", clientName: "Kiku", clientVersion: "0", model: "m"),
+            startTime: 0, currentTime: 0, timeListening: 60, startedAt: date, updatedAt: date + 60)
+        let show = try fixture("item.json")
+        let transport = StubTransport { request in
+            request.httpMethod == "GET" ? (200, show) : (200, Data(#"{"results":[{"id":"s","success":true}]}"#.utf8))
+        }
+        let secrets = InMemorySecretStore()
+        try secrets.setSecret("tok", for: .audiobookshelfToken)
+        let client = AudiobookshelfClient(baseURL: URL(string: "https://abs.example.ts.net")!, tokens: AudiobookshelfTokens(secrets: secrets),
+                                          http: HTTPClient(transport: transport))
+        let job = OutboxJob(id: 1, kind: .audiobookshelfSession, coalesceKey: session.coalesceKey, payload: try JSONEncoder().encode(session),
+                            state: .inFlight, attempts: 0, lastError: nil, nextAttemptAt: date, createdAt: date, updatedAt: date)
+        try await AudiobookshelfSessionHandler(makeClient: { client }).send(job, media: [])
+        #expect(transport.requests.map { $0.url?.path() } == ["/api/items/\(item)", "/api/session/local-all"])
+        let sent = try #require((try transport.requests[1].jsonBody()["sessions"] as? [[String: Any]])?.first)
+        #expect(sent["displayTitle"] as? String == "第2回 サンプルエピソード")
+    }
 }

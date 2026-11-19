@@ -111,9 +111,10 @@ extension AudiobookshelfDeviceInfo {
 }
 
 /// Listening from before sessions were reported: one session per Stats listening row (which
-/// knows the item, when and how long, but not where in it). Each gets an id made from the
-/// device and the row, so sending them again changes nothing. They're dated at their start,
-/// earlier than any progress saved since, so Audiobookshelf never moves a place for them.
+/// knows the item, when and how long, but not where in it or the episode's title: the handler
+/// looks that up). Each gets an id made from the device and the row, so sending them again
+/// changes nothing. They end when the row ends, no later than the progress Kiku saved then, so
+/// Audiobookshelf doesn't move a place for them.
 /// Only rows from before the reporter first ran: later listening was reported as it happened.
 public enum ListeningSessionBackfill {
     static let doneKey = "audiobookshelf.sessionsBackfilled"
@@ -150,7 +151,7 @@ public enum ListeningSessionBackfill {
                 id: id(device: device.deviceId, row: rowId), libraryItemId: item.itemId, episodeId: item.episodeId,
                 mediaType: item.mediaType, duration: place?.duration ?? 0, deviceInfo: device,
                 startTime: place?.position ?? 0, currentTime: place?.position ?? 0, timeListening: row.seconds,
-                startedAt: row.start, updatedAt: row.start, calendar: calendar)
+                startedAt: row.start, updatedAt: row.end, calendar: calendar)
         }
     }
 

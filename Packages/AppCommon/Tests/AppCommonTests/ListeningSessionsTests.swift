@@ -59,7 +59,7 @@ import Testing
         #expect(book.mediaType == "book")
     }
 
-    @Test func backfillMakesTheSameSessionsEachTimeDatedAtTheirStart() throws {
+    @Test func backfillMakesTheSameSessionsEachTimeWithTheRowsTimes() throws {
         let start = Date(timeIntervalSince1970: 1_800_000_000)
         let rows = [
             ActivitySession(id: 7, kind: .listening, seriesKey: "li", seriesTitle: "Show", itemKey: "li/ep",
@@ -74,7 +74,7 @@ import Testing
         // Under a second of listening isn't a session.
         #expect(first.count == 1)
         #expect(first[0].timeListening == 840)
-        #expect(first[0].updatedAt == first[0].startedAt)
+        #expect(first[0].updatedAt == first[0].startedAt + 900_000)
         #expect(first[0].currentTime == 500)
         #expect(UUID(uuidString: first[0].id) != nil)
     }

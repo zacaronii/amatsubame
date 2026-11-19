@@ -143,7 +143,7 @@ public struct AudiobookshelfSessionHandler: OutboxHandler {
     }
 
     public func send(_ job: OutboxJob, media: [(field: String, url: URL)]) async throws {
-        let payload: AudiobookshelfSessionPayload
+        var payload: AudiobookshelfSessionPayload
         do {
             payload = try job.decodePayload(AudiobookshelfSessionPayload.self)
         } catch {
@@ -151,6 +151,10 @@ public struct AudiobookshelfSessionHandler: OutboxHandler {
         }
         guard let client = try makeClient() else {
             throw ConnectionError.message("Audiobookshelf isn't set up.")
+        }
+        // The server names a new session after the show; a backfilled one doesn't know its episode's title.
+        if payload.displayTitle == nil, let episodeId = payload.episodeId {
+            payload.displayTitle = try? await client.item(id: payload.libraryItemId).media.episodes?.first { $0.id == episodeId }?.title
         }
         let refusal: String?
         do {
