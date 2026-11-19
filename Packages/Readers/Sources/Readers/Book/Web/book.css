@@ -102,3 +102,7 @@ html:not(#kb-none) body km-ra {
   background: color-mix(in srgb, var(--ra-accent, #F79A3E) 30%, transparent) !important;
   border-radius: 3px;
 }
+/* Paged, the same colour as boxes over the sentence (placeReadAlongMark), below the masks. */
+html:not(#kb-none)[data-kb-layout="paged"] body km-ra { background: none !important; }
+html:not(#kb-none) .kb-read-along-mark { position: fixed; z-index: 2147483645; pointer-events: none; border-radius: 3px;
+  background-color: color-mix(in srgb, var(--ra-accent, #F79A3E) 30%, transparent) !important; }

@@ -254,6 +254,7 @@
       masks.end.style.cssText = state.vertical
         ? `left:0;top:0;bottom:0;width:${pad('left') + spare}px` : `left:0;right:0;bottom:0;height:${pad('bottom') + spare}px`;
     }
+    placeReadAlongMark();
     report();
   }
 
@@ -485,6 +486,7 @@
     layout(place?.xpath ? place : 'start');
     if (place?.xpath) state.place = place;
     placeLookupMark();
+    placeReadAlongMark();
   }
 
   // MARK: Lookup mark
@@ -732,6 +734,26 @@
   // MARK: Read-along
   // The spoken sentence is wrapped in <km-ra>, an element name of its own like <km-w>, so
   // XPaths and the layout stay put. Positions are (run, UTF-16 offset), as for word marks.
+  // Paged, the colour is drawn as boxes outside the body like the lookup mark: once the body
+  // has moved, WebKit didn't repaint a <km-ra> background, and the sentence on screen stayed
+  // put until a page turn.
+
+  let readAlongBoxes = [];
+  function placeReadAlongMark() {
+    readAlongBoxes.forEach((box) => box.remove());
+    readAlongBoxes = [];
+    if (state.settings.layout !== 'paged') return;
+    for (const mark of document.querySelectorAll('km-ra')) {
+      for (const r of mark.getClientRects()) {
+        if (r.right < 0 || r.left > window.innerWidth || r.bottom < 0 || r.top > window.innerHeight) continue;
+        const box = document.createElement('div');
+        box.className = 'kb-read-along-mark';
+        box.style.cssText = `left: ${r.left}px; top: ${r.top}px; width: ${r.width}px; height: ${r.height}px`;
+        document.documentElement.appendChild(box);
+        readAlongBoxes.push(box);
+      }
+    }
+  }
 
   /// Where the last tap landed in the section's runs (set by TextTapBridge.js on each tap).
   let lastTap = null;
@@ -758,6 +780,7 @@
       parents.add(parent);
     }
     parents.forEach((parent) => parent.normalize());
+    placeReadAlongMark();
   }
 
   /// Highlights `length` characters from `offset` in run `runIndex`; with `follow`, turns to
@@ -795,6 +818,8 @@
     if (follow && (state.page + step() - 1 < first || state.page > last)) {
       state.moved = true;
       showPage(spreadStart(first));
+    } else {
+      placeReadAlongMark();
     }
     return first;
   }
