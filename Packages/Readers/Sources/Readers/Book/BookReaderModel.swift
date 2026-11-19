@@ -513,10 +513,13 @@ public final class BookReaderModel {
     public private(set) var readAlongCue: ReadAlongCue?
     /// A cue to show once its section has loaded.
     private var pendingReadAlong: (cue: ReadAlongCue, follow: Bool)?
+    /// The followed sentence goes on to the next page: how much of it is on screen (0…1).
+    private var readAlongSplit: (cue: ReadAlongCue, fraction: Double)?
 
     /// Highlights the spoken sentence; with `follow`, turns (or opens its section) to keep it in view.
     public func showReadAlong(_ cue: ReadAlongCue?, follow: Bool) {
         readAlongCue = cue
+        readAlongSplit = nil
         guard let web else { return }
         guard let cue else {
             pendingReadAlong = nil
@@ -536,6 +539,24 @@ public final class BookReaderModel {
             return
         }
         web.run("window.bookReader?.readAlong.show(\(cue.run), \(cue.offset), \(cue.length), \(follow))")
+        guard follow else { return }
+        Task { await self.loadReadAlongSplit(cue, "window.bookReader?.readAlong.split() ?? null") }
+    }
+
+    /// While following: once the audio reaches the part of a sentence on the next page (by its
+    /// share of the characters), turns to it rather than waiting for the next sentence.
+    public func readAlongPlayed(to time: Double) {
+        guard let split = readAlongSplit, split.cue == readAlongCue,
+              time >= split.cue.start + split.fraction * (split.cue.end - split.cue.start) else { return }
+        readAlongSplit = nil
+        hasMoved = true
+        Task { await self.loadReadAlongSplit(split.cue, "window.bookReader?.readAlong.advance() ?? null") }
+    }
+
+    private func loadReadAlongSplit(_ cue: ReadAlongCue, _ script: String) async {
+        let fraction = await web?.evaluate(script) as? Double
+        guard readAlongCue == cue else { return }
+        readAlongSplit = fraction.map { (cue, $0) }
     }
 
     /// Where the last tap landed: (section, run, UTF-16 offset).

@@ -739,6 +739,28 @@
   // put until a page turn.
 
   let readAlongBoxes = [];
+  /// The sentence shown, and how much of it (0…1, by characters) is on the pages on screen
+  /// when the rest is on the next: the audio turns the page there (`advanceReadAlong`).
+  let readAlongCue = null, readAlongSplit = null;
+  function splitReadAlong() {
+    readAlongSplit = null;
+    if (!readAlongCue || state.settings.layout !== 'paged') return null;
+    const {runIndex, offset, length} = readAlongCue;
+    const place = firstVisiblePlace();
+    if (place.nextRun === runIndex && place.nextOffset > offset && place.nextOffset < offset + length) {
+      readAlongSplit = (place.nextOffset - offset) / length;
+    }
+    return readAlongSplit;
+  }
+
+  /// The audio reached the part of the sentence on the next page: turns to it (following is
+  /// reading, so it's kept as progress). Returns the next split, if it goes on further.
+  function advanceReadAlong() {
+    if (readAlongSplit == null || state.page + step() >= state.pages.length) return null;
+    state.moved = true;
+    showPage(state.page + step());
+    return splitReadAlong();
+  }
   function placeReadAlongMark() {
     readAlongBoxes.forEach((box) => box.remove());
     readAlongBoxes = [];
@@ -780,6 +802,8 @@
       parents.add(parent);
     }
     parents.forEach((parent) => parent.normalize());
+    readAlongCue = null;
+    readAlongSplit = null;
     placeReadAlongMark();
   }
 
@@ -787,6 +811,7 @@
   /// its page when it isn't on screen. Returns the page it's on, or -1.
   function showReadAlong(runIndex, offset, length, follow) {
     clearReadAlong();
+    readAlongCue = {runIndex, offset, length};
     const run = textRuns()[runIndex];
     if (!run) return -1;
     const pieces = [];
@@ -821,6 +846,7 @@
     } else {
       placeReadAlongMark();
     }
+    splitReadAlong();
     return first;
   }
 
@@ -874,6 +900,6 @@
   window.bookReader = {open, update, repaint, next, previous, follow, currentXPath, resolveXPath, xpathTo, audit,
     highlight, clearHighlight,
     wordRuns, markWords, unmarkWords,
-    readAlong: {show: showReadAlong, clear: clearReadAlong, lastTap: () => lastTap, xpathOfRun, firstVisiblePlace},
+    readAlong: {show: showReadAlong, clear: clearReadAlong, split: () => readAlongSplit, advance: advanceReadAlong, lastTap: () => lastTap, xpathOfRun, firstVisiblePlace},
     pageCount: () => state.pages.length, page: () => state.page};
 })();
