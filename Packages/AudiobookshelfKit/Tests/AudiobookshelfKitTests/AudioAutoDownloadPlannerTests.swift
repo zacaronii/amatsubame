@@ -60,4 +60,24 @@ import Testing
         #expect(AudioAutoDownloadPlanner.coverage(library: library, show: on, lastPlayed: nil, now: now) == .on(.init(ahead: 2, order: .newest)))
         #expect(AudioAutoDownloadPlanner.coverage(library: nil, show: on, lastPlayed: nil, now: now) == .on(.init(ahead: 3, order: .newest)))
     }
+
+    @Test func playedDownloadsGoADayAfterFinishing() {
+        func finished(_ id: String, hoursAgo: Double) -> AudiobookshelfProgress {
+            AudiobookshelfProgress(libraryItemId: "show", episodeId: id, duration: 600, progress: 1, currentTime: 600, isFinished: true,
+                                   lastUpdate: (now.timeIntervalSince1970 - hoursAgo * 3600) * 1000)
+        }
+        var progress: [String: AudiobookshelfProgress] = [:]
+        for item in [finished("old", hoursAgo: 30), finished("recent", hoursAgo: 2), finished("mine", hoursAgo: 48), finished("playing", hoursAgo: 48)] {
+            progress[item.key] = item
+        }
+        progress["show/unplayed"] = self.progress(1)
+        let downloads = ["old", "recent", "mine", "playing", "unplayed"].map {
+            AudioAutoDownloadPlanner.Download(key: "show/\($0)", byHand: $0 == "mine")
+        }
+        #expect(AudioAutoDownloadPlanner.playedToRemove(downloads, progress: progress, keepsManual: true, playing: "show/playing", now: now)
+                == ["show/old"])
+        // Turned off, downloads made by hand go too.
+        #expect(AudioAutoDownloadPlanner.playedToRemove(downloads, progress: progress, keepsManual: false, playing: "show/playing", now: now)
+                == ["show/old", "show/mine"])
+    }
 }

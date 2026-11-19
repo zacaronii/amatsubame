@@ -113,6 +113,7 @@ final class EpisodeDownloader {
             return
         }
         if let existing = records[entry.id], existing.state == .done || existing.isActive { return }
+        if reason == nil { try? AudioAutoDownloadSettingsStore(database: database).undecline(entry.id) }
         guard let audio = entry.episode.audioFile else {
             lastError = "Audiobookshelf has no audio file for \(entry.episode.title)."
             return
@@ -157,9 +158,13 @@ final class EpisodeDownloader {
         await startTransfer(record)
     }
 
-    /// Removes the download and its files (the saved transcript stays for search).
-    func delete(_ record: DownloadRecord) async {
+    /// Removes the download and its files (the saved transcript stays for search). Deleting an
+    /// automatic download yourself (not `byRule`) keeps the rules from fetching it again.
+    func delete(_ record: DownloadRecord, byRule: Bool = false) async {
         guard let id = record.id else { return }
+        if !byRule, Self.metadata(record)?.reason != nil {
+            try? AudioAutoDownloadSettingsStore(database: database).decline(record.itemKey)
+        }
         pausing.insert(id)
         await task(for: id)?.cancel()
         if let meta = Self.metadata(record) {

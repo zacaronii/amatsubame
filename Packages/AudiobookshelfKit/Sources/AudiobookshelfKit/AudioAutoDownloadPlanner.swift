@@ -62,4 +62,31 @@ public enum AudioAutoDownloadPlanner {
             return Array(oldest[started...].filter { !finished($0) }.prefix(rule.ahead))
         }
     }
+
+    /// Remove Played Downloads waits this long after an episode or book is finished.
+    public static let removeAfter: TimeInterval = 24 * 3600
+
+    /// A download Remove Played Downloads may consider: its episode or book key, and whether you
+    /// made it yourself.
+    public struct Download: Equatable, Sendable {
+        public var key: String
+        public var byHand: Bool
+
+        public init(key: String, byHand: Bool) {
+            self.key = key
+            self.byHand = byHand
+        }
+    }
+
+    /// Downloads finished at least `removeAfter` ago, except the one playing and, with
+    /// `keepsManual`, the ones you made yourself.
+    public static func playedToRemove(_ downloads: [Download], progress: [String: AudiobookshelfProgress], keepsManual: Bool,
+                                      playing: String?, now: Date) -> [String] {
+        downloads.compactMap { download in
+            guard download.key != playing, !(keepsManual && download.byHand),
+                  let place = progress[download.key], place.isFinished,
+                  now.timeIntervalSince(place.updatedAt) >= removeAfter else { return nil }
+            return download.key
+        }
+    }
 }
