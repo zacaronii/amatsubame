@@ -40,7 +40,7 @@ struct OnWatchSection: View {
                     Button("Sync Now", systemImage: "arrow.triangle.2.circlepath") { environment.watch.syncNow() }
                 }
                 ForEach(library.items) { item in
-                    OnWatchRow(item: item, status: library.status(item.key))
+                    OnWatchRow(item: item, status: library.status(item.key), staleness: library.staleness(item.key))
                         .swipeActions {
                             Button("Remove", systemImage: "trash", role: .destructive) { library.remove(item.key) }
                         }
@@ -57,7 +57,7 @@ struct OnWatchSection: View {
     }
 
     private func footer(_ library: WatchLibraryModel) -> String {
-        var parts = ["The watch downloads these from Audiobookshelf itself, most readily on its charger."]
+        var parts = ["The watch downloads these from Audiobookshelf itself. With your iPhone nearby, watchOS sends it through the iPhone over Bluetooth, which can be slow for a book; watchOS favours big downloads while the watch charges."]
         if let inventory = library.inventory {
             if let free = inventory.freeBytes { parts.append("\(WatchItemStatus.size(free)) free on the watch.") }
             parts.append("Last heard from \(inventory.updatedAt.formatted(.relative(presentation: .named))).")
@@ -72,6 +72,7 @@ struct OnWatchSection: View {
 private struct OnWatchRow: View {
     let item: WatchItem
     let status: WatchItemStatus
+    var staleness: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -82,6 +83,9 @@ private struct OnWatchRow: View {
                 .foregroundStyle(status.state == .failed ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
             if status.state == .downloading {
                 ProgressView(value: status.fraction ?? 0)
+            }
+            if let staleness {
+                Text(staleness).font(.caption2).foregroundStyle(.tertiary)
             }
         }
         .accessibilityIdentifier("onWatch.row")

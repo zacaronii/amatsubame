@@ -84,10 +84,9 @@ final class WatchDownloads: NSObject, URLSessionDownloadDelegate {
             if let file = file(for: item) {
                 statuses[item.key] = WatchItemStatus(state: .ready, bytesDone: Self.size(of: file))
             } else if let task = running[item.key] {
-                if statuses[item.key]?.state != .downloading {
-                    statuses[item.key] = WatchItemStatus(state: task.countOfBytesReceived > 0 ? .downloading : .waiting,
-                                                         bytesDone: task.countOfBytesReceived, bytesTotal: Self.expected(task, item))
-                }
+                // From the task itself: while the app was suspended, no progress was delivered.
+                statuses[item.key] = WatchItemStatus(state: task.countOfBytesReceived > 0 ? .downloading : .waiting,
+                                                     bytesDone: task.countOfBytesReceived, bytesTotal: Self.expected(task, item))
             } else if statuses[item.key]?.state != .failed {
                 missing.append(item)
             }
@@ -116,6 +115,8 @@ final class WatchDownloads: NSObject, URLSessionDownloadDelegate {
             let task = session.downloadTask(with: access.request(for: item))
             task.taskDescription = item.key
             if let size = item.size { task.countOfBytesClientExpectsToReceive = size }
+            // Small ones (an episode) first, so they aren't stuck behind a whole book.
+            task.priority = (item.size ?? .max) < 50_000_000 ? URLSessionTask.highPriority : URLSessionTask.lowPriority
             task.resume()
             statuses[item.key] = WatchItemStatus(state: .waiting, bytesTotal: item.size)
         }
