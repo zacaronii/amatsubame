@@ -56,6 +56,7 @@ enum AudioAutoDownloadText {
         var parts: [String] = []
         if setting.ahead > 0 { parts.append("\(setting.ahead) ahead · \(order(setting.order))") }
         if setting.onceStarted { parts.append("once started") }
+        if setting.removesPlayed { parts.append("removes played") }
         return parts.isEmpty ? "Off" : parts.joined(separator: ", ")
     }
 
@@ -129,6 +130,26 @@ struct AudioAutoDownloadLibraryView: View {
                 Text(library.mediaType == .podcast
                      ? "An episode you start playing downloads while you listen; next time it plays from the device, even offline."
                      : "A book you start playing downloads while you listen; next time it plays from the device, even offline.")
+            }
+            Section {
+                Toggle("Remove Played Downloads", isOn: Binding(get: { setting.removesPlayed }, set: { value in
+                    var changed = setting
+                    changed.removesPlayed = value
+                    environment.autoDownloads.save(changed)
+                }))
+                .accessibilityIdentifier("autoDownloads.removePlayed")
+                if setting.removesPlayed {
+                    Toggle("Keep Downloads You Made by Hand", isOn: Binding(get: { setting.keepsManual }, set: { value in
+                        var changed = setting
+                        changed.keepsManual = value
+                        environment.autoDownloads.save(changed)
+                    }))
+                    .accessibilityIdentifier("autoDownloads.keepManual")
+                }
+            } footer: {
+                Text(setting.removesPlayed && setting.keepsManual
+                     ? "A day after you finish \(library.mediaType == .podcast ? "an episode" : "a book"), its automatic download is removed. Ones you downloaded yourself stay."
+                     : "A day after you finish \(library.mediaType == .podcast ? "an episode" : "a book"), its download is removed\(setting.removesPlayed ? ", including ones you downloaded yourself" : ""). Never what's playing.")
             }
         }
         .formStyle(.grouped)

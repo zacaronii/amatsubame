@@ -109,6 +109,18 @@ import Testing
         #expect(try store.all()["library:books"]?.onceStarted == true)
     }
 
+    @Test func declinedAutomaticDownloadsAreRemembered() throws {
+        let store = AudioAutoDownloadSettingsStore(database: try AppDatabase.inMemory())
+        try store.decline("show/ep1")
+        try store.decline("book")
+        #expect(try store.declined() == ["show/ep1", "book"])
+        try store.undecline("book")
+        #expect(try store.declined() == ["show/ep1"])
+        // Keeping manual downloads is the default; turning it off is a saved choice.
+        try store.save(AudioAutoDownloadSetting(scope: AudioAutoDownloadSetting.library("lib"), removesPlayed: true, keepsManual: false))
+        #expect(try store.all()["library:lib"]?.keepsManual == false)
+    }
+
     @Test func failedDownloadsGoBackInLine() throws {
         let store = DownloadStore(database: try AppDatabase.inMemory())
         let id = try #require(try store.enqueue(record("A")).id)

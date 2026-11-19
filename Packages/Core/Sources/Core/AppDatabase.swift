@@ -747,6 +747,19 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v43_remove_played_downloads") { db in
+            // Kiku: a library's Remove Played Downloads and Keep Downloads You Made by Hand, and
+            // the automatic downloads you deleted (never fetched again).
+            try db.alter(table: "audioAutoDownloadSetting") { t in
+                t.add(column: "removesPlayed", .boolean).notNull().defaults(to: false)
+                t.add(column: "keepsManual", .boolean).notNull().defaults(to: true)
+            }
+            try db.create(table: "audioDownloadDeclined") { t in
+                t.primaryKey("key", .text)
+                t.column("declinedAt", .datetime).notNull()
+            }
+        }
+
         return migrator
     }
 }

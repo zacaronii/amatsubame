@@ -29,7 +29,7 @@ import Testing
             "activitySession", "lookupEvent", "statsState", "lookupCount", "popupSettings", "hachidoriSettings",
             "japaneseOnlyJellyfinLibrary", "jellyfinAudioCheck", "pinnedItem", "wordStatus",
             "audioTranscript", "audioSentence", "audioSentenceSearch", "listenSettings", "audiobookshelfCache", "audioMark", "readAlongPair",
-            "bookLength", "kechimochiCache", "audioAutoDownloadSetting",
+            "bookLength", "kechimochiCache", "audioAutoDownloadSetting", "audioDownloadDeclined",
         ])
     }
 
