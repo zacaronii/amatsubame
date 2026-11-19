@@ -3,9 +3,9 @@ import Core
 import Foundation
 import Observation
 
-/// Download ahead (off unless turned on): per podcast library, the next episodes of each show
-/// played in the last 15 days; a show can be always on or never. Only adds downloads, which
-/// show "Ahead" in Storage. Runs after the library refreshes, when the player closes and when
+/// Automatic downloads (off unless turned on). Download ahead: per podcast library, the next
+/// episodes of each show played in the last 15 days; a show can be always on or never. Download
+/// once started: per library, what you start playing. Only adds downloads, marked with why. Runs after the library refreshes, when the player closes and when
 /// the settings change, over Wi-Fi unless cellular downloads are on.
 @MainActor @Observable
 final class AudioAutoDownloadManager {
@@ -55,7 +55,7 @@ final class AudioAutoDownloadManager {
     }
 
     func run() async {
-        guard !isRunning, !settings.isEmpty, let environment, environment.common.reachability.isOnline,
+        guard !isRunning, settings.values.contains(where: { $0.ahead > 0 || $0.isOn == true }), let environment, environment.common.reachability.isOnline,
               let client = environment.audiobookshelfClient() else { return }
         isRunning = true
         defer { isRunning = false }
@@ -73,6 +73,15 @@ final class AudioAutoDownloadManager {
                 await environment.downloader.download(library.entry(episode, showTitle: show.title), reason: .ahead)
             }
         }
+    }
+
+    /// Download Once Started: called on the first real listening (not just opening) of an
+    /// episode or book; downloads it if its library says so and it isn't on the device.
+    func startedPlaying(_ entry: EpisodeEntry) {
+        guard let environment, environment.downloader.records[entry.id] == nil else { return }
+        let libraryId = entry.book?.libraryId ?? environment.library.shows.first { $0.id == entry.itemId }?.libraryId
+        guard let libraryId, library(libraryId).onceStarted else { return }
+        Task { await environment.downloader.download(entry, reason: .started) }
     }
 
     /// When each show was last played: here (Stats) or anywhere Audiobookshelf heard of.

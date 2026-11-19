@@ -316,7 +316,8 @@ public struct AutoDownloadSettingsStore: Sendable {
     }
 }
 
-/// Kiku's download ahead for one podcast library, or one show's own choice (off unless turned on).
+/// Kiku's automatic downloads for one library (download ahead, once started), or one show's own
+/// download ahead (off unless turned on).
 public struct AudioAutoDownloadSetting: Codable, Equatable, Sendable, FetchableRecord, PersistableRecord {
     public static let databaseTableName = "audioAutoDownloadSetting"
 
@@ -334,18 +335,21 @@ public struct AudioAutoDownloadSetting: Codable, Equatable, Sendable, FetchableR
     public var order: Order
     /// A show only: nil follows its library (shows played lately), true always, false never.
     public var isOn: Bool?
+    /// A library only: playing an episode or book that isn't downloaded downloads it.
+    public var onceStarted: Bool
 
-    public init(scope: String, ahead: Int = 0, order: Order = .newest, isOn: Bool? = nil) {
+    public init(scope: String, ahead: Int = 0, order: Order = .newest, isOn: Bool? = nil, onceStarted: Bool = false) {
         self.scope = scope
         self.ahead = ahead
         self.order = order
         self.isOn = isOn
+        self.onceStarted = onceStarted
     }
 
     public static func library(_ id: String) -> String { "library:\(id)" }
     public static func show(_ itemId: String) -> String { "show:\(itemId)" }
 
-    public var isDefault: Bool { ahead == 0 && order == .newest && isOn == nil }
+    public var isDefault: Bool { ahead == 0 && order == .newest && isOn == nil && !onceStarted }
 }
 
 public struct AudioAutoDownloadSettingsStore: Sendable {

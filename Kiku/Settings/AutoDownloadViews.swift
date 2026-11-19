@@ -3,21 +3,21 @@ import AudiobookshelfKit
 import Core
 import SwiftUI
 
-/// Settings ▸ Downloads: cellular, plus download ahead for each podcast library.
+/// Settings ▸ Downloads: cellular, plus automatic downloads for each library shown.
 struct KikuDownloadSettingsView: View {
     @Environment(KikuEnvironment.self) private var environment
 
-    private var podcastLibraries: [AudiobookshelfLibrary] {
+    private var libraries: [AudiobookshelfLibrary] {
         let hidden = environment.library.hiddenLibraries
-        return environment.library.libraries.filter { $0.mediaType == .podcast && !hidden.contains($0.id) }
+        return environment.library.libraries.filter { !hidden.contains($0.id) }
     }
 
     var body: some View {
         Form {
             DownloadSettingsSection { _ in }
-            if !podcastLibraries.isEmpty {
+            if !libraries.isEmpty {
                 Section {
-                    ForEach(podcastLibraries) { library in
+                    ForEach(libraries) { library in
                         NavigationLink {
                             AudioAutoDownloadLibraryView(library: library)
                         } label: {
@@ -26,9 +26,9 @@ struct KikuDownloadSettingsView: View {
                         .accessibilityIdentifier("autoDownloads.library")
                     }
                 } header: {
-                    Text("Download Ahead")
+                    Text("Automatic Downloads")
                 } footer: {
-                    Text("Keeps the next episodes of shows you've played in the last 15 days downloaded. A show's page can turn it on or off for that show. Off unless you turn it on.")
+                    Text("Download ahead keeps the next episodes of shows you've played lately; Download Once Started keeps what you start playing. Off for every library unless you turn it on.")
                 }
             }
         }
@@ -53,6 +53,14 @@ enum AudioAutoDownloadText {
     }
 
     static func summary(_ setting: AudioAutoDownloadSetting) -> String {
+        var parts: [String] = []
+        if setting.ahead > 0 { parts.append("\(setting.ahead) ahead · \(order(setting.order))") }
+        if setting.onceStarted { parts.append("once started") }
+        return parts.isEmpty ? "Off" : parts.joined(separator: ", ")
+    }
+
+    /// A library's or show's download ahead alone ("Off", "3 · Newest").
+    static func ahead(_ setting: AudioAutoDownloadSetting) -> String {
         setting.ahead == 0 ? "Off" : "\(setting.ahead) · \(order(setting.order))"
     }
 
@@ -101,10 +109,26 @@ struct AudioAutoDownloadLibraryView: View {
     var body: some View {
         let setting = environment.autoDownloads.library(library.id)
         Form {
+            if library.mediaType == .podcast {
+                Section {
+                    AheadPickers(setting: setting) { environment.autoDownloads.save($0) }
+                } header: {
+                    Text("Download Ahead")
+                } footer: {
+                    Text("For each show in \(library.name) you've played in the last 15 days. Newest keeps the latest episodes; In Order keeps the next ones after the episode you're on, for shows heard from the start.")
+                }
+            }
             Section {
-                AheadPickers(setting: setting) { environment.autoDownloads.save($0) }
+                Toggle("Download Once Started", isOn: Binding(get: { setting.onceStarted }, set: { value in
+                    var changed = setting
+                    changed.onceStarted = value
+                    environment.autoDownloads.save(changed)
+                }))
+                .accessibilityIdentifier("autoDownloads.onceStarted")
             } footer: {
-                Text("For each show in \(library.name) you've played in the last 15 days. Newest keeps the latest episodes; In Order keeps the next ones after the episode you're on, for shows heard from the start.")
+                Text(library.mediaType == .podcast
+                     ? "An episode you start playing downloads while you listen; next time it plays from the device, even offline."
+                     : "A book you start playing downloads while you listen; next time it plays from the device, even offline.")
             }
         }
         .formStyle(.grouped)
@@ -134,7 +158,7 @@ struct ShowAutoDownloadView: View {
                         if choice != .on { changed.ahead = 0; changed.order = .newest }
                         environment.autoDownloads.save(changed)
                     })) {
-                        Text("Library Setting (\(AudioAutoDownloadText.summary(libraryRule)))").tag(Choice.library)
+                        Text("Library Setting (\(AudioAutoDownloadText.ahead(libraryRule)))").tag(Choice.library)
                         Text("On").tag(Choice.on)
                         Text("Off").tag(Choice.off)
                     }

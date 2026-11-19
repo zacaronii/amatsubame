@@ -104,6 +104,9 @@ import Testing
         // Back to the default forgets it.
         try store.save(AudioAutoDownloadSetting(scope: AudioAutoDownloadSetting.show("show")))
         #expect(try store.all().keys.sorted() == ["library:lib"])
+        // A book library with only Download Once Started is kept.
+        try store.save(AudioAutoDownloadSetting(scope: AudioAutoDownloadSetting.library("books"), onceStarted: true))
+        #expect(try store.all()["library:books"]?.onceStarted == true)
     }
 
     @Test func failedDownloadsGoBackInLine() throws {

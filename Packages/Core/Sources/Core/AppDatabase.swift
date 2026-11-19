@@ -740,6 +740,13 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v42_download_once_started") { db in
+            // Kiku: a library's "Download Once Started" (podcasts and books).
+            try db.alter(table: "audioAutoDownloadSetting") { t in
+                t.add(column: "onceStarted", .boolean).notNull().defaults(to: false)
+            }
+        }
+
         return migrator
     }
 }
