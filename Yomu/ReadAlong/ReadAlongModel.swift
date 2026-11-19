@@ -198,6 +198,7 @@ final class ReadAlongModel: BookReadAlongHost {
             currentIndex = index
             reader?.showReadAlong(index.map { cues.cues[$0] }, follow: follows)
         }
+        if follows, audio.isPlaying { reader?.readAlongPlayed(to: time) }
         // While playing: the player's first tick (0, before it seeks) isn't listening.
         if audio.isPlaying, abs(time - lastSaved) >= 15 { saveProgress() }
         if audio.isPlaying, let lastTick {
