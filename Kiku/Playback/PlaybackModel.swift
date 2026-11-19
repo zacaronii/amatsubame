@@ -47,6 +47,8 @@ final class PlaybackModel: Identifiable, LineLookupHost {
     @ObservationIgnored private var lastSaved: Double = -100
     @ObservationIgnored private var lastTick: Double?
     @ObservationIgnored private var unlogged: Double = 0
+    /// Download Once Started was asked about this episode (once, on its first real listening).
+    @ObservationIgnored private var offeredDownload = false
     @ObservationIgnored private var transcriptTask: Task<Void, Never>?
     @ObservationIgnored private var sleepTask: Task<Void, Never>?
     @ObservationIgnored private var lastRecovery: Date?
@@ -365,6 +367,10 @@ final class PlaybackModel: Identifiable, LineLookupHost {
 
     private func flushListening() {
         guard unlogged > 0 else { return }
+        if !offeredDownload {
+            offeredDownload = true
+            environment.autoDownloads.startedPlaying(entry)
+        }
         let subject = ActivitySubject(kind: .listening, seriesKey: entry.itemId, seriesTitle: entry.collectionTitle, itemKey: key)
         try? environment.common.activity.record(subject, seconds: unlogged)
         environment.sessions.listened(unlogged, item: ListenedItem(itemId: entry.itemId, episodeId: entry.episode.id,
