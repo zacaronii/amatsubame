@@ -34,6 +34,15 @@ struct NowPlayingScreen: View {
                     .accessibilityIdentifier("watch.liveText")
                 }
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink {
+                    OnThisWatchScreen()
+                } label: {
+                    Image(systemName: "applewatch").foregroundStyle(.white)
+                }
+                .accessibilityLabel("On This Watch")
+                .accessibilityIdentifier("watch.onThisWatch")
+            }
         }
     }
 }

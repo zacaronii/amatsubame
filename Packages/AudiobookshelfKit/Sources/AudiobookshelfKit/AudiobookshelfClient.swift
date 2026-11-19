@@ -192,6 +192,37 @@ public struct AudiobookshelfClient: Sendable {
         _ = try await send(request)
     }
 
+    // MARK: Access for Kiku on Apple Watch
+
+    /// A token that lasts at least the next five minutes (renewed first if it doesn't): an
+    /// access token runs out after an hour, an API key never.
+    public func bearerToken() async throws(ConnectionError) -> String {
+        guard let token = try await authorized(URLRequest(url: baseURL)).value(forHTTPHeaderField: "Authorization")?
+            .replacingOccurrences(of: "Bearer ", with: "") else { throw .unauthorized }
+        return token
+    }
+
+    /// An API key of the signed-in user's own (admins only: others get 403). `POST /api/api-keys`
+    /// answers `{apiKey: {id, name, apiKey, expiresAt, …}}`; with no `expiresIn` it never runs out.
+    public func createAPIKey(name: String, userId: String) async throws(ConnectionError) -> AudiobookshelfAPIKey {
+        struct Body: Encodable { var name: String; var userId: String; var isActive = true }
+        struct Answer: Decodable { var apiKey: AudiobookshelfAPIKey }
+        let request: URLRequest
+        do {
+            request = try .json("POST", url("api/api-keys"), body: Body(name: name, userId: userId))
+        } catch {
+            throw .message(error.localizedDescription)
+        }
+        return try await sendDecoding(Answer.self, request).apiKey
+    }
+
+    /// Revokes an API key (it answers 200 with a plain "OK").
+    public func deleteAPIKey(id: String) async throws(ConnectionError) {
+        var request = URLRequest(url: url("api/api-keys/\(id)"))
+        request.httpMethod = "DELETE"
+        _ = try await send(request)
+    }
+
     // MARK: Plumbing
 
     func url(_ path: String, query: [URLQueryItem] = []) -> URL {

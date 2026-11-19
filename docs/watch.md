@@ -1,9 +1,10 @@
 # Kiku on Apple Watch
 
 The iPhone is the brain: Kiku keeps playing on the phone, and the watch is a screen and a button.
-The watch app talks to no server (no Audiobookshelf, dictionary or Anki), only to Kiku on the
-iPhone through WatchConnectivity. Playing on the watch by itself is planned in
-[KIKU_PLAN.md](KIKU_PLAN.md) (milestones 2–5); until then this is the whole design.
+The watch app talks to Kiku on the iPhone through WatchConnectivity, and to no server, with one
+exception: it downloads the episodes and books sent to it straight from Audiobookshelf (On the
+watch, below). Playing on the watch by itself is planned in [KIKU_PLAN.md](KIKU_PLAN.md)
+(milestones 2–5).
 
 ## Pieces
 
@@ -11,6 +12,8 @@ iPhone through WatchConnectivity. Playing on the watch by itself is planned in
 | --- | --- | --- |
 | `KikuWatchLink` | `Packages/KikuWatchLink` | The Codable messages both sides use (`WatchNowPlaying`, `WatchState`, `WatchCommand`, `WatchReply`, `WatchQueuedMark`, and Live Text's `WatchTranscript`, `WatchTranscriptPart`, `WatchLookup`), how they're packed into WatchConnectivity dictionaries (`WatchMessages`), the position worked out from a sample, `LineFollow` (which line is playing, shared with Kiku's `TranscriptFollow`), `WatchStateStore` (what the complication reads) and `WatchTranscriptStore` (the watch's last five transcripts). Tested with `swift test`. |
 | `WatchBridge` | `Kiku/Watch` (iOS only) | The phone's side: sends the state, answers the watch (buttons, Live Text's transcript, lookups, cards). Started in `KikuApp.init`, since the watch can wake Kiku with no window. |
+| `WatchLibraryModel` | `Kiku/Watch` (iOS only) | What's sent to the watch (Core's `KikuWatchItemStore`, migration `v44_kiku_watch_items`), the watch's token, and the watch's last report. Send to Watch and Storage's On Apple Watch are in `WatchLibraryViews.swift`. |
+| `WatchDownloads` | `KikuWatch/` | The watch's side of that: background downloads, the files, On This Watch. |
 | `KikuWatch` | `KikuWatch/` | The watch app (watchOS 26, `$(BUNDLE_ID_PREFIX).kiku.watchkitapp`), embedded in Kiku's iOS app (Embed Watch Content). |
 | `KikuWatchWidgets` | `KikuWatchWidgets/` | The complication and Smart Stack widget, embedded in the watch app. |
 
@@ -40,6 +43,15 @@ iPhone through WatchConnectivity. Playing on the watch by itself is planned in
 - **Corner:** the glyph, with the progress as the corner gauge (`widgetLabel`). **Circular:** the glyph in a progress ring. Nothing playing: only the glyph.
 - **Rectangular (Smart Stack):** "KIKU", the title, the chapter (or show) and progress. It has **no Mark button**: a widget's button runs its intent in the widget extension, which can't use WatchConnectivity to reach the phone. A tap opens the app, whose Mark is one tap away.
 - **Timeline:** the watch app saves the state with `WatchStateStore` (the App Group `group.com.amatsubame`; without it, the complication shows only the glyph) and reloads the timeline only when the episode, play state, chapter or position changes. While playing, the timeline has four entries five minutes apart, so the gauge moves without one entry a second.
+
+## On the watch (milestone 2, #126)
+
+- **Sending:** Send to Watch (an episode's long press, a book's page, the player's ⋯) adds a `WatchItem` (one audio file: item, episode, `ino`, extension, title, subtitle, length, size, chapters) to `WatchLibraryModel`. Single-file books only, as Kiku plays. The buttons show only with a paired watch that has Kiku (`isWatchAppInstalled`).
+- **The list travels in the context:** the phone's application context carries `WatchLibrary` (every item, and a `WatchAccess` while there's anything on it) beside the state, both every time (a context replaces the last whole). The watch downloads what's missing, deletes files whose items left the list, and keeps the token in its Keychain (`WatchKeychain`). Removing on the watch deletes the file and sends `removedFromWatch` with `transferUserInfo`; the watch keeps it off until the phone's list drops it.
+- **The token:** Audiobookshelf's access tokens last an hour, and watchOS starts a background download when it chooses (often later, on the charger). So for an admin account the phone creates an API key of its own, "Kiku on Apple Watch" (`POST /api/api-keys`, no expiry; admins only, others get 403), stored in the phone's Keychain and revoked (`DELETE /api/api-keys/:id`, authorized by the key itself) when you sign out or change accounts. Other accounts hand over the phone's access token; before starting downloads the watch asks for a fresh one (`WatchCommand.freshAccess`), and a 401 is retried once with a fresh token. Signed in with your own API key, that key goes (it doesn't run out either).
+- **Downloads:** `WatchDownloads` uses a background `URLSession` (`com.amatsubame.kiku.watch.downloads`); `KikuWatchAppDelegate` passes the session's background wake-ups to it. Files go to Application Support/Audio as `WatchItem.fileName`; one that's there is ready. Without a usable token an item waits ("Waiting for your iPhone") and starts when the phone is reachable again.
+- **Reporting back:** the watch's own application context carries `WatchInventory` (each item's state: waiting, downloading with bytes, ready with its size, failed with why; and free space), sent when a state changes, progress crosses 10 % or free space moves 50 MB. The phone shows it in Settings ▸ Storage ▸ Downloads ▸ On Apple Watch (swipe to remove); the watch shows it in On This Watch (the watch button at the top right of Now Playing), with Remove and Retry.
+- **Checked** between the paired test simulators with a non-admin account: a 5 MB episode sent from the phone arrived on the watch within seconds. `KIKU_SEND_TO_WATCH=<item>/<episode>` (Debug) sends one at launch.
 
 ## Signing
 

@@ -760,6 +760,16 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v44_kiku_watch_items") { db in
+            // Kiku: what's sent to Apple Watch (docs/KIKU_PLAN.md milestone 2), each item as
+            // KikuWatchLink's WatchItem JSON (Core doesn't know its type).
+            try db.create(table: "kikuWatchItem") { t in
+                t.primaryKey("key", .text)
+                t.column("item", .blob).notNull()
+                t.column("addedAt", .datetime).notNull()
+            }
+        }
+
         return migrator
     }
 }

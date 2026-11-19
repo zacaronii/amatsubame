@@ -27,6 +27,8 @@ final class WatchSession: NSObject, WCSessionDelegate {
     }
 
     static let complicationKind = "KikuNowPlaying"
+    /// One for the app and its delegate (background downloads can wake it with no window).
+    static let shared = WatchSession()
 
     /// The phone's state: nil until it's heard from (or kept from last time).
     private(set) var state: WatchState?
@@ -51,12 +53,15 @@ final class WatchSession: NSObject, WCSessionDelegate {
         folder: URL.applicationSupportDirectory.appending(path: "LiveText"))
     /// A transcript coming from the phone in parts.
     @ObservationIgnored private var fetching: WatchTranscriptAssembly?
+    /// What's on this watch (docs/KIKU_PLAN.md milestone 2).
+    let downloads = WatchDownloads()
 
     var nowPlaying: WatchNowPlaying? { state?.nowPlaying }
     /// Live Text is on in Kiku's settings on the phone.
     var liveTextOn: Bool { state?.liveText ?? false }
 
     func start() {
+        downloads.requestAccess = { [weak self] in await self?.requestAccess() }
         if let saved = WatchStateStore.load() { apply(saved, save: false) }
         guard WCSession.isSupported() else { return }
         WCSession.default.delegate = self
@@ -106,6 +111,20 @@ final class WatchSession: NSObject, WCSessionDelegate {
         send(.endLookup)
     }
 
+    /// A token that lasts, from the phone (nil when it's out of reach).
+    private func requestAccess() async -> WatchAccess? {
+        let session = WCSession.default
+        guard session.activationState == .activated, session.isReachable else { return nil }
+        let reply: WatchReply? = await withCheckedContinuation { continuation in
+            session.sendMessage(WatchMessages.message(WatchCommand.freshAccess)) { @Sendable message in
+                continuation.resume(returning: WatchMessages.reply(from: message))
+            } errorHandler: { @Sendable _ in
+                continuation.resume(returning: nil)
+            }
+        }
+        return reply?.access
+    }
+
     private func replied(_ reply: WatchReply?, to command: WatchCommand) {
         guard let reply else { return }
         apply(reply.state)
@@ -144,7 +163,7 @@ final class WatchSession: NSObject, WCSessionDelegate {
             } else if let next = part.next {
                 send(.transcriptPart(id: part.id, from: next))
             }
-        case .togglePlay, .skipBackward, .skipForward, .replayLine, .endLookup:
+        case .togglePlay, .skipBackward, .skipForward, .replayLine, .endLookup, .freshAccess:
             if let message = reply.message { show(message) }
         }
     }
@@ -231,23 +250,32 @@ final class WatchSession: NSObject, WCSessionDelegate {
 
     nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: (any Error)?) {
         let state = WatchMessages.state(from: session.receivedApplicationContext)
+        let library = WatchMessages.library(from: session.receivedApplicationContext)
         let reachable = session.isReachable
         Task { @MainActor in
             self.isReachable = reachable
             if let state { self.apply(state) }
+            if let library { await self.downloads.apply(library) } else { await self.downloads.reconcile() }
         }
     }
 
     nonisolated func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
-        guard let state = WatchMessages.state(from: applicationContext) else { return }
-        Task { @MainActor in self.apply(state) }
+        let state = WatchMessages.state(from: applicationContext)
+        let library = WatchMessages.library(from: applicationContext)
+        Task { @MainActor in
+            if let state { self.apply(state) }
+            if let library { await self.downloads.apply(library) }
+        }
     }
 
     nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
         let reachable = session.isReachable
         Task { @MainActor in
             self.isReachable = reachable
-            if reachable { self.followTranscript() }
+            guard reachable else { return }
+            self.followTranscript()
+            // Waiting for the phone's token: it's near again.
+            await self.downloads.reconcile()
         }
     }
 

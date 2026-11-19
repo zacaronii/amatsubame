@@ -41,7 +41,12 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         liveText = ListenSettings.load(environment.common.database).watchLiveText
         WCSession.default.delegate = self
         WCSession.default.activate()
+        environment.watchLibrary.onChange = { [weak self] in
+            guard let self else { return }
+            send(currentState(), force: true)
+        }
         follow()
+        followAccount()
     }
 
     func setLiveText(_ on: Bool) {
@@ -62,6 +67,26 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         send(state)
     }
 
+    /// Signing out of Audiobookshelf takes the watch's token away (and revokes its key); signing
+    /// in again gives it one, if anything is on the list.
+    private func followAccount() {
+        let (loaded, account) = withObservationTracking {
+            (environment.common.accountsLoaded, environment.common.serverAccounts[.audiobookshelf])
+        } onChange: { [weak self] in
+            Task { @MainActor in self?.followAccount() }
+        }
+        guard loaded else { return }
+        let library = environment.watchLibrary
+        Task {
+            if account == nil {
+                await library.signedOut()
+            } else if !library.items.isEmpty {
+                await library.prepareAccess()
+                library.onChange?()
+            }
+        }
+    }
+
     private func currentState() -> WatchState {
         guard let playback = environment.playback else { return WatchState(nowPlaying: nil, liveText: liveText) }
         let entry = playback.entry
@@ -77,10 +102,11 @@ final class WatchBridge: NSObject, WCSessionDelegate {
 
     private func send(_ state: WatchState, force: Bool = false) {
         let session = WCSession.default
+        environment.watchLibrary.isWatchAppInstalled = session.activationState == .activated && session.isPaired && session.isWatchAppInstalled
         guard session.activationState == .activated, session.isPaired, session.isWatchAppInstalled else { return }
         if !force, let sent, isPredicted(state, by: sent) { return }
         do {
-            try session.updateApplicationContext(WatchMessages.context(state))
+            try session.updateApplicationContext(WatchMessages.context(state, library: environment.watchLibrary.library))
             sent = state
         } catch {}
     }
@@ -140,6 +166,9 @@ final class WatchBridge: NSObject, WCSessionDelegate {
     // MARK: Commands
 
     private func perform(_ command: WatchCommand) async -> WatchReply {
+        if command == .freshAccess {
+            return WatchReply(access: await environment.watchLibrary.freshAccess(), state: currentState())
+        }
         guard let playback = environment.playback else { return reply("Nothing is playing") }
         let audio = playback.audio
         switch command {
@@ -205,6 +234,8 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         case let .transcriptPart(id, from):
             guard let part = transcriptPart(id, from: from, of: playback) else { return reply("That transcript isn't playing any more") }
             return WatchReply(transcriptPart: part, state: currentState())
+        case .freshAccess:
+            break
         }
         return WatchReply(state: currentState())
     }
@@ -275,7 +306,11 @@ final class WatchBridge: NSObject, WCSessionDelegate {
     // MARK: WCSessionDelegate
 
     nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: (any Error)?) {
-        Task { @MainActor in self.send(self.currentState(), force: true) }
+        let inventory = WatchMessages.inventory(from: session.receivedApplicationContext)
+        Task { @MainActor in
+            if let inventory { self.environment.watchLibrary.received(inventory) }
+            self.send(self.currentState(), force: true)
+        }
     }
 
     nonisolated func sessionWatchStateDidChange(_ session: WCSession) {
@@ -300,8 +335,18 @@ final class WatchBridge: NSObject, WCSessionDelegate {
     }
 
     nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
+        if let removed = WatchMessages.removedKey(from: userInfo) {
+            Task { @MainActor in self.environment.watchLibrary.remove(removed) }
+            return
+        }
         guard let queued = WatchMessages.queuedMark(from: userInfo) else { return }
         Task { @MainActor in self.markQueued(queued) }
+    }
+
+    /// The watch's context: where each item on it is.
+    nonisolated func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
+        guard let inventory = WatchMessages.inventory(from: applicationContext) else { return }
+        Task { @MainActor in self.environment.watchLibrary.received(inventory) }
     }
 
 }
