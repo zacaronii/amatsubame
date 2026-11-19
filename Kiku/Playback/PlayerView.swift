@@ -166,6 +166,7 @@ struct PlayerView: View {
             if model.entry.isBook {
                 ReadInYomuButton(entry: model.entry)
             }
+            SendToWatchButton(entry: model.entry)
             ShareLink(item: EpisodeAudio.miscInfo(model.entry, at: model.audio.currentTime)) {
                 Label("Share", systemImage: "square.and.arrow.up")
             }

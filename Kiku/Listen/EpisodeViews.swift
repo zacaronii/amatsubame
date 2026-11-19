@@ -108,6 +108,7 @@ struct NewEpisodeRow: View {
         }
         .padding(.vertical, 6)
         .contentShape(.rect)
+        .contextMenu { SendToWatchButton(entry: entry) }
         .accessibilityIdentifier("listen.episode")
     }
 }
@@ -133,6 +134,7 @@ struct ShowEpisodeRow: View {
         .padding(.vertical, 10)
         .contentShape(.rect)
         .onTapGesture { environment.play(entry) }
+        .contextMenu { SendToWatchButton(entry: entry) }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { environment.play(entry) }

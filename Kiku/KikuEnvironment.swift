@@ -35,6 +35,8 @@ final class KikuEnvironment {
     #if os(iOS)
     /// Kiku on Apple Watch: what's playing goes to the watch, its buttons come back.
     @ObservationIgnored private(set) lazy var watch = WatchBridge(environment: self)
+    /// What's sent to Apple Watch to play there (docs/KIKU_PLAN.md milestone 2).
+    @ObservationIgnored private(set) lazy var watchLibrary = WatchLibraryModel(environment: self)
     #endif
     /// The episode loaded in the player (the mini player shows it), and whether the full player is open.
     private(set) var playback: PlaybackModel?
@@ -202,6 +204,19 @@ final class KikuEnvironment {
                 }
             }
         }
+        #if os(iOS)
+        if let key = env["KIKU_SEND_TO_WATCH"] {
+            // Sends "<item>/<episode>" (or a book's "<item>") to the paired watch, as Send to Watch does.
+            Task { [weak self] in
+                guard let self else { return }
+                await library.refresh()
+                let parts = key.split(separator: "/").map(String.init)
+                if let entry = await entry(itemId: parts[0], episodeId: parts.count > 1 ? parts[1] : "", showTitle: "") {
+                    await watchLibrary.send(entry)
+                }
+            }
+        }
+        #endif
         if let zips = env["KIKU_IMPORT_DICTIONARIES"] {
             common.pendingDictionaryImports = zips.split(separator: "|").map { URL(filePath: String($0)) }
         }

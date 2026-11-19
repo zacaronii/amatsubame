@@ -1,0 +1,92 @@
+import Foundation
+@testable import KikuWatchLink
+import Testing
+
+@Suite struct OnWatchTests {
+    let added = Date(timeIntervalSince1970: 1_800_000_000)
+
+    func episode(_ id: String = "ep", size: Int64? = 52_000_000) -> WatchItem {
+        WatchItem(itemId: "show", episodeId: id, ino: "123", fileExtension: "mp3", title: "#48 梅雨の楽しみ方",
+                  subtitle: "週末のんびり雑談室", duration: 1800, size: size, addedAt: added)
+    }
+
+    /// A JWT whose payload says `exp`, as Audiobookshelf's access tokens do.
+    func jwt(expiring date: Date) -> String {
+        let payload = try! JSONSerialization.data(withJSONObject: ["exp": date.timeIntervalSince1970, "type": "access"])
+        let encoded = payload.base64EncodedString().replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
+        return "eyJhbGciOiJIUzI1NiJ9.\(encoded).signature"
+    }
+
+    @Test func anItemIsKeyedAndNamedLikeKikusDownloads() {
+        #expect(episode().key == "show/ep")
+        #expect(episode().fileName == "show-ep.mp3")
+        #expect(episode().downloadPath == "api/items/show/file/123")
+        let book = WatchItem(itemId: "book", episodeId: "", ino: "9", fileExtension: "m4b", title: "坊っちゃん",
+                             subtitle: "夏目漱石", duration: 20000, addedAt: added)
+        #expect(book.key == "book")
+        #expect(book.fileName == "book.m4b")
+    }
+
+    @Test func theRequestCarriesTheToken() {
+        let access = WatchAccess(server: URL(string: "https://abs.example.com/base")!, token: "key", isAPIKey: true)
+        let request = access.request(for: episode())
+        #expect(request.url?.absoluteString == "https://abs.example.com/base/api/items/show/file/123")
+        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer key")
+    }
+
+    @Test func anAccessTokenRunsOutButAnAPIKeyDoesnt() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let hour = WatchAccess(server: URL(string: "https://abs.example.com")!, token: jwt(expiring: now.addingTimeInterval(3600)), isAPIKey: false)
+        #expect(hour.expiry == now.addingTimeInterval(3600))
+        #expect(hour.lasts(at: now))
+        // Five minutes left isn't enough to start a download on.
+        #expect(!hour.lasts(at: now.addingTimeInterval(3300)))
+        let key = WatchAccess(server: hour.server, token: hour.token, isAPIKey: true)
+        #expect(key.expiry == nil)
+        #expect(key.lasts(at: now.addingTimeInterval(1_000_000)))
+    }
+
+    @Test func theLibraryAndStateTravelTogether() {
+        let library = WatchLibrary(items: [episode()], access: WatchAccess(server: URL(string: "https://abs.example.com")!, token: "t", isAPIKey: true))
+        let context = WatchMessages.context(WatchState(nowPlaying: nil, liveText: true), library: library)
+        #expect(WatchMessages.library(from: context) == library)
+        #expect(WatchMessages.state(from: context)?.liveText == true)
+        // Before anything was sent, there's no library at all (not an empty one).
+        #expect(WatchMessages.library(from: WatchMessages.context(WatchState(nowPlaying: nil))) == nil)
+    }
+
+    @Test func theInventoryAndRemovalsRoundTrip() {
+        let inventory = WatchInventory(items: ["show/ep": WatchItemStatus(state: .ready, bytesDone: 52_000_000)],
+                                       freeBytes: 8_000_000_000, updatedAt: added)
+        #expect(WatchMessages.inventory(from: WatchMessages.context(inventory)) == inventory)
+        #expect(WatchMessages.removedKey(from: WatchMessages.userInfo(removed: "show/ep")) == "show/ep")
+        #expect(WatchMessages.removedKey(from: WatchMessages.userInfo(WatchQueuedMark(itemId: "a", episodeId: "", title: "", subtitle: "", position: 0, markedAt: added))) == nil)
+        let reply = WatchReply(access: WatchAccess(server: URL(string: "https://abs.example.com")!, token: "t", isAPIKey: false),
+                               state: WatchState(nowPlaying: nil))
+        #expect(WatchMessages.reply(from: WatchMessages.message(reply)) == reply)
+        #expect(WatchMessages.command(from: WatchMessages.message(WatchCommand.freshAccess)) == .freshAccess)
+    }
+
+    @Test func statusText() {
+        #expect(WatchItemStatus(state: .waiting).text == "Waiting")
+        #expect(WatchItemStatus(state: .waiting, message: "Waiting for your iPhone").text == "Waiting for your iPhone")
+        #expect(WatchItemStatus(state: .downloading, bytesDone: 40, bytesTotal: 100).text == "40%")
+        #expect(WatchItemStatus(state: .downloading).text == "Downloading")
+        #expect(WatchItemStatus(state: .failed, message: "No space").text == "Failed: No space")
+        #expect(WatchItemStatus(state: .ready).text == "Ready")
+    }
+
+    @Test func smallProgressIsntWorthSending() {
+        func inventory(_ done: Int64, free: Int64 = 8_000_000_000) -> WatchInventory {
+            WatchInventory(items: ["k": WatchItemStatus(state: .downloading, bytesDone: done, bytesTotal: 100)], freeBytes: free, updatedAt: added)
+        }
+        #expect(inventory(41).matches(inventory(48)))
+        #expect(!inventory(41).matches(inventory(51)))
+        #expect(!inventory(41).matches(inventory(41, free: 7_000_000_000)))
+        var finished = inventory(100)
+        finished.items["k"]?.state = .ready
+        #expect(!inventory(100).matches(finished))
+        #expect(!inventory(41).matches(WatchInventory(updatedAt: added)))
+    }
+}

@@ -139,8 +139,9 @@ They're built from milestone 1's lists. While the watch is on its charger, watch
 
 1. Can the watch reach Kaku through the iPhone's Tailscale while the phone is near? This only
    matters if the watch ever asks Kaku for anything; the plan doesn't need it.
-2. Which Audiobookshelf token the watch gets: the phone's own, or a separate one that can be
-   revoked. Audiobookshelf 2.36 API keys are the candidate.
+2. ~~Which Audiobookshelf token the watch gets.~~ Answered (#126): an admin's watch gets an API
+   key of its own, revoked on sign-out; anyone else's gets the phone's access token (an hour) and
+   asks for a fresh one before downloading. API keys are admin-only in 2.36.
 3. How fast watch downloads really are on Wi-Fi, on the charger and through the phone.
 4. Whether `.longFormAudio` can play through the watch speaker on watchOS 26/27.
 5. Whether a part of a single-file `.m4b` cut on the phone keeps its chapters and timings

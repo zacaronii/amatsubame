@@ -140,6 +140,8 @@ public enum WatchCommand: Codable, Equatable, Sendable {
     case addCard(key: String, line: Int, character: Int)
     /// Live Text's transcript (by `WatchTranscript.id`), the lines from `from` on.
     case transcriptPart(id: String, from: Int)
+    /// A token that lasts, before the watch downloads (the phone's access token runs out in an hour).
+    case freshAccess
 }
 
 /// The phone's answer to a command.
@@ -154,16 +156,19 @@ public struct WatchReply: Codable, Equatable, Sendable {
     public var cardAdded: Bool?
     /// For `transcriptPart`: the lines.
     public var transcriptPart: WatchTranscriptPart?
+    /// For `freshAccess`.
+    public var access: WatchAccess?
     /// The state after the command, so the watch needn't wait for the next context.
     public var state: WatchState
 
     public init(message: String? = nil, markedAt: Double? = nil, lookup: WatchLookup? = nil, cardAdded: Bool? = nil,
-                transcriptPart: WatchTranscriptPart? = nil, state: WatchState) {
+                transcriptPart: WatchTranscriptPart? = nil, access: WatchAccess? = nil, state: WatchState) {
         self.message = message
         self.markedAt = markedAt
         self.lookup = lookup
         self.cardAdded = cardAdded
         self.transcriptPart = transcriptPart
+        self.access = access
         self.state = state
     }
 }
@@ -174,9 +179,27 @@ public enum WatchMessages {
     static let command = "command"
     static let reply = "reply"
     static let queuedMark = "queuedMark"
+    static let library = "library"
+    static let inventory = "inventory"
+    static let removed = "removedFromWatch"
 
-    public static func context(_ state: WatchState) -> [String: Any] { encode(state, as: Self.state) }
+    /// The phone's context: what's playing and, once anything was sent, the watch's library.
+    /// A context replaces the last one whole, so both go every time.
+    public static func context(_ state: WatchState, library: WatchLibrary? = nil) -> [String: Any] {
+        var context = encode(state, as: Self.state)
+        if let library { context.merge(encode(library, as: Self.library)) { $1 } }
+        return context
+    }
     public static func state(from context: [String: Any]) -> WatchState? { decode(context, Self.state) }
+    public static func library(from context: [String: Any]) -> WatchLibrary? { decode(context, Self.library) }
+
+    /// The watch's context: where each item is.
+    public static func context(_ inventory: WatchInventory) -> [String: Any] { encode(inventory, as: Self.inventory) }
+    public static func inventory(from context: [String: Any]) -> WatchInventory? { decode(context, Self.inventory) }
+
+    /// Removed on the watch (by key), sent with `transferUserInfo` so it arrives even later.
+    public static func userInfo(removed key: String) -> [String: Any] { [removed: key] }
+    public static func removedKey(from userInfo: [String: Any]) -> String? { userInfo[removed] as? String }
 
     public static func message(_ command: WatchCommand) -> [String: Any] { encode(command, as: Self.command) }
     public static func command(from message: [String: Any]) -> WatchCommand? { decode(message, Self.command) }

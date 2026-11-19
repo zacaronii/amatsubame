@@ -56,6 +56,23 @@ func fixture(_ name: String) throws -> Data { try Fixture.data(name, in: .module
         #expect(transport.requests.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") == "Bearer tok" })
     }
 
+    /// Kiku on Apple Watch's key: shape from Audiobookshelf 2.36.1 (scrubbed).
+    @Test func makesAndRevokesAnAPIKey() async throws {
+        let transport = StubTransport(routes: [
+            "/api/api-keys/00000000-0000-4000-8000-0000000000a1": (200, Data("OK".utf8)),
+            "/api/api-keys": (200, try fixture("api-key-created.json")),
+        ])
+        let (client, _) = try client(transport)
+        let key = try await client.createAPIKey(name: "Kiku on Apple Watch", userId: "u1")
+        #expect(key.apiKey == "REDACTED-api-key" && key.name == "Kiku on Apple Watch")
+        let create = try #require(transport.requests.first)
+        #expect(create.httpMethod == "POST")
+        #expect(try create.jsonBody()["userId"] as? String == "u1" && create.jsonBody()["isActive"] as? Bool == true)
+        try await client.deleteAPIKey(id: key.id)
+        #expect(transport.requests.last?.httpMethod == "DELETE")
+        #expect(try await client.bearerToken() == "tok")
+    }
+
     @Test func expandedItemHasItsEpisodes() async throws {
         let transport = StubTransport(routes: ["/api/items/show": (200, try fixture("item.json"))])
         let item = try await client(transport).0.item(id: "show")

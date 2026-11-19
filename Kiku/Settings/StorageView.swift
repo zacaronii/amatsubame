@@ -61,6 +61,9 @@ struct DownloadedEpisodesView: View {
                     }
                 }
             }
+            #if os(iOS)
+            OnWatchSection()
+            #endif
         }
         .navigationTitle("Downloads")
         .confirmationDialog("Delete every downloaded episode of \(confirmsDelete?.seriesTitle ?? "")?",

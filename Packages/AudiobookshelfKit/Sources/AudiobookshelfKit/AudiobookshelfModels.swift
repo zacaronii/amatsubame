@@ -30,6 +30,13 @@ public struct AudiobookshelfUser: Decodable, Equatable, Sendable {
     public var refreshToken: String?
 }
 
+/// An API key (Settings ▸ API Keys): `apiKey` is the token, only in the answer that created it.
+public struct AudiobookshelfAPIKey: Decodable, Equatable, Sendable {
+    public var id: String
+    public var name: String
+    public var apiKey: String?
+}
+
 /// The listener's place in one episode.
 public struct AudiobookshelfProgress: Codable, Equatable, Hashable, Sendable {
     public var libraryItemId: String
