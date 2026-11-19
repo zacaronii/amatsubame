@@ -148,7 +148,12 @@ final class WatchSession: NSObject, WCSessionDelegate {
         }
     }
 
+    @ObservationIgnored private var started = false
+
+    /// Once, from the app or a background wake-up (whichever comes first).
     func start() {
+        guard !started else { return }
+        started = true
         downloads.requestAccess = { [weak self] in await self?.requestAccess() }
         player.log.send = { [weak self] stretches in self?.sendListening(stretches) }
         #if DEBUG

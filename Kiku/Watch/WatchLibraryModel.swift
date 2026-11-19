@@ -71,9 +71,17 @@ final class WatchLibraryModel {
 
     func contains(_ key: String) -> Bool { items.contains { $0.key == key } }
 
-    /// The item's state on the watch ("Waiting for your watch" until it says).
+    /// The item's state on the watch, until it says: it hasn't picked the list up yet (it does
+    /// when watchOS wakes Kiku there, or when you open it).
     func status(_ key: String) -> WatchItemStatus {
-        inventory?.items[key] ?? WatchItemStatus(state: .waiting, message: "Waiting for your watch")
+        inventory?.items[key] ?? WatchItemStatus(state: .waiting, message: "Not on the watch's list yet: opening Kiku on the watch picks it up")
+    }
+
+    /// A download's figure is from the watch's last report: a while ago, it may have moved on.
+    func staleness(_ key: String, now: Date = .now) -> String? {
+        guard let inventory, let status = inventory.items[key], status.state == .downloading || status.state == .waiting,
+              now.timeIntervalSince(inventory.updatedAt) > 120 else { return nil }
+        return "As of \(inventory.updatedAt.formatted(.relative(presentation: .named))): the watch reports progress while Kiku is open on it"
     }
 
     // MARK: Sending and removing
