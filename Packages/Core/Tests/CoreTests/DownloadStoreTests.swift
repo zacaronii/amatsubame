@@ -93,6 +93,19 @@ import Testing
         #expect(try store.all().keys.sorted() == [3])
     }
 
+    @Test func audioAutoDownloadSettingsByLibraryAndShow() throws {
+        let store = AudioAutoDownloadSettingsStore(database: try AppDatabase.inMemory())
+        #expect(try store.all().isEmpty)
+        try store.save(AudioAutoDownloadSetting(scope: AudioAutoDownloadSetting.library("lib"), ahead: 3, order: .inOrder))
+        try store.save(AudioAutoDownloadSetting(scope: AudioAutoDownloadSetting.show("show"), isOn: false))
+        let all = try store.all()
+        #expect(all["library:lib"]?.ahead == 3 && all["library:lib"]?.order == .inOrder)
+        #expect(all["show:show"]?.isOn == false)
+        // Back to the default forgets it.
+        try store.save(AudioAutoDownloadSetting(scope: AudioAutoDownloadSetting.show("show")))
+        #expect(try store.all().keys.sorted() == ["library:lib"])
+    }
+
     @Test func failedDownloadsGoBackInLine() throws {
         let store = DownloadStore(database: try AppDatabase.inMemory())
         let id = try #require(try store.enqueue(record("A")).id)

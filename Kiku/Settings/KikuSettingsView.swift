@@ -37,9 +37,9 @@ struct KikuSettingsView: View {
                     }
                     .accessibilityIdentifier("settings.playback")
                     NavigationLink {
-                        Self.downloads
+                        KikuDownloadSettingsView()
                     } label: {
-                        SettingsRowLabel("Downloads", subtitle: "Wi-Fi or cellular", systemImage: "arrow.down.circle.fill", color: .blue)
+                        SettingsRowLabel("Downloads", subtitle: "Cellular, download ahead", systemImage: "arrow.down.circle.fill", color: .blue)
                     }
                     .accessibilityIdentifier("settings.downloads")
                 } header: {
@@ -117,12 +117,6 @@ struct KikuSettingsView: View {
     }
     #endif
 
-    static var downloads: some View {
-        Form { DownloadSettingsSection { _ in } }
-            .formStyle(.grouped)
-            .navigationTitle("Downloads")
-    }
-
     static var advanced: some View {
         AdvancedSettingsView(kinds: [.ankiNote, .audiobookshelfProgress, .audiobookshelfSession],
                              extraLogs: [URL.applicationSupportDirectory.appending(path: "dev-setup.log")])
@@ -174,7 +168,7 @@ struct MacSettingsView: View {
                 MacSettingsPage("libraries", title: "Libraries", systemImage: "books.vertical") { KikuLibrariesSettingsView() },
                 MacSettingsPage("transcripts", title: "Transcripts", systemImage: "text.quote") { KakuSettingsView(environment: environment.common) },
                 MacSettingsPage("playback", title: "Playback", systemImage: "play.circle") { KikuSettingsView.playback },
-                MacSettingsPage("downloads", title: "Downloads", systemImage: "arrow.down.circle") { KikuSettingsView.downloads },
+                MacSettingsPage("downloads", title: "Downloads", systemImage: "arrow.down.circle") { KikuDownloadSettingsView() },
             ]),
         ] + MacSettingsGroup.shared {
             AnkiSettingsPage(environment: environment.common)

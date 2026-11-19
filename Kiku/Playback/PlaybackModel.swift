@@ -359,6 +359,8 @@ final class PlaybackModel: Identifiable, LineLookupHost {
         saveProgress(force: true, finished: true)
         flushListening()
         environment.sessions.send()
+        // Download ahead moves on past a finished episode.
+        environment.autoDownloads.schedule()
     }
 
     private func flushListening() {

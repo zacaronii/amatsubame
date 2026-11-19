@@ -315,3 +315,60 @@ public struct AutoDownloadSettingsStore: Sendable {
         }
     }
 }
+
+/// Kiku's download ahead for one podcast library, or one show's own choice (off unless turned on).
+public struct AudioAutoDownloadSetting: Codable, Equatable, Sendable, FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "audioAutoDownloadSetting"
+
+    public enum Order: String, Codable, Sendable, CaseIterable {
+        /// The latest episodes (news).
+        case newest
+        /// The episodes after the one you're on, oldest first (serials, lessons).
+        case inOrder
+    }
+
+    /// "library:<id>" or "show:<item id>".
+    public var scope: String
+    /// Episodes kept downloaded; 0 is off (a show's 0 takes its library's).
+    public var ahead: Int
+    public var order: Order
+    /// A show only: nil follows its library (shows played lately), true always, false never.
+    public var isOn: Bool?
+
+    public init(scope: String, ahead: Int = 0, order: Order = .newest, isOn: Bool? = nil) {
+        self.scope = scope
+        self.ahead = ahead
+        self.order = order
+        self.isOn = isOn
+    }
+
+    public static func library(_ id: String) -> String { "library:\(id)" }
+    public static func show(_ itemId: String) -> String { "show:\(itemId)" }
+
+    public var isDefault: Bool { ahead == 0 && order == .newest && isOn == nil }
+}
+
+public struct AudioAutoDownloadSettingsStore: Sendable {
+    public let database: AppDatabase
+
+    public init(database: AppDatabase) {
+        self.database = database
+    }
+
+    /// Settings by scope; a scope without a row is off (or follows its library).
+    public func all() throws -> [String: AudioAutoDownloadSetting] {
+        try database.reader.read { db in
+            Dictionary(try AudioAutoDownloadSetting.fetchAll(db).map { ($0.scope, $0) }, uniquingKeysWith: { $1 })
+        }
+    }
+
+    public func save(_ setting: AudioAutoDownloadSetting) throws {
+        try database.writer.write { db in
+            if setting.isDefault {
+                _ = try AudioAutoDownloadSetting.deleteOne(db, key: setting.scope)
+            } else {
+                try setting.save(db)
+            }
+        }
+    }
+}
