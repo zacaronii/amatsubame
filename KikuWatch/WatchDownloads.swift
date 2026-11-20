@@ -20,6 +20,9 @@ final class WatchDownloads: NSObject, URLSessionDownloadDelegate {
     /// Asks the phone for a token that lasts (nil when it can't be reached).
     @ObservationIgnored var requestAccess: (() async -> WatchAccess?)?
     @ObservationIgnored private let folder = URL.applicationSupportDirectory.appending(path: "Audio")
+    /// Send Now's files from the phone, by key, until they're moved into place (one can arrive
+    /// before the list that names it).
+    @ObservationIgnored private let incoming = URL.applicationSupportDirectory.appending(path: "Audio/Incoming")
     @ObservationIgnored private var session: URLSession!
     @ObservationIgnored private var access: WatchAccess?
     /// Removed here: kept off until the phone's list drops them too.
@@ -36,7 +39,7 @@ final class WatchDownloads: NSObject, URLSessionDownloadDelegate {
         removedHere = Set(UserDefaults.standard.stringArray(forKey: Self.removedKey) ?? [])
         super.init()
         access = WatchKeychain.load()
-        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: incoming, withIntermediateDirectories: true)
         let configuration = URLSessionConfiguration.background(withIdentifier: Self.sessionIdentifier)
         configuration.sessionSendsLaunchEvents = true
         session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
@@ -81,8 +84,16 @@ final class WatchDownloads: NSObject, URLSessionDownloadDelegate {
         let running = Dictionary(tasks.compactMap { task in task.taskDescription.map { ($0, task) } }, uniquingKeysWith: { first, _ in first })
         var missing: [WatchItem] = []
         for item in items {
+            if file(for: item) == nil, FileManager.default.fileExists(atPath: incomingFile(item.key).path(percentEncoded: false)) {
+                running[item.key]?.cancel()
+                place(incomingFile(item.key), for: item)
+            }
             if let file = file(for: item) {
                 statuses[item.key] = WatchItemStatus(state: .ready, bytesDone: Self.size(of: file))
+            } else if item.fromPhone {
+                // Send Now: the phone sends it; downloading it here too would only compete.
+                running[item.key]?.cancel()
+                statuses[item.key] = WatchItemStatus(state: .waiting, message: "Coming from your iPhone")
             } else if let task = running[item.key] {
                 // From the task itself: while the app was suspended, no progress was delivered.
                 statuses[item.key] = WatchItemStatus(state: task.countOfBytesReceived > 0 ? .downloading : .waiting,
@@ -94,6 +105,18 @@ final class WatchDownloads: NSObject, URLSessionDownloadDelegate {
         statuses = statuses.filter { key, _ in items.contains { $0.key == key } }
         if !missing.isEmpty { await start(missing) }
         report()
+    }
+
+    /// Send Now's file arrived (moved out of WatchConnectivity's inbox already).
+    func received(file: URL, key: String) async {
+        let destination = incomingFile(key)
+        try? FileManager.default.removeItem(at: destination)
+        guard (try? FileManager.default.moveItem(at: file, to: destination)) != nil else { return }
+        await reconcile()
+    }
+
+    private func incomingFile(_ key: String) -> URL {
+        incoming.appending(path: key.replacingOccurrences(of: "/", with: "-"))
     }
 
     /// Starts again one that failed (the row's Retry).
@@ -134,6 +157,7 @@ final class WatchDownloads: NSObject, URLSessionDownloadDelegate {
     private func delete(_ item: WatchItem) async {
         for task in await session.allTasks where task.taskDescription == item.key { task.cancel() }
         try? FileManager.default.removeItem(at: folder.appending(path: item.fileName))
+        try? FileManager.default.removeItem(at: incomingFile(item.key))
         statuses[item.key] = nil
     }
 
@@ -241,6 +265,12 @@ final class WatchDownloads: NSObject, URLSessionDownloadDelegate {
             report()
             return
         }
+        place(file, for: item)
+        report()
+    }
+
+    /// Moves a finished file (downloaded here or sent by the phone) to where it plays from.
+    private func place(_ file: URL, for item: WatchItem) {
         let destination = folder.appending(path: item.fileName)
         try? FileManager.default.removeItem(at: destination)
         do {
@@ -249,11 +279,10 @@ final class WatchDownloads: NSObject, URLSessionDownloadDelegate {
             values.isExcludedFromBackup = true
             var url = destination
             try? url.setResourceValues(values)
-            statuses[key] = WatchItemStatus(state: .ready, bytesDone: Self.size(of: destination))
+            statuses[item.key] = WatchItemStatus(state: .ready, bytesDone: Self.size(of: destination))
         } catch {
-            statuses[key] = WatchItemStatus(state: .failed, message: "Couldn't save it: \(error.localizedDescription)")
+            statuses[item.key] = WatchItemStatus(state: .failed, message: "Couldn't save it: \(error.localizedDescription)")
         }
-        report()
     }
 }
 

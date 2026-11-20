@@ -213,6 +213,11 @@ final class KikuEnvironment {
                 let parts = key.split(separator: "/").map(String.init)
                 if let entry = await entry(itemId: parts[0], episodeId: parts.count > 1 ? parts[1] : "", showTitle: "") {
                     await watchLibrary.send(entry)
+                    // KIKU_SEND_FROM_PHONE=1: downloads it here too, then Send from iPhone.
+                    guard env["KIKU_SEND_FROM_PHONE"] != nil else { return }
+                    if downloader.localFile(key: entry.id) == nil { await downloader.download(entry) }
+                    for _ in 0..<120 where downloader.localFile(key: entry.id) == nil { try? await Task.sleep(for: .seconds(1)) }
+                    watchLibrary.sendFromPhone(entry.id)
                 }
             }
         }

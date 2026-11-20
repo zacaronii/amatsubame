@@ -23,6 +23,9 @@ public struct WatchItem: Codable, Equatable, Hashable, Sendable, Identifiable {
     public var size: Int64?
     public var chapters: [Chapter]
     public var addedAt: Date
+    /// Send Now: the phone sends its own download with `transferFile` (for a server the watch
+    /// can't reach), so the watch doesn't download it itself.
+    public var fromPhone: Bool
 
     public struct Chapter: Codable, Equatable, Hashable, Sendable {
         public var title: String
@@ -35,7 +38,7 @@ public struct WatchItem: Codable, Equatable, Hashable, Sendable, Identifiable {
     }
 
     public init(itemId: String, episodeId: String, ino: String, fileExtension: String, title: String, subtitle: String,
-                duration: Double, size: Int64? = nil, chapters: [Chapter] = [], addedAt: Date) {
+                duration: Double, size: Int64? = nil, chapters: [Chapter] = [], addedAt: Date, fromPhone: Bool = false) {
         self.itemId = itemId
         self.episodeId = episodeId
         self.ino = ino
@@ -46,6 +49,22 @@ public struct WatchItem: Codable, Equatable, Hashable, Sendable, Identifiable {
         self.size = size
         self.chapters = chapters
         self.addedAt = addedAt
+        self.fromPhone = fromPhone
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        itemId = try container.decode(String.self, forKey: .itemId)
+        episodeId = try container.decode(String.self, forKey: .episodeId)
+        ino = try container.decode(String.self, forKey: .ino)
+        fileExtension = try container.decode(String.self, forKey: .fileExtension)
+        title = try container.decode(String.self, forKey: .title)
+        subtitle = try container.decode(String.self, forKey: .subtitle)
+        duration = try container.decode(Double.self, forKey: .duration)
+        size = try container.decodeIfPresent(Int64.self, forKey: .size)
+        chapters = try container.decode([Chapter].self, forKey: .chapters)
+        addedAt = try container.decode(Date.self, forKey: .addedAt)
+        fromPhone = try container.decodeIfPresent(Bool.self, forKey: .fromPhone) ?? false
     }
 
     /// Kiku's progress key, as `WatchNowPlaying.key`.
@@ -277,4 +296,8 @@ public extension WatchMessages {
     /// The phone's answer to listening sent with `sendMessage`: what it has applied.
     static func message(acknowledged: [String: Date]) -> [String: Any] { encode(acknowledged, as: "acknowledged") }
     static func acknowledged(from message: [String: Any]) -> [String: Date]? { decode(message, "acknowledged") }
+
+    /// Send Now: the metadata of the phone's `transferFile`, naming the item it is.
+    static func metadata(fileFor key: String) -> [String: Any] { ["watchFile": key] }
+    static func fileKey(from metadata: [String: Any]?) -> String? { metadata?["watchFile"] as? String }
 }

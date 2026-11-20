@@ -92,6 +92,20 @@ import Testing
         #expect(WatchMessages.library(from: WatchMessages.context(WatchState(nowPlaying: nil), library: library))?.acknowledged["s1"] == stretch.endedAt)
     }
 
+    @Test func sendNowMarksTheItemAndNamesTheFile() throws {
+        var item = episode()
+        #expect(!item.fromPhone)
+        item.fromPhone = true
+        let data = try JSONEncoder().encode(item)
+        #expect(try JSONDecoder().decode(WatchItem.self, from: data).fromPhone)
+        // An item saved before Send Now decodes as downloaded by the watch.
+        var old = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        old["fromPhone"] = nil
+        #expect(try !JSONDecoder().decode(WatchItem.self, from: JSONSerialization.data(withJSONObject: old)).fromPhone)
+        #expect(WatchMessages.fileKey(from: WatchMessages.metadata(fileFor: "show/ep")) == "show/ep")
+        #expect(WatchMessages.fileKey(from: nil) == nil)
+    }
+
     @Test func statusText() {
         #expect(WatchItemStatus(state: .waiting).text == "Waiting")
         #expect(WatchItemStatus(state: .waiting, message: "Waiting for your iPhone").text == "Waiting for your iPhone")

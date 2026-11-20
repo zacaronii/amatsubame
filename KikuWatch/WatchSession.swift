@@ -398,6 +398,14 @@ final class WatchSession: NSObject, WCSessionDelegate {
         }
     }
 
+    /// Send Now's file: moved out of the inbox before this returns (WatchConnectivity deletes it).
+    nonisolated func session(_ session: WCSession, didReceive file: WCSessionFile) {
+        guard let key = WatchMessages.fileKey(from: file.metadata) else { return }
+        let held = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        guard (try? FileManager.default.moveItem(at: file.fileURL, to: held)) != nil else { return }
+        Task { @MainActor in await self.downloads.received(file: held, key: key) }
+    }
+
     nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
         let reachable = session.isReachable
         Task { @MainActor in

@@ -40,11 +40,21 @@ struct OnWatchSection: View {
                     Button("Sync Now", systemImage: "arrow.triangle.2.circlepath") { environment.watch.syncNow() }
                 }
                 ForEach(library.items) { item in
-                    OnWatchRow(item: item, status: library.status(item.key), staleness: library.staleness(item.key))
+                    OnWatchRow(item: item, status: library.status(item.key), staleness: library.staleness(item.key),
+                               sending: library.sendingText(item.key))
                         .swipeActions {
                             Button("Remove", systemImage: "trash", role: .destructive) { library.remove(item.key) }
                         }
+                        .swipeActions(edge: .leading) {
+                            if library.canSendFromPhone(item.key) {
+                                Button("Send from iPhone", systemImage: "iphone.and.arrow.forward") { library.sendFromPhone(item.key) }
+                                    .tint(.accentColor)
+                            }
+                        }
                         .contextMenu {
+                            if library.canSendFromPhone(item.key) {
+                                Button("Send from iPhone", systemImage: "iphone.and.arrow.forward") { library.sendFromPhone(item.key) }
+                            }
                             Button("Remove from Watch", systemImage: "trash", role: .destructive) { library.remove(item.key) }
                         }
                 }
@@ -57,7 +67,8 @@ struct OnWatchSection: View {
     }
 
     private func footer(_ library: WatchLibraryModel) -> String {
-        var parts = ["The watch downloads these from Audiobookshelf itself. With your iPhone nearby, watchOS sends it through the iPhone over Bluetooth, which can be slow for a book; watchOS favours big downloads while the watch charges."]
+        var parts = ["The watch downloads these from Audiobookshelf itself. With your iPhone nearby, watchOS sends it through the iPhone over Bluetooth, which can be slow for a book; watchOS favours big downloads while the watch charges.",
+                     "If the watch can't reach your server (on a VPN or only at home), long-press one that's downloaded on this iPhone and choose Send from iPhone."]
         if let inventory = library.inventory {
             if let free = inventory.freeBytes { parts.append("\(WatchItemStatus.size(free)) free on the watch.") }
             parts.append("Last heard from \(inventory.updatedAt.formatted(.relative(presentation: .named))).")
@@ -73,6 +84,8 @@ private struct OnWatchRow: View {
     let item: WatchItem
     let status: WatchItemStatus
     var staleness: String?
+    /// Send Now's progress, or why it failed.
+    var sending: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -83,6 +96,9 @@ private struct OnWatchRow: View {
                 .foregroundStyle(status.state == .failed ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
             if status.state == .downloading {
                 ProgressView(value: status.fraction ?? 0)
+            }
+            if let sending {
+                Text(sending).font(.caption).foregroundStyle(.secondary)
             }
             if let staleness {
                 Text(staleness).font(.caption2).foregroundStyle(.tertiary)
