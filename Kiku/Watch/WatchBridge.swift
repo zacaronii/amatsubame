@@ -46,6 +46,8 @@ final class WatchBridge: NSObject, WCSessionDelegate {
             send(currentState(), force: true)
         }
         environment.watchLibrary.onAdded = { [weak self] in self?.wakeWatch() }
+        environment.watchLibrary.onSendFile = { [weak self] item, file in self?.transferFile(item, file: file) }
+        environment.watchLibrary.onCancelFile = { [weak self] key in self?.cancelTransfer(key) }
         follow()
         followAccount()
     }
@@ -72,6 +74,71 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         settings.watchLiveText = on
         try? settings.save(environment.common.database)
         send(currentState(), force: true)
+    }
+
+    // MARK: Send Now
+
+    /// Where files wait while they're sent: links to the downloads, so removing a download
+    /// meanwhile doesn't pull the file from under the transfer.
+    private let transfers = URL.cachesDirectory.appending(path: "WatchTransfers")
+    private var followingTransfers = false
+
+    private func transferFile(_ item: WatchItem, file: URL) {
+        let session = WCSession.default
+        guard session.activationState == .activated, session.isWatchAppInstalled else {
+            environment.watchLibrary.sending[item.key] = nil
+            environment.watchLibrary.sendFailed(item.key, "Your watch isn't connected")
+            return
+        }
+        cancelTransfer(item.key)
+        try? FileManager.default.createDirectory(at: transfers, withIntermediateDirectories: true)
+        let link = transfers.appending(path: item.fileName)
+        try? FileManager.default.removeItem(at: link)
+        if (try? FileManager.default.linkItem(at: file, to: link)) == nil {
+            do { try FileManager.default.copyItem(at: file, to: link) } catch {
+                environment.watchLibrary.sending[item.key] = nil
+                environment.watchLibrary.sendFailed(item.key, error.localizedDescription)
+                return
+            }
+        }
+        session.transferFile(link, metadata: WatchMessages.metadata(fileFor: item.key))
+        followTransfers()
+    }
+
+    private func cancelTransfer(_ key: String) {
+        for transfer in WCSession.default.outstandingFileTransfers where WatchMessages.fileKey(from: transfer.file.metadata) == key {
+            transfer.cancel()
+            try? FileManager.default.removeItem(at: transfer.file.fileURL)
+        }
+    }
+
+    /// Each outstanding file's progress, every second while any is left (its completion isn't
+    /// always reported, so this follows the transfers themselves).
+    private func followTransfers() {
+        guard !followingTransfers else { return }
+        followingTransfers = true
+        Task {
+            while true {
+                var sending: [String: Double] = [:]
+                for transfer in WCSession.default.outstandingFileTransfers {
+                    if let key = WatchMessages.fileKey(from: transfer.file.metadata) { sending[key] = transfer.progress.fractionCompleted }
+                }
+                environment.watchLibrary.sending = sending
+                if sending.isEmpty { break }
+                try? await Task.sleep(for: .seconds(1))
+            }
+            followingTransfers = false
+            removeStaleTransferFiles()
+        }
+    }
+
+    /// Links left from transfers that are over.
+    private func removeStaleTransferFiles() {
+        let live = Set(WCSession.default.outstandingFileTransfers.map { $0.file.fileURL.lastPathComponent })
+        for file in (try? FileManager.default.contentsOfDirectory(at: transfers, includingPropertiesForKeys: nil)) ?? []
+        where !live.contains(file.lastPathComponent) {
+            try? FileManager.default.removeItem(at: file)
+        }
     }
 
     // MARK: State
@@ -328,6 +395,22 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         Task { @MainActor in
             if let inventory { self.environment.watchLibrary.received(inventory) }
             self.send(self.currentState(), force: true)
+            // Transfers carry on across launches.
+            self.followTransfers()
+        }
+    }
+
+    nonisolated func session(_ session: WCSession, didFinish fileTransfer: WCSessionFileTransfer, error: (any Error)?) {
+        let key = WatchMessages.fileKey(from: fileTransfer.file.metadata)
+        let url = fileTransfer.file.fileURL
+        let message = error?.localizedDescription
+        Task { @MainActor in
+            try? FileManager.default.removeItem(at: url)
+            guard let key else { return }
+            let library = self.environment.watchLibrary
+            library.sending[key] = nil
+            // Not for one cancelled because it was removed or the watch has it.
+            if let message, library.contains(key), library.status(key).state != .ready { library.sendFailed(key, message) }
         }
     }
 

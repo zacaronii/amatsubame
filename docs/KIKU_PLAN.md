@@ -57,7 +57,8 @@ player closes and when settings change.
   - watchOS chooses when downloads run, most readily on the charger.
   - **Send Now** is a fallback: the phone sends its own downloaded file (`transferFile`), for a
     server the watch can't reach. It's slower and has a known bug where completion isn't
-    reported, so progress is followed from the transfer itself.
+    reported, so progress is followed from the transfer itself. Built (#129): Send from iPhone on
+    Storage's On Apple Watch rows.
 - **Long books:** a book only goes to the watch in part, the next few hours. Books split into
   several files send files. A single-file `.m4b` would be cut on the phone with
   `AVAssetExportSession`, which is already used for clips. The part is topped up as you listen.

@@ -27,6 +27,10 @@ final class WatchLibraryModel {
     var isWatchAppInstalled = false
     /// When listening from the watch last arrived (milestone 3).
     private(set) var lastSynced: Date?
+    /// Send Now: how far each file the phone is sending has got, by key (set by `WatchBridge`).
+    var sending: [String: Double] = [:]
+    /// Send Now that failed, by key, with why.
+    var sendErrors: [String: String] = [:]
 
     @ObservationIgnored private unowned let environment: KikuEnvironment
     @ObservationIgnored private let store: KikuWatchItemStore
@@ -38,6 +42,9 @@ final class WatchLibraryModel {
     @ObservationIgnored var onChange: (() -> Void)?
     /// Something was added: `WatchBridge` also wakes the watch for it, when it can.
     @ObservationIgnored var onAdded: (() -> Void)?
+    /// Send Now: `WatchBridge` sends the phone's file, or stops sending it.
+    @ObservationIgnored var onSendFile: ((WatchItem, URL) -> Void)?
+    @ObservationIgnored var onCancelFile: ((String) -> Void)?
     /// Kiku's complication is on the watch's face, so the phone can wake Kiku there
     /// (`transferCurrentComplicationUserInfo`); otherwise the list waits until watchOS wakes it.
     var wakesWatch = false
@@ -109,9 +116,45 @@ final class WatchLibraryModel {
         onAdded?()
     }
 
+    /// This phone has it downloaded and the watch doesn't have it yet: Send Now can send it.
+    func canSendFromPhone(_ key: String) -> Bool {
+        contains(key) && sending[key] == nil && status(key).state != .ready && environment.downloader.localFile(key: key) != nil
+    }
+
+    /// Send Now: the phone's own download goes over WatchConnectivity (for a server the watch
+    /// can't reach), and the watch stops downloading it itself.
+    func sendFromPhone(_ key: String) {
+        guard let index = items.firstIndex(where: { $0.key == key }), let file = environment.downloader.localFile(key: key) else { return }
+        items[index].fromPhone = true
+        if let data = try? JSONEncoder().encode(items[index]) { try? store.save(key: key, item: data, addedAt: items[index].addedAt) }
+        sendErrors[key] = nil
+        sending[key] = 0
+        onChange?()
+        onSendFile?(items[index], file)
+    }
+
+    /// Send Now didn't get there: the watch goes back to downloading it itself (Send from iPhone
+    /// can be tried again).
+    func sendFailed(_ key: String, _ message: String) {
+        sendErrors[key] = message
+        guard let index = items.firstIndex(where: { $0.key == key }), items[index].fromPhone else { return }
+        items[index].fromPhone = false
+        if let data = try? JSONEncoder().encode(items[index]) { try? store.save(key: key, item: data, addedAt: items[index].addedAt) }
+        onChange?()
+    }
+
+    /// "Sending from iPhone: 40%", or why it couldn't.
+    func sendingText(_ key: String) -> String? {
+        if let fraction = sending[key] { return "Sending from iPhone: \(Int((fraction * 100).rounded(.down)))%" }
+        return sendErrors[key].map { "Couldn't send from iPhone: \($0)" }
+    }
+
     /// Takes it off the list; the watch deletes its file when the list arrives.
     func remove(_ key: String) {
         guard contains(key) else { return }
+        onCancelFile?(key)
+        sending[key] = nil
+        sendErrors[key] = nil
         try? store.remove(key)
         items.removeAll { $0.key == key }
         inventory?.items[key] = nil
@@ -120,6 +163,11 @@ final class WatchLibraryModel {
 
     func received(_ inventory: WatchInventory) {
         self.inventory = inventory
+        // Downloaded by the watch after all, or the file's there: nothing left to send.
+        for key in sending.keys where inventory.items[key]?.state == .ready {
+            onCancelFile?(key)
+            sending[key] = nil
+        }
     }
 
     // MARK: Listening from the watch (milestone 3)
