@@ -45,6 +45,7 @@ final class WatchBridge: NSObject, WCSessionDelegate {
             guard let self else { return }
             send(currentState(), force: true)
         }
+        environment.watchLibrary.onAdded = { [weak self] in self?.wakeWatch() }
         follow()
         followAccount()
     }
@@ -52,6 +53,17 @@ final class WatchBridge: NSObject, WCSessionDelegate {
     /// Sync Now on the phone: the list, the places and the acknowledgements go again.
     func syncNow() {
         send(currentState(), force: true)
+        wakeWatch()
+    }
+
+    /// The context alone waits until watchOS chooses to wake Kiku on the watch (often not until
+    /// it's opened). With Kiku's complication on the face, a complication transfer wakes it now
+    /// (50 a day), so a newly sent item starts downloading by itself.
+    private func wakeWatch() {
+        let session = WCSession.default
+        guard session.activationState == .activated, session.isPaired, session.isWatchAppInstalled,
+              session.isComplicationEnabled, session.remainingComplicationUserInfoTransfers > 0 else { return }
+        session.transferCurrentComplicationUserInfo(WatchMessages.context(currentState(), library: environment.watchLibrary.library))
     }
 
     func setLiveText(_ on: Bool) {
@@ -108,6 +120,7 @@ final class WatchBridge: NSObject, WCSessionDelegate {
     private func send(_ state: WatchState, force: Bool = false) {
         let session = WCSession.default
         environment.watchLibrary.isWatchAppInstalled = session.activationState == .activated && session.isPaired && session.isWatchAppInstalled
+        environment.watchLibrary.wakesWatch = environment.watchLibrary.isWatchAppInstalled && session.isComplicationEnabled
         guard session.activationState == .activated, session.isPaired, session.isWatchAppInstalled else { return }
         if !force, let sent, isPredicted(state, by: sent) { return }
         do {

@@ -36,6 +36,11 @@ final class WatchLibraryModel {
     @ObservationIgnored private var access: WatchAccess?
     /// The list or the token changed: `WatchBridge` sends the context again.
     @ObservationIgnored var onChange: (() -> Void)?
+    /// Something was added: `WatchBridge` also wakes the watch for it, when it can.
+    @ObservationIgnored var onAdded: (() -> Void)?
+    /// Kiku's complication is on the watch's face, so the phone can wake Kiku there
+    /// (`transferCurrentComplicationUserInfo`); otherwise the list waits until watchOS wakes it.
+    var wakesWatch = false
 
     struct StoredKey: Codable, Equatable {
         var id: String
@@ -74,7 +79,9 @@ final class WatchLibraryModel {
     /// The item's state on the watch, until it says: it hasn't picked the list up yet (it does
     /// when watchOS wakes Kiku there, or when you open it).
     func status(_ key: String) -> WatchItemStatus {
-        inventory?.items[key] ?? WatchItemStatus(state: .waiting, message: "Not on the watch's list yet: opening Kiku on the watch picks it up")
+        inventory?.items[key] ?? WatchItemStatus(state: .waiting, message: wakesWatch
+            ? "On its way to the watch"
+            : "Not on the watch's list yet: opening Kiku on the watch picks it up, or add Kiku's complication to your watch face so it starts by itself")
     }
 
     /// A download's figure is from the watch's last report: a while ago, it may have moved on.
@@ -99,6 +106,7 @@ final class WatchLibraryModel {
         items.append(item)
         await prepareAccess()
         onChange?()
+        onAdded?()
     }
 
     /// Takes it off the list; the watch deletes its file when the list arrives.
