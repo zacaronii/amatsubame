@@ -389,6 +389,15 @@ final class WatchSession: NSObject, WCSessionDelegate {
         }
     }
 
+    /// The phone's list, sent as a complication transfer to wake Kiku here (the same list as
+    /// the context, which may arrive later).
+    nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
+        let library = WatchMessages.library(from: userInfo)
+        Task { @MainActor in
+            if let library { await self.applyLibrary(library) }
+        }
+    }
+
     nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
         let reachable = session.isReachable
         Task { @MainActor in
