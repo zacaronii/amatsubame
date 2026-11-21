@@ -125,7 +125,8 @@ Each app signs in to Kaku on its own, with Kaku's address and the token (`KAKU_A
 
 Kiku and Miru also offer it in the Extras step of their first-launch setup.
 
-Once connected, each app's Kaku screen (where you entered the address) shows what Kaku is doing,
+Once connected, each app's Kaku screen (where you entered the address: Kiku's Settings ▸ Transcripts,
+Yomu's Settings ▸ Read-Along ▸ Kaku, Miru's Settings ▸ Subtitles ▸ Kaku) shows what Kaku is doing,
 refreshed every few seconds:
 
 - **Server:** its version, the model and whether it's loaded, GPU memory, and when it last checked
@@ -135,7 +136,7 @@ refreshed every few seconds:
   time to the end.
 - **Problems:** what failed and why, with **Try Again**.
 - **Libraries:** each library's switch, and how far along it is ("120 of 131 episodes transcribed ·
-  10 waiting · last 2 hours ago"), plus the Jellyfin episodes asked for in Miru.
+  10 waiting · updated 2 hours ago"), plus the Jellyfin episodes asked for in Miru.
 
 Then:
 

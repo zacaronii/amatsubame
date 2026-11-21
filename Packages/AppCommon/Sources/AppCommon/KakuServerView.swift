@@ -91,7 +91,7 @@ struct KakuServerSections: View {
                     Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
                 }
             }
-            if let health = model.health { server(health) }
+            server(model.health)
             if let queue = model.queue {
                 running(queue)
                 waiting(queue)
@@ -99,14 +99,23 @@ struct KakuServerSections: View {
             }
             if let libraries = model.libraries { librarySection(libraries) }
         }
-        .task { await model.follow() }
     }
 
     // MARK: Sections
 
-    private func server(_ health: KakuHealth) -> some View {
+    private func server(_ health: KakuHealth?) -> some View {
         Section("Server") {
-            LabeledContent("Version", value: health.version)
+            // One row that's always there carries the polling: modifiers on a Group or Section in a
+            // Form go to its rows, so with nothing loaded yet there would be none to run it.
+            LabeledContent("Version") {
+                if let health { Text(health.version) } else { ProgressView() }
+            }
+            .task { await model.follow() }
+            if let health { serverRows(health) }
+        }
+    }
+
+    @ViewBuilder private func serverRows(_ health: KakuHealth) -> some View {
             if let name = health.model {
                 LabeledContent("Model") {
                     Text(health.modelLoaded == true ? "\(name) · loaded" : "\(name) · not loaded")
@@ -121,7 +130,6 @@ struct KakuServerSections: View {
             if let error = health.lastPollError {
                 Label(error, systemImage: "exclamationmark.triangle").font(.footnote).foregroundStyle(.orange)
             }
-        }
     }
 
     private func running(_ queue: KakuQueue) -> some View {
@@ -191,7 +199,7 @@ struct KakuServerSections: View {
                 Toggle(isOn: Binding(get: { library.enabled }, set: { on in Task { await model.setEnabled(library, on) } })) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(library.name)
-                        Text(Self.detail(library.enabled ? library.progress : nil, kind: library.mediaType == .book ? "books" : "episodes",
+                        Text(Self.detail(library.enabled ? library.progress : nil, kind: library.mediaType == .book ? ("book", "books") : ("episode", "episodes"),
                                          enabled: library.enabled))
                             .font(.footnote)
                             .foregroundStyle(.secondary)
@@ -202,7 +210,7 @@ struct KakuServerSections: View {
             if let jellyfin = libraries.jellyfin {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Jellyfin")
-                    Text(Self.detail(jellyfin, kind: "episodes asked for in Miru", enabled: true)).font(.footnote).foregroundStyle(.secondary)
+                    Text(Self.detail(jellyfin, kind: ("episode asked for in Miru", "episodes asked for in Miru"), enabled: true)).font(.footnote).foregroundStyle(.secondary)
                 }
             }
         } header: {
@@ -223,15 +231,15 @@ struct KakuServerSections: View {
         }
     }
 
-    /// "120 of 131 episodes transcribed · 10 waiting · 1 failed · last 2 hours ago".
-    static func detail(_ progress: KakuLibraryProgress?, kind: String, enabled: Bool) -> String {
+    /// "120 of 131 episodes transcribed · 10 waiting · 1 failed · updated 2 hours ago".
+    static func detail(_ progress: KakuLibraryProgress?, kind: (one: String, many: String), enabled: Bool) -> String {
         guard enabled else { return "Off" }
         guard let progress else { return "On" }
         let counts = progress.counts
-        var parts = ["\(counts.done) of \(counts.total) \(kind) transcribed"]
+        var parts = ["\(counts.done) of \(counts.total) \(counts.total == 1 ? kind.one : kind.many) transcribed"]
         if counts.queued + counts.running > 0 { parts.append("\(counts.queued + counts.running) waiting") }
         if counts.failed > 0 { parts.append("\(counts.failed) failed") }
-        if let last = progress.lastTranscribed { parts.append("last \(ago(last))") }
+        if let last = progress.lastTranscribed { parts.append("updated \(ago(last))") }
         return parts.joined(separator: " · ")
     }
 
