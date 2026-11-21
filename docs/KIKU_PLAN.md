@@ -62,6 +62,8 @@ player closes and when settings change.
 - **Long books:** a book only goes to the watch in part, the next few hours. Books split into
   several files send files. A single-file `.m4b` would be cut on the phone with
   `AVAssetExportSession`, which is already used for clips. The part is topped up as you listen.
+  Dropped for now (#129, 2026-11-20): the watch downloads whole books straight from
+  Audiobookshelf, has room for them, and cut parts would have to go through the phone.
 - **Player on the watch:** an `AVAudioSession` set to `.playback`, `.spokenAudio` and
   `.longFormAudio`, so the system picker asks for headphones. Then Now Playing and the remote
   commands, skip intervals, speed and chapters.
@@ -100,6 +102,9 @@ They're built from milestone 1's lists. While the watch is on its charger, watch
 - **Remove from the watch** once played, and when a rule no longer includes an item. With "Keep
   downloads you made by hand" on, an item you sent by hand stays.
 - **Storage limit for the watch** (for example 2 GB). The rules stop at it and say so.
+- Built (2026-11-20): Settings ▸ Downloads ▸ Apple Watch. Download ahead takes the first N of
+  each show's download ahead list (In Progress isn't a source yet). Remove Played waits a day,
+  as on the phone. An automatic item you remove stays off.
 
 ## Milestone 5: Live Text without the phone
 

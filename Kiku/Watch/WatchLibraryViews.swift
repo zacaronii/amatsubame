@@ -73,6 +73,8 @@ struct OnWatchSection: View {
             if let free = inventory.freeBytes { parts.append("\(WatchItemStatus.size(free)) free on the watch.") }
             parts.append("Last heard from \(inventory.updatedAt.formatted(.relative(presentation: .named))).")
         }
+        if library.rules.isOn { parts.append("Automatic rules: Settings ▸ Downloads ▸ Apple Watch.") }
+        if let message = library.rulesMessage { parts.append(message) }
         if let synced = library.lastSynced {
             parts.append("Listening on the watch last synced \(synced.formatted(.relative(presentation: .named))).")
         }
@@ -90,7 +92,7 @@ private struct OnWatchRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(item.title).lineLimit(1)
-            Text(item.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            Text("\(item.subtitle) · \(Self.reason(item.reason))").font(.caption).foregroundStyle(.secondary).lineLimit(1)
             Text(status.text)
                 .font(.caption)
                 .foregroundStyle(status.state == .failed ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
@@ -105,6 +107,15 @@ private struct OnWatchRow: View {
             }
         }
         .accessibilityIdentifier("onWatch.row")
+    }
+
+    /// Why it's there, as Storage names the phone's downloads.
+    static func reason(_ reason: WatchItem.Reason?) -> String {
+        switch reason {
+        case nil: "By hand"
+        case .started: "Started"
+        case .ahead: "Ahead"
+        }
     }
 }
 #endif

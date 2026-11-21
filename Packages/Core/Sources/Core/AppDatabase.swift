@@ -782,6 +782,23 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v46_kiku_watch_rules") { db in
+            // Kiku: automatic rules for Apple Watch (docs/KIKU_PLAN.md milestone 4), one row, and
+            // the automatic items removed from the watch (never added again).
+            try db.create(table: "kikuWatchRules") { t in
+                t.primaryKey("id", .integer)
+                t.column("onceStarted", .boolean).notNull().defaults(to: false)
+                t.column("ahead", .integer).notNull().defaults(to: 0)
+                t.column("removesPlayed", .boolean).notNull().defaults(to: false)
+                t.column("keepsManual", .boolean).notNull().defaults(to: true)
+                t.column("storageLimit", .integer).notNull().defaults(to: 0)
+            }
+            try db.create(table: "kikuWatchDeclined") { t in
+                t.primaryKey("key", .text)
+                t.column("declinedAt", .datetime).notNull()
+            }
+        }
+
         return migrator
     }
 }

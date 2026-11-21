@@ -61,28 +61,54 @@ final class AudioAutoDownloadManager {
         isRunning = true
         defer { isRunning = false }
         await removePlayed(environment)
-        guard settings.values.contains(where: { $0.ahead > 0 || $0.isOn == true }), environment.common.reachability.isOnline,
-              let client = environment.audiobookshelfClient() else { return }
-        let declined = (try? store.declined()) ?? []
+        let ahead = await downloadAhead(environment)
+        #if os(iOS)
+        // Apple Watch's rules follow the same lists (docs/KIKU_PLAN.md milestone 4).
+        await environment.watchLibrary.applyRules(ahead: ahead?.shows, judged: ahead?.judged ?? [])
+        #endif
+    }
+
+    /// Download ahead: each covered show's list, downloaded here. Returns the lists, the most
+    /// recently played show first, with the shows judged (nil when they couldn't be read).
+    private func downloadAhead(_ environment: KikuEnvironment) async -> (shows: [(show: String, entries: [EpisodeEntry])], judged: Set<String>)? {
         let library = environment.library
         let hidden = library.hiddenLibraries
         let podcastLibraries = Set(library.libraries.filter { $0.mediaType == .podcast && !hidden.contains($0.id) }.map(\.id))
+        let shows = library.shows.filter { podcastLibraries.contains($0.libraryId) }
+        guard !shows.isEmpty else { return nil }
+        // Nothing downloads ahead: every show's list is empty, known without asking.
+        guard settings.values.contains(where: { $0.ahead > 0 || $0.isOn == true }) else { return ([], Set(shows.map(\.id))) }
+        guard environment.common.reachability.isOnline, let client = environment.audiobookshelfClient() else { return nil }
+        let declined = (try? store.declined()) ?? []
         let played = lastPlayed()
-        for show in library.shows where podcastLibraries.contains(show.libraryId) {
+        var lists: [(show: String, entries: [EpisodeEntry])] = []
+        var judged: Set<String> = []
+        for show in shows.sorted(by: { (played[$0.id] ?? .distantPast) > (played[$1.id] ?? .distantPast) }) {
             let coverage = AudioAutoDownloadPlanner.coverage(
                 library: settings[AudioAutoDownloadSetting.library(show.libraryId)],
                 show: settings[AudioAutoDownloadSetting.show(show.id)], lastPlayed: played[show.id], now: .now)
-            guard case .on(let rule) = coverage, let item = try? await client.item(id: show.id) else { continue }
+            guard case .on(let rule) = coverage else {
+                judged.insert(show.id)
+                continue
+            }
+            guard let item = try? await client.item(id: show.id) else { continue }
+            judged.insert(show.id)
             let keep = AudioAutoDownloadPlanner.episodesToKeep(item.media.episodes ?? [], rule: rule, progress: library.progress)
-            for episode in keep where environment.downloader.records[episode.key] == nil && !declined.contains(episode.key) {
-                await environment.downloader.download(library.entry(episode, showTitle: show.title), reason: .ahead)
+            let entries = keep.map { library.entry($0, showTitle: show.title) }
+            lists.append((show.id, entries))
+            for (episode, entry) in zip(keep, entries) where environment.downloader.records[episode.key] == nil && !declined.contains(episode.key) {
+                await environment.downloader.download(entry, reason: .ahead)
             }
         }
+        return (lists, judged)
     }
 
     /// Download Once Started: called on the first real listening (not just opening) of an
     /// episode or book; downloads it if its library says so and it isn't on the device.
     func startedPlaying(_ entry: EpisodeEntry) {
+        #if os(iOS)
+        environment?.watchLibrary.startedPlaying(entry)
+        #endif
         guard let environment, environment.downloader.records[entry.id] == nil,
               (try? store.declined().contains(entry.id)) != true else { return }
         let libraryId = entry.book?.libraryId ?? environment.library.shows.first { $0.id == entry.itemId }?.libraryId

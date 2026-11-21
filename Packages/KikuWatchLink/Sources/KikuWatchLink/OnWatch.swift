@@ -26,6 +26,15 @@ public struct WatchItem: Codable, Equatable, Hashable, Sendable, Identifiable {
     /// Send Now: the phone sends its own download with `transferFile` (for a server the watch
     /// can't reach), so the watch doesn't download it itself.
     public var fromPhone: Bool
+    /// Why it's on the watch: nil when you sent it, otherwise the rule that added it (milestone 4).
+    public var reason: Reason?
+
+    public enum Reason: String, Codable, Sendable {
+        /// Sync to Watch Once Started.
+        case started
+        /// Watch download ahead.
+        case ahead
+    }
 
     public struct Chapter: Codable, Equatable, Hashable, Sendable {
         public var title: String
@@ -38,7 +47,7 @@ public struct WatchItem: Codable, Equatable, Hashable, Sendable, Identifiable {
     }
 
     public init(itemId: String, episodeId: String, ino: String, fileExtension: String, title: String, subtitle: String,
-                duration: Double, size: Int64? = nil, chapters: [Chapter] = [], addedAt: Date, fromPhone: Bool = false) {
+                duration: Double, size: Int64? = nil, chapters: [Chapter] = [], addedAt: Date, fromPhone: Bool = false, reason: Reason? = nil) {
         self.itemId = itemId
         self.episodeId = episodeId
         self.ino = ino
@@ -50,6 +59,7 @@ public struct WatchItem: Codable, Equatable, Hashable, Sendable, Identifiable {
         self.chapters = chapters
         self.addedAt = addedAt
         self.fromPhone = fromPhone
+        self.reason = reason
     }
 
     public init(from decoder: any Decoder) throws {
@@ -65,6 +75,7 @@ public struct WatchItem: Codable, Equatable, Hashable, Sendable, Identifiable {
         chapters = try container.decode([Chapter].self, forKey: .chapters)
         addedAt = try container.decode(Date.self, forKey: .addedAt)
         fromPhone = try container.decodeIfPresent(Bool.self, forKey: .fromPhone) ?? false
+        reason = try container.decodeIfPresent(Reason.self, forKey: .reason)
     }
 
     /// Kiku's progress key, as `WatchNowPlaying.key`.

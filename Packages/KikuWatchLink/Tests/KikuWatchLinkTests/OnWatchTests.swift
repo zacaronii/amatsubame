@@ -106,6 +106,13 @@ import Testing
         #expect(WatchMessages.fileKey(from: nil) == nil)
     }
 
+    @Test func aRuleSaysWhyAnItemIsThere() throws {
+        var item = episode()
+        #expect(item.reason == nil)
+        item.reason = .ahead
+        #expect(try JSONDecoder().decode(WatchItem.self, from: JSONEncoder().encode(item)).reason == .ahead)
+    }
+
     @Test func statusText() {
         #expect(WatchItemStatus(state: .waiting).text == "Waiting")
         #expect(WatchItemStatus(state: .waiting, message: "Waiting for your iPhone").text == "Waiting for your iPhone")

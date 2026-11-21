@@ -1,6 +1,7 @@
 import AppCommon
 import AudiobookshelfKit
 import Core
+import KikuWatchLink
 import SwiftUI
 
 /// Settings ▸ Downloads: cellular, plus automatic downloads for each library shown.
@@ -31,6 +32,9 @@ struct KikuDownloadSettingsView: View {
                     Text("Download ahead keeps the next episodes of shows you've played lately; Download Once Started keeps what you start playing. Off for every library unless you turn it on.")
                 }
             }
+            #if os(iOS)
+            WatchRulesSection()
+            #endif
         }
         .formStyle(.grouped)
         .navigationTitle("Downloads")
@@ -214,3 +218,56 @@ struct ShowAutoDownloadView: View {
         }
     }
 }
+
+#if os(iOS)
+/// Apple Watch's automatic rules (docs/KIKU_PLAN.md milestone 4), built from the lists above.
+private struct WatchRulesSection: View {
+    @Environment(KikuEnvironment.self) private var environment
+
+    var body: some View {
+        let library = environment.watchLibrary
+        if library.isWatchAppInstalled {
+            let rules = library.rules
+            Section {
+                Toggle("Sync Once Started", isOn: binding(\.onceStarted))
+                    .accessibilityIdentifier("watchRules.onceStarted")
+                Picker("Download Ahead", selection: binding(\.ahead)) {
+                    ForEach(KikuWatchRules.aheadChoices, id: \.self) { count in
+                        Text(count == 0 ? "Off" : count == 1 ? "First episode" : "First \(count)").tag(count)
+                    }
+                }
+                .accessibilityIdentifier("watchRules.ahead")
+                Toggle("Remove Played", isOn: binding(\.removesPlayed))
+                if rules.removesPlayed {
+                    Toggle("Keep Items You Sent by Hand", isOn: binding(\.keepsManual))
+                }
+                Picker("Storage Limit", selection: binding(\.storageLimit)) {
+                    ForEach(KikuWatchRules.storageChoices, id: \.self) { bytes in
+                        Text(bytes == 0 ? "None" : WatchItemStatus.size(bytes)).tag(bytes)
+                    }
+                }
+            } header: {
+                Text("Apple Watch")
+            } footer: {
+                Text(footer(library))
+            }
+        }
+    }
+
+    private func footer(_ library: WatchLibraryModel) -> String {
+        var parts = ["Sync Once Started sends what you start playing on this iPhone to your watch too. Download Ahead keeps the first episodes of each show's download ahead (set above) on the watch. Remove Played takes an episode or book off the watch a day after it's finished. The limit stops the rules, not what you send yourself. An item a rule added that you remove stays off."]
+        if let message = library.rulesMessage { parts.append(message) }
+        return parts.joined(separator: " ")
+    }
+
+    private func binding<Value>(_ keyPath: WritableKeyPath<KikuWatchRules, Value>) -> Binding<Value> {
+        Binding {
+            environment.watchLibrary.rules[keyPath: keyPath]
+        } set: { value in
+            var rules = environment.watchLibrary.rules
+            rules[keyPath: keyPath] = value
+            environment.watchLibrary.save(rules)
+        }
+    }
+}
+#endif
