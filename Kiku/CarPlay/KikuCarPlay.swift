@@ -49,7 +49,7 @@ final class KikuCarPlay: NSObject, CPNowPlayingTemplateObserver {
         let listenNow = list(title: "Listen Now", empty: "Nothing in progress or new") { [environment] in
             let library = environment.library
             return CarPlaySections.listenNow(continueListening: library.continueListening, newEpisodes: library.newEpisodes,
-                                             playingKey: environment.playback?.key)
+                                             recentBooks: library.recentlyAddedBooks, playingKey: environment.playback?.key)
         }
         listenNow.tabTitle = "Listen Now"
         listenNow.tabImage = UIImage(systemName: "play.circle")

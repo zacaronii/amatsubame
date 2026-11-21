@@ -118,6 +118,21 @@ final class PodcastLibrary {
         await refresh()
     }
 
+    /// The kinds of library shown (not hidden in Settings): the Listen screen follows them, New
+    /// Episodes for podcasts and Recently Added for books (#139). Before the libraries are known,
+    /// podcasts (New Episodes shows its loading and errors).
+    func shownKinds() -> (podcasts: Bool, books: Bool) {
+        let hidden = hiddenLibraries
+        let shown = libraries.filter { !hidden.contains($0.id) }
+        guard !shown.isEmpty else { return (true, !books.isEmpty) }
+        return (shown.contains { $0.mediaType == .podcast }, shown.contains { $0.mediaType == .book })
+    }
+
+    /// Books, the newest added first, without finished ones (the Listen screen's Recently Added).
+    var recentlyAddedBooks: [AudiobookshelfItem] {
+        Array(books.filter { progress[$0.id]?.isFinished != true }.sorted { ($0.addedAt ?? 0) > ($1.addedAt ?? 0) }.prefix(12))
+    }
+
     /// Just the server's libraries, for Settings ▸ Libraries before the Listen tab has loaded.
     func refreshLibraries() async {
         guard let client = environment?.audiobookshelfClient() else { return }
