@@ -28,13 +28,13 @@ import Testing
         #expect(sections[1].rows[0].progress == nil)
     }
 
-    @Test func recentlyAddedBooksFollowNewEpisodes() throws {
+    @Test func recentlyAddedBooksComeBeforeNewEpisodes() throws {
         let json = #"{"id":"bk","libraryId":"3","mediaType":"book","media":{"metadata":{"title":"坊っちゃん","authorName":"夏目漱石"}}}"#
         let book = try JSONDecoder().decode(AudiobookshelfItem.self, from: Data(json.utf8))
         let sections = CarPlaySections.listenNow(continueListening: [], newEpisodes: [entry("b")], recentBooks: [book], playingKey: nil)
-        #expect(sections.map(\.title) == ["New Episodes", "Recently Added"])
-        #expect(sections[1].rows[0].detail == "夏目漱石")
-        #expect(sections[1].rows[0].action == .playBook(itemId: "bk"))
+        #expect(sections.map(\.title) == ["Recently Added", "New Episodes"])
+        #expect(sections[0].rows[0].detail == "夏目漱石")
+        #expect(sections[0].rows[0].action == .playBook(itemId: "bk"))
         // Audiobooks only: no New Episodes.
         #expect(CarPlaySections.listenNow(continueListening: [], newEpisodes: [], recentBooks: [book], playingKey: nil).map(\.title)
             == ["Recently Added"])
