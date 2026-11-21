@@ -114,8 +114,8 @@ They're built from milestone 1's lists. While the watch is on its charger, watch
 - In On Watch mode, Live Text follows the watch's own player. Mark Line, choosing a line and
   Replay all work on the watch.
 - **Lookups:** when the phone can be reached, they go to it, as they do today, even in On
-  Watch. When it can't, a tapped word marks its line ("Look this up when your iPhone is near").
-  Marks shows it, ready to mine. No dictionary on the watch.
+  Watch. When it can't, a tapped word does nothing (built first as marking its line; the owner
+  found that surprising, so Mark Line is the way to keep one for Marks). No dictionary on the watch.
 - **Kaku isn't involved.** Transcripts come from the phone, which has them cached, so a Kaku
   behind a VPN is fine.
 - Built (2026-11-21): transcripts go as messages in parts while the phone is near (not with the
