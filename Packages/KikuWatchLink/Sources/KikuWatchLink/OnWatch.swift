@@ -187,12 +187,16 @@ public struct WatchItemStatus: Codable, Equatable, Sendable {
     public var bytesTotal: Int64?
     /// Why it failed, or what it's waiting for ("Waiting for your iPhone").
     public var message: String?
+    /// What Audiobookshelf answered when the download failed: a 404 has the phone look the
+    /// item up again (its file may have changed since).
+    public var httpStatus: Int?
 
-    public init(state: State, bytesDone: Int64 = 0, bytesTotal: Int64? = nil, message: String? = nil) {
+    public init(state: State, bytesDone: Int64 = 0, bytesTotal: Int64? = nil, message: String? = nil, httpStatus: Int? = nil) {
         self.state = state
         self.bytesDone = bytesDone
         self.bytesTotal = bytesTotal
         self.message = message
+        self.httpStatus = httpStatus
     }
 
     public var fraction: Double? {

@@ -2,7 +2,8 @@ import KikuWatchLink
 import SwiftUI
 
 /// Send to Watch, or Remove from Watch once it's on the list (docs/KIKU_PLAN.md milestone 2).
-/// Only on an iPhone with a paired watch that has Kiku.
+/// Only on an iPhone with a paired watch that has Kiku. A book in several files can't go yet:
+/// it shows dimmed with why, rather than leaving the menu empty.
 struct SendToWatchButton: View {
     @Environment(KikuEnvironment.self) private var environment
     let entry: EpisodeEntry
@@ -10,7 +11,18 @@ struct SendToWatchButton: View {
     var body: some View {
         #if os(iOS)
         let library = environment.watchLibrary
-        if library.isWatchAppInstalled, entry.fileCount == 1, entry.episode.audioFile != nil {
+        if library.isWatchAppInstalled, entry.fileCount > 1 {
+            Button {} label: {
+                Label {
+                    Text("Send to Watch")
+                    Text("This book is in several files")
+                } icon: {
+                    Image(systemName: "applewatch")
+                }
+            }
+            .disabled(true)
+            .accessibilityHint("This book is in several files, which can't go to the watch yet.")
+        } else if library.isWatchAppInstalled, entry.fileCount == 1, entry.episode.audioFile != nil {
             if library.contains(entry.id) {
                 Button("Remove from Watch", systemImage: "applewatch.slash") { library.remove(entry.id) }
             } else {
