@@ -28,6 +28,9 @@ public struct WatchItem: Codable, Equatable, Hashable, Sendable, Identifiable {
     public var fromPhone: Bool
     /// Why it's on the watch: nil when you sent it, otherwise the rule that added it (milestone 4).
     public var reason: Reason?
+    /// Its transcript's id (`WatchTranscript.id`) when the phone has one and Live Text is on:
+    /// the watch fetches it while the phone is near, for Live Text without it (milestone 5).
+    public var transcript: String?
 
     public enum Reason: String, Codable, Sendable {
         /// Sync to Watch Once Started.
@@ -76,6 +79,7 @@ public struct WatchItem: Codable, Equatable, Hashable, Sendable, Identifiable {
         addedAt = try container.decode(Date.self, forKey: .addedAt)
         fromPhone = try container.decodeIfPresent(Bool.self, forKey: .fromPhone) ?? false
         reason = try container.decodeIfPresent(Reason.self, forKey: .reason)
+        transcript = try container.decodeIfPresent(String.self, forKey: .transcript)
     }
 
     /// Kiku's progress key, as `WatchNowPlaying.key`.

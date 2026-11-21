@@ -8,6 +8,10 @@ import WatchKit
 /// top-right one shows the mode (a phone or a watch) and opens Play On and On This Watch.
 struct NowPlayingScreen: View {
     @Environment(WatchSession.self) private var session
+    #if DEBUG
+    /// Simulator checks: opens Live Text at launch (SIMCTL_CHILD_KIKU_WATCH_OPEN_LIVE_TEXT=1).
+    @State private var opensLiveText = ProcessInfo.processInfo.environment["KIKU_WATCH_OPEN_LIVE_TEXT"] != nil
+    #endif
 
     var body: some View {
         ZStack {
@@ -24,6 +28,9 @@ struct NowPlayingScreen: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: session.confirmation)
+        #if DEBUG
+        .navigationDestination(isPresented: $opensLiveText) { LiveTextScreen() }
+        #endif
         .toolbar {
             if session.liveTextOn, session.nowPlaying != nil {
                 ToolbarItem(placement: .topBarLeading) {

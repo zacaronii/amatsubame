@@ -118,6 +118,9 @@ They're built from milestone 1's lists. While the watch is on its charger, watch
   Marks shows it, ready to mine. No dictionary on the watch.
 - **Kaku isn't involved.** Transcripts come from the phone, which has them cached, so a Kaku
   behind a VPN is fine.
+- Built (2026-11-21): transcripts go as messages in parts while the phone is near (not with the
+  download: `transferFile` can't be tested in the simulator, and parts already work). Sending an
+  item fetches its transcript from Kaku first if the phone hasn't it.
 
 ## Milestone 6: polish
 

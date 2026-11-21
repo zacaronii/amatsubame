@@ -157,4 +157,16 @@ import Testing
         let files = try FileManager.default.contentsOfDirectory(atPath: folder.path())
         #expect(files.count == WatchTranscriptStore.kept)
     }
+
+    @Test func anItemsTranscriptStaysWhileItsOnTheWatch() throws {
+        let folder = URL.temporaryDirectory.appending(path: "live-text-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let store = WatchTranscriptStore(folder: folder)
+        try store.save(transcript, keeping: ["show/ep"])
+        for index in 0..<WatchTranscriptStore.kept + 3 {
+            try store.save(WatchTranscript(key: "show/\(index)", fingerprint: "f", lines: []), keeping: ["show/ep"])
+        }
+        #expect(store.load(id: "show/ep#abc") == transcript)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path()).count == WatchTranscriptStore.kept + 1)
+    }
 }

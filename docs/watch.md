@@ -105,4 +105,11 @@ The transcript on the watch, so you can mine on the go. Off by default: Kiku ▸
 - **Add card:** `addCard` mines the first result on the phone with `MiningService.mine` and the player's `miningContext(for:)` (the line's audio and the cover), through the outbox, so it works with Anki unreachable. The watch shows "Card added · 雨 · <deck>".
 - **Mark Line:** a mark at the line's start with source `watchLine` (no migration: the source is text). Marks treats it like the player's button (`guessesEarlier: false`), so it shows that line, not the one before. Out of reach, it's queued like Mark with `WatchQueuedMark.wholeLine`.
 - **Replay:** the line's clip through the player's clip path (`PlaybackModel.playClip`); the episode pauses for it and plays again when the clip ends.
-- Lines are named by episode key and position; if the phone has moved to another episode, it says so instead of acting on the wrong line.
+- Lines are named by episode key and position. A command about an episode the phone isn't playing (`WatchCommand.lineKey`) is answered from its saved transcript (`WatchBridge.performSaved`): marks, lookups, cards (with the episode's own audio, found as Marks does) and transcript parts; nothing there pauses or plays the phone.
+
+### Without the phone (milestone 5)
+
+- **Transcripts travel with the items:** with Live Text on, each list item carries its saved transcript's id (`WatchItem.transcript`, named as the playing one is). Sending an item fetches its transcript from Kaku if the phone hasn't it, then sends the list again. The watch fetches each missing one in parts while the phone is reachable (`WatchSession.prefetchTranscripts`, one at a time, after the list arrives, after each transcript and when the phone comes back); one the phone can't send isn't asked for again that launch. `WatchTranscriptStore` keeps every item's transcript plus the last five others.
+- **Watch mode:** Live Text follows the watch's player (`WatchPlayer.nowPlaying.transcript`). Mark Line queues a whole-line mark (`transferUserInfo`); Replay plays the line on the watch and goes back (`WatchPlayer.replay(from:to:)`, a boundary time observer); a lookup goes to the phone while the watch's player pauses (and plays again on close).
+- **Out of reach:** a tapped word marks its line instead ("Look this up in Marks when your iPhone is near"), in either mode.
+- Debug: `KIKU_WATCH_OPEN_LIVE_TEXT=1` opens Live Text at launch (with `KIKU_WATCH_PLAY`), and the phone's `KIKU_WATCH_LIVE_TEXT=1` turns Live Text on.
