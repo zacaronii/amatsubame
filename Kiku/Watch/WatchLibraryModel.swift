@@ -31,10 +31,15 @@ final class WatchLibraryModel {
     var sending: [String: Double] = [:]
     /// Send Now that failed, by key, with why.
     var sendErrors: [String: String] = [:]
+    /// The automatic rules (milestone 4).
+    private(set) var rules: KikuWatchRules
+    /// What the rules couldn't add, said under them ("2 episodes didn't fit under 2 GB").
+    private(set) var rulesMessage: String?
 
     @ObservationIgnored private unowned let environment: KikuEnvironment
     @ObservationIgnored private let store: KikuWatchItemStore
     @ObservationIgnored private let listening: KikuWatchListeningStore
+    @ObservationIgnored private let declined: KikuWatchDeclinedStore
     /// The last stretch from the watch per item key: when it ended (Continue from… names the watch).
     @ObservationIgnored private(set) var watchPlayedAt: [String: Date] = [:]
     @ObservationIgnored private var access: WatchAccess?
@@ -60,6 +65,8 @@ final class WatchLibraryModel {
         self.environment = environment
         store = KikuWatchItemStore(database: environment.common.database)
         listening = KikuWatchListeningStore(database: environment.common.database)
+        declined = KikuWatchDeclinedStore(database: environment.common.database)
+        rules = KikuWatchRules.load(environment.common.database)
         items = ((try? store.all()) ?? []).compactMap { try? JSONDecoder().decode(WatchItem.self, from: $0.item) }
         lastSynced = try? listening.lastAppliedAt()
     }
@@ -100,20 +107,84 @@ final class WatchLibraryModel {
 
     // MARK: Sending and removing
 
-    /// Adds an episode or a single-file book (Kiku plays no others).
+    /// Sends an episode or a single-file book (Kiku plays no others) by hand.
     func send(_ entry: EpisodeEntry) async {
-        guard let audio = entry.episode.audioFile, entry.fileCount == 1, !contains(entry.id) else { return }
-        let item = WatchItem(
-            itemId: entry.itemId, episodeId: entry.episode.id, ino: audio.ino, fileExtension: audio.fileExtension,
-            title: entry.episode.title, subtitle: entry.showTitle, duration: entry.duration,
-            size: (entry.episode.size ?? entry.book?.media.size).map(Int64.init),
-            chapters: entry.chapters.map { WatchItem.Chapter(title: $0.title, start: $0.start) }, addedAt: .now)
-        guard let data = try? JSONEncoder().encode(item) else { return }
-        try? store.save(key: item.key, item: data, addedAt: item.addedAt)
-        items.append(item)
+        try? declined.undecline(entry.id)
+        await add([entry], reason: nil)
+    }
+
+    /// Adds them all, then tells the watch once (a wake-up is one of 50 a day).
+    private func add(_ entries: [EpisodeEntry], reason: WatchItem.Reason?) async {
+        var added = false
+        for entry in entries {
+            guard let item = Self.item(entry, reason: reason), !contains(item.key),
+                  let data = try? JSONEncoder().encode(item) else { continue }
+            try? store.save(key: item.key, item: data, addedAt: item.addedAt)
+            items.append(item)
+            added = true
+        }
+        guard added else { return }
         await prepareAccess()
         onChange?()
         onAdded?()
+    }
+
+    private static func item(_ entry: EpisodeEntry, reason: WatchItem.Reason?) -> WatchItem? {
+        guard let audio = entry.episode.audioFile, entry.fileCount == 1 else { return nil }
+        return WatchItem(
+            itemId: entry.itemId, episodeId: entry.episode.id, ino: audio.ino, fileExtension: audio.fileExtension,
+            title: entry.episode.title, subtitle: entry.showTitle, duration: entry.duration,
+            size: (entry.episode.size ?? entry.book?.media.size).map(Int64.init),
+            chapters: entry.chapters.map { WatchItem.Chapter(title: $0.title, start: $0.start) }, addedAt: .now, reason: reason)
+    }
+
+    // MARK: Automatic rules (milestone 4)
+
+    func save(_ rules: KikuWatchRules) {
+        self.rules = rules
+        try? rules.save(environment.common.database)
+        environment.autoDownloads.schedule(after: 1)
+    }
+
+    /// Sync to Watch Once Started: the first real listening of an episode or book on the phone.
+    func startedPlaying(_ entry: EpisodeEntry) {
+        guard rules.onceStarted, isWatchAppInstalled, !contains(entry.id), (try? declined.all().contains(entry.id)) != true,
+              let item = Self.item(entry, reason: .started) else { return }
+        guard WatchRulesPlanner.fits(item.size, items: items, limit: rules.storageLimit) else {
+            rulesMessage = "\(entry.episode.title) didn't fit under the watch's \(WatchItemStatus.size(rules.storageLimit)) limit."
+            return
+        }
+        Task { await add([entry], reason: .started) }
+    }
+
+    /// After automatic downloads run: Remove Played, and download ahead from the phone's lists
+    /// (nil when they couldn't be read: offline or signed out).
+    func applyRules(ahead: [(show: String, entries: [EpisodeEntry])]?, judged: Set<String>) async {
+        guard isWatchAppInstalled else { return }
+        let entries = Dictionary((ahead ?? []).flatMap(\.entries).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let plan = WatchRulesPlanner.plan(
+            items: items,
+            ahead: ahead.map { shows in
+                WatchRulesPlanner.Ahead(shows: shows.map { show in
+                    (show.show, show.entries.map { WatchRulesPlanner.Candidate(key: $0.id, size: Self.item($0, reason: .ahead)?.size) })
+                }, judged: judged)
+            },
+            rules: rules, declined: (try? declined.all()) ?? [], progress: environment.library.progress,
+            playing: environment.playback?.key, now: .now)
+        if ahead != nil || !plan.remove.isEmpty {
+            rulesMessage = plan.overLimit.isEmpty ? nil
+                : "\(plan.overLimit.count == 1 ? "1 episode" : "\(plan.overLimit.count) episodes") didn't fit under the watch's \(WatchItemStatus.size(rules.storageLimit)) limit."
+        }
+        if !plan.remove.isEmpty {
+            for key in plan.remove {
+                try? store.remove(key)
+                onCancelFile?(key)
+                sending[key] = nil
+            }
+            items.removeAll { plan.remove.contains($0.key) }
+            onChange?()
+        }
+        await add(plan.add.compactMap { entries[$0] }, reason: .ahead)
     }
 
     /// This phone has it downloaded and the watch doesn't have it yet: Send Now can send it.
@@ -149,9 +220,11 @@ final class WatchLibraryModel {
         return sendErrors[key].map { "Couldn't send from iPhone: \($0)" }
     }
 
-    /// Takes it off the list; the watch deletes its file when the list arrives.
+    /// Takes it off the list (by hand, here or on the watch); the watch deletes its file when the
+    /// list arrives. One a rule added stays off.
     func remove(_ key: String) {
-        guard contains(key) else { return }
+        guard let item = items.first(where: { $0.key == key }) else { return }
+        if item.reason != nil { try? declined.decline(key) }
         onCancelFile?(key)
         sending[key] = nil
         sendErrors[key] = nil

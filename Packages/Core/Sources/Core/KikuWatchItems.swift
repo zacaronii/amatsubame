@@ -72,3 +72,65 @@ public struct KikuWatchListeningStore: Sendable {
         try database.reader.read { try Date.fetchOne($0, sql: "SELECT MAX(appliedAt) FROM kikuWatchListening") }
     }
 }
+
+/// Kiku's automatic rules for Apple Watch (milestone 4), built from the phone's automatic
+/// download lists. Off unless turned on.
+public struct KikuWatchRules: Codable, Equatable, Sendable, FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "kikuWatchRules"
+    var id = 1
+    /// Sync to Watch Once Started: what you start playing on the phone goes to the watch too.
+    public var onceStarted = false
+    /// The first this many of each show's download ahead (0: off; 1 to 5).
+    public var ahead = 0
+    /// Removes an episode or book from the watch a day after it's finished.
+    public var removesPlayed = false
+    /// With `removesPlayed`, what you sent by hand stays.
+    public var keepsManual = true
+    /// Bytes the rules may fill on the watch (0: no limit); what you send by hand still goes.
+    public var storageLimit: Int64 = 0
+
+    public static let aheadChoices = [0, 1, 2, 3, 4, 5]
+    public static let storageChoices: [Int64] = [0, 1, 2, 4, 8, 16].map { $0 * 1_000_000_000 }
+
+    public init(onceStarted: Bool = false, ahead: Int = 0, removesPlayed: Bool = false, keepsManual: Bool = true, storageLimit: Int64 = 0) {
+        self.onceStarted = onceStarted
+        self.ahead = ahead
+        self.removesPlayed = removesPlayed
+        self.keepsManual = keepsManual
+        self.storageLimit = storageLimit
+    }
+
+    public var isOn: Bool { onceStarted || ahead > 0 || removesPlayed }
+
+    public static func load(_ database: AppDatabase) -> KikuWatchRules {
+        (try? database.reader.read { try KikuWatchRules.fetchOne($0, key: 1) }) ?? KikuWatchRules()
+    }
+
+    public func save(_ database: AppDatabase) throws {
+        try database.writer.write { try self.save($0) }
+    }
+}
+
+/// Automatic items removed from the watch (there or on the phone), by key: the rules leave them off.
+public struct KikuWatchDeclinedStore: Sendable {
+    let database: AppDatabase
+
+    public init(database: AppDatabase) {
+        self.database = database
+    }
+
+    public func all() throws -> Set<String> {
+        try database.reader.read { Set(try String.fetchAll($0, sql: "SELECT key FROM kikuWatchDeclined")) }
+    }
+
+    public func decline(_ key: String, at date: Date = Date()) throws {
+        try database.writer.write {
+            try $0.execute(sql: "INSERT OR REPLACE INTO kikuWatchDeclined (key, declinedAt) VALUES (?, ?)", arguments: [key, date])
+        }
+    }
+
+    /// Sent again by hand: the rules may manage it again later.
+    public func undecline(_ key: String) throws {
+        try database.writer.write { try $0.execute(sql: "DELETE FROM kikuWatchDeclined WHERE key = ?", arguments: [key]) }
+    }
+}

@@ -31,4 +31,22 @@ import Testing
         #expect(try store.recent() == ["s1": day.addingTimeInterval(30)])
         #expect(try store.lastAppliedAt() == day.addingTimeInterval(40))
     }
+
+    @Test func rulesAreOffUntilSaved() throws {
+        let database = try AppDatabase.inMemory()
+        #expect(KikuWatchRules.load(database) == KikuWatchRules())
+        #expect(!KikuWatchRules.load(database).isOn)
+        try KikuWatchRules(onceStarted: true, ahead: 3, storageLimit: 2_000_000_000).save(database)
+        let rules = KikuWatchRules.load(database)
+        #expect(rules.isOn && rules.ahead == 3 && rules.keepsManual && rules.storageLimit == 2_000_000_000)
+    }
+
+    @Test func declinedItemsStayOffUntilSentByHand() throws {
+        let store = KikuWatchDeclinedStore(database: try AppDatabase.inMemory())
+        try store.decline("show/a", at: day)
+        try store.decline("show/a", at: day)
+        #expect(try store.all() == ["show/a"])
+        try store.undecline("show/a")
+        #expect(try store.all().isEmpty)
+    }
 }

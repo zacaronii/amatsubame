@@ -73,6 +73,15 @@ watch, below). Playing on the watch by itself is planned in [KIKU_PLAN.md](KIKU_
 - **Visible sync:** the watch's On This Watch has Sync Now and "Synced 2 min ago" (or how many sessions are waiting for the iPhone); the phone's On Apple Watch has Sync Now (sends the list, places and acknowledgements again) and when listening from the watch last arrived. Marks made in Watch mode go as `WatchQueuedMark`s, as before.
 - **Checked** on the paired test simulators (the phone holding progress with `DEV_HOLD_PROGRESS`'s marker): 12.6 s played on the watch reached the phone's Stats with a session and a progress job, and the watch's queue emptied with its acknowledgement. `KIKU_WATCH_PLAY_FOR=<seconds>` (Debug) pauses after that long.
 
+## Automatic rules (milestone 4)
+
+- **Settings:** Core's `KikuWatchRules` (one row: onceStarted, ahead 0–5, removesPlayed, keepsManual, storageLimit in bytes), shown in Settings ▸ Downloads ▸ Apple Watch when the watch has Kiku.
+- **Reasons:** `WatchItem.reason` is nil for one sent by hand, `.started` or `.ahead` for a rule's; On Apple Watch rows say By hand / Started / Ahead.
+- **Once Started:** `AudioAutoDownloadManager.startedPlaying` calls `WatchLibraryModel.startedPlaying`, which adds it unless it's declined or doesn't fit the limit.
+- **Download ahead and Remove Played:** `AudioAutoDownloadManager.run` hands each covered show's download ahead list (most recently played show first) and the shows it judged to `WatchLibraryModel.applyRules`; `WatchRulesPlanner` (pure, `WatchRulesPlannerTests`) works out what to add and remove. A show whose episodes couldn't be fetched keeps its items; offline nothing moves; a started, unfinished episode isn't removed for dropping out of the list. The storage limit counts the whole list and stops download ahead at the first episode that doesn't fit (said under the settings).
+- **Declined:** removing an automatic item (on the phone or the watch) puts its key in `kikuWatchDeclined`, so the rules don't add it again; sending it by hand clears that.
+- Additions go in one list update, so a run spends one complication wake-up.
+
 ## Signing
 
 The watch app and widget use the App Group entitlements the other targets use (`Shared/SharedSetup.entitlements` in the simulator, `AMATSUBAME_DEVICE_ENTITLEMENTS` on devices). Automatic signing registers their App IDs (`…kiku.watchkitapp`, `…kiku.watchkitapp.widgets`) the first time it signs them. `scripts/upload-dev.sh` archives Kiku for iOS with the watch app inside.
