@@ -353,14 +353,11 @@ final class WatchSession: NSObject, WCSessionDelegate {
                 return show("Your iPhone is out of reach")
             }
             mark = WatchQueuedMark(line: line, of: playing, at: .now)
-        case let .lookUp(key, position, _):
-            // No dictionary here: the line is marked, to look the word up in Marks later.
+        case .lookUp:
+            // No dictionary here: a tapped word does nothing (marking its line instead surprised;
+            // Mark Line is there for that).
             lookup = nil
             if mode == .watch { resumeAfterLookupHere() }
-            guard key == playing.key, let line = line(position) else { return show("Your iPhone is out of reach") }
-            WCSession.default.transferUserInfo(WatchMessages.userInfo(WatchQueuedMark(line: line, of: playing, at: .now)))
-            WKInterfaceDevice.current().play(.success)
-            confirmation = Confirmation(title: "Line marked", detail: "Look this up in Marks when your iPhone is near.")
             return
         case .transcriptPart:
             // Asked again when the phone is back.
