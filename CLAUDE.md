@@ -28,8 +28,8 @@ Shared code is in `Packages/*`. Keep app-specific code out of shared packages, a
 Contributor-specific details (your devices, simulators, local folders, server specifics) can go in an optional gitignored `CLAUDE.local.md` next to this file, which loads alongside it.
 
 ## Issues
-- Bugs and ideas are tracked as GitHub issues (`gh issue list`): reminders of what to address, not paperwork, so not every change needs one. Work from them only when asked. Plan the fix first, and put `Fixes #N` in the commit that fixes one. It closes when the fix reaches `main`; meanwhile give the issue the `in dev` label once the fix is on `dev`.
-- **Branches** (README ▸ Branches): commit straight to `dev` and push once the four apps build (macOS included) and the tests pass, then upload a Dev build (`scripts/upload-dev.sh` from `dev`) so the owner can try it. Use a branch and a PR into `dev` only for collaborative work or a very large piece. `main` moves only through the `dev` → `main` PR, which the owner approves. A problem found later gets a new commit on `dev`.
+- Bugs and ideas are tracked as GitHub issues (`gh issue list`). Work from them only when asked. Plan the fix first, and put `Fixes #N` in the commit that fixes one. It closes when the fix reaches `main`; meanwhile give the issue the `in dev` label once its PR merges into `dev`.
+- **Branches** (README ▸ Branches): branch from `dev` and open the PR into `dev`; merge it yourself once the four apps build (macOS included) and the tests pass, then upload a Dev build (`scripts/upload-dev.sh` from `dev`) so the owner can try it. Don't stack PRs on each other's branches. `main` moves only through the `dev` → `main` PR, which the owner approves. A problem found after a merge gets a new PR into `dev` (labelled `follow-up` if what it fixes isn't released yet), not a reopened one.
 - **Titles:** `<Prefix>: <App> – <what>`, e.g. `Bug: Yomu – EPUB page jumps back after a lookup`. Older titles use Reader/Player/Extension.
 
   | Prefix | Means | Label |
@@ -40,7 +40,7 @@ Contributor-specific details (your devices, simulators, local folders, server sp
   | `Perf:` | slow or heavy | `perf` |
   | `Q:` | question, look into it | `question` |
 
-- **Pull requests** (when there is one) get the issue's type label (`bug`, `idea`, `polish`, `perf`, `documentation`), or `chore`/`test` for changes users don't see. An issue labelled `blocks release` stops `scripts/release.sh`.
+- **Pull requests** get the issue's type label (`bug`, `idea`, `polish`, `perf`, `documentation`), or `chore`/`test` for changes users don't see: release notes are grouped by them (`.github/release.yml`). An issue labelled `blocks release` stops `scripts/release.sh`.
 - **Labels:** issues filed from a phone often have none. When going through issues, add the label from the prefix, plus the app's label from the name in the title: `Reader` (Yomu), `Player` (Miru), `Extension` (Hiku), `Kiku`, `Kaku`, or `Shared` for the shared screens and packages that every app uses (title `<Prefix>: All apps – …`). If a title has no prefix, pick the closest one and ask if unsure.
 
 ## Stack
