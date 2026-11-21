@@ -218,8 +218,16 @@ public final class LookupService {
         return LookupResultPage(query: trimmed, results: await terms(trimmed, maxResults: 32))
     }
 
-    /// The host's results while linked, else (or when it doesn't answer) the local dictionaries'.
+    /// The host's results while linked, else (or when it doesn't answer) the local dictionaries',
+    /// with Jitendex's redirects (精いっぱい → 精一杯) followed.
     private func terms(_ text: String, maxResults: Int? = nil) async -> [TermLookupResult] {
+        let results = await rawTerms(text, maxResults: maxResults)
+        var found: [String: [TermLookupResult]] = [:]
+        for term in Redirects.terms(in: results) { found[term] = await rawTerms(term, maxResults: 8) }
+        return Redirects.follow(results, found: found)
+    }
+
+    private func rawTerms(_ text: String, maxResults: Int? = nil) async -> [TermLookupResult] {
         if looksUpOnHost, !text.isEmpty, let host, let found = await host.lookup(text, maxResults: maxResults) { return found }
         if let maxResults { return await library.engine.lookup(text, maxResults: maxResults) }
         return await library.engine.lookup(text)

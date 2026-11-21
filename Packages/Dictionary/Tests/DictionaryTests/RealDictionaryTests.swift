@@ -36,6 +36,18 @@ struct RealDictionaryTests {
         #expect(searched.first?.expression == "マサト")
     }
 
+    /// Jitendex's redirect 精いっぱい shows 精一杯's entry, with the note (#142).
+    @Test func redirectsAreFollowed() async throws {
+        let library = try await Self.importedLibrary()
+        let results = await library.engine.lookup("精いっぱい頑張った")
+        var found: [String: [TermLookupResult]] = [:]
+        for term in Redirects.terms(in: results) { found[term] = await library.engine.lookup(term, maxResults: 8) }
+        let first = try #require(Redirects.follow(results, found: found).first)
+        #expect(first.expression == "精一杯")
+        #expect(first.matched == "精いっぱい")
+        #expect(first.inflections.map(\.name) == ["redirected from 精いっぱい"])
+    }
+
     /// Word marks split a chapter in the background: report how long one takes.
     @Test func chapterScanSpeed() async throws {
         let library = try await Self.importedLibrary()
