@@ -517,7 +517,7 @@ struct JellyfinImage: View {
                         .foregroundStyle(.tertiary)
                 }
             }
-            .clipShape(.rect(cornerRadius: 8))
+            .coverShape(cornerRadius: 8)
             .task(id: "\(itemId)/\(tag ?? "")#\(CoverGeneration.shared.value)") {
                 guard let client = environment.jellyfinClient() else { return }
                 let request = client.imageRequest(itemId: itemId, type: type, tag: tag, maxWidth: 480)
