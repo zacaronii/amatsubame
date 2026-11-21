@@ -59,6 +59,11 @@ final class WatchDownloads: NSObject, URLSessionDownloadDelegate {
         removedHere.formIntersection(wanted)
         saveRemoved()
         for item in items where !wanted.contains(item.key) { await delete(item) }
+        // Its file changed (the phone looked it up again after a 404): tried again.
+        for item in library.items where statuses[item.key]?.state == .failed
+            && items.contains(where: { $0.key == item.key && $0.ino != item.ino }) {
+            statuses[item.key] = nil
+        }
         items = library.items.filter { !removedHere.contains($0.key) }
         await reconcile()
     }
@@ -261,7 +266,7 @@ final class WatchDownloads: NSObject, URLSessionDownloadDelegate {
         }
         guard let file else {
             statuses[key] = WatchItemStatus(state: .failed, message: status == 401 || status == 403
-                ? "Audiobookshelf refused the watch's sign-in" : "Audiobookshelf answered \(status)")
+                ? "Audiobookshelf refused the watch's sign-in" : "Audiobookshelf answered \(status)", httpStatus: status)
             report()
             return
         }

@@ -120,6 +120,14 @@ import Testing
         #expect(try JSONDecoder().decode(WatchItem.self, from: JSONEncoder().encode(item)).reason == .ahead)
     }
 
+    @Test func aFailedDownloadSaysWhatTheServerAnswered() throws {
+        let failed = WatchItemStatus(state: .failed, message: "Audiobookshelf answered 404", httpStatus: 404)
+        #expect(try JSONDecoder().decode(WatchItemStatus.self, from: JSONEncoder().encode(failed)).httpStatus == 404)
+        // From a watch app before this: no status.
+        let older = Data(#"{"state":"failed","bytesDone":0,"message":"No space"}"#.utf8)
+        #expect(try JSONDecoder().decode(WatchItemStatus.self, from: older).httpStatus == nil)
+    }
+
     @Test func statusText() {
         #expect(WatchItemStatus(state: .waiting).text == "Waiting")
         #expect(WatchItemStatus(state: .waiting, message: "Waiting for your iPhone").text == "Waiting for your iPhone")

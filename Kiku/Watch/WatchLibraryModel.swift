@@ -43,6 +43,8 @@ final class WatchLibraryModel {
     /// The last stretch from the watch per item key: when it ended (Continue from… names the watch).
     @ObservationIgnored private(set) var watchPlayedAt: [String: Date] = [:]
     @ObservationIgnored private var access: WatchAccess?
+    /// Items the watch got a 404 for and that were looked up again (once each).
+    @ObservationIgnored private var lookedUpAgain: Set<String> = []
     /// The list or the token changed: `WatchBridge` sends the context again.
     @ObservationIgnored var onChange: (() -> Void)?
     /// Something was added: `WatchBridge` also wakes the watch for it, when it can.
@@ -262,6 +264,31 @@ final class WatchLibraryModel {
             onCancelFile?(key)
             sending[key] = nil
         }
+        // Audiobookshelf had no such file: the item may have been rescanned or downloaded again
+        // since it was sent. Looked up once, and the watch tries the new file.
+        for (key, status) in inventory.items where status.state == .failed && status.httpStatus == 404 && !lookedUpAgain.contains(key) {
+            lookedUpAgain.insert(key)
+            Task { await lookUpAgain(key) }
+        }
+    }
+
+    private func lookUpAgain(_ key: String) async {
+        guard let item = items.first(where: { $0.key == key }) else { return }
+        let library = environment.library
+        let entry: EpisodeEntry?
+        if item.episodeId.isEmpty {
+            entry = await library.loadBook(item.itemId).flatMap { library.entry(book: $0) }
+        } else {
+            await library.loadShow(item.itemId)
+            entry = library.showEpisodes[item.itemId]?.first { $0.id == item.episodeId }.map { library.entry($0, showTitle: item.subtitle) }
+        }
+        guard let entry, var fresh = Self.item(entry, reason: item.reason), fresh.ino != item.ino,
+              let index = items.firstIndex(where: { $0.key == key }) else { return }
+        fresh.addedAt = item.addedAt
+        fresh.fromPhone = item.fromPhone
+        items[index] = fresh
+        if let data = try? JSONEncoder().encode(fresh) { try? store.save(key: key, item: data, addedAt: fresh.addedAt) }
+        onChange?()
     }
 
     // MARK: Listening from the watch (milestone 3)
