@@ -129,9 +129,30 @@ struct ListenView: View {
                         EpisodeList(entries: environment.downloadedEntries)
                     }
                 }
+                if kinds.books, !library.recentlyAddedBooks.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        header("Recently Added", library: true)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(alignment: .top, spacing: 14) {
+                                ForEach(library.recentlyAddedBooks) { BookCard(book: $0) }
+                            }
+                        }
+                        .shelfScrollClip()
+                    }
+                } else if kinds.books, !kinds.podcasts {
+                    // Audiobooks only, nothing to show yet: the Library link, and why.
+                    VStack(alignment: .leading, spacing: 8) {
+                        header("Recently Added", library: true)
+                        if library.isLoading {
+                            ProgressView().frame(maxWidth: .infinity).padding(.vertical)
+                        } else if let error = library.error, !library.isOffline {
+                            Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.secondary).padding(.vertical)
+                        }
+                    }
+                }
                 if kinds.podcasts {
                     VStack(alignment: .leading, spacing: 8) {
-                        header("New Episodes", library: true)
+                        header("New Episodes", library: !kinds.books || library.recentlyAddedBooks.isEmpty)
                         if library.newEpisodes.isEmpty {
                             Group {
                                 if library.isLoading {
@@ -156,27 +177,6 @@ struct ListenView: View {
                                 .buttonBorderShape(.capsule)
                                 .accessibilityIdentifier("newEpisodes.seeAll")
                             }
-                        }
-                    }
-                }
-                if kinds.books, !library.recentlyAddedBooks.isEmpty {
-                    VStack(alignment: .leading, spacing: 10) {
-                        header("Recently Added", library: !kinds.podcasts)
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(alignment: .top, spacing: 14) {
-                                ForEach(library.recentlyAddedBooks) { BookCard(book: $0) }
-                            }
-                        }
-                        .shelfScrollClip()
-                    }
-                } else if kinds.books, !kinds.podcasts {
-                    // Audiobooks only, nothing to show yet: the Library link, and why.
-                    VStack(alignment: .leading, spacing: 8) {
-                        header("Recently Added", library: true)
-                        if library.isLoading {
-                            ProgressView().frame(maxWidth: .infinity).padding(.vertical)
-                        } else if let error = library.error, !library.isOffline {
-                            Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.secondary).padding(.vertical)
                         }
                     }
                 }
