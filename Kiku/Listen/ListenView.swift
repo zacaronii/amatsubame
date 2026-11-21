@@ -97,7 +97,8 @@ struct ListenView: View {
     }
 
     private var home: some View {
-        ScrollView {
+        let kinds = library.shownKinds()
+        return ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 if library.isOffline {
                     Label("Can't reach Audiobookshelf. Your library is from the last time it loaded, and downloaded episodes play.",
@@ -128,36 +129,54 @@ struct ListenView: View {
                         EpisodeList(entries: environment.downloadedEntries)
                     }
                 }
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text("New Episodes").font(.title2.bold())
-                        Spacer()
-                        NavigationLink("Library", value: ListenRoute.library)
-                            .accessibilityIdentifier("listen.library")
-                    }
-                    if library.newEpisodes.isEmpty {
-                        Group {
-                            if library.isLoading {
-                                ProgressView().frame(maxWidth: .infinity)
-                            } else if let error = library.error, !library.isOffline {
-                                Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.secondary)
-                            } else if !library.isOffline {
-                                Text("You're up to date.").foregroundStyle(.secondary)
+                if kinds.podcasts {
+                    VStack(alignment: .leading, spacing: 8) {
+                        header("New Episodes", library: true)
+                        if library.newEpisodes.isEmpty {
+                            Group {
+                                if library.isLoading {
+                                    ProgressView().frame(maxWidth: .infinity)
+                                } else if let error = library.error, !library.isOffline {
+                                    Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.secondary)
+                                } else if !library.isOffline {
+                                    Text("You're up to date.").foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding(.vertical)
+                        } else {
+                            EpisodeList(entries: Array(library.newEpisodes.prefix(Self.newEpisodesShown)))
+                            if library.newEpisodes.count > Self.newEpisodesShown {
+                                NavigationLink {
+                                    ScrollView { EpisodeList(entries: library.newEpisodes).padding() }
+                                        .navigationTitle("New Episodes")
+                                } label: {
+                                    Text("See All \(library.newEpisodes.count)").frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.bordered)
+                                .buttonBorderShape(.capsule)
+                                .accessibilityIdentifier("newEpisodes.seeAll")
                             }
                         }
-                        .padding(.vertical)
-                    } else {
-                        EpisodeList(entries: Array(library.newEpisodes.prefix(Self.newEpisodesShown)))
-                        if library.newEpisodes.count > Self.newEpisodesShown {
-                            NavigationLink {
-                                ScrollView { EpisodeList(entries: library.newEpisodes).padding() }
-                                    .navigationTitle("New Episodes")
-                            } label: {
-                                Text("See All \(library.newEpisodes.count)").frame(maxWidth: .infinity)
+                    }
+                }
+                if kinds.books, !library.recentlyAddedBooks.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        header("Recently Added", library: !kinds.podcasts)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(alignment: .top, spacing: 14) {
+                                ForEach(library.recentlyAddedBooks) { BookCard(book: $0) }
                             }
-                            .buttonStyle(.bordered)
-                            .buttonBorderShape(.capsule)
-                            .accessibilityIdentifier("newEpisodes.seeAll")
+                        }
+                        .shelfScrollClip()
+                    }
+                } else if kinds.books, !kinds.podcasts {
+                    // Audiobooks only, nothing to show yet: the Library link, and why.
+                    VStack(alignment: .leading, spacing: 8) {
+                        header("Recently Added", library: true)
+                        if library.isLoading {
+                            ProgressView().frame(maxWidth: .infinity).padding(.vertical)
+                        } else if let error = library.error, !library.isOffline {
+                            Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.secondary).padding(.vertical)
                         }
                     }
                 }
@@ -168,6 +187,40 @@ struct ListenView: View {
             CoverLoader.recheck()
             await library.refresh()
         }
+    }
+}
+
+extension ListenView {
+    /// A section's title, with the Library link on the first section.
+    fileprivate func header(_ title: String, library: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title).font(.title2.bold())
+            Spacer()
+            if library {
+                NavigationLink("Library", value: ListenRoute.library)
+                    .accessibilityIdentifier("listen.library")
+            }
+        }
+    }
+}
+
+/// A Recently Added card: the book's cover, title and author; opens the book.
+private struct BookCard: View {
+    let book: AudiobookshelfItem
+
+    var body: some View {
+        NavigationLink(value: ListenRoute.book(book.id)) {
+            VStack(alignment: .leading, spacing: 6) {
+                ShowCover(itemId: book.id, cornerRadius: 16)
+                Text(book.title).font(.subheadline).lineLimit(2).multilineTextAlignment(.leading)
+                if let author = book.media.metadata.authorName ?? book.media.metadata.author {
+                    Text(author).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            .frame(width: 160)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("listen.recentBook")
     }
 }
 
