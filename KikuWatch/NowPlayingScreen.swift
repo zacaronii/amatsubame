@@ -68,13 +68,40 @@ private struct NowPlayingControls: View {
                 header
                 progress(at: context.date)
                 controls
-                Button { session.send(.mark) } label: {
-                    Label("Mark", systemImage: "bookmark")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
+                HStack(spacing: 6) {
+                    // Chapters and speed beside Mark (a bottom toolbar covered it).
+                    if playing.chapters?.isEmpty == false {
+                        NavigationLink {
+                            ChaptersScreen()
+                        } label: {
+                            Image(systemName: "list.bullet").font(.footnote.weight(.semibold))
+                        }
+                        .buttonStyle(.bordered)
+                        .buttonBorderShape(.circle)
+                        .frame(width: 40)
+                        .accessibilityLabel("Chapters")
+                        .accessibilityIdentifier("watch.chapters")
+                    }
+                    Button { session.send(.mark) } label: {
+                        Label("Mark", systemImage: "bookmark")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("watch.mark")
+                    NavigationLink {
+                        SpeedScreen()
+                    } label: {
+                        Text(WatchNowPlaying.speedText(playing.rate))
+                            .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                            .fixedSize()
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .frame(width: 52)
+                    .accessibilityLabel("Speed \(WatchNowPlaying.speedText(playing.rate))")
+                    .accessibilityIdentifier("watch.speed")
                 }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("watch.mark")
                 if let notice = session.notice {
                     Text(notice).font(.caption2).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 }

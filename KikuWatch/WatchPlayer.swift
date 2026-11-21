@@ -3,6 +3,7 @@ import Foundation
 import KikuWatchLink
 import MediaPlayer
 import Observation
+import UIKit
 
 /// Plays what's on this watch (docs/KIKU_PLAN.md milestone 2, #127): a long-form audio session,
 /// so watchOS routes it to headphones (and asks for them when none are connected), with Now
@@ -12,7 +13,8 @@ import Observation
 final class WatchPlayer {
     private(set) var item: WatchItem?
     private(set) var isPlaying = false
-    private(set) var rate: Double = 1
+    /// This watch's speed, kept across launches.
+    private(set) var rate: Double = UserDefaults.standard.object(forKey: "kiku.watch.rate") as? Double ?? 1
     /// Set when watchOS couldn't route the audio (no headphones chosen).
     private(set) var problem: String?
 
@@ -32,6 +34,13 @@ final class WatchPlayer {
 
     var skipBackward: Double = 15
     var skipForward: Double = 30
+    /// The playing item's cover, when this watch has it (`WatchDownloads.covers`).
+    var artwork: Data? {
+        didSet { if artwork != oldValue { updateNowPlaying() } }
+    }
+    /// Something Now Playing shows changed (play, pause, a seek, another item): the complication
+    /// follows (`WatchSession`).
+    @ObservationIgnored var onChange: (() -> Void)?
 
     /// The playing state in the remote's own terms, so Now Playing draws both modes alike.
     var nowPlaying: WatchNowPlaying? {
@@ -39,7 +48,8 @@ final class WatchPlayer {
         return WatchNowPlaying(itemId: item.itemId, episodeId: item.episodeId, title: item.title, subtitle: item.subtitle,
                                chapter: chapter(at: lastPosition)?.title, position: lastPosition, duration: item.duration,
                                rate: rate, isPlaying: isPlaying, sampledAt: sampledAt,
-                               skipBackward: skipBackward, skipForward: skipForward, transcript: item.transcript)
+                               skipBackward: skipBackward, skipForward: skipForward, artwork: artwork, transcript: item.transcript,
+                               chapters: item.chapters.isEmpty ? nil : item.chapters)
     }
 
     // MARK: Loading
@@ -113,6 +123,7 @@ final class WatchPlayer {
         item = nil
         isPlaying = false
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+        onChange?()
     }
 
     // MARK: Controls
@@ -164,9 +175,20 @@ final class WatchPlayer {
         savePlace()
     }
 
+    /// A chapter's start, from the chapter list (playing on if it was).
+    func seek(to time: Double) async {
+        guard let player, let item else { return }
+        countListening()
+        await player.seek(to: CMTime(seconds: min(max(time, 0), max(item.duration - 1, 0)), preferredTimescale: 600))
+        if isPlaying { lastTick = .now }
+        sample()
+        savePlace()
+    }
+
     func setRate(_ rate: Double) {
         countListening()
         self.rate = rate
+        UserDefaults.standard.set(rate, forKey: "kiku.watch.rate")
         if isPlaying { player?.rate = Float(rate) }
         sample()
     }
@@ -226,6 +248,7 @@ final class WatchPlayer {
         lastPosition = currentTime
         sampledAt = .now
         updateNowPlaying()
+        onChange?()
     }
 
     private func savePlace() {
@@ -246,7 +269,13 @@ final class WatchPlayer {
             MPNowPlayingInfoPropertyDefaultPlaybackRate: rate,
         ]
         if let chapter = chapter(at: lastPosition) { info[MPMediaItemPropertyAlbumTitle] = chapter.title }
+        if let artwork, let image = UIImage(data: artwork) { info[MPMediaItemPropertyArtwork] = Self.artwork(image) }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+    }
+
+    /// MediaPlayer asks for the image on its own queue: the closure mustn't be the main actor's.
+    nonisolated private static func artwork(_ image: UIImage) -> MPMediaItemArtwork {
+        MPMediaItemArtwork(boundsSize: image.size) { @Sendable _ in image }
     }
 
     private func setUpCommands() {

@@ -125,6 +125,15 @@ public struct WatchAccess: Codable, Equatable, Sendable {
         return Date(timeIntervalSince1970: exp)
     }
 
+    /// A signed request for an item's cover, small enough for Now Playing.
+    public func coverRequest(itemId: String) -> URLRequest {
+        var components = URLComponents(url: server.appending(path: "api/items/\(itemId)/cover"), resolvingAgainstBaseURL: false)!
+        components.queryItems = [URLQueryItem(name: "width", value: "200"), URLQueryItem(name: "format", value: "jpeg")]
+        var request = URLRequest(url: components.url!)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        return request
+    }
+
     /// Good for at least `margin` more (a download can start a while after it's queued).
     public func lasts(_ margin: TimeInterval = 10 * 60, at date: Date = .now) -> Bool {
         guard let expiry else { return true }

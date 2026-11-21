@@ -182,7 +182,8 @@ final class WatchBridge: NSObject, WCSessionDelegate {
             chapter: playback.currentChapter?.title, position: audio.currentTime,
             duration: audio.duration > 0 ? audio.duration : entry.duration, rate: Double(audio.rate),
             isPlaying: audio.isPlaying, sampledAt: .now, skipBackward: audio.skipIntervals.backward,
-            skipForward: audio.skipIntervals.forward, artwork: cover(entry.itemId), transcript: transcriptId(playback)),
+            skipForward: audio.skipIntervals.forward, artwork: cover(entry.itemId), transcript: transcriptId(playback),
+            chapters: entry.chapters.isEmpty ? nil : entry.chapters.map { WatchItem.Chapter(title: $0.title, start: $0.start) }),
             liveText: liveText)
     }
 
@@ -328,6 +329,11 @@ final class WatchBridge: NSObject, WCSessionDelegate {
             return WatchReply(transcriptPart: part, state: currentState())
         case .freshAccess:
             break
+        case let .seek(key, time):
+            guard key == playback.key else { return reply("That episode isn't playing any more") }
+            audio.seek(to: time)
+        case let .setRate(rate):
+            playback.setSpeed(rate)
         }
         return WatchReply(state: currentState())
     }

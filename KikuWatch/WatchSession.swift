@@ -73,6 +73,11 @@ final class WatchSession: NSObject, WCSessionDelegate {
 
     /// What Now Playing shows: the phone's, or this watch's own in Watch mode.
     var nowPlaying: WatchNowPlaying? { mode == .watch ? player.nowPlaying : state?.nowPlaying }
+
+    /// This watch's copy of an item's cover (Watch mode's artwork).
+    private func coverForPlayer() {
+        player.artwork = player.item.flatMap { downloads.covers[$0.itemId] }
+    }
     /// Live Text is on in Kiku's settings on the phone. It follows whichever player Now Playing
     /// shows; in Watch mode from the transcripts kept with each item (milestone 5).
     var liveTextOn: Bool { state?.liveText ?? false }
@@ -82,6 +87,25 @@ final class WatchSession: NSObject, WCSessionDelegate {
         if mode == .phone { player.pause() }
         self.mode = mode
         followTranscript()
+        updateComplication()
+    }
+
+    /// The Now Playing the complication last showed.
+    @ObservationIgnored private var shown: WatchNowPlaying?
+    @ObservationIgnored private var shownMode: Mode?
+
+    /// The complication follows Now Playing, on real changes only (play, pause, a seek, another
+    /// episode or chapter, the mode): its budget is small.
+    private func updateComplication() {
+        let playing = nowPlaying
+        let same = shownMode == mode && shown?.key == playing?.key && shown?.isPlaying == playing?.isPlaying
+            && shown?.chapter == playing?.chapter && shown?.rate == playing?.rate
+            && (playing.map { now in shown.map { abs($0.position(at: now.sampledAt) - now.position) < 5 } ?? false } ?? (shown == nil))
+        guard !same else { return }
+        shown = playing
+        shownMode = mode
+        WatchStateStore.saveShown(playing)
+        WidgetCenter.shared.reloadTimelines(ofKind: Self.complicationKind)
     }
 
     /// Plays an item that's on this watch, here (switching to Watch mode).
@@ -166,6 +190,11 @@ final class WatchSession: NSObject, WCSessionDelegate {
             Task { await player.replay(from: line.start, to: line.end) }
         case .endLookup:
             resumeAfterLookupHere()
+        case let .seek(key, time):
+            guard player.item?.key == key else { return }
+            Task { await player.seek(to: time) }
+        case let .setRate(rate):
+            player.setRate(rate)
         default:
             break
         }
@@ -189,6 +218,11 @@ final class WatchSession: NSObject, WCSessionDelegate {
         guard !started else { return }
         started = true
         downloads.requestAccess = { [weak self] in await self?.requestAccess() }
+        player.onChange = { [weak self] in
+            self?.coverForPlayer()
+            self?.updateComplication()
+        }
+        downloads.onCover = { [weak self] in self?.coverForPlayer() }
         player.log.send = { [weak self] stretches in self?.sendListening(stretches) }
         #if DEBUG
         // Simulator checks: plays "<item>/<episode>" here once it's on the watch (SIMCTL_CHILD_KIKU_WATCH_PLAY).
@@ -220,7 +254,7 @@ final class WatchSession: NSObject, WCSessionDelegate {
     func send(_ command: WatchCommand) {
         if mode == .watch {
             switch command {
-            case .togglePlay, .skipBackward, .skipForward, .mark, .markLine, .replayLine, .endLookup:
+            case .togglePlay, .skipBackward, .skipForward, .mark, .markLine, .replayLine, .endLookup, .seek, .setRate:
                 return performHere(command)
             case .lookUp:
                 // The phone looks it up (from its saved transcript); this watch pauses while you read.
@@ -331,7 +365,7 @@ final class WatchSession: NSObject, WCSessionDelegate {
             } else if let next = part.next {
                 send(.transcriptPart(id: part.id, from: next))
             }
-        case .togglePlay, .skipBackward, .skipForward, .replayLine, .endLookup, .freshAccess:
+        case .togglePlay, .skipBackward, .skipForward, .replayLine, .endLookup, .freshAccess, .seek, .setRate:
             if let message = reply.message { show(message) }
         }
     }
@@ -392,14 +426,12 @@ final class WatchSession: NSObject, WCSessionDelegate {
             player.skipBackward = playing.skipBackward
             player.skipForward = playing.skipForward
         }
-        let changed = state?.nowPlaying?.key != newState.nowPlaying?.key
-            || state?.nowPlaying?.isPlaying != newState.nowPlaying?.isPlaying
-            || state?.nowPlaying?.chapter != newState.nowPlaying?.chapter
-            || state?.nowPlaying?.position != newState.nowPlaying?.position
         state = newState
-        if save { WatchStateStore.save(newState) }
-        // Only on real changes (play, pause, seek, another episode): the complication's budget is small.
-        if changed && save { WidgetCenter.shared.reloadTimelines(ofKind: Self.complicationKind) }
+        if let playing = newState.nowPlaying, let artwork = playing.artwork { downloads.keepCover(artwork, for: playing.itemId) }
+        if save {
+            WatchStateStore.save(newState)
+            updateComplication()
+        }
         followTranscript()
     }
 

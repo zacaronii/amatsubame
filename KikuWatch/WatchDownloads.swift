@@ -16,6 +16,12 @@ final class WatchDownloads: NSObject, URLSessionDownloadDelegate {
     private(set) var items: [WatchItem] = []
     private(set) var statuses: [String: WatchItemStatus] = [:]
     private(set) var freeBytes: Int64?
+    /// Each item's cover, by item id (Application Support/Covers): kept from the phone's state
+    /// when it plays one, else fetched from Audiobookshelf (once a launch). Watch mode's artwork.
+    private(set) var covers: [String: Data] = [:]
+    @ObservationIgnored var onCover: (() -> Void)?
+    @ObservationIgnored private let coverFolder = URL.applicationSupportDirectory.appending(path: "Covers")
+    @ObservationIgnored private var coversAsked: Set<String> = []
 
     /// Asks the phone for a token that lasts (nil when it can't be reached).
     @ObservationIgnored var requestAccess: (() async -> WatchAccess?)?
@@ -40,6 +46,10 @@ final class WatchDownloads: NSObject, URLSessionDownloadDelegate {
         super.init()
         access = WatchKeychain.load()
         try? FileManager.default.createDirectory(at: incoming, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: coverFolder, withIntermediateDirectories: true)
+        for file in (try? FileManager.default.contentsOfDirectory(at: coverFolder, includingPropertiesForKeys: nil)) ?? [] {
+            covers[file.lastPathComponent] = try? Data(contentsOf: file)
+        }
         let configuration = URLSessionConfiguration.background(withIdentifier: Self.sessionIdentifier)
         configuration.sessionSendsLaunchEvents = true
         session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
@@ -110,6 +120,41 @@ final class WatchDownloads: NSObject, URLSessionDownloadDelegate {
         statuses = statuses.filter { key, _ in items.contains { $0.key == key } }
         if !missing.isEmpty { await start(missing) }
         report()
+        fetchCovers()
+    }
+
+    // MARK: Covers
+
+    /// The phone's cover for something it plays: kept when that item is on this watch without one.
+    func keepCover(_ data: Data, for itemId: String) {
+        guard covers[itemId] == nil, items.contains(where: { $0.itemId == itemId }) else { return }
+        saveCover(data, for: itemId)
+    }
+
+    private func saveCover(_ data: Data, for itemId: String) {
+        covers[itemId] = data
+        try? data.write(to: coverFolder.appending(path: itemId))
+        onCover?()
+    }
+
+    /// Covers for items without one; the ones no item needs any more go.
+    private func fetchCovers() {
+        let needed = Set(items.map(\.itemId))
+        for itemId in covers.keys where !needed.contains(itemId) {
+            covers[itemId] = nil
+            try? FileManager.default.removeItem(at: coverFolder.appending(path: itemId))
+        }
+        let missing = needed.filter { covers[$0] == nil && !coversAsked.contains($0) }
+        guard !missing.isEmpty else { return }
+        coversAsked.formUnion(missing)
+        Task {
+            guard let access = await usableAccess() else { return }
+            for itemId in missing {
+                guard let (data, response) = try? await URLSession.shared.data(for: access.coverRequest(itemId: itemId)),
+                      (response as? HTTPURLResponse)?.statusCode == 200, !data.isEmpty else { continue }
+                saveCover(data, for: itemId)
+            }
+        }
     }
 
     /// Send Now's file arrived (moved out of WatchConnectivity's inbox already).

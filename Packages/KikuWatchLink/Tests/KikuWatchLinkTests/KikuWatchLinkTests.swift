@@ -22,6 +22,21 @@ import Testing
         #expect(playing(300).fraction(at: start) == 0.5)
     }
 
+    @Test func chaptersStepLikeAMusicPlayer() {
+        var book = playing(101, isPlaying: false)
+        book.chapters = [WatchItem.Chapter(title: "一", start: 0), WatchItem.Chapter(title: "二", start: 100),
+                         WatchItem.Chapter(title: "三", start: 400)]
+        #expect(book.chapterIndex(at: start) == 1)
+        // Just into 二: Previous goes to 一; further in, to 二's start.
+        #expect(book.previousChapterStart(at: start) == 0)
+        book.position = 200
+        #expect(book.previousChapterStart(at: start) == 100)
+        #expect(book.nextChapterStart(at: start) == 400)
+        book.position = 450
+        #expect(book.nextChapterStart(at: start) == nil)
+        #expect(playing().nextChapterStart(at: start) == nil)
+    }
+
     @Test func aStateThatWasPredictedIsNotSentAgain() {
         let sent = playing()
         var later = playing(130)

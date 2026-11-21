@@ -4,8 +4,8 @@ import WidgetKit
 
 /// Kiku's complication and Smart Stack widget: the bird glyph, with the playing item's progress
 /// (corner gauge, circular ring) or its title and chapter (rectangular). Tapping opens the watch
-/// app's Now Playing. The watch app saves the phone's state (`WatchStateStore`) and reloads this
-/// timeline on real changes only.
+/// app's Now Playing. The watch app saves what Now Playing shows (`WatchStateStore.saveShown`: the
+/// phone's, or this watch's own in Watch mode) and reloads this timeline on real changes only.
 @main
 struct KikuWidgets: WidgetBundle {
     var body: some Widget {
@@ -20,7 +20,7 @@ struct KikuComplication: Widget {
                 .containerBackground(.clear, for: .widget)
         }
         .configurationDisplayName("Kiku")
-        .description("What's playing in Kiku on your iPhone.")
+        .description("What's playing in Kiku, on your iPhone or this watch.")
         .supportedFamilies([.accessoryCorner, .accessoryCircular, .accessoryRectangular])
     }
 }
@@ -40,11 +40,11 @@ struct NowPlayingProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (NowPlayingEntry) -> Void) {
-        completion(NowPlayingEntry(date: .now, playing: WatchStateStore.load()?.nowPlaying))
+        completion(NowPlayingEntry(date: .now, playing: WatchStateStore.loadShown()))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<NowPlayingEntry>) -> Void) {
-        completion(Self.timeline(for: WatchStateStore.load()?.nowPlaying, now: .now))
+        completion(Self.timeline(for: WatchStateStore.loadShown(), now: .now))
     }
 
     static func timeline(for playing: WatchNowPlaying?, now: Date) -> Timeline<NowPlayingEntry> {
