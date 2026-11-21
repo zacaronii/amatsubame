@@ -205,6 +205,8 @@ final class KikuEnvironment {
             }
         }
         #if os(iOS)
+        // KIKU_WATCH_LIVE_TEXT=1: Live Text on Apple Watch on, as its setting does.
+        if env["KIKU_WATCH_LIVE_TEXT"] != nil { watch.setLiveText(true) }
         if let key = env["KIKU_SEND_TO_WATCH"] {
             // Sends "<item>/<episode>" (or a book's "<item>") to the paired watch, as Send to Watch does.
             Task { [weak self] in
@@ -378,11 +380,13 @@ final class KikuEnvironment {
         return EpisodeEntry(episode: episode, showTitle: meta.showTitle, progress: library.progress[meta.key], book: book)
     }
 
-    /// A downloaded episode takes its transcript along, if Kaku has it ready.
-    private func fetchTranscriptForDownload(_ entry: EpisodeEntry) async {
+    /// A downloaded episode (or one sent to the watch) takes its transcript along, if Kaku has it
+    /// ready. True when one was saved now.
+    @discardableResult
+    func fetchTranscriptForDownload(_ entry: EpisodeEntry) async -> Bool {
         guard (try? transcripts.transcript(key: entry.id)) == nil, let kaku = kakuClient(),
-              case .ready(let document)? = try? await kaku.transcript(itemId: entry.itemId, episodeId: entry.episode.id) else { return }
-        try? saveTranscript(document, entry: entry, played: false)
+              case .ready(let document)? = try? await kaku.transcript(itemId: entry.itemId, episodeId: entry.episode.id) else { return false }
+        return (try? saveTranscript(document, entry: entry, played: false)) != nil
     }
 
     // MARK: Servers

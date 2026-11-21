@@ -24,6 +24,8 @@ final class WatchBridge: NSObject, WCSessionDelegate {
     private var fingerprints: [String: String] = [:]
     /// The transcript the watch is fetching in parts, built once.
     private var shared: WatchTranscript?
+    /// The same for a saved transcript (an item on the watch that isn't playing here).
+    private var savedShared: WatchTranscript?
     /// The last word looked up from the watch, for its +.
     private var lastLookup: (command: WatchCommand, page: LookupResultPage)?
     /// Replay paused the episode: it plays again when the clip ends.
@@ -254,6 +256,11 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         if command == .freshAccess {
             return WatchReply(access: await environment.watchLibrary.freshAccess(), state: currentState())
         }
+        // Live Text following the watch's own player (milestone 5): a line of an episode this
+        // phone isn't playing, from its saved transcript.
+        if let key = command.lineKey, environment.playback?.key != key {
+            return await performSaved(command, key: key)
+        }
         guard let playback = environment.playback else { return reply("Nothing is playing") }
         let audio = playback.audio
         switch command {
@@ -323,6 +330,70 @@ final class WatchBridge: NSObject, WCSessionDelegate {
             break
         }
         return WatchReply(state: currentState())
+    }
+
+    /// Live Text's commands for an episode that isn't playing here: its saved transcript, and for
+    /// a card the episode's own audio (as Marks finds it). Nothing here pauses or plays.
+    private func performSaved(_ command: WatchCommand, key: String) async -> WatchReply {
+        if case let .transcriptPart(id, from) = command {
+            if savedShared?.id != id { savedShared = savedTranscript(key) }
+            guard let part = savedShared.flatMap({ $0.id == id ? $0.part(from: from) : nil }) else {
+                return reply("That transcript isn't on this iPhone any more")
+            }
+            return WatchReply(transcriptPart: part, state: currentState())
+        }
+        guard let info = try? environment.transcripts.transcript(key: key) else { return reply("That transcript isn't on this iPhone any more") }
+        let sentences = (try? environment.transcripts.sentences(key: key)) ?? []
+        switch command {
+        case let .markLine(_, position):
+            guard let line = sentences.first(where: { $0.position == position }),
+                  let mark = environment.mark(.watchLine, itemId: info.itemId, episodeId: info.episodeId, showTitle: info.showTitle,
+                                              episodeTitle: info.episodeTitle, time: line.start) else { return reply("Couldn't mark it") }
+            return WatchReply(message: "Marked \(mark.time.clockText)", markedAt: mark.time, state: currentState())
+        case let .lookUp(_, position, character):
+            guard let line = sentences.first(where: { $0.position == position }) else { return reply("Couldn't find that line") }
+            let page = await lookUp(line, character: character)
+            guard let first = page.results.first, let source = page.source else { return reply("No dictionary entry") }
+            lastLookup = (command, page)
+            let start = LineLookup.characterIndex(utf16: source.utf16Offset, in: source.text)
+            let end = LineLookup.characterIndex(utf16: source.utf16Offset + source.utf16Length, in: source.text)
+            return WatchReply(lookup: WatchLookup(
+                start: start, length: end - start, expression: first.expression, reading: first.reading,
+                meaning: CompactDefinitionSummary.extract(first.glossaries, maximumItems: 1)?.items.first,
+                frequency: first.frequencies.first?.values.first?.display, lookupCount: page.lookupCount,
+                isMined: environment.common.lookup.mining?.isMined(first) ?? false), state: currentState())
+        case let .addCard(_, position, character):
+            guard let line = sentences.first(where: { $0.position == position }) else { return reply("Couldn't find that line") }
+            let page = lastLookup.flatMap { $0.command == .lookUp(key: key, line: position, character: character) ? $0.page : nil }
+            let found = if let page { page } else { await lookUp(line, character: character) }
+            guard let first = found.results.first else { return reply("No dictionary entry") }
+            let miscInfo = CardSource.miscInfo(show: info.showTitle, episode: info.episodeTitle, time: line.start)
+            var context: any MiningContext = TextMiningContext(miscInfo: miscInfo)
+            if let entry = await environment.entry(itemId: info.itemId, episodeId: info.episodeId, showTitle: info.showTitle) {
+                let audio = EpisodeAudio(entry: entry)
+                if await audio.resolve(environment: environment) == nil { context = audio.miningContext(for: line) }
+            }
+            let mining = environment.common.mining
+            do {
+                _ = try await mining.mine(first, sentence: found.sentence ?? TappableLine.sentence(line.text), context: context)
+                let deck = (try? mining.settingsStore.settings())?.deck
+                return WatchReply(message: deck.map { "\(first.expression) · \($0)" } ?? first.expression, cardAdded: true, state: currentState())
+            } catch {
+                return reply("Set up Anki in Kiku's settings to add cards")
+            }
+        default:
+            return WatchReply(state: currentState())
+        }
+    }
+
+    /// An episode's saved transcript, for the watch (its lines as the player shows them).
+    private func savedTranscript(_ key: String) -> WatchTranscript? {
+        guard let id = WatchLibraryModel.transcriptId(key, in: environment.transcripts),
+              let fingerprint = id.split(separator: "#", maxSplits: 1).last,
+              let sentences = try? environment.transcripts.sentences(key: key), !sentences.isEmpty else { return nil }
+        return WatchTranscript(key: key, fingerprint: String(fingerprint), lines: sentences.map {
+            WatchTranscript.Line(position: $0.position, start: $0.start, end: $0.end, text: TappableLine.sentence($0.text))
+        })
     }
 
     private func resumeAfterLookup(_ playback: PlaybackModel) {

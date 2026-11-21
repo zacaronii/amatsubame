@@ -142,6 +142,16 @@ public enum WatchCommand: Codable, Equatable, Sendable {
     case transcriptPart(id: String, from: Int)
     /// A token that lasts, before the watch downloads (the phone's access token runs out in an hour).
     case freshAccess
+
+    /// The episode a Live Text command is about (the phone answers one it isn't playing from its
+    /// saved transcript); nil for the rest, and for Replay, which plays on the phone's player.
+    public var lineKey: String? {
+        switch self {
+        case let .markLine(key, _), let .lookUp(key, _, _), let .addCard(key, _, _): key
+        case let .transcriptPart(id, _): id.split(separator: "#", maxSplits: 1).first.map(String.init)
+        default: nil
+        }
+    }
 }
 
 /// The phone's answer to a command.

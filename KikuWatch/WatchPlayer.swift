@@ -19,6 +19,7 @@ final class WatchPlayer {
     @ObservationIgnored private var player: AVPlayer?
     @ObservationIgnored private var timeObserver: Any?
     @ObservationIgnored private var endObserver: NSObjectProtocol?
+    @ObservationIgnored private var replayObserver: Any?
     @ObservationIgnored let places = WatchPlaces()
     /// Listening, for the phone (milestone 3).
     let log = WatchListeningLog()
@@ -38,7 +39,7 @@ final class WatchPlayer {
         return WatchNowPlaying(itemId: item.itemId, episodeId: item.episodeId, title: item.title, subtitle: item.subtitle,
                                chapter: chapter(at: lastPosition)?.title, position: lastPosition, duration: item.duration,
                                rate: rate, isPlaying: isPlaying, sampledAt: sampledAt,
-                               skipBackward: skipBackward, skipForward: skipForward)
+                               skipBackward: skipBackward, skipForward: skipForward, transcript: item.transcript)
     }
 
     // MARK: Loading
@@ -63,6 +64,39 @@ final class WatchPlayer {
         await resume()
     }
 
+    /// The phone's list changed this item's details (its transcript arrived): keep playing it.
+    func refresh(_ item: WatchItem) {
+        guard self.item?.key == item.key, self.item != item else { return }
+        self.item = item
+    }
+
+    /// Live Text's Replay: the line, then back to where you were (playing on if you were).
+    func replay(from start: Double, to end: Double) async {
+        guard let player, item != nil else { return }
+        if let replayObserver { player.removeTimeObserver(replayObserver) }
+        let back = currentTime
+        let wasPlaying = isPlaying
+        countListening()
+        await player.seek(to: CMTime(seconds: start, preferredTimescale: 600))
+        if isPlaying { lastTick = .now } else { await resume() }
+        sample()
+        replayObserver = player.addBoundaryTimeObserver(forTimes: [NSValue(time: CMTime(seconds: end, preferredTimescale: 600))],
+                                                        queue: .main) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, let player = self.player else { return }
+                if let observer = self.replayObserver { player.removeTimeObserver(observer) }
+                self.replayObserver = nil
+                Task {
+                    if !wasPlaying { self.pause() }
+                    self.countListening()
+                    await player.seek(to: CMTime(seconds: back, preferredTimescale: 600))
+                    if self.isPlaying { self.lastTick = .now }
+                    self.sample()
+                }
+            }
+        }
+    }
+
     func stop() {
         countListening()
         lastTick = nil
@@ -71,6 +105,8 @@ final class WatchPlayer {
         player?.pause()
         if let timeObserver { player?.removeTimeObserver(timeObserver) }
         if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
+        if let replayObserver { player?.removeTimeObserver(replayObserver) }
+        replayObserver = nil
         timeObserver = nil
         endObserver = nil
         player = nil

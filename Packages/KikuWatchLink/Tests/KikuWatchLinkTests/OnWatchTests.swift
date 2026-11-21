@@ -106,6 +106,13 @@ import Testing
         #expect(WatchMessages.fileKey(from: nil) == nil)
     }
 
+    @Test func liveTextCommandsNameTheirEpisode() {
+        #expect(WatchCommand.lookUp(key: "show/ep", line: 3, character: 1).lineKey == "show/ep")
+        #expect(WatchCommand.transcriptPart(id: "show/ep#abc", from: 0).lineKey == "show/ep")
+        #expect(WatchCommand.replayLine(key: "show/ep", line: 3).lineKey == nil)
+        #expect(WatchCommand.togglePlay.lineKey == nil)
+    }
+
     @Test func aRuleSaysWhyAnItemIsThere() throws {
         var item = episode()
         #expect(item.reason == nil)

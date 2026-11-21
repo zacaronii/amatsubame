@@ -73,9 +73,23 @@ final class WatchLibraryModel {
 
     /// What the watch should have, with the token while there's anything to download.
     var library: WatchLibrary {
-        WatchLibrary(items: items, access: items.isEmpty ? nil : access,
+        let liveText = environment.watch.liveText
+        let items = items.map { item in
+            var item = item
+            item.transcript = liveText ? Self.transcriptId(item.key, in: environment.transcripts) : nil
+            return item
+        }
+        return WatchLibrary(items: items, access: items.isEmpty ? nil : access,
                      places: Dictionary(uniqueKeysWithValues: items.compactMap { item in place(item.key).map { (item.key, $0) } }),
                      acknowledged: (try? listening.recent()) ?? [:])
+    }
+
+    /// The saved transcript's id, as `WatchBridge` names the playing one (its fingerprint, or its
+    /// line count when Kaku gave none).
+    static func transcriptId(_ key: String, in store: AudioTranscriptStore) -> String? {
+        guard let info = try? store.transcript(key: key) else { return nil }
+        let fingerprint = info.fingerprint ?? ((try? store.sentences(key: key).count).map { "\($0)" } ?? "")
+        return WatchTranscript.id(key: key, fingerprint: fingerprint)
     }
 
     /// The newer of this phone's place and Audiobookshelf's, as the player resumes.
@@ -127,6 +141,13 @@ final class WatchLibraryModel {
         await prepareAccess()
         onChange?()
         onAdded?()
+        // Live Text on the watch needs the transcript: fetched from Kaku if this phone hasn't
+        // one yet, then the list goes again with its id.
+        Task {
+            var fetched = false
+            for entry in entries where await environment.fetchTranscriptForDownload(entry) { fetched = true }
+            if fetched { onChange?() }
+        }
     }
 
     private static func item(_ entry: EpisodeEntry, reason: WatchItem.Reason?) -> WatchItem? {
