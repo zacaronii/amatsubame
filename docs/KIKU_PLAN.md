@@ -130,9 +130,9 @@ They're built from milestone 1's lists. While the watch is on its charger, watch
   - Whether the 20 pt line size is right.
   - The Live Text checks still untested by hand: crown scroll, choosing a line, Back to now,
     Always On.
-- The complication and the Smart Stack show the watch's own playback in On Watch mode.
-- Chapters on the watch (previous or next chapter, and a list) for both modes.
-- Speed control on the watch.
+- Built (milestone 6 PR): the complication and the Smart Stack show the watch's own playback in
+  Watch mode; chapters on the watch (previous or next chapter, and a list) for both modes; speed
+  control on the watch; artwork in Watch mode.
 - Other Kiku polish found while using it. Each item becomes its own issue.
 
 ## Order and releases
