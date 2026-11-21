@@ -113,6 +113,8 @@ the upload time, which only goes up.
   notarized, stapled and attached to the GitHub release as `<App>-<version>.zip`, and the casks in
   [zacaronii/homebrew-amatsubame](https://github.com/zacaronii/homebrew-amatsubame) moved to them.
   `scripts/release.sh --mac-only <build number>` redoes just that part for a released build.
+- Publishing the release also publishes Kaku's Docker image, tagged with the version
+  (`ghcr.io/zacaronii/amatsubame-kaku:<version>`, `.github/workflows/kaku-image.yml`).
 - The first feature (a PR labelled `idea` or `enhancement`) merged after a release also moves `dev`
   to the next feature version (0.2.1 → 0.3.0). If that's forgotten, the release script stops and
   says so.

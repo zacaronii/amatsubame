@@ -1,0 +1,77 @@
+# Kaku's Docker image on GitHub's container registry (ghcr.io/<owner>/amatsubame-kaku), so a
+# release pins which Kaku goes with which apps (docs/kaku.md ▸ Running it).
+# - A release (scripts/release.sh publishes it) pushes the image tagged with the suite version
+#   (0.4.0), Kaku's own version (kaku/__init__.py, e.g. 1.4.2) and latest.
+# - Run by hand (Actions ▸ Kaku image) to push the current commit as edge.
+# - A pull request that touches Kaku only builds it, to catch a broken Dockerfile.
+name: Kaku image
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - Server/kaku/**
+      - .github/workflows/kaku-image.yml
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: kaku-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The CUDA base image is several GB: make room on the runner.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Tags
+        id: tags
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/amatsubame-kaku"
+          kaku=$(sed -n "s/^VERSION = '\(.*\)'/\1/p" Server/kaku/kaku/__init__.py)
+          case "$GITHUB_EVENT_NAME" in
+            release) tags="$image:${GITHUB_REF_NAME#v},$image:kaku-$kaku,$image:latest" ;;
+            *) tags="$image:edge" ;;
+          esac
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+          echo "kaku=$kaku" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: Server/kaku
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.title=Kaku
+            org.opencontainers.image.description=Japanese transcripts for Audiobookshelf and Jellyfin (Amatsubame)
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.version=${{ steps.tags.outputs.kaku }}
+
+      # The image's own tests (no GPU needed).
+      - if: github.event_name == 'pull_request'
+        name: Test inside the image
+        run: |
+          docker buildx build --load -t kaku:test Server/kaku
+          docker run --rm kaku:test python3 -m pytest -q -p no:cacheprovider tests
