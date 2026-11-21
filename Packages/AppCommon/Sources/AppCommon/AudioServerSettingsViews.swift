@@ -70,9 +70,11 @@ public struct AudiobookshelfSettingsView: View {
 /// Kaku's URL and token (Kiku, and Yomu for read-along).
 public struct KakuSettingsView: View {
     @State private var model: KakuSettingsModel
+    private let environment: CommonEnvironment
 
     public init(environment: CommonEnvironment) {
         _model = State(initialValue: KakuSettingsModel(environment: environment))
+        self.environment = environment
     }
 
     public var body: some View {
@@ -89,6 +91,8 @@ public struct KakuSettingsView: View {
                 ConnectionTestRow(status: model.status, disabled: !model.canTest) { Task { await model.testAndSave() } }
             }
             if model.isConfigured {
+                // What the server is doing: the queue, failures and libraries (#149).
+                KakuServerSections(common: environment)
                 Section {
                     ConfirmedRemoveButton.removeServer("Kaku") { model.remove() }
                 }

@@ -274,6 +274,34 @@ func fixture(_ name: String) throws -> Data { try Fixture.data(name, in: .module
         #expect(try await client.clip(itemId: "show", episodeId: "ep1", start: 1, end: 2) == Data("m4a".utf8))
     }
 
+    @Test func theServerScreenReadsTheQueueAndLibraries() async throws {
+        let transport = StubTransport { request in
+            switch (request.httpMethod, request.url?.path()) {
+            case (_, "/jobs"): (200, try fixture("kaku-jobs.json"))
+            case (_, "/libraries"): (200, try fixture("kaku-libraries.json"))
+            case (_, "/jellyfin/jobs"): (200, Data(#"{"jobs":[{"itemId":"jf-9","state":"queued","position":0}]}"#.utf8))
+            default: (404, Data())
+            }
+        }
+        let client = client(transport)
+        let queue = try await client.queue(limit: 5)
+        #expect(queue.running?.progress == 0.62 && queue.queued.map(\.title) == ["A book", "#4"] && queue.queuedCount == 14)
+        #expect(queue.failed[0].isJellyfin && queue.estimatedSeconds == 1373)
+        #expect(transport.requests[0].url?.query() == "limit=5")
+        let libraries = try await client.libraries()
+        #expect(libraries.libraries.map(\.enabled) == [true, true, false])
+        #expect(libraries.libraries[0].progress?.counts.total == 111 && libraries.jellyfin?.counts.failed == 1)
+        _ = try await client.setLibraries(enabled: ["lib"])
+        #expect(transport.requests.last?.httpMethod == "PUT")
+        #expect(try transport.requests.last?.jsonBody()["enabled"] as? [String] == ["lib"])
+        // A failed Jellyfin job is asked for again by its Jellyfin id.
+        try await client.retry(queue.failed[0])
+        #expect(try transport.requests.last?.jsonBody()["itemIds"] as? [String] == ["jf-9"])
+        // An older Kaku (no counts): the libraries still read.
+        let old = try JSONDecoder().decode(KakuLibraries.self, from: Data(#"{"libraries":[{"id":"l","name":"P","mediaType":"podcast","enabled":true}]}"#.utf8))
+        #expect(old.libraries[0].progress == nil && old.jellyfin == nil)
+    }
+
     @Test func jellyfinSubtitlesOnRequest() async throws {
         let transport = StubTransport { request in
             switch request.url?.path() {

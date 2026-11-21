@@ -33,6 +33,22 @@ def test_libraries_switch_on(service):
     assert {l['id'] for l in switched if l['enabled']} == {'lib-1', 'lib-2'}
 
 
+def test_libraries_and_jobs_say_how_far_along(service):
+    api = client(service)
+    api.put('/libraries', headers=AUTH, json={'enabled': ['lib-1']})
+    service.poller.poll_once(now=NOW)
+    before = {l['id']: l for l in api.get('/libraries', headers=AUTH).json()['libraries']}
+    assert before['lib-1']['counts'] == {'done': 0, 'queued': 2, 'running': 0, 'failed': 0}
+    assert before['lib-1']['lastTranscribed'] is None and before['lib-2']['counts']['queued'] == 0
+    assert api.get('/jobs', headers=AUTH).json()['estimatedSeconds'] is None
+    service.worker.run_once()
+    after = {l['id']: l for l in api.get('/libraries', headers=AUTH).json()['libraries']}
+    assert after['lib-1']['counts'] == {'done': 1, 'queued': 1, 'running': 0, 'failed': 0}
+    assert after['lib-1']['lastTranscribed'] is not None
+    jobs = api.get('/jobs', headers=AUTH).json()
+    assert jobs['averageSeconds'] is not None and jobs['estimatedSeconds'] == jobs['averageSeconds']
+
+
 def test_pending_then_done(service):
     api = client(service)
     api.put('/libraries', headers=AUTH, json={'enabled': ['lib-1']})

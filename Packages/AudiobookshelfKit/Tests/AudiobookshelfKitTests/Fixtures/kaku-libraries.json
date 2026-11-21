@@ -1,0 +1,4 @@
+{"libraries": [{"id": "lib", "name": "Podcasts", "mediaType": "podcast", "enabled": true, "counts": {"done": 100, "queued": 10, "running": 1, "failed": 0}, "lastTranscribed": 1794060000.0},
+               {"id": "lib-b", "name": "Books", "mediaType": "book", "enabled": true, "counts": {"done": 20, "queued": 4, "running": 0, "failed": 0}, "lastTranscribed": null},
+               {"id": "lib-e", "name": "English", "mediaType": "book", "enabled": false, "counts": {"done": 0, "queued": 0, "running": 0, "failed": 0}, "lastTranscribed": null}],
+ "jellyfin": {"counts": {"done": 3, "queued": 0, "running": 0, "failed": 1}, "lastTranscribed": 1794000000.0}}

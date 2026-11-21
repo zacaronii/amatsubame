@@ -92,10 +92,11 @@ missing. `docker compose logs kaku` shows why.
 
 ## Turning libraries on
 
-Every library starts switched off, so an English library is never transcribed by accident. There's no
-screen for this yet: you use two requests with your token.
+Every library starts switched off, so an English library is never transcribed by accident. Once an app
+is connected (below), open its Kaku screen (where you entered the address) and switch on your Japanese libraries there. Kaku then
+queues their backlog.
 
-List Audiobookshelf's libraries:
+Without an app, two requests with your token do the same. List Audiobookshelf's libraries:
 
 ```sh
 curl -H "Authorization: Bearer YOUR_TOKEN" http://kaku.example.com:8000/libraries
@@ -110,12 +111,7 @@ curl -X PUT -H "Authorization: Bearer YOUR_TOKEN" -H "Content-Type: application/
   http://kaku.example.com:8000/libraries
 ```
 
-The list you send replaces the old one: libraries left out are switched off. Kaku then queues their
-backlog. To see what it's working on:
-
-```sh
-curl -H "Authorization: Bearer YOUR_TOKEN" http://kaku.example.com:8000/jobs
-```
+The list you send replaces the old one: libraries left out are switched off.
 
 ## Connecting the apps
 
@@ -129,7 +125,19 @@ Each app signs in to Kaku on its own, with Kaku's address and the token (`KAKU_A
 
 Kiku and Miru also offer it in the Extras step of their first-launch setup.
 
-Once connected:
+Once connected, each app's Kaku screen (where you entered the address) shows what Kaku is doing,
+refreshed every few seconds:
+
+- **Server:** its version, the model and whether it's loaded, GPU memory, and when it last checked
+  Audiobookshelf (with the error, if that failed).
+- **Now Transcribing:** the episode or book running, with its progress.
+- **Queue:** what's waiting, in order (asked for, then new this week, then the rest), with a rough
+  time to the end.
+- **Problems:** what failed and why, with **Try Again**.
+- **Libraries:** each library's switch, and how far along it is ("120 of 131 episodes transcribed ·
+  10 waiting · last 2 hours ago"), plus the Jellyfin episodes asked for in Miru.
+
+Then:
 
 - **Kiku** shows which episodes have a transcript. Opening one that's still waiting moves it to the
   front of Kaku's queue. While you stream, Kaku also cuts the audio clips for your cards.

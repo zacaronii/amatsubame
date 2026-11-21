@@ -154,6 +154,25 @@ class Database:
     def counts(self):
         return {row['state']: row['n'] for row in self.execute('SELECT state, COUNT(*) AS n FROM job GROUP BY state')}
 
+    def library_counts(self):
+        """Each library's jobs by state, and when it last finished one: {library_id: {'counts', 'last'}}."""
+        stats = {}
+        for row in self.execute(
+                "SELECT library_id, state, COUNT(*) AS n, MAX(CASE WHEN state = 'done' THEN finished_at END) AS last "
+                'FROM job GROUP BY library_id, state'):
+            entry = stats.setdefault(row['library_id'], {'counts': {}, 'last': None})
+            entry['counts'][row['state']] = row['n']
+            if row['last'] is not None:
+                entry['last'] = row['last']
+        return stats
+
+    def average_seconds(self, limit=20):
+        """How long the last `limit` finished jobs took, on average; None before any."""
+        rows = self.execute(
+            "SELECT finished_at - started_at AS took FROM job WHERE state = 'done' AND started_at IS NOT NULL "
+            'AND finished_at > started_at ORDER BY finished_at DESC LIMIT ?', (limit,))
+        return sum(row['took'] for row in rows) / len(rows) if rows else None
+
     def failed(self, limit=20):
         return [dict(row) for row in self.execute(
             "SELECT * FROM job WHERE state = 'failed' ORDER BY finished_at DESC LIMIT ?", (limit,))]
