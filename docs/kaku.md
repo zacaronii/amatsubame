@@ -51,8 +51,8 @@ Everything except `/health` needs `Authorization: Bearer <KAKU_API_TOKEN>`.
 | POST | `/jellyfin/jobs` `{itemIds: [...]}` | Queues Jellyfin episodes first, in the order given (1.4, at most 100). `{jobs: [{itemId, state, position?, progress?, error?}]}`, where `state` is done, queued, running or unavailable (not in Jellyfin, or no Japanese audio) |
 | POST | `/jellyfin/transcripts/status` `{itemIds: [...]}` | `{statuses: {"<id>": done/queued/running/failed/missing}}` |
 | GET | `/jellyfin/transcripts/{id}` | The transcript JSON, `?format=vtt` or `?format=srt` (SubRip, for Miru); `202` with the job while waiting; `404` when Kaku knows nothing of it |
-| GET | `/jobs` | The running job with its progress, the queue (`?limit=`), counts and recent failures |
-| GET, PUT | `/libraries` | Audiobookshelf's libraries (`id`, `name`, `mediaType`, `enabled`); PUT `{enabled: [ids]}` sets them all (the ones left out are switched off) and refuses unknown ids (`400`) |
+| GET | `/jobs` | The running job with its progress, the queue (`?limit=`), counts and recent failures (each with its title, library and error); since 1.5 `averageSeconds` (the last 20 jobs) and `estimatedSeconds` (that times what's left) |
+| GET, PUT | `/libraries` | Audiobookshelf's libraries (`id`, `name`, `mediaType`, `enabled`, and since 1.5 `counts` of done/queued/running/failed jobs and `lastTranscribed`), plus `jellyfin` (the same counts for Miru's episodes, null without Jellyfin); PUT `{enabled: [ids]}` sets them all (the ones left out are switched off) and refuses unknown ids (`400`) |
 
 **Transcript JSON:** the format from [AUDIO_PLAN.md](AUDIO_PLAN.md).
 - `item`: `libraryItemId`, `episodeId`, `libraryId`.
@@ -69,7 +69,7 @@ Kaku needs a machine with an NVIDIA GPU and Docker with the NVIDIA Container Too
    - `KAKU_PORT` (default 8000) and `TZ`.
 2. `docker compose up -d --build`. The database and transcripts go in `./data`, the Whisper model cache in `./models` (about 3 GB, downloaded on the first job).
 3. Switch on your Japanese libraries: libraries start off, so English ones are never transcribed by accident. `GET /libraries` lists them; `PUT /libraries` with `{"enabled": [ids]}` sets them. Kaku then queues their backlog.
-4. In each app, Kaku's address and the token: Kiku in Settings ▸ Listening ▸ Transcripts, Yomu in Settings ▸ Reading ▸ Read-Along ▸ Kaku, Miru in Settings ▸ Watching ▸ Subtitles ▸ Kaku.
+4. In each app, Kaku's address and the token (each app's Settings ▸ Kaku then shows the server, what's running, the queue with a rough time left, failures with **Try Again**, and each library's progress with its on/off switch): Kiku in Settings ▸ Listening ▸ Transcripts, Yomu in Settings ▸ Reading ▸ Read-Along ▸ Kaku, Miru in Settings ▸ Watching ▸ Subtitles ▸ Kaku.
 
 - **Reaching it:** the compose file only publishes a plain-HTTP port. Before using it away from home, put it behind HTTPS (a reverse proxy) or a VPN such as Tailscale: the token is sent with every request, and nothing else protects the API.
 - **Health check:** the image's Docker health check calls `/health` every minute, so a proxy that waits for healthy containers routes Kaku about a minute after it starts.

@@ -138,19 +138,35 @@ def create_app(service):
     def jobs(limit: int = 50):
         queue = db.queue()
         running = next((job for job in queue if job['state'] == 'running'), None)
+        queued = [job for job in queue if job['state'] == 'queued']
+        average = db.average_seconds()
+        # A rough time to the end of the queue: the recent average per job (1.5).
+        left = len(queued) + (1 - running['progress'] if running else 0)
         return {
             'running': job_view(running),
-            'queued': [job_view(job, index) for index, job in enumerate(queue) if job['state'] == 'queued'][:limit],
+            'queued': [job_view(job, index) for index, job in enumerate(queued)][:limit],
             'counts': db.counts(),
             'failed': [job_view(job) for job in db.failed()],
+            'averageSeconds': average,
+            'estimatedSeconds': average * left if average is not None and left else None,
         }
+
+    def library_view(library_id, stats):
+        entry = stats.get(library_id, {'counts': {}, 'last': None})
+        counts = {state: entry['counts'].get(state, 0) for state in ('done', 'queued', 'running', 'failed')}
+        return {'counts': counts, 'lastTranscribed': entry['last']}
 
     @app.get('/libraries', dependencies=[Depends(authorized)])
     def libraries():
         if not db.libraries():
             db.sync_libraries(service.audiobookshelf.libraries())
-        return {'libraries': [{'id': l['id'], 'name': l['name'], 'mediaType': l['media_type'], 'enabled': l['enabled']}
-                              for l in db.libraries()]}
+        stats = db.library_counts()
+        return {
+            'libraries': [{'id': l['id'], 'name': l['name'], 'mediaType': l['media_type'], 'enabled': l['enabled'],
+                           **library_view(l['id'], stats)} for l in db.libraries()],
+            # Jellyfin episodes asked for by Miru (1.4), counted the same way; null when it isn't set up.
+            'jellyfin': library_view('jellyfin', stats) if service.jellyfin is not None else None,
+        }
 
     @app.put('/libraries', dependencies=[Depends(authorized)])
     def set_libraries(request: LibrariesRequest):
