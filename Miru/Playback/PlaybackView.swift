@@ -18,6 +18,8 @@ struct PlaybackView: View {
     let onClose: () -> Void
     @Environment(\.scenePhase) private var scenePhase
     @State private var showsControls = true
+    /// The options menu is open: the controls (it hangs from one) don't hide under it.
+    @State private var optionsOpen = false
     /// The title-and-scrubber bar's height, so the subtitles and end card sit above it.
     @State private var bottomBarHeight: CGFloat = 106
     @State private var scrub: ScrubState?
@@ -633,12 +635,58 @@ struct PlaybackView: View {
             titleBlock
             Spacer(minLength: 8)
             subtitleStatus
+            optionsMenu
             roundButton("captions.bubble", label: "Subtitles", id: "player.subtitles") {
                 model.showsSubtitlesSheet = true
             }
         }
         .buttonStyle(.plain)
         .foregroundStyle(.white)
+    }
+
+    /// Speed, the audio track, English subtitles and pausing after lines, for a finger: they
+    /// were keys only (`[` `]` `#` `E`), which an iPhone doesn't have.
+    private var optionsMenu: some View {
+        Menu {
+            Picker("Speed", selection: Binding(get: { PlaybackModel.speeds.min { abs($0 - model.mpv.speed) < abs($1 - model.mpv.speed) } ?? 1 },
+                                               set: { model.chooseSpeed($0) })) {
+                ForEach(PlaybackModel.speeds, id: \.self) { speed in
+                    Text(speed == 1 ? "Normal" : String(format: "%g×", speed)).tag(speed)
+                }
+            }
+            .pickerStyle(.menu)
+            let audio = model.audioTracks
+            if audio.count > 1 {
+                Picker("Audio", selection: Binding(get: { audio.first(where: \.isSelected)?.id ?? -1 },
+                                                   set: { id in audio.first { $0.id == id }.map(model.chooseAudio) })) {
+                    ForEach(audio, id: \.id) { track in
+                        Text(PlaybackModel.describe(language: track.language, title: track.title)).tag(track.id)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+            if model.hasEnglish || model.showsEnglish {
+                Toggle("English Subtitles", isOn: Binding(get: { model.showsEnglish }, set: { _ in model.perform(.english) }))
+            }
+            Toggle("Pause After Each Line", isOn: Binding(get: { model.pausesAfterLines }, set: { model.setPausesAfterLines($0) }))
+                .onAppear {
+                    optionsOpen = true
+                    hideTask?.cancel()
+                }
+                .onDisappear {
+                    optionsOpen = false
+                    scheduleHide()
+                }
+        } label: {
+            Image(systemName: "slider.horizontal.3")
+                .font(.title3.weight(.semibold))
+                .frame(width: 48, height: 48)
+                .contentShape(.circle)
+        }
+        .menuIndicator(.hidden)
+        .glassEffect(in: .circle)
+        .accessibilityLabel("Playback Options")
+        .accessibilityIdentifier("player.options")
     }
 
     private func controls(size: CGSize) -> some View {
@@ -954,7 +1002,7 @@ struct PlaybackView: View {
         guard !model.mpv.isPaused else { return }
         hideTask = Task {
             try? await Task.sleep(for: .seconds(3))
-            guard !Task.isCancelled, scrub == nil, !model.showsSubtitlesSheet, !model.mpv.isPaused else { return }
+            guard !Task.isCancelled, scrub == nil, !model.showsSubtitlesSheet, !optionsOpen, !model.mpv.isPaused else { return }
             showsControls = false
         }
     }
