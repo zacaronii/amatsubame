@@ -808,6 +808,14 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v48_hover_lookup") { db in
+            // Settings ▸ Popup ▸ Look Up on Hover (the Mac): the key held while pointing at a word,
+            // Shift by default; "always" needs no key, "off" keeps lookups to clicks.
+            try db.alter(table: "popupSettings") { t in
+                t.add(column: "hoverLookup", .text).notNull().defaults(to: "shift")
+            }
+        }
+
         return migrator
     }
 }

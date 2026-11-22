@@ -21,6 +21,13 @@ public struct TappableLine: View {
     public var alignment = Alignment.center
     public let onTap: (Int) -> Void
     @Environment(\.closeLookup) private var closeLookup
+    #if os(macOS)
+    /// Nil in previews and tests: then there's no hover lookup.
+    @Environment(CommonEnvironment.self) private var common: CommonEnvironment?
+    /// The character under the pointer, and where it is in the window.
+    @State private var hovered: (index: Int, location: CGPoint)?
+    @State private var hoverTask: Task<Void, Never>?
+    #endif
 
     public init(text: String, highlighted: Range<Int>? = nil, marks: [Int: WordMarkState] = [:], fontSize: CGFloat,
                 style: Style = .plain, alignment: Alignment = .center, onTap: @escaping (Int) -> Void) {
@@ -81,6 +88,20 @@ public struct TappableLine: View {
                                                   width: fontSize, height: fontSize * 1.5)
                             onTap(glyph.index)
                         }
+                        #if os(macOS)
+                        .onContinuousHover(coordinateSpace: .global) { phase in
+                            switch phase {
+                            case .active(let location):
+                                guard hovered?.index != glyph.index else { return }
+                                hovered = (glyph.index, location)
+                                lookUpHovered()
+                            case .ended:
+                                guard hovered?.index == glyph.index else { return }
+                                hovered = nil
+                                hoverTask?.cancel()
+                            }
+                        }
+                        #endif
                         .layoutValue(key: SubtitleFlow.NoBreakBefore.self, value: SubtitleFlow.staysWithPrevious(glyph.character))
                 } else {
                     SubtitleFlow.LineBreak()
@@ -92,6 +113,10 @@ public struct TappableLine: View {
         .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("subtitle.line")
         .accessibilityAction { onTap(0) }
+        #if os(macOS)
+        // The key pressed with the pointer already on a word.
+        .onChange(of: HoverModifiers.shared.flags.rawValue) { lookUpHovered() }
+        #endif
 
         switch style {
         case .overlay:
@@ -106,6 +131,28 @@ public struct TappableLine: View {
         }
     }
 }
+
+#if os(macOS)
+extension TappableLine {
+    /// Looks up the word under the pointer when Settings ▸ Popup ▸ Look Up on Hover allows it
+    /// (its key is held, or no key is needed), as a click there would. A short rest first, so
+    /// the pointer crossing a line on its way elsewhere looks nothing up.
+    private func lookUpHovered() {
+        hoverTask?.cancel()
+        guard let hovered, let setting = common?.lookup.popupSettings.hoverLookup, HoverModifiers.shared.allows(setting),
+              // Still inside the word that's showing: it stays.
+              highlighted?.contains(hovered.index) != true,
+              let character = Self.sentence(text).dropFirst(hovered.index).first, Self.isWordCharacter(character) else { return }
+        hoverTask = Task {
+            try? await Task.sleep(for: .milliseconds(setting == .always ? 180 : 60))
+            guard !Task.isCancelled, self.hovered?.index == hovered.index else { return }
+            Self.lastTap = CGRect(x: hovered.location.x - fontSize / 2, y: hovered.location.y - fontSize * 0.75,
+                                  width: fontSize, height: fontSize * 1.5)
+            onTap(hovered.index)
+        }
+    }
+}
+#endif
 
 /// The underline under one character of a marked word: solid in the accent for words not in
 /// Anki, dotted grey for words still being learned.
