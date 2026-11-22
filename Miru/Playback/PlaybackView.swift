@@ -275,6 +275,13 @@ struct PlaybackView: View {
                 Text(model.mpv.bufferPercent.map { "Buffering \($0)%" } ?? "Buffering")
                     .font(.subheadline.monospacedDigit())
                     .foregroundStyle(.white)
+                if let slow = model.slowStreamNote {
+                    // Why it keeps happening: the connection is slower than the video.
+                    Text(slow)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.75))
+                        .multilineTextAlignment(.center)
+                }
             }
             .padding(16)
             .background(.black.opacity(0.5), in: .rect(cornerRadius: 12))

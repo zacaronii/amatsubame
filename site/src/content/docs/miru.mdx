@@ -87,7 +87,11 @@ Touch and hold an episode (or right-click it) to **Mark as Watched** or **Mark a
 something you watched elsewhere, or to send a sampled episode back to the start and out of Continue
 Watching.
 
-If the video stops to wait for the network, Miru shows **Buffering** with how far the refill is. With
+If the video stops to wait for the network, Miru shows **Buffering** with how far the refill is. When
+it keeps happening Miru gathers more before carrying on (up to 20 seconds of video), so a slow
+connection gives a few longer waits instead of stopping every few seconds, and it shows how fast the
+video is arriving next to what it needs. Miru plays the original file, so a connection slower than
+the video can't keep up: download the episode first for those. With
 a keyboard, **I** shows the stream's details, including how often and how long it has waited.
 
 ### Tapping subtitles

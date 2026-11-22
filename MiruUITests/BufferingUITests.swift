@@ -16,6 +16,10 @@ final class BufferingUITests: XCTestCase {
         let buffering = app.descendants(matching: .any)["player.buffering"].firstMatch
         XCTAssertTrue(buffering.waitForExistence(timeout: 40), "the wait is shown")
         XCTAssertTrue(buffering.label.hasPrefix("Buffering"), buffering.label)
+        // On a connection slower than the video it says so (it may take a few waits to measure).
+        let slow = NSPredicate(format: "label CONTAINS %@", "This video needs")
+        let told = expectation(for: slow, evaluatedWith: buffering)
+        wait(for: [told], timeout: 60)
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "buffering"
         attachment.lifetime = .keepAlways
