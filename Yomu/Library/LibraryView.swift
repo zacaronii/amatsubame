@@ -13,6 +13,8 @@ final class LibraryModel {
     var continueFractions: [Int: Double] = [:]
     /// Each library's most recently added series, by library id.
     var shelves: [Int: [KavitaSeries]] = [:]
+    /// Kavita's Want to Read (the series cached on the device).
+    var wantToRead: [KavitaSeries] = []
     var today: TodaySummary?
     var error: String?
     var isRefreshing = false
@@ -61,6 +63,11 @@ final class LibraryModel {
             }
         }
         labelContinueReading(environment, refresh: true)
+        try? await environment.refreshWantToRead()
+        // Its series are cached by the refresh, just after the list changed: show them now.
+        if let account = environment.readerMarkAccount(), let ids = try? environment.wantToRead.wanted(account: account) {
+            wantToRead = ids.compactMap { try? environment.kavitaLibrary.cachedSeries(id: $0) }
+        }
         environment.bookCounter.countNewVolumes()
     }
 
@@ -154,6 +161,15 @@ struct LibraryView: View {
             }
         }
         .task(id: environment.serverAccounts[.kavita]?.baseURL) { await model.load(environment) }
+        // Want to Read follows the device's copy: Kavita's list, and toggles not sent yet.
+        .task(id: environment.readerMarkAccount()) {
+            guard let account = environment.readerMarkAccount() else { return }
+            do {
+                for try await ids in environment.wantToRead.observe(account: account) {
+                    model.wantToRead = ids.compactMap { try? environment.kavitaLibrary.cachedSeries(id: $0) }
+                }
+            } catch {}
+        }
         .onAppear { model.loadToday(environment) }
         .onReceive(NotificationCenter.default.publisher(for: .refreshRequested)) { _ in Task { await model.load(environment) } }
         // The network came back: no longer "Offline: showing downloaded series" until a manual refresh.
@@ -219,6 +235,31 @@ struct LibraryView: View {
                         .scrollIndicators(.hidden)
                         .shelfScrollClip()
                     }
+                }
+                // Like Continue Reading: not series of libraries hidden in Settings, offline only
+                // the downloaded ones, and no shelf when there's nothing in it.
+                let readable = Set(model.libraries.map(\.id))
+                let wantToRead = model.wantToRead.filter {
+                    readable.contains($0.libraryId) && !environment.hiddenLibraries.contains($0.libraryId) && (!offline || downloaded.contains($0.id))
+                }
+                if !wantToRead.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Want to Read").font(.title2.bold())
+                        ScrollView(.horizontal) {
+                            LazyHStack(alignment: .top, spacing: 12) {
+                                ForEach(wantToRead) { item in
+                                    NavigationLink(value: item) {
+                                        SeriesTile(series: item).frame(width: 110)
+                                    }
+                                    .accessibilityIdentifier("wantToRead.series.\(item.name)")
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                        .scrollIndicators(.hidden)
+                        .shelfScrollClip()
+                    }
+                    .accessibilityIdentifier("home.wantToRead")
                 }
                 shelves(offline: offline, downloaded: downloaded)
             }

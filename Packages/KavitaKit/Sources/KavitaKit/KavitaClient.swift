@@ -148,7 +148,7 @@ public struct KavitaClient: Sendable {
         return try decodeEach(KavitaVolume.self, response.data).map { ($0.0, raw: $0.1) }
     }
 
-    private func paged<T: Decodable & Sendable>(_ request: URLRequest) async throws(ConnectionError) -> KavitaPage<(T, raw: Data)> {
+    func paged<T: Decodable & Sendable>(_ request: URLRequest) async throws(ConnectionError) -> KavitaPage<(T, raw: Data)> {
         let response = try await http.send(request)
         let items = try decodeEach(T.self, response.data).map { ($0.0, raw: $0.1) }
         let pagination = (response.response.value(forHTTPHeaderField: "Pagination")?.data(using: .utf8))
@@ -270,5 +270,10 @@ struct SeriesFilter: Encodable {
 
     init(libraryId: Int) {
         statements = [Statement(value: String(libraryId))]
+    }
+
+    /// Every series (Want to Read's list takes the filter too).
+    init() {
+        statements = []
     }
 }

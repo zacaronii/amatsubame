@@ -101,6 +101,22 @@ import Testing
         #expect(try outbox.waitingCounts()[.kavitaReaderMark] == 1)
     }
 
+    @Test func clearedChangesFollowTheServerAgain() throws {
+        let database = try AppDatabase.inMemory()
+        let store = ReaderMarkStore(database: database), outbox = OutboxStore(database: database)
+        let made = try store.add(mark(nil, .pageBookmark, page: 3), outbox: outbox)
+        var kept = try store.add(mark(nil, .pageBookmark, page: 8), outbox: outbox)
+        try store.didSend(kept, serverId: 9)
+        try store.remove(kept.id!, outbox: outbox)
+        try outbox.cancelAll(kind: .kavitaReaderMark)
+        try store.merge([mark(nil, .pageBookmark, serverId: 9, page: 8)], account: account, kinds: [.pageBookmark],
+                        scope: { $0.seriesId == 2 }, outbox: outbox)
+        let left = try store.marks(account: account, seriesId: 2)
+        #expect(try store.mark(made.id!) == nil, "a make that won't reach the server goes")
+        kept = try #require(left.first)
+        #expect(left.count == 1 && kept.page == 8 && kept.state == .synced, "a removal that won't reach it: the server's copy is back")
+    }
+
     @Test func bookmarkingAPageAgainBeforeItsRemovalWentTakesTheSameRowBack() throws {
         let database = try AppDatabase.inMemory()
         let store = ReaderMarkStore(database: database), outbox = OutboxStore(database: database)

@@ -13,6 +13,8 @@ public enum OutboxJobKind: String, Codable, CaseIterable, Sendable, DatabaseValu
     case hachidoriWordStatus
     /// A Yomu bookmark or highlight to bring up to date on Kavita (`ReaderMarkJob`).
     case kavitaReaderMark
+    /// A series added to or removed from Kavita's Want to Read (`WantToReadJob`).
+    case kavitaWantToRead
 }
 
 public enum OutboxJobState: String, Codable, Sendable, DatabaseValueConvertible {
@@ -157,29 +159,41 @@ public struct OutboxStore: Sendable {
         }
         let now = now()
         return try database.writer.write { db in
-            if let coalesceKey,
-               var existing = try OutboxJob
-                   .filter(Column("coalesceKey") == coalesceKey && Column("state") == OutboxJobState.pending)
-                   .fetchOne(db) {
-                existing.payload = payload
-                existing.attempts = 0
-                existing.lastError = nil
-                existing.nextAttemptAt = now
-                existing.updatedAt = now
-                try existing.update(db)
-                return existing.id!
-            }
-            var job = OutboxJob(
-                kind: kind, coalesceKey: coalesceKey, payload: payload, state: .pending,
-                attempts: 0, lastError: nil, nextAttemptAt: max(notBefore ?? now, now), createdAt: now, updatedAt: now
-            )
-            try job.insert(db)
-            for item in media {
-                var row = OutboxMedia(jobId: job.id!, field: item.field, filename: item.filename)
-                try row.insert(db)
-            }
-            return job.id!
+            try Self.insert(db, kind: kind, payload: payload, coalesceKey: coalesceKey, media: media, notBefore: notBefore, now: now)
         }
+    }
+
+    /// Adds a job inside a write already open on this outbox's database, so a row and the job
+    /// that sends it are saved together (a refresh can never see one without the other).
+    @discardableResult
+    public func enqueue(_ payload: some Encodable, kind: OutboxJobKind, coalesceKey: String, in db: Database) throws -> Int64 {
+        try Self.insert(db, kind: kind, payload: JSONEncoder().encode(payload), coalesceKey: coalesceKey, media: [], notBefore: nil, now: now())
+    }
+
+    private static func insert(_ db: Database, kind: OutboxJobKind, payload: Data, coalesceKey: String?, media: [OutboxMediaInput],
+                               notBefore: Date?, now: Date) throws -> Int64 {
+        if let coalesceKey,
+           var existing = try OutboxJob
+               .filter(Column("coalesceKey") == coalesceKey && Column("state") == OutboxJobState.pending)
+               .fetchOne(db) {
+            existing.payload = payload
+            existing.attempts = 0
+            existing.lastError = nil
+            existing.nextAttemptAt = now
+            existing.updatedAt = now
+            try existing.update(db)
+            return existing.id!
+        }
+        var job = OutboxJob(
+            kind: kind, coalesceKey: coalesceKey, payload: payload, state: .pending,
+            attempts: 0, lastError: nil, nextAttemptAt: max(notBefore ?? now, now), createdAt: now, updatedAt: now
+        )
+        try job.insert(db)
+        for item in media {
+            var row = OutboxMedia(jobId: job.id!, field: item.field, filename: item.filename)
+            try row.insert(db)
+        }
+        return job.id!
     }
 
     /// Atomically marks due pending jobs of the given kinds as in flight and returns them, oldest first.
@@ -385,6 +399,15 @@ public struct OutboxStore: Sendable {
             if let kind = OutboxJobKind(rawValue: row["kind"]) { counts[kind] = row["count"] }
         }
         return counts
+    }
+
+    /// The coalesce keys of a kind's jobs still to be sent (waiting, sending or failed and listed).
+    static func queuedKeys(_ db: Database, kind: OutboxJobKind) throws -> Set<String> {
+        let keys = try String?.fetchAll(db, OutboxJob
+            .select(Column("coalesceKey"))
+            .filter(Column("kind") == kind)
+            .filter([OutboxJobState.pending.rawValue, OutboxJobState.inFlight.rawValue, OutboxJobState.failed.rawValue].contains(Column("state"))))
+        return Set(keys.compactMap(\.self))
     }
 
     /// Deletes every unsent job of a progress kind (Advanced ▸ Waiting to Sync ▸ Clear).

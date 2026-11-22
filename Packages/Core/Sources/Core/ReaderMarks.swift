@@ -103,6 +103,8 @@ public enum KavitaFeature: String, Codable, Sendable, DatabaseValueConvertible {
     case annotations
     /// Page bookmarks (the account needs Kavita's Bookmark role).
     case pageBookmarks
+    /// Want to Read's list (Kavita 0.7.8 and later).
+    case wantToRead
 }
 
 struct KavitaFeatureRecord: Codable, FetchableRecord, PersistableRecord {
@@ -179,6 +181,7 @@ public struct ReaderMarkStore: Sendable {
                 waiting.revision += 1
                 waiting.updatedAt = now
                 try waiting.update(db)
+                try queue(waiting, outbox: outbox, in: db)
                 return waiting
             }
             mark.id = nil
@@ -188,16 +191,16 @@ public struct ReaderMarkStore: Sendable {
             mark.createdAt = now
             mark.updatedAt = now
             try mark.insert(db)
+            try queue(mark, outbox: outbox, in: db)
             return mark
         }
-        try queue(mark, outbox: outbox)
         return mark
     }
 
     /// Changes a highlight's note or colour.
     public func edit(_ id: Int64, note: String?, slot: Int, outbox: OutboxStore) throws {
-        let mark: ReaderMark? = try database.writer.write { db in
-            guard var mark = try ReaderMark.fetchOne(db, key: id), mark.state != .pendingDelete else { return nil }
+        try database.writer.write { db in
+            guard var mark = try ReaderMark.fetchOne(db, key: id), mark.state != .pendingDelete else { return }
             mark.note = note.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
             mark.slot = slot
             // An edit before the mark was sent goes with it when it's made.
@@ -205,28 +208,28 @@ public struct ReaderMarkStore: Sendable {
             mark.revision += 1
             mark.updatedAt = now()
             try mark.update(db)
-            return mark
+            try queue(mark, outbox: outbox, in: db)
         }
-        if let mark { try queue(mark, outbox: outbox) }
     }
 
     /// Removes a mark: hidden at once, gone from the server when the outbox has sent it.
     public func remove(_ id: Int64, outbox: OutboxStore) throws {
-        let mark: ReaderMark? = try database.writer.write { db in
-            guard var mark = try ReaderMark.fetchOne(db, key: id) else { return nil }
+        try database.writer.write { db in
+            guard var mark = try ReaderMark.fetchOne(db, key: id) else { return }
             mark.state = .pendingDelete
             mark.revision += 1
             mark.updatedAt = now()
             try mark.update(db)
-            return mark
+            try queue(mark, outbox: outbox, in: db)
         }
-        if let mark { try queue(mark, outbox: outbox) }
     }
 
-    func queue(_ mark: ReaderMark, outbox: OutboxStore) throws {
+    /// Queues the mark's job in the same write as the row (`outbox` is on this database), so a
+    /// refresh never sees a pending row without its job.
+    func queue(_ mark: ReaderMark, outbox: OutboxStore, in db: Database) throws {
         guard let id = mark.id else { return }
         let job = ReaderMarkJob(markId: id)
-        try outbox.enqueue(job, kind: .kavitaReaderMark, coalesceKey: job.coalesceKey)
+        try outbox.enqueue(job, kind: .kavitaReaderMark, coalesceKey: job.coalesceKey, in: db)
     }
 
     // MARK: For the outbox handler
@@ -260,10 +263,12 @@ public struct ReaderMarkStore: Sendable {
 
     /// Queues again the unsent marks of a kind (annotations found available after all).
     public func requeueUnsent(_ kind: ReaderMark.Kind, account: String, outbox: OutboxStore) throws {
-        let marks = try database.reader.read {
-            try ReaderMark.filter(Column("account") == account && Column("kind") == kind && Column("state") != ReaderMark.State.synced).fetchAll($0)
-        }
-        for mark in marks { try queue(mark, outbox: outbox) }
+        try database.writer.write { try requeueUnsent($0, kind, account: account, outbox: outbox) }
+    }
+
+    func requeueUnsent(_ db: Database, _ kind: ReaderMark.Kind, account: String, outbox: OutboxStore) throws {
+        let marks = try ReaderMark.filter(Column("account") == account && Column("kind") == kind && Column("state") != ReaderMark.State.synced).fetchAll(db)
+        for mark in marks { try queue(mark, outbox: outbox, in: db) }
     }
 
     // MARK: What the server can do
@@ -278,15 +283,16 @@ public struct ReaderMarkStore: Sendable {
     /// them (nothing typed is lost). Unsent highlights stay, with their notes, shown as not on
     /// Kavita yet: they're queued again when the server is found to have annotations (`outbox`).
     public func setAvailable(_ available: Bool, _ feature: KavitaFeature, account: String, outbox: OutboxStore? = nil) throws {
-        let wasAvailable = try isAvailable(feature, account: account)
         try database.writer.write { db in
+            let wasAvailable = try KavitaFeatureRecord.fetchOne(db, key: ["account": account, "feature": feature.rawValue])?.available ?? true
             try KavitaFeatureRecord(account: account, feature: feature, available: available, checkedAt: now()).save(db)
+            // In the same write, so a refresh never sees the kept highlights without their jobs.
+            if available, !wasAvailable, feature == .annotations, let outbox {
+                try requeueUnsent(db, .highlight, account: account, outbox: outbox)
+            }
             guard !available, feature == .pageBookmarks else { return }
             try ReaderMark.filter(Column("account") == account && Column("kind") == ReaderMark.Kind.pageBookmark
                                   && Column("state") != ReaderMark.State.synced).deleteAll(db)
-        }
-        if available, !wasAvailable, feature == .annotations, let outbox {
-            try requeueUnsent(.highlight, account: account, outbox: outbox)
         }
     }
 
@@ -300,17 +306,27 @@ public struct ReaderMarkStore: Sendable {
     public func merge(_ server: [ReaderMark], account: String, kinds: Set<ReaderMark.Kind>,
                       scope: (ReaderMark) -> Bool, outbox: OutboxStore) throws -> [ReaderMark] {
         let requeue: [ReaderMark] = try database.writer.write { db in
+            // A change whose job was cleared in Waiting to Sync ("they won't reach the server")
+            // no longer outranks the server's list: it's taken as what the server last had.
+            let queued = try OutboxStore.queuedKeys(db, kind: .kavitaReaderMark)
             let local = try ReaderMark.filter(Column("account") == account).fetchAll(db)
                 .filter { kinds.contains($0.kind) && scope($0) }
+                .map { mark in
+                    guard mark.state != .synced, let id = mark.id, !queued.contains(ReaderMarkJob(markId: id).coalesceKey) else { return mark }
+                    var settled = mark
+                    settled.state = .synced
+                    return settled
+                }
             let plan = ReaderMarkMerge.plan(local: local, server: server.filter { kinds.contains($0.kind) })
             for id in plan.delete { try ReaderMark.deleteOne(db, key: id) }
             for var mark in plan.save {
                 mark.account = account
                 try mark.save(db)
             }
-            return plan.save.filter { $0.state == .pendingCreate && plan.recreated.contains($0.id ?? -1) }
+            let again = plan.save.filter { $0.state == .pendingCreate && plan.recreated.contains($0.id ?? -1) }
+            for mark in again { try queue(mark, outbox: outbox, in: db) }
+            return again
         }
-        for mark in requeue { try queue(mark, outbox: outbox) }
         return requeue
     }
 }

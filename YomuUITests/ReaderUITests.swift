@@ -471,6 +471,62 @@ final class ReaderUITests: XCTestCase {
         return false
     }
 
+    /// Add to Want to Read from the series page reaches the test account's Kavita and puts the
+    /// series on the Library home's shelf; removing it takes it off both. The account ends as it
+    /// began (`KavitaTestAccount` restores it either way).
+    func testWantToReadReachesKavitaAndTheShelf() throws {
+        let kavita = try KavitaTestAccount()
+        let marksBefore = try kavita.snapshot()
+        addTeardownBlock { XCTAssertNil(try marksBefore.restore(), "the test account's Want to Read was put back") }
+        let seriesId = try kavita.seriesId(named: series)
+        try XCTSkipIf(marksBefore.wantToRead.contains(seriesId), "the series is already in Want to Read")
+        app.launchEnvironment["UITEST_SENDS_MARKS"] = "1"
+        app.launch()
+
+        let libraryRow = app.buttons[library].firstMatch
+        XCTAssertTrue(libraryRow.waitForExistence(timeout: 20))
+        for _ in 0..<6 where !libraryRow.isHittable { app.swipeUp() }
+        libraryRow.tap()
+        let tile = app.buttons["series.\(series)"].firstMatch
+        XCTAssertTrue(tile.waitForExistence(timeout: 20))
+        tile.tap()
+        let more = app.buttons["series.downloads"].firstMatch
+        XCTAssertTrue(more.waitForExistence(timeout: 20))
+        more.tap()
+        let toggle = app.buttons["series.wantToRead"].firstMatch
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5), "Want to Read in the series menu")
+        XCTAssertEqual(toggle.label, "Add to Want to Read")
+        toggle.tap()
+        XCTAssertTrue(waitFor { (try? kavita.wantToRead())?.contains(seriesId) == true }, "it reached Kavita")
+
+        // The Library home's shelf has it, and opens it.
+        app.navigationBars.buttons.firstMatch.tap()
+        app.navigationBars.buttons.firstMatch.tap()
+        let shelf = app.descendants(matching: .any)["home.wantToRead"].firstMatch
+        XCTAssertTrue(shelf.waitForExistence(timeout: 20), "a Want to Read shelf")
+        snapshot("want-to-read-shelf")
+        let onShelf = app.buttons["wantToRead.series.\(series)"].firstMatch
+        XCTAssertTrue(onShelf.waitForExistence(timeout: 5))
+        onShelf.tap()
+        XCTAssertTrue(more.waitForExistence(timeout: 20))
+        more.tap()
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        XCTAssertEqual(toggle.label, "Remove from Want to Read")
+        toggle.tap()
+        XCTAssertTrue(waitFor { (try? kavita.wantToRead())?.contains(seriesId) == false }, "removed from Kavita")
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(shelf.waitForNonExistence(timeout: 10), "no shelf when it's empty")
+    }
+
+    private func waitFor(_ timeout: TimeInterval = 45, _ condition: () -> Bool) -> Bool {
+        let end = Date().addingTimeInterval(timeout)
+        while Date() < end {
+            if condition() { return true }
+            sleep(2)
+        }
+        return false
+    }
+
     private var reader: XCUIElement { app.scrollViews["reader.paged"].firstMatch }
 
     private func openReader() {
