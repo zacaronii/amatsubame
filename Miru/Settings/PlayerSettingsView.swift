@@ -280,6 +280,7 @@ struct PlaybackSettingsView: View {
             } footer: {
                 Text("Skips intros and recaps without the button, where Jellyfin knows them.")
             }
+            StreamQualitySection()
             JapaneseAudioOnlySection()
         }
         .formStyle(.grouped)
@@ -392,5 +393,32 @@ struct CardPicturePicker: View {
         }
         .accessibilityIdentifier("settings.cardPicture")
         .onAppear { settings = PlayerSettings.load(common.database) }
+    }
+}
+
+/// Settings ▸ Playback ▸ Streaming Quality: the original file, or a smaller stream that Jellyfin
+/// makes for slow connections.
+struct StreamQualitySection: View {
+    @Environment(PlayerEnvironment.self) private var environment
+    @State private var bitrate = 0
+
+    var body: some View {
+        Section {
+            Picker("Streaming Quality", selection: $bitrate) {
+                ForEach(PlayerSettings.streamQualities, id: \.bitrate) { quality in
+                    Text(quality.name).tag(quality.bitrate)
+                }
+            }
+            .accessibilityIdentifier("settings.streamQuality")
+        } footer: {
+            Text("Original plays the file as it is. A lower quality has Jellyfin make a smaller stream when the file is larger than that, for slow connections; the player's menu changes it while watching. Downloads and cards always use the original.")
+        }
+        .onAppear { bitrate = PlayerSettings.load(environment.common.database).maxStreamBitrate }
+        .onChange(of: bitrate) {
+            var settings = PlayerSettings.load(environment.common.database)
+            guard settings.maxStreamBitrate != bitrate else { return }
+            settings.maxStreamBitrate = bitrate
+            try? settings.save(environment.common.database)
+        }
     }
 }

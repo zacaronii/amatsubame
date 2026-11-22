@@ -105,6 +105,29 @@ import Testing
         #expect(query(transport.requests[2])["seriesId"] == "S" && query(transport.requests[2])["limit"] == "1")
     }
 
+    @Test func asksForATranscodeAndBuildsItsAddress() async throws {
+        let transport = StubTransport(routes: ["/Items/E/PlaybackInfo": (200, try fixture("playback-info-transcoding.json"))])
+        let jellyfin = client(transport)
+        let info = try await jellyfin.transcodingInfo(itemId: "E", mediaSourceId: "M", maxBitrate: 2_000_000, audioStreamIndex: 2)
+        let body = try transport.requests[0].jsonBody()
+        #expect(body["MaxStreamingBitrate"] as? Int == 2_000_000)
+        #expect(body["EnableDirectPlay"] as? Bool == false && body["EnableTranscoding"] as? Bool == true)
+        #expect(body["AudioStreamIndex"] as? Int == 2 && body["MediaSourceId"] as? String == "M")
+        #expect(body["SubtitleStreamIndex"] as? Int == -1, "nothing burnt into the picture")
+        let profile = try #require(body["DeviceProfile"] as? [String: Any])
+        #expect((profile["DirectPlayProfiles"] as? [Any])?.isEmpty == true)
+        #expect(((profile["TranscodingProfiles"] as? [[String: Any]])?.first?["Protocol"] as? String) == "hls")
+
+        let path = try #require(info.mediaSources.first?.transcodingUrl)
+        let url = try #require(jellyfin.transcodeURL(path, maxBitrate: 2_000_000))
+        #expect(url.path().hasSuffix("/master.m3u8"))
+        let items = query(URLRequest(url: url))
+        // The audio is held down and the picture gets the rest.
+        #expect(items["AudioBitrate"] == "128000" && items["VideoBitrate"] == "1872000")
+        #expect(items["PlaySessionId"] == info.playSessionId)
+        #expect(JellyfinClient.audioBitrate(for: 500_000) == 96_000 && JellyfinClient.audioBitrate(for: 8_000_000) == 192_000)
+    }
+
     @Test func playbackInfoStreamAndSubtitles() async throws {
         let transport = StubTransport(routes: [
             "/Items/E/PlaybackInfo": (200, try fixture("playback-info.json")),

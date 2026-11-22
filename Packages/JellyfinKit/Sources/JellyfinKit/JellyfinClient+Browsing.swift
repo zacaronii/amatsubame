@@ -248,6 +248,84 @@ extension JellyfinClient {
         return try await http.decode(JellyfinPlaybackInfo.self, from: authorize(request), decoder: Self.decoder)
     }
 
+    /// Asks the server to transcode the item to at most `maxBitrate` bits a second (H.264 and
+    /// stereo AAC over HLS, which mpv plays), with the audio stream `audioStreamIndex`. The
+    /// answer's media source has `transcodingUrl` (see `transcodeURL`) and its own play session.
+    /// Checked against Jellyfin 10.11: a profile with no direct-play entries and
+    /// `EnableDirectPlay`/`EnableDirectStream` off always gets a transcode.
+    public func transcodingInfo(itemId: String, mediaSourceId: String, maxBitrate: Int,
+                                audioStreamIndex: Int?) async throws(ConnectionError) -> JellyfinPlaybackInfo {
+        struct Transcoding: Encodable {
+            var Container = "ts"
+            var `Type` = "Video"
+            var VideoCodec = "h264"
+            var AudioCodec = "aac"
+            var `Protocol` = "hls"
+            var Context = "Streaming"
+            var MaxAudioChannels = "2"
+            var MinSegments = 1
+            var BreakOnNonKeyFrames = true
+        }
+        struct Profile: Encodable {
+            var MaxStreamingBitrate: Int
+            var MaxStaticBitrate: Int
+            var DirectPlayProfiles: [String] = []
+            var TranscodingProfiles = [Transcoding()]
+            var SubtitleProfiles: [String] = []
+            var CodecProfiles: [String] = []
+            var ContainerProfiles: [String] = []
+            var ResponseProfiles: [String] = []
+        }
+        struct Body: Encodable {
+            var UserId: String
+            var MediaSourceId: String
+            var MaxStreamingBitrate: Int
+            var AudioStreamIndex: Int?
+            /// No subtitles: otherwise the server burns the user's default ones into the picture
+            /// (seen live). The app draws its own.
+            var SubtitleStreamIndex = -1
+            var EnableDirectPlay = false
+            var EnableDirectStream = false
+            var EnableTranscoding = true
+            var AllowVideoStreamCopy = false
+            var AllowAudioStreamCopy = false
+            var DeviceProfile: Profile
+        }
+        let userId = try requireUserId()
+        let request: URLRequest
+        do {
+            request = try .json("POST", url("Items/\(itemId)/PlaybackInfo", ["userId": userId]),
+                                body: Body(UserId: userId, MediaSourceId: mediaSourceId, MaxStreamingBitrate: maxBitrate,
+                                           AudioStreamIndex: audioStreamIndex,
+                                           DeviceProfile: Profile(MaxStreamingBitrate: maxBitrate, MaxStaticBitrate: maxBitrate)))
+        } catch {
+            throw .message(error.localizedDescription)
+        }
+        return try await http.decode(JellyfinPlaybackInfo.self, from: authorize(request), decoder: Self.decoder)
+    }
+
+    /// The address to play for a media source's `transcodingUrl`. The server gives the audio as
+    /// much as 384 kbps, a large share of a small budget: it's held to `audioBitrate` and the
+    /// picture gets the rest of `maxBitrate`. Send `playbackHeaders` with it.
+    public func transcodeURL(_ path: String, maxBitrate: Int) -> URL? {
+        let base = baseURL.absoluteString
+        guard var components = URLComponents(string: (base.hasSuffix("/") ? String(base.dropLast()) : base) + path) else { return nil }
+        let audio = Self.audioBitrate(for: maxBitrate)
+        components.queryItems = components.queryItems?.map { item in
+            switch item.name.lowercased() {
+            case "audiobitrate": URLQueryItem(name: item.name, value: String(audio))
+            case "videobitrate": URLQueryItem(name: item.name, value: String(max(maxBitrate - audio, 100_000)))
+            default: item
+            }
+        }
+        return components.url
+    }
+
+    /// The audio's share of a transcode: speech stays clear at these.
+    public static func audioBitrate(for maxBitrate: Int) -> Int {
+        maxBitrate <= 1_000_000 ? 96_000 : maxBitrate <= 4_000_000 ? 128_000 : 192_000
+    }
+
     /// The direct-play URL. Send `playbackHeaders` with it.
     public func streamURL(itemId: String, mediaSourceId: String, playSessionId: String? = nil) -> URL {
         url("Videos/\(itemId)/stream", ["static": "true", "mediaSourceId": mediaSourceId, "playSessionId": playSessionId])
@@ -300,6 +378,7 @@ extension JellyfinClient {
             var CanSeek = true
             var PlayMethod = "DirectPlay"
         }
+        let method = payload.isTranscoding == true ? "Transcode" : "DirectPlay"
         let path = switch payload.event {
         case .started: "Sessions/Playing"
         case .progress, .paused, .unpaused: "Sessions/Playing/Progress"
@@ -307,7 +386,8 @@ extension JellyfinClient {
         }
         let body = Body(ItemId: payload.itemId, MediaSourceId: payload.mediaSourceId, PlaySessionId: payload.playSessionId,
                         PositionTicks: payload.positionTicks, IsPaused: payload.isPaused, EventName: payload.event.progressEventName,
-                        AudioStreamIndex: payload.audioStreamIndex, SubtitleStreamIndex: payload.subtitleStreamIndex)
+                        AudioStreamIndex: payload.audioStreamIndex, SubtitleStreamIndex: payload.subtitleStreamIndex,
+                        PlayMethod: method)
         let request: URLRequest
         do {
             request = try .json("POST", baseURL.appending(path: path), body: body)

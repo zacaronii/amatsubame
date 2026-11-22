@@ -183,6 +183,20 @@ public struct PlayerSettings: Codable, Equatable, Sendable, FetchableRecord, Per
     public var concealsSubtitles = false
     /// On the Mac, playback pauses while the pointer rests on the subtitles.
     public var pausesOnHover = false
+    /// The most bits a second to stream at: above it, Jellyfin transcodes the video down. 0 is
+    /// the original file, whatever its size. Downloads always play as they are.
+    public var maxStreamBitrate = 0
+
+    public static let streamQualities: [(name: String, bitrate: Int)] = [
+        ("Original", 0), ("8 Mbps", 8_000_000), ("4 Mbps", 4_000_000), ("2 Mbps", 2_000_000), ("1 Mbps", 1_000_000), ("0.5 Mbps", 500_000),
+    ]
+
+    /// The best quality a connection giving `speed` bits a second keeps up with, leaving some
+    /// room; the lowest there is when even that's too much.
+    public static func streamQuality(fitting speed: Double) -> Int {
+        let limits = streamQualities.map(\.bitrate).filter { $0 > 0 }
+        return limits.first { Double($0) <= speed * 0.8 } ?? limits.last ?? 0
+    }
 
     public static let subtitleScales: [(name: String, scale: Double)] = [("Small", 0.8), ("Medium", 1), ("Large", 1.25), ("Extra Large", 1.5)]
     public static let subtitleLifts: [(name: String, lift: Double)] = [("Bottom", 0), ("Higher", 0.12), ("Highest", 0.25)]
