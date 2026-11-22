@@ -49,4 +49,16 @@ import Testing
         let contents = Self.series(4, read: [100, 100, 30])
         #expect(AutoDownloadPlanner.finishedDownloads([10, 11, 12, 99], in: contents, local: [:], openChapterId: 11) == [10])
     }
+
+    /// The series page counts what was read on this device (offline, or not sent yet), and
+    /// never moves a chapter back.
+    @Test func readingOnThisDeviceMovesChaptersOnNeverBack() {
+        let contents = Self.series(3, read: [100, 50])
+        let further = contents.readingFurther([11: 80, 12: 100, 10: 20, 99: 5])
+        #expect(further.volumes.map { $0.chapters[0].pagesRead } == [100, 80, 100])
+        #expect(further.volumes.map(\.pagesRead) == [100, 80, 100])
+        #expect(further.volumes[2].chapters[0].isRead)
+        #expect(contents.readingFurther([:]) == contents)
+        #expect(contents.readingFurther([11: 500]).volumes[1].chapters[0].pagesRead == 100, "never past the end")
+    }
 }

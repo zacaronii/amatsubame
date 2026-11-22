@@ -5,6 +5,27 @@ import Foundation
 public struct KavitaSeriesContents: Codable, Equatable, Hashable, Sendable {
     public var volumes: [KavitaVolume]
     public var looseChapters: [KavitaChapter]
+
+    /// The same with chapters read further on this device than Kavita knows (read offline, or
+    /// not sent yet): `pagesRead` by chapter id, Kavita's count of pages read. Never moves a
+    /// chapter back.
+    public func readingFurther(_ pagesRead: [Int: Int]) -> KavitaSeriesContents {
+        guard !pagesRead.isEmpty else { return self }
+        func further(_ chapter: KavitaChapter) -> KavitaChapter {
+            var chapter = chapter
+            if let local = pagesRead[chapter.id] { chapter.pagesRead = max(chapter.pagesRead, min(local, chapter.pages)) }
+            return chapter
+        }
+        var contents = self
+        contents.volumes = volumes.map { volume in
+            var volume = volume
+            volume.chapters = volume.chapters.map(further)
+            if !volume.chapters.isEmpty { volume.pagesRead = max(volume.pagesRead, volume.chapters.reduce(0) { $0 + $1.pagesRead }) }
+            return volume
+        }
+        contents.looseChapters = looseChapters.map(further)
+        return contents
+    }
     public var specials: [KavitaChapter]
 
     public init(volumes allVolumes: [KavitaVolume]) {

@@ -192,8 +192,10 @@ final class VolumeDownloader {
         do {
             if extra.isEpub {
                 _ = try await books.book(chapterId: chapterId)
-                await books.pin(chapterId: chapterId)
+                // Stopped while it was fetched: not pinned (it would stay for good, in no list).
+                // Unpinned it's ordinary cache: a resumed download finds it, Clear Cache removes it.
                 guard !stopped.contains(id) else { return }
+                await books.pin(chapterId: chapterId)
                 try store.finish(id, file: nil, bytes: Int64(await books.bytes(chapterId: chapterId)))
             } else {
                 try await downloadPages(id: id, chapterId: chapterId, count: extra.pages)

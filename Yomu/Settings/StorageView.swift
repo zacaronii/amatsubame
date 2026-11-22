@@ -54,9 +54,6 @@ struct DownloadedVolumesView: View {
             }
         }
         .navigationTitle("Downloads")
-        .navigationDestination(for: KavitaSeries.self) { series in
-            SeriesDetailView(series: series)
-        }
         .confirmationDialog("Remove every downloaded volume of \(confirmsDelete?.seriesTitle ?? "")?",
                             isPresented: Binding(get: { confirmsDelete != nil }, set: { if !$0 { confirmsDelete = nil } }),
                             titleVisibility: .visible) {
@@ -69,13 +66,22 @@ struct DownloadedVolumesView: View {
 
     private func header(_ group: DownloadGroup) -> some View {
         HStack {
+            #if os(macOS)
+            // In the Settings window a series page would open its reader in the main window behind.
+            Text(group.seriesTitle)
+            #else
             if let id = group.seriesKey.flatMap(Int.init), let series = try? environment.kavitaLibrary.cachedSeries(id: id) {
-                NavigationLink(value: series) {
+                // By destination, like the screens that lead here (a value pushed from them joined
+                // the Library's path and could rebuild them in front, as in #145).
+                NavigationLink {
+                    SeriesDetailView(series: series)
+                } label: {
                     Text(group.seriesTitle)
                 }
             } else {
                 Text(group.seriesTitle)
             }
+            #endif
             Spacer()
             Text(group.bytes.storageText)
             Menu {

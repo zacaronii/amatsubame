@@ -151,6 +151,7 @@ struct SeriesDetailView: View {
             await countCharacters()
         }
         .task { await loadMetadata() }
+        .onReceive(NotificationCenter.default.publisher(for: .refreshLibrary)) { _ in Task { await load() } }
         .readerPresentation($session)
         .onReceive(NotificationCenter.default.publisher(for: .readerDidClose)) { _ in
             // Back from the reader: pick up the progress just made (after the outbox sends it).
@@ -505,12 +506,18 @@ struct SeriesDetailView: View {
 
     private func load() async {
         let repository = environment.kavitaLibrary
+        // What was read on this device counts too (manga read offline, or not sent yet), so the
+        // rings, "Page x of y", Finished marks and Continue follow it at once.
+        let local = Dictionary(((try? environment.readingProgress.progress(seriesId: series.id)) ?? []).map {
+            ($0.chapterId, ProgressSyncPolicy.pageNum(forPage: $0.page, pages: $0.pages))
+        }, uniquingKeysWith: max)
         if let cached = try? repository.cachedVolumes(seriesId: series.id), !cached.isEmpty {
-            contents = KavitaSeriesContents(volumes: cached)
+            contents = KavitaSeriesContents(volumes: cached).readingFurther(local)
         }
         guard let client = environment.kavitaClient() else { return }
         do {
             contents = KavitaSeriesContents(volumes: try await repository.refreshVolumes(seriesId: series.id, using: client))
+                .readingFurther(local)
             if let refreshed = contents {
                 let read = refreshed.readingOrder.reduce(0) { $0 + min($1.pagesRead, $1.pages) }
                     + refreshed.specials.reduce(0) { $0 + min($1.pagesRead, $1.pages) }

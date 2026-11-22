@@ -89,6 +89,7 @@ struct SeriesGridView: View {
             await load()
         }
         .task { await load() }
+        .onReceive(NotificationCenter.default.publisher(for: .refreshLibrary)) { _ in Task { await load() } }
         .task(id: shelf) {
             guard shelf == .downloaded else { return }
             cacheBytes = await environment.books.unpinnedBytes() + ((try? environment.pageCache.unpinnedBytes()) ?? 0)

@@ -182,7 +182,10 @@ final class BookLengthCounter {
             .flatMap { series in (try? environment.kavitaLibrary.cachedLibraries())?.first { $0.id == series.libraryId } }
         let volumes = chapters.filter { chapter in library.map { Self.counts(chapter, library: $0) } ?? false }
             .map { Volume(chapter: $0, seriesId: seriesId) }
-        for volume in needsCounting(volumes) {
+        // On cellular only the first (a whole series is its text again, some 25 MB for 40 volumes);
+        // the rest keep their "~" estimates until Wi-Fi.
+        let waiting = needsCounting(volumes)
+        for volume in unmetered ? waiting : Array(waiting.prefix(1)) {
             if Task.isCancelled { return }
             if let length = await count(volume, using: client) { try? environment.bookLengths.save(length) }
         }
