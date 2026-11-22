@@ -6,6 +6,7 @@ struct ReaderChrome: View {
     let onClose: () -> Void
     let onSettings: () -> Void
     @State private var scrubPage: Double?
+    @State private var explainsBookmarks = false
 
     var body: some View {
         VStack {
@@ -20,6 +21,23 @@ struct ReaderChrome: View {
                     Text(model.chapter.title).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
                 .frame(maxWidth: .infinity)
+                if let bookmarks = model.bookmarks, model.state == .ready {
+                    let page = model.currentPage
+                    let marked = bookmarks.isBookmarked(page)
+                    Button(marked ? "Remove Bookmark" : "Bookmark Page", systemImage: marked ? "bookmark.fill" : "bookmark") {
+                        if marked || bookmarks.canBookmark { bookmarks.toggle(page) } else { explainsBookmarks = true }
+                    }
+                    .labelStyle(.iconOnly)
+                    .buttonBorderShape(.circle)
+                    .foregroundStyle(marked || bookmarks.canBookmark ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                    .accessibilityIdentifier("reader.bookmark")
+                    .accessibilityValue(marked ? "Bookmarked" : "")
+                    .alert("Page Bookmarks Are Off for This Account", isPresented: $explainsBookmarks) {
+                        Button("OK", role: .cancel) {}
+                    } message: {
+                        Text("Kavita keeps bookmarks only for accounts with its Bookmark role. An admin can turn it on in Kavita\u{2019}s user settings.")
+                    }
+                }
                 ReaderSettingsButton(action: onSettings)
                     .disabled(model.state != .ready)
             }

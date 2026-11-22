@@ -11,6 +11,8 @@ public enum OutboxJobKind: String, Codable, CaseIterable, Sendable, DatabaseValu
     case hachidoriLookupCount
     /// A word marked known or ignored (or cleared) to tell the Hachidori host (`WordStatusJob`).
     case hachidoriWordStatus
+    /// A Yomu bookmark or highlight to bring up to date on Kavita (`ReaderMarkJob`).
+    case kavitaReaderMark
 }
 
 public enum OutboxJobState: String, Codable, Sendable, DatabaseValueConvertible {

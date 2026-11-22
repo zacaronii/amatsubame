@@ -1,0 +1,13 @@
+[
+  {
+    "id": 3,
+    "page": 12,
+    "volumeId": 21,
+    "seriesId": 31,
+    "chapterId": 11,
+    "imageOffset": 0,
+    "xPath": null,
+    "series": {"id": 31, "name": "Example Manga", "libraryId": 41, "format": 1, "pages": 200},
+    "chapterTitle": "1"
+  }
+]

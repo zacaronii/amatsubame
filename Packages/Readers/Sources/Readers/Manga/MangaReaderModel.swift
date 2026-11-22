@@ -70,6 +70,10 @@ public final class MangaReaderModel {
 
     public let ocr: OCRService?
     public let lookup: LookupService?
+    /// Page bookmarks on Kavita; nil without a Kavita account.
+    public var bookmarks: PageBookmarks?
+    /// Opens at this page instead of the reading position (a bookmark picked in the series).
+    public var opensAt: Int?
     private let settingsStore: MangaReaderSettingsStore
     private let progressStore: ReadingProgressStore
     private let recorder: ReadingProgressRecorder
@@ -135,7 +139,8 @@ public final class MangaReaderModel {
         }
         let local = try? progressStore.progress(chapterId: chapter.chapterId)
         let server = await serverProgress()
-        startPage = ProgressSyncPolicy.startPage(local: local, server: server, pages: pageCount)
+        startPage = opensAt.map { min(max($0, 0), max(pageCount - 1, 0)) }
+            ?? ProgressSyncPolicy.startPage(local: local, server: server, pages: pageCount)
         currentPage = startPage
         recorder.start(at: startPage)
         state = .ready

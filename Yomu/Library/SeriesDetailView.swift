@@ -187,6 +187,7 @@ struct SeriesDetailView: View {
     @ViewBuilder private var volumesAndReadAlong: some View {
         if let contents {
             volumes(contents)
+            ReaderMarksSection(series: series, contents: contents) { chapter, page in open(chapter, at: page) }
             if series.isEpub, environment.serverAccounts[.audiobookshelf] != nil {
                 ReadAlongSection(series: series, volumes: readAlongVolumes(contents))
             }
@@ -520,6 +521,13 @@ struct SeriesDetailView: View {
         return "\(chapter.pages) pages"
     }
 
+    /// From a bookmark: the manga opens at its page (books open the volume).
+    private func open(_ chapter: KavitaChapter, at page: Int) {
+        guard let contents else { return }
+        session = ReaderSession(chapter: contents.readerChapter(chapter, series: series), series: series, contents: contents,
+                                startPage: series.isEpub ? nil : page)
+    }
+
     private func open(_ chapter: KavitaChapter) {
         guard let contents else { return }
         if chaptersOf != nil {
@@ -548,6 +556,10 @@ struct SeriesDetailView: View {
                 let read = refreshed.readingOrder.reduce(0) { $0 + min($1.pagesRead, $1.pages) }
                     + refreshed.specials.reduce(0) { $0 + min($1.pagesRead, $1.pages) }
                 series.pagesRead = read
+                // Bookmarks and highlights made elsewhere (Kavita's own reader, another device).
+                let chapters = (refreshed.readingOrder + refreshed.specials).map { refreshed.readerChapter($0, series: series) }
+                try? await environment.refreshMarks(seriesId: series.id, libraryId: series.libraryId, isBook: series.isEpub,
+                                                    chapters: chapters.map { (chapterId: $0.chapterId, volumeId: $0.volumeId) })
             }
             error = nil
         } catch {
