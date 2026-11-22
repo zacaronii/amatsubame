@@ -43,6 +43,9 @@ public struct PopupSettings: Codable, Equatable, Sendable, FetchableRecord, Pers
     /// On the Mac: looking a word up by pointing at it (Yomu's books, Miru's subtitles, Kiku's
     /// transcript) while this key is held, without a click. Not one of Hachidori's options.
     public var hoverLookup: HoverLookup
+    /// On the Mac: the popup closes when the pointer leaves it, after having been in it (no
+    /// click elsewhere needed). Off by default. Not one of Hachidori's options either.
+    public var closeOnPointerExit: Bool
 
     /// The key that turns pointing at a word into a lookup.
     public enum HoverLookup: String, Codable, CaseIterable, Sendable, DatabaseValueConvertible {
@@ -59,13 +62,15 @@ public struct PopupSettings: Codable, Equatable, Sendable, FetchableRecord, Pers
 
     public init(showLookupCounts: Bool = true, showCompactDefinitionSummary: Bool = false,
                 compactDefinitionSummaryCount: Int = 3, compactDefinitionSummaryDictionary: String? = nil,
-                backgroundOpacityPercent: Int = 85, hoverLookup: HoverLookup = .shift) {
+                backgroundOpacityPercent: Int = 85, hoverLookup: HoverLookup = .shift,
+                closeOnPointerExit: Bool = false) {
         self.showLookupCounts = showLookupCounts
         self.showCompactDefinitionSummary = showCompactDefinitionSummary
         self.compactDefinitionSummaryCount = compactDefinitionSummaryCount
         self.compactDefinitionSummaryDictionary = compactDefinitionSummaryDictionary
         self.backgroundOpacityPercent = backgroundOpacityPercent
         self.hoverLookup = hoverLookup
+        self.closeOnPointerExit = closeOnPointerExit
     }
 }
 

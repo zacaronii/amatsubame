@@ -11,6 +11,7 @@ final class BufferingUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
+        app.launchEnvironment["UITEST_QUALITY_OFFER"] = "1"
         app.launch()
         XCTAssertTrue(app.descendants(matching: .any)["player.video"].firstMatch.waitForExistence(timeout: 10))
         let buffering = app.descendants(matching: .any)["player.buffering"].firstMatch
@@ -20,6 +21,11 @@ final class BufferingUITests: XCTestCase {
         let slow = NSPredicate(format: "label CONTAINS %@", "This video needs")
         let told = expectation(for: slow, evaluatedWith: buffering)
         wait(for: [told], timeout: 60)
+        // The offer of a lower quality sits under the box, clear of its text.
+        let offer = app.buttons["player.lowerQuality"].firstMatch
+        if offer.waitForExistence(timeout: 20) {
+            XCTAssertGreaterThanOrEqual(offer.frame.minY, buffering.frame.maxY, "the button is below the box")
+        }
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "buffering"
         attachment.lifetime = .keepAlways

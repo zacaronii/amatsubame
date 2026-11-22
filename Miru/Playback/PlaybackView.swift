@@ -271,30 +271,33 @@ struct PlaybackView: View {
         } else if model.showsBuffering, !model.mpv.isPaused {
             // The stream ran dry: the picture is frozen until more arrives.
             VStack(spacing: 10) {
-                ProgressView().tint(.white).controlSize(.large)
-                Text(model.mpv.bufferPercent.map { "Buffering \($0)%" } ?? "Buffering")
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(.white)
-                if let slow = model.slowStreamNote {
-                    // Why it keeps happening: the connection is slower than the video.
-                    Text(slow)
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.white.opacity(0.75))
-                        .multilineTextAlignment(.center)
+                VStack(spacing: 10) {
+                    ProgressView().tint(.white).controlSize(.large)
+                    Text(model.mpv.bufferPercent.map { "Buffering \($0)%" } ?? "Buffering")
+                        .font(.subheadline.monospacedDigit())
+                        .foregroundStyle(.white)
+                    if let slow = model.slowStreamNote {
+                        // Why it keeps happening: the connection is slower than the video.
+                        Text(slow)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.white.opacity(0.75))
+                            .multilineTextAlignment(.center)
+                    }
                 }
-            }
-            .padding(16)
-            .background(.black.opacity(0.5), in: .rect(cornerRadius: 12))
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("player.buffering")
-            .allowsHitTesting(false)
-            .overlay(alignment: .bottom) {
+                .padding(16)
+                .background(.black.opacity(0.5), in: .rect(cornerRadius: 12))
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("player.buffering")
+                .allowsHitTesting(false)
                 if let offer = model.lowerQualityOffer {
                     // The connection can't keep up with this quality: one tap for one it can.
+                    // Under the box in the same stack, so it can never sit over its text.
                     Button("Play at \(offer.name)") { model.chooseQuality(offer.bitrate) }
+                        .font(.caption.weight(.semibold))
                         .buttonStyle(.borderedProminent)
+                        .buttonBorderShape(.capsule)
+                        .controlSize(.small)
                         .fixedSize()
-                        .alignmentGuide(.bottom) { $0[.top] - 12 }
                         .accessibilityIdentifier("player.lowerQuality")
                 }
             }
