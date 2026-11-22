@@ -1313,6 +1313,14 @@ final class PlaybackModel {
         }
     }
 
+    /// While buffering on a connection slower than the video: both speeds, so it's clear the
+    /// waits aren't a fault. Nil when the stream is keeping up or nothing's been measured yet.
+    var slowStreamNote: String? {
+        guard let speed = mpv.streamSpeed, let needed = mpv.averageBitRate, speed < needed * 0.95 else { return nil }
+        func megabits(_ bits: Double) -> String { (bits / 1_000_000).formatted(.number.precision(.fractionLength(1))) }
+        return "Arriving at \(megabits(speed)) Mbps\nThis video needs \(megabits(needed))"
+    }
+
     /// mpv started or stopped waiting for the stream. The spinner comes after a moment (a seek
     /// refills in less); each wait goes in the log, to tell a slow network from anything else.
     func bufferingChanged() {
@@ -1328,7 +1336,8 @@ final class PlaybackModel {
         }
         guard mpv.hasStarted || !mpv.isBuffering else { return }
         if let line = stalls.note(buffering: mpv.isBuffering, position: mpv.timePosition) {
-            AppLog.info(.playback, "\(line): \(item?.name ?? session.title)")
+            let speeds = mpv.averageBitRate.map { " (video \(Int($0 / 1000)) kbps, next wait gathers \(mpv.bufferWait.seconds) s)" } ?? ""
+            AppLog.info(.playback, "\(line)\(speeds): \(item?.name ?? session.title)")
         }
     }
 

@@ -36,6 +36,12 @@ public final class MPVController {
     /// frozen though nothing is paused. `bufferPercent` is how far the refill is (0…100).
     public private(set) var isBuffering = false
     public private(set) var bufferPercent: Int?
+    /// While buffering: how fast the stream is arriving, in bits a second, once mpv has measured it.
+    public private(set) var streamSpeed: Double?
+    /// How many seconds of video mpv gathers before it carries on after running dry. It grows
+    /// when the stream keeps running dry (`BufferWait`), so a slow connection gets fewer, longer
+    /// waits instead of stopping every few seconds.
+    public private(set) var bufferWait = BufferWait()
     public private(set) var tracks: [Track] = []
     public private(set) var lastError: String?
     /// mpv's own volume, 0…100 (the system volume is separate).
@@ -70,6 +76,11 @@ public final class MPVController {
             ("vo", "gpu-next"), ("gpu-api", "vulkan"), ("gpu-context", "moltenvk"),
             ("hwdec", "videotoolbox"), ("keep-open", "yes"), ("input-default-bindings", "no"),
             ("idle", "yes"), ("cache", "yes"), ("demuxer-max-bytes", "150MiB"),
+            // Gather a little before the first frame and after running dry, rather than starting
+            // on the first packet and stopping again at once (`BufferWait` raises the second).
+            ("cache-pause-initial", "yes"), ("cache-pause-wait", String(BufferWait.steps[0])),
+            // A dropped connection picks up where it was instead of ending the video.
+            ("stream-lavf-o", "reconnect=1,reconnect_streamed=1,reconnect_delay_max=5"),
             ("sub-auto", "no"), ("audio-display", "no"),
             ("input-builtin-bindings", "no"),
             // The app draws Japanese subtitles itself (tappable); mpv only draws a chosen secondary track.
@@ -116,6 +127,9 @@ public final class MPVController {
         lastError = nil
         isBuffering = false
         bufferPercent = nil
+        streamSpeed = nil
+        bufferWait = BufferWait()
+        setString("cache-pause-wait", String(bufferWait.seconds))
         setLoop(start: nil, end: nil)
         command(["loadfile", location, "replace"])
         isLoaded = true
@@ -128,10 +142,12 @@ public final class MPVController {
     public func togglePause() { setPaused(!isPaused) }
 
     public func seek(to seconds: Double) {
+        bufferWait.noteSeek()
         command(["seek", String(format: "%.3f", max(seconds, 0)), "absolute+exact"])
     }
 
     public func seek(by seconds: Double) {
+        bufferWait.noteSeek()
         command(["seek", String(format: "%.3f", seconds), "relative+exact"])
     }
 
@@ -228,6 +244,12 @@ public final class MPVController {
             guard !Task.isCancelled else { return }
             self.setString("video-aspect-override", "no")
         }
+    }
+
+    /// The video's average bit rate (its size over its length), nil until both are known.
+    public var averageBitRate: Double? {
+        guard let size = int64("file-size"), size > 0, duration > 0 else { return nil }
+        return Double(size) * 8 / duration
     }
 
     private func int64(_ name: String) -> Int64? {
@@ -361,8 +383,16 @@ public final class MPVController {
         case .ended(let value): reachedEnd = value
         case .tracks(let value): tracks = value
         case .volume(let value): volume = value
-        case .buffering(let value): isBuffering = value
-        case .bufferPercent(let value): bufferPercent = value
+        case .buffering(let value):
+            isBuffering = value
+            // The stream ran dry again soon after the last time: wait for more this time.
+            if hasStarted, bufferWait.note(buffering: value) {
+                setString("cache-pause-wait", String(bufferWait.seconds))
+            }
+            if !value { streamSpeed = nil }
+        case .bufferPercent(let value):
+            bufferPercent = value
+            if isBuffering, let speed = int64("cache-speed"), speed > 0 { streamSpeed = Double(speed) * 8 }
         case .aspect(let value):
             // Ignore the rotation nudge (a hair's change); only a new video's shape counts.
             if value > 0, videoAspect.map({ abs($0 - value) / $0 > 0.005 }) ?? true { videoAspect = value }
