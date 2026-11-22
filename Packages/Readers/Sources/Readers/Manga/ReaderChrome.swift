@@ -106,7 +106,7 @@ struct ReaderSettingsSheet: View {
                 }
                 Section {
                     Toggle("Show text boxes", isOn: $model.settings.showsTextBoxes)
-                    Toggle("Show the Text Over a Bubble", isOn: $model.settings.showsTextOverlay)
+                    Toggle("Mark the Word on the Page", isOn: $model.settings.showsTextOverlay)
                     RoundStepperRow("OCR pages ahead", value: Binding {
                         Double(model.settings.ocrAhead)
                     } set: {

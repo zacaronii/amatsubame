@@ -268,11 +268,11 @@ public final class MangaReaderModel {
         }
     }
 
-    /// The block whose word is being looked up (its recognized text is typeset over it).
+    /// The block whose word is being looked up (the word is marked on its lettering).
     @ObservationIgnored private var lookupBlock: (page: Int, block: OCRBlock)?
 
-    /// While the popup is open: the block to typeset over the page, and which of its characters
-    /// the word showing covers (it follows taps in the popup's sentence too).
+    /// While the popup is open: the block the word is in, and which of its characters the word
+    /// showing covers (it follows taps in the popup's sentence too), to mark on the page.
     public func textOverlay(page: Int) -> (block: OCRBlock, highlight: Range<Int>?)? {
         guard settings.showsTextOverlay, let popup, let lookupBlock, lookupBlock.page == page else { return nil }
         let text = lookupBlock.block.text

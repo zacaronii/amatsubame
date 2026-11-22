@@ -263,6 +263,87 @@ import CoreML
         #expect(even < 12, "the even spread misses some (\(even) of 12), which is what was reported")
     }
 
+    /// Each character gets the box its glyph is in: cut at the gaps, not just evenly.
+    @Test func cellsSitOnTheGlyphs() {
+        let picture = Self.block(columns: [5, 5, 2])
+        let lines = TextLines.lines(gray: picture.gray, width: picture.width, height: picture.height, vertical: true)
+        let cells = TextLines.cells(gray: picture.gray, width: picture.width, height: picture.height, vertical: true, lines: lines, count: 12)
+        #expect(cells.count == 12)
+        let all = [(0, 5), (1, 5), (2, 2)].flatMap { column, count in (0..<count).map { (column, $0) } }
+        for (index, place) in all.enumerated() where index < cells.count {
+            // The drawn glyph: 20 px square, columns 32 px apart from the right, rows 24 px apart.
+            let glyph = CGRect(x: Double(picture.width - 10 - place.0 * 32 - 20), y: Double(10 + place.1 * 24), width: 20, height: 20)
+            let cell = CGRect(x: cells[index].minX * Double(picture.width), y: cells[index].minY * Double(picture.height),
+                              width: cells[index].width * Double(picture.width), height: cells[index].height * Double(picture.height))
+            #expect(cell.insetBy(dx: -1.5, dy: -1.5).contains(glyph), "character \(index): \(cell) holds \(glyph)")
+            #expect(cell.height <= 25, "and no more than the gap to the next (\(cell.height))")
+            #expect(TextLayout.characterIndex(of: CGPoint(x: glyph.midX, y: glyph.midY),
+                                              in: CGRect(x: 0, y: 0, width: picture.width, height: picture.height), cells: cells) == index)
+        }
+    }
+
+    /// Characters of different widths in a row (a title: 第1夜:…): each place is its glyph's.
+    @Test func narrowAndSplitGlyphsKeepTheirOwnPlaces() {
+        // Widths of the glyphs, and a 3 px gap; the fourth character is in two parts (い).
+        let glyphs: [[Int]] = [[20], [5], [20], [7, 7], [20], [20]]
+        let height = 30
+        var x = 6
+        var spans: [ClosedRange<Int>] = []
+        var parts: [ClosedRange<Int>] = []
+        for glyph in glyphs {
+            let from = x
+            for (index, part) in glyph.enumerated() {
+                parts.append(x...(x + part - 1))
+                x += part + (index < glyph.count - 1 ? 4 : 0)
+            }
+            spans.append(from...(x - 1))
+            x += 3
+        }
+        let width = x + 3
+        var gray = [UInt8](repeating: 255, count: width * height)
+        for part in parts { for row in 6..<24 { for column in part { gray[row * width + column] = 0 } } }
+        let lines = TextLines.lines(gray: gray, width: width, height: height, vertical: false)
+        #expect(lines.count == 1)
+        let cells = TextLines.cells(gray: gray, width: width, height: height, vertical: false, lines: lines, count: glyphs.count)
+        #expect(cells.count == glyphs.count)
+        for (index, span) in spans.enumerated() where index < cells.count {
+            let from = cells[index].minX * Double(width), to = cells[index].maxX * Double(width)
+            #expect(from <= Double(span.lowerBound) && to >= Double(span.upperBound + 1), "character \(index): \(from)…\(to) holds \(span)")
+            #expect(to - from <= Double(span.count) + 4, "and little else (\(to - from) for \(span.count))")
+        }
+    }
+
+    /// Bold glyphs that touch: the cut goes where the ink is thinnest between them.
+    @Test func touchingGlyphsAreCutAtTheThinnestPlace() {
+        // Three 20 px glyphs; the first two joined by a 2 px bridge at x = 28…29 (thin: 2 rows).
+        let width = 80, height = 30
+        var gray = [UInt8](repeating: 255, count: width * height)
+        for (from, to) in [(6, 27), (30, 49), (54, 73)] { for row in 6..<24 { for column in from...to { gray[row * width + column] = 0 } } }
+        for row in 14..<16 { for column in 28...29 { gray[row * width + column] = 0 } }
+        let lines = TextLines.lines(gray: gray, width: width, height: height, vertical: false)
+        let cells = TextLines.cells(gray: gray, width: width, height: height, vertical: false, lines: lines, count: 3)
+        #expect(cells.count == 3)
+        guard cells.count == 3 else { return }
+        let cut = cells[0].maxX * Double(width)
+        #expect(cut >= 28 && cut <= 30, "between the first two glyphs (\(cut))")
+        #expect(abs(cells[1].maxX * Double(width) - 52) <= 1.5, "and in the gap before the third")
+    }
+
+    @Test func estimatedPlacesWhenNothingWasMeasured() {
+        // No lines: the even spread, right to left.
+        let even = TextLayout.characterRects(characterCount: 4, vertical: true, lines: [], boxSize: CGSize(width: 100, height: 100))
+        #expect(even.count == 4)
+        #expect(even[0].midX > even[2].midX && even[0].midY < even[1].midY)
+        // Lines only: along them by length.
+        let lines = [CGRect(x: 0.6, y: 0, width: 0.3, height: 1), CGRect(x: 0.1, y: 0, width: 0.3, height: 0.5)]
+        let rects = TextLayout.characterRects(characterCount: 6, vertical: true, lines: lines, boxSize: CGSize(width: 100, height: 100))
+        #expect(rects.count == 6)
+        #expect(rects[3].minX == 0.6 && rects[4].minX == 0.1)
+        // A tap outside every cell goes to the nearest.
+        #expect(TextLayout.characterIndex(of: CGPoint(x: 50, y: 99), in: CGRect(x: 0, y: 0, width: 100, height: 100), cells: rects) == 5
+                || TextLayout.characterIndex(of: CGPoint(x: 50, y: 99), in: CGRect(x: 0, y: 0, width: 100, height: 100), cells: rects) == 3)
+    }
+
     @Test func charactersAreSharedByLength() {
         #expect(TextLayout.characterCounts([100, 100, 40], total: 12) == [5, 5, 2])
         #expect(TextLayout.characterCounts([100, 10], total: 5) == [4, 1], "a line always has one")
@@ -296,5 +377,18 @@ import CoreML
             }
         }
         #expect(right >= 12, "\(right) of 13 taps land on their character")
+        // And the measured places of real glyphs: every tap in the middle of a character.
+        let layout = TextLines.layout(of: NormalizedRect(x: 0, y: 0, width: 1, height: 1), in: image, vertical: true, characterCount: 13)
+        #expect(layout.cells.count == 13)
+        var exact = 0
+        expected = 0
+        for (index, text) in columns.enumerated() {
+            for row in 0..<text.count {
+                let point = CGPoint(x: Double(width - 24 - 24 - index * 74), y: 24 + Double(row) * 48 * 1.05 + 24)
+                if TextLayout.characterIndex(of: point, in: box, cells: layout.cells) == expected { exact += 1 }
+                expected += 1
+            }
+        }
+        #expect(exact == 13, "\(exact) of 13 taps land with the measured places")
     }
 }
