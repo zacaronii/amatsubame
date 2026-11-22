@@ -22,9 +22,9 @@ struct PlayerView: View {
             .confirmationDialog("Where to continue?", isPresented: Binding(get: { model.resumeChoice != nil }, set: { _ in }),
                                 titleVisibility: .visible, presenting: model.resumeChoice) { choice in
                 Button("\(choice.newer.clockText) · \(choice.newerFrom)") { model.resume(at: choice.newer) }
-                Button("\(choice.mine.clockText) · This iPhone") { model.resume(at: choice.mine) }
+                Button("\(choice.mine.clockText) · This \(StorageSummary.deviceName)") { model.resume(at: choice.mine) }
             } message: { choice in
-                Text("You listened up to \(choice.newer.clockText) on \(choice.newerFrom == "Apple Watch" ? "your Apple Watch" : "another device") more recently, but this iPhone was at \(choice.mine.clockText).")
+                Text("You listened up to \(choice.newer.clockText) on \(choice.newerFrom == "Apple Watch" ? "your Apple Watch" : "another device") more recently, but this \(StorageSummary.deviceName) was at \(choice.mine.clockText).")
             }
     }
 
@@ -383,11 +383,18 @@ struct PlayerView: View {
                     .accessibilityIdentifier("player.previousLine")
                 Spacer()
                 Button { model.audio.toggle() } label: {
-                    Image(systemName: model.audio.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.title.weight(.bold))
-                        .foregroundStyle(Color(red: 0x3A / 255, green: 0x1A / 255, blue: 0x05 / 255))
-                        .frame(width: 76, height: 76)
-                        .background(.tint, in: .circle)
+                    Group {
+                        // Playing but nothing heard yet (a slow stream, or after a seek).
+                        if model.audio.isPlaying && model.audio.isBuffering {
+                            ProgressView().controlSize(.large).tint(Color(red: 0x3A / 255, green: 0x1A / 255, blue: 0x05 / 255))
+                        } else {
+                            Image(systemName: model.audio.isPlaying ? "pause.fill" : "play.fill")
+                                .font(.title.weight(.bold))
+                                .foregroundStyle(Color(red: 0x3A / 255, green: 0x1A / 255, blue: 0x05 / 255))
+                        }
+                    }
+                    .frame(width: 76, height: 76)
+                    .background(.tint, in: .circle)
                 }
                 .buttonStyle(.plain)
                 .keyboardShortcut(.space, modifiers: [])
@@ -592,9 +599,14 @@ struct MiniPlayer: View {
             }
             Spacer(minLength: 6)
             Button { model.audio.toggle() } label: {
-                Image(systemName: model.audio.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.title3)
-                    .frame(width: 36, height: 36)
+                Group {
+                    if model.audio.isPlaying && model.audio.isBuffering {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: model.audio.isPlaying ? "pause.fill" : "play.fill").font(.title3)
+                    }
+                }
+                .frame(width: 36, height: 36)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(model.audio.isPlaying ? "Pause" : "Play")

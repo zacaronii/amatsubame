@@ -108,7 +108,8 @@ final class PlaybackModel: Identifiable, LineLookupHost {
             local: local, server: entry.progress?.currentTime, serverDate: entry.progress?.updatedAt)
         if time == nil, entry.isFinished || (entry.duration > 0 && position > entry.duration - 5) { position = 0 }
         var autoplay = autoplay
-        if time == nil, let choice = Self.resumeChoice(local: local, entry: entry, position: position, autoplay: autoplay,
+        // Not in the car: the question is a dialog on the phone, and the car would stay silent.
+        if time == nil, !Self.playsInCar, let choice = Self.resumeChoice(local: local, entry: entry, position: position, autoplay: autoplay,
                                                        watchPlayedAt: watchPlayedAt) {
             // Loaded at the newer place, paused until you choose.
             resumeChoice = choice
@@ -456,6 +457,8 @@ final class PlaybackModel: Identifiable, LineLookupHost {
         if playing {
             // Pressing play yourself while the popup is open: don't resume again when it closes.
             resumesAfterLookup = false
+            // Started some other way (AirPods, the Lock Screen): the place loaded is the answer.
+            resumeChoice = nil
         } else {
             saveProgress(force: true)
             flushListening()

@@ -294,7 +294,13 @@ final class PodcastLibrary {
     func update(progress update: AudiobookshelfProgress) {
         progress[update.key] = update
         func refreshed(_ entries: [EpisodeEntry]) -> [EpisodeEntry] {
-            entries.map { $0.id == update.key ? EpisodeEntry(episode: $0.episode, showTitle: $0.showTitle, progress: update) : $0 }
+            // A copy, so a book keeps its chapters (a rebuilt entry lost `book`).
+            entries.map { entry in
+                guard entry.id == update.key else { return entry }
+                var entry = entry
+                entry.progress = update
+                return entry
+            }
         }
         newEpisodes = refreshed(newEpisodes)
         continueListening = refreshed(continueListening)
