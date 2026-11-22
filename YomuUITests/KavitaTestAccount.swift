@@ -23,7 +23,7 @@ struct KavitaTestAccount {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(key, forHTTPHeaderField: "x-api-key")
         request.httpBody = body.map { Data($0.utf8) }
-        nonisolated(unsafe) var result: Result<Any?, any Error> = .success(nil)
+        nonisolated(unsafe) var result: Result<Any?, any Error> = .failure(URLError(.timedOut))
         let done = DispatchSemaphore(value: 0)
         URLSession.shared.dataTask(with: request) { data, response, error in
             defer { done.signal() }
@@ -32,37 +32,62 @@ struct KavitaTestAccount {
                 result = .failure(URLError(.badServerResponse))
                 return
             }
-            result = .success(data.flatMap { $0.isEmpty ? nil : try? JSONSerialization.jsonObject(with: $0) })
+            guard let data, !data.isEmpty else { result = .success(nil); return }
+            do {
+                result = .success(try JSONSerialization.jsonObject(with: data))
+            } catch {
+                result = .failure(error)
+            }
         }.resume()
-        _ = done.wait(timeout: .now() + 30)
+        // No answer in time is a failure, never an empty list.
+        guard done.wait(timeout: .now() + 30) == .success else { throw URLError(.timedOut) }
         return try result.get()
     }
 
+    /// A list as the read must give it: anything else fails the test rather than reading as empty.
+    func list(_ value: Any?, _ what: String) throws -> [[String: Any]] {
+        guard let list = value as? [[String: Any]] else { throw UnexpectedAnswer(what: what) }
+        return list
+    }
+
+    /// The test account's own id (Kavita's lists can hold other users' shared annotations).
+    func userId() throws -> Int {
+        try XCTUnwrap((try call("GET", "api/Account") as? [String: Any])?["id"] as? Int, "the test account's id")
+    }
+
+    /// The test account's own annotations.
     func annotations() throws -> [[String: Any]] {
-        try call("POST", "api/Annotation/all-filtered", query: ["pageNumber": "1", "pageSize": "100"], body: "{}") as? [[String: Any]] ?? []
+        let me = try userId()
+        return try list(try call("POST", "api/Annotation/all-filtered", query: ["pageNumber": "1", "pageSize": "100"], body: "{}"), "annotations")
+            .filter { $0["ownerUserId"] as? Int == me }
     }
 
     func pageBookmarks() throws -> [[String: Any]] {
-        try call("POST", "api/Reader/all-bookmarks", body: #"{"statements":[],"combination":1,"limitTo":0}"#) as? [[String: Any]] ?? []
+        try list(try call("POST", "api/Reader/all-bookmarks", body: #"{"statements":[],"combination":1,"limitTo":0}"#), "page bookmarks")
     }
 
     /// A series' chapters, found by its name.
     func chapters(series name: String) throws -> [Int] {
-        let found = try call("GET", "api/Search/search", query: ["queryString": name]) as? [String: Any]
-        let series = (found?["series"] as? [[String: Any]])?.first { $0["name"] as? String == name }
-        guard let id = series?["seriesId"] as? Int else { return [] }
-        let volumes = try call("GET", "api/Series/volumes", query: ["seriesId": String(id)]) as? [[String: Any]] ?? []
-        return volumes.flatMap { ($0["chapters"] as? [[String: Any]] ?? []).compactMap { $0["id"] as? Int } }
+        let found = try XCTUnwrap(try call("GET", "api/Search/search", query: ["queryString": name]) as? [String: Any], "the search")
+        let series = try list(found["series"], "the search's series").first { $0["name"] as? String == name }
+        let id = try XCTUnwrap(series?["seriesId"] as? Int, "the series")
+        let volumes = try list(try call("GET", "api/Series/volumes", query: ["seriesId": String(id)]), "the volumes")
+        return try volumes.flatMap { try list($0["chapters"], "a volume's chapters").compactMap { $0["id"] as? Int } }
     }
 
     /// A series' book bookmarks (Kavita's personal table of contents), as chapter, page and title.
     func bookBookmarks(series name: String) throws -> [BookBookmark] {
         try chapters(series: name).flatMap { chapter in
-            (try call("GET", "api/Reader/ptoc", query: ["chapterId": String(chapter)]) as? [[String: Any]] ?? []).compactMap { entry in
+            try list(try call("GET", "api/Reader/ptoc", query: ["chapterId": String(chapter)]), "the book's bookmarks").compactMap { entry in
                 guard let page = entry["pageNumber"] as? Int, let title = entry["title"] as? String else { return nil }
                 return BookBookmark(chapter: chapter, page: page, title: title)
             }
         }
+    }
+
+    struct UnexpectedAnswer: Error, CustomStringConvertible {
+        var what: String
+        var description: String { "Kavita's answer for \(what) wasn't the list expected." }
     }
 
     struct BookBookmark: Hashable {
