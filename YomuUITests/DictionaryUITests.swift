@@ -131,5 +131,22 @@ final class DictionaryUITests: XCTestCase {
         attachment.name = "stats"
         attachment.lifetime = .keepAlways
         add(attachment)
+
+        // Time by default (books and manga alike); the menu switches to pages or characters.
+        let total = app.descendants(matching: .any)["stats.total"].firstMatch
+        XCTAssertFalse(total.label.contains("字"), "time first: \(total.label)")
+        app.descendants(matching: .any)["stats.measure"].firstMatch.tap()
+        app.buttons["Pages read"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["pages"].waitForExistence(timeout: 5), "counted in pages")
+        let pages = XCTAttachment(screenshot: app.screenshot())
+        pages.name = "stats pages"
+        pages.lifetime = .keepAlways
+        add(pages)
+        app.descendants(matching: .any)["stats.measure"].firstMatch.tap()
+        app.buttons["Characters read"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["字"].waitForExistence(timeout: 5), "counted in characters")
+        // The choice is remembered: back to time for the next run.
+        app.descendants(matching: .any)["stats.measure"].firstMatch.tap()
+        app.buttons["Time read"].firstMatch.tap()
     }
 }

@@ -11,6 +11,15 @@ public final class StatsModel {
     public var period = StatsSummary.Period.week {
         didSet { summarize() }
     }
+    /// What Yomu's chart counts: time (books and manga alike), characters (books) or pages
+    /// (manga). Remembered. Miru and Kiku count time.
+    public var measure: StatsSummary.Measure {
+        didSet {
+            UserDefaults.standard.set(measure.rawValue, forKey: Self.measureKey)
+            summarize()
+        }
+    }
+    static let measureKey = "stats.readingMeasure"
     public private(set) var summary: StatsSummary?
     @ObservationIgnored private let kind: ActivitySession.Kind
     @ObservationIgnored private let environment: CommonEnvironment
@@ -23,6 +32,7 @@ public final class StatsModel {
     public init(kind: ActivitySession.Kind, environment: CommonEnvironment) {
         self.kind = kind
         self.environment = environment
+        measure = UserDefaults.standard.string(forKey: Self.measureKey).flatMap(StatsSummary.Measure.init) ?? .time
     }
 
     /// Reads the local log at once, then asks Anki for the mining deck's cards (cached for offline).
@@ -75,12 +85,13 @@ public final class StatsModel {
     }
 
     private func summarize() {
-        summary = StatsSummary.make(kind: kind, period: period, sessions: sessions, lookups: lookups,
+        summary = StatsSummary.make(kind: kind, period: period, measure: measure, sessions: sessions, lookups: lookups,
                                     cards: ankiCards + unsentCards, ownCards: ownCards)
     }
 }
 
-/// The Stats tab, shared by Yomu (characters read), Miru (time watched) and Kiku (time listened).
+/// The Stats tab, shared by Yomu (time, characters or pages read), Miru (time watched) and Kiku
+/// (time listened).
 public struct StatsView<Cover: View>: View {
     @Environment(\.openURL) private var openURL
     @State private var model: StatsModel
@@ -212,7 +223,24 @@ public struct StatsView<Cover: View>: View {
     private func chartCard(_ summary: StatsSummary) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
-                Text(kind == .reading ? "Characters read" : kind == .listening ? "Time listened" : "Time watched").foregroundStyle(.secondary)
+                if kind == .reading {
+                    // Manga has no characters to count and books no pages: the reader picks.
+                    Menu {
+                        Picker("Count", selection: $model.measure) {
+                            ForEach(StatsSummary.Measure.allCases, id: \.self) { Text(Self.title($0)).tag($0) }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(Self.title(summary.measure))
+                            Image(systemName: "chevron.up.chevron.down").imageScale(.small)
+                        }
+                        .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("stats.measure")
+                } else {
+                    Text(kind == .listening ? "Time listened" : "Time watched").foregroundStyle(.secondary)
+                }
                 Spacer()
                 if summary.streak > 0 {
                     Text("\(summary.streak)-day streak").foregroundStyle(.tint)
@@ -221,21 +249,22 @@ public struct StatsView<Cover: View>: View {
             }
             .font(.subheadline)
             HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(kind == .reading ? Int(summary.total).formatted() : Self.duration(summary.total))
+                Text(summary.measure == .time ? Self.duration(summary.total) : Int(summary.total).formatted())
                     .font(.largeTitle.bold().monospacedDigit())
-                if kind == .reading { Text("字").font(.title3).foregroundStyle(.secondary) }
+                if summary.measure == .characters { Text("字").font(.title3).foregroundStyle(.secondary) }
+                if summary.measure == .pages { Text(summary.total == 1 ? "page" : "pages").font(.title3).foregroundStyle(.secondary) }
             }
             .accessibilityIdentifier("stats.total")
             Chart(summary.bars) { bar in
                 BarMark(x: .value("Day", bar.date, unit: model.period == .allTime ? .month : .day),
-                        y: .value(kind == .reading ? "Characters" : "Minutes", kind == .reading ? bar.value : bar.value / 60))
+                        y: .value(Self.title(summary.measure), summary.measure == .time ? bar.value / 60 : bar.value))
                     .foregroundStyle(.tint.opacity(bar.isCurrent ? 1 : 0.6))
                     .clipShape(.rect(cornerRadius: 6))
             }
             .chartYAxis(.hidden)
             // A floor for the scale, so a few seconds don't fill the chart.
-            .chartYScale(domain: 0...max(summary.bars.map { kind == .reading ? $0.value : $0.value / 60 }.max() ?? 0,
-                                         kind == .reading ? 500 : 10))
+            .chartYScale(domain: 0...max(summary.bars.map { summary.measure == .time ? $0.value / 60 : $0.value }.max() ?? 0,
+                                         summary.measure == .characters ? 500 : 10))
             .chartXAxis {
                 switch model.period {
                 case .week:
@@ -252,15 +281,34 @@ public struct StatsView<Cover: View>: View {
         .background(.background.secondary, in: .rect(cornerRadius: 20))
     }
 
-    private func tiles(_ summary: StatsSummary) -> some View {
-        HStack(spacing: 10) {
-            if kind == .reading {
-                tile("Time", Self.duration(summary.seconds))
-            } else {
-                tile("Episodes", summary.items.formatted())
+    @ViewBuilder private func tiles(_ summary: StatsSummary) -> some View {
+        if kind == .reading {
+            // The two measures the chart isn't showing, then cards and lookups.
+            Grid(horizontalSpacing: 10, verticalSpacing: 10) {
+                GridRow {
+                    if summary.measure != .time { tile("Time", Self.duration(summary.seconds)) }
+                    if summary.measure != .characters { tile("Characters", summary.characters.formatted()) }
+                    if summary.measure != .pages { tile("Pages", summary.pages.formatted()) }
+                }
+                GridRow {
+                    tile("Cards mined", summary.cards.formatted())
+                    tile("Lookups", summary.lookups.formatted())
+                }
             }
-            tile("Cards mined", summary.cards.formatted())
-            tile("Lookups", summary.lookups.formatted())
+        } else {
+            HStack(spacing: 10) {
+                tile("Episodes", summary.items.formatted())
+                tile("Cards mined", summary.cards.formatted())
+                tile("Lookups", summary.lookups.formatted())
+            }
+        }
+    }
+
+    static func title(_ measure: StatsSummary.Measure) -> String {
+        switch measure {
+        case .time: "Time read"
+        case .characters: "Characters read"
+        case .pages: "Pages read"
         }
     }
 
@@ -402,6 +450,8 @@ public func seedStats(_ log: ActivityLog, kind: ActivitySession.Kind, now: Date 
 /// last fetched, plus this app's unsent cards). `refreshed` fetches the deck first.
 public struct TodaySummary: Equatable, Sendable {
     public var characters: Int
+    /// Manga pages turned (Yomu).
+    public var pages = 0
     public var seconds: Double
     public var lookups: Int
     public var cards: Int
@@ -429,13 +479,14 @@ public struct TodaySummary: Equatable, Sendable {
             .filter { $0.kind == .ankiNote && $0.createdAt >= start }
         let unsentToday = own.filter { $0.state != .sent || $0.updatedAt > cachedUntil }.count
         let week = StatsSummary.make(kind: kind, period: .week, sessions: sessions, lookups: [], cards: [], ownCards: [], now: now)
-        return TodaySummary(characters: today.reduce(0) { $0 + $1.characters }, seconds: today.reduce(0) { $0 + $1.duration },
+        return TodaySummary(characters: today.reduce(0) { $0 + $1.characters }, pages: today.reduce(0) { $0 + $1.pages },
+                            seconds: today.reduce(0) { $0 + $1.duration },
                             lookups: ((try? activity.lookupDates(since: start)) ?? []).count, cards: ankiToday + unsentToday,
                             streak: week.streak)
     }
 }
 
-/// "TODAY · 1,240 字 · 18 min · 6 cards", opening the Stats tab.
+/// "TODAY · 1,240 字 · 18 min · 6 cards" (pages instead of 字 on a day of manga), opening the Stats tab.
 public struct TodayRow: View {
     let kind: ActivitySession.Kind
     let today: TodaySummary
@@ -474,8 +525,14 @@ public struct TodayRow: View {
         let cards = Text("\(today.cards)").bold() + Text(today.cards == 1 ? " card" : " cards")
         let lookups = Text("\(today.lookups)").bold() + Text(today.lookups == 1 ? " lookup · " : " lookups · ")
         if kind == .reading {
-            return Text(today.characters.formatted()).bold().foregroundStyle(.tint) + Text(" 字 · ")
-                + Text(minutes).bold() + Text(" min · ") + lookups + cards
+            // Characters for books, pages for manga, both on a day of both; time leads on a day of neither.
+            var read = Text("")
+            if today.characters > 0 { read = read + Text(today.characters.formatted()).bold().foregroundStyle(.tint) + Text(" 字 · ") }
+            if today.pages > 0 {
+                read = read + Text(today.pages.formatted()).bold().foregroundStyle(.tint) + Text(today.pages == 1 ? " page · " : " pages · ")
+            }
+            let time = today.characters == 0 && today.pages == 0 ? Text(minutes).bold().foregroundStyle(.tint) : Text(minutes).bold()
+            return read + time + Text(" min · ") + lookups + cards
         }
         return Text(minutes).bold().foregroundStyle(.tint) + Text(" min · ") + lookups + cards
     }

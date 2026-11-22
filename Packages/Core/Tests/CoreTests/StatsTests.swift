@@ -48,6 +48,27 @@ import Testing
         #expect(summary.series.last?.pages == 12)
     }
 
+    /// Reading can be counted in time or pages too, so manga (no characters) shows up (#146).
+    @Test func readingByTimeOrPagesCountsManga() throws {
+        let log = ActivityLog(database: try AppDatabase.inMemory())
+        let manga = ActivitySubject(kind: .reading, seriesKey: "5", seriesTitle: "鉄の時計", itemKey: "88")
+        try log.record(book, at: date(4, 20, 0), characters: 300)
+        try log.record(book, at: date(4, 20, 2), characters: 0)
+        try log.record(manga, at: date(4, 9, 0), pages: 2)
+        try log.record(manga, at: date(4, 9, 4), pages: 10)
+        func summary(_ measure: StatsSummary.Measure?) throws -> StatsSummary {
+            StatsSummary.make(kind: .reading, period: .week, measure: measure, sessions: try log.sessions(kind: .reading),
+                              lookups: [], cards: [], ownCards: [], now: date(4, 22), calendar: calendar)
+        }
+        let time = try summary(.time)
+        #expect(time.total == 360 && time.bars.last?.value == 360 && time.series.first?.title == "鉄の時計")
+        let pages = try summary(.pages)
+        #expect(pages.total == 12 && pages.series.first?.pages == 12)
+        let characters = try summary(nil)
+        #expect(characters.measure == .characters && characters.total == 300 && characters.series.first?.characters == 300)
+        #expect(characters.characters == 300 && characters.pages == 12 && characters.seconds == 360)
+    }
+
     @Test func streakAllowsNothingYetToday() {
         let sessions = [3, 2].map { ActivitySession(kind: .watching, seriesKey: "s", seriesTitle: "S", itemKey: "e\($0)",
                                                     start: date($0, 20), end: date($0, 21), seconds: 1200) }
