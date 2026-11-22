@@ -15,13 +15,16 @@ public struct MangaReaderSettings: Codable, Equatable, Sendable {
     public var stripWidth: Double = 1
     /// Outline detected text blocks on the page.
     public var showsTextBoxes: Bool = false
+    /// While a word is looked up, the bubble's recognized text is typeset over it, so the next
+    /// tap lands on an exact character.
+    public var showsTextOverlay: Bool = true
     /// How many pages after the current one to OCR in advance.
     public var ocrAhead: Int = 3
 
     public init() {}
 
     enum CodingKeys: String, CodingKey {
-        case mode, direction, spreads, coverAlone, stripWidth, showsTextBoxes, ocrAhead
+        case mode, direction, spreads, coverAlone, stripWidth, showsTextBoxes, ocrAhead, showsTextOverlay
     }
 
     /// Missing keys (settings saved by an older version) keep their defaults.
@@ -33,6 +36,7 @@ public struct MangaReaderSettings: Codable, Equatable, Sendable {
         coverAlone = try container.decodeIfPresent(Bool.self, forKey: .coverAlone) ?? coverAlone
         stripWidth = try container.decodeIfPresent(Double.self, forKey: .stripWidth) ?? stripWidth
         showsTextBoxes = try container.decodeIfPresent(Bool.self, forKey: .showsTextBoxes) ?? showsTextBoxes
+        showsTextOverlay = try container.decodeIfPresent(Bool.self, forKey: .showsTextOverlay) ?? showsTextOverlay
         ocrAhead = try container.decodeIfPresent(Int.self, forKey: .ocrAhead) ?? ocrAhead
     }
 

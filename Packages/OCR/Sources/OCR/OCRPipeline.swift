@@ -69,9 +69,11 @@ public actor OCRPipeline {
             let text = try read(detection.box, in: image)
             guard !text.isEmpty else { continue }
             let pixels = detection.box.pixels(in: CGSize(width: image.width, height: image.height))
+            let vertical = TextOrientation.isVertical(pixelSize: pixels.size, text: text)
             blocks.append(OCRBlock(
-                box: detection.box, text: text, vertical: TextOrientation.isVertical(pixelSize: pixels.size, text: text),
-                kind: detection.label == .textInBubble ? .bubbleText : .freeText, score: detection.score
+                box: detection.box, text: text, vertical: vertical,
+                kind: detection.label == .textInBubble ? .bubbleText : .freeText, score: detection.score,
+                lines: TextLines.lines(of: detection.box, in: image, vertical: vertical).map(NormalizedRect.init)
             ))
         }
         timings.recognition = clock.now - recognitionStart
@@ -83,7 +85,9 @@ public actor OCRPipeline {
     public func recognize(region: NormalizedRect, in image: CGImage) throws -> OCRBlock {
         let text = try read(region, in: image, padding: 0)
         let pixels = region.pixels(in: CGSize(width: image.width, height: image.height))
-        return OCRBlock(box: region, text: text, vertical: TextOrientation.isVertical(pixelSize: pixels.size, text: text), kind: .manual)
+        let vertical = TextOrientation.isVertical(pixelSize: pixels.size, text: text)
+        return OCRBlock(box: region, text: text, vertical: vertical, kind: .manual,
+                        lines: TextLines.lines(of: region, in: image, vertical: vertical).map(NormalizedRect.init))
     }
 
     // MARK: Detection

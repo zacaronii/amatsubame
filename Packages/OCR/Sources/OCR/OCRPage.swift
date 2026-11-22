@@ -59,13 +59,18 @@ public struct OCRBlock: Codable, Equatable, Hashable, Sendable {
     public var vertical: Bool
     public var kind: Kind
     public var score: Double
+    /// The block's lines of lettering in reading order, each a rect in the block's own unit
+    /// square (`TextLines`), for matching a tap to a character. Nil on pages read before this
+    /// was kept, and for `.mokuro` data without it.
+    public var lines: [NormalizedRect]?
 
-    public init(box: NormalizedRect, text: String, vertical: Bool, kind: Kind, score: Double = 1) {
+    public init(box: NormalizedRect, text: String, vertical: Bool, kind: Kind, score: Double = 1, lines: [NormalizedRect]? = nil) {
         self.box = box
         self.text = text
         self.vertical = vertical
         self.kind = kind
         self.score = score
+        self.lines = lines
     }
 }
 

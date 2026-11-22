@@ -196,6 +196,38 @@ final class ReaderUITests: XCTestCase {
         snapshot("ocr-lookup")
     }
 
+    /// A lookup sets the bubble's recognized text over it, with the word marked; a tap on one of
+    /// its characters looks that one up (exactly, where a tap on the picture estimates).
+    func testLookupTypesetsTheBubbleOverThePage() throws {
+        try enableOCR()
+        app.launch()
+        openReader()
+        let block = app.descendants(matching: .any).matching(identifier: "ocr.block").firstMatch
+        XCTAssertTrue(block.waitForExistence(timeout: 90), "OCR found text on the page")
+        block.tap()
+        let overlay = app.descendants(matching: .any)["ocr.overlay"].firstMatch
+        XCTAssertTrue(overlay.waitForExistence(timeout: 15), "the bubble's text is set over it")
+        snapshot("ocr-overlay")
+        let characters = app.descendants(matching: .any).matching(identifier: "ocr.overlay.character")
+        XCTAssertGreaterThan(characters.count, 0)
+        characters.element(boundBy: min(1, characters.count - 1)).tap()
+        XCTAssertTrue(overlay.waitForExistence(timeout: 10), "still there after choosing another character")
+        XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 15), "the popup shows the new lookup")
+        snapshot("ocr-overlay-second-tap")
+
+        // A page further in, for vertical Japanese lettering (a screenshot to check by eye).
+        app.closeLookup()
+        let japanese = app.descendants(matching: .any).matching(identifier: "ocr.block")
+            .matching(NSPredicate(format: "label MATCHES %@", ".*[ぁ-んァ-ヶ一-龠]{4,}.*")).firstMatch
+        for _ in 0..<6 where !japanese.exists {
+            reader.swipeRight()
+            _ = japanese.waitForExistence(timeout: 25)
+        }
+        guard japanese.exists else { return }
+        japanese.tap()
+        if overlay.waitForExistence(timeout: 15) { snapshot("ocr-overlay-vertical") }
+    }
+
     func testLongPressSelectsAnAreaWithoutTurningThePage() throws {
         try enableOCR()
         app.launch()

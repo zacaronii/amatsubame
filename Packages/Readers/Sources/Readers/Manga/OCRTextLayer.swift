@@ -31,9 +31,12 @@ struct OCRTextLayer: View {
                             .contentShape(.rect)
                             // Measured in the layer's space so the block's own rect applies directly.
                             .onTapGesture(coordinateSpace: .named(Self.space)) { location in
+                                // On the block's measured lines when it has them (pages read since
+                                // they're kept); the even spread otherwise.
                                 let index = TextLayout.characterIndex(
                                     of: location, in: rect,
-                                    characterCount: block.text.count, vertical: block.vertical
+                                    characterCount: block.text.count, vertical: block.vertical,
+                                    lines: (block.lines ?? []).map(\.cgRect)
                                 )
                                 model.lookUp(block, page: page, characterIndex: index, anchor: rect.offsetBy(dx: frame.minX, dy: frame.minY))
                             }
@@ -45,6 +48,14 @@ struct OCRTextLayer: View {
                             // `.offset` would only move the drawing.
                             .position(x: rect.midX, y: rect.midY)
                     }
+                }
+                if let overlay = model.textOverlay(page: page) {
+                    // The looked-up bubble's text, set over it: the next tap is on a real character.
+                    let rect = overlay.block.box.pixels(in: size)
+                    OCRTypesetBlock(block: overlay.block, rect: rect, highlight: overlay.highlight) { index in
+                        model.lookUp(overlay.block, page: page, characterIndex: index, anchor: rect.offsetBy(dx: frame.minX, dy: frame.minY))
+                    }
+                    .transition(.opacity)
                 }
                 if model.isSelecting {
                     Color.clear
