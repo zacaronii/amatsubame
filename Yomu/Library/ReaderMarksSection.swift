@@ -8,7 +8,7 @@ struct ReaderMarksSection: View {
     @Environment(AppEnvironment.self) private var environment
     let series: KavitaSeries
     let contents: KavitaSeriesContents
-    let open: (KavitaChapter, _ page: Int) -> Void
+    let open: (KavitaChapter, ReaderMark) -> Void
     @State private var marks: [ReaderMark] = []
     @State private var annotationsAvailable = true
 
@@ -48,7 +48,7 @@ struct ReaderMarksSection: View {
     private func row(_ mark: ReaderMark) -> some View {
         let chapter = place(of: mark)
         return Button {
-            if let chapter = chapter?.chapter { open(chapter, mark.page) }
+            if let chapter = chapter?.chapter { open(chapter, mark) }
         } label: {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
                 icon(mark)
@@ -95,7 +95,8 @@ struct ReaderMarksSection: View {
 
     /// Kavita's default highlight colours (cyan, green, yellow, orange, magenta).
     static func slotColor(_ slot: Int) -> Color {
-        [Color.cyan, .green, .yellow, .orange, .pink][min(max(slot, 0), 4)]
+        [Color(red: 0, green: 1, blue: 1), Color(red: 0, green: 1, blue: 0), Color(red: 1, green: 1, blue: 0),
+         Color(red: 1, green: 0.65, blue: 0), Color(red: 1, green: 0, blue: 1)][min(max(slot, 0), 4)]
     }
 
     /// The mark's volume or chapter, and its name.

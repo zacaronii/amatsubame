@@ -10,6 +10,8 @@ struct ReaderSession: Codable, Identifiable, Hashable {
     var contents: KavitaSeriesContents
     /// Opens at this page rather than the reading position (a bookmark picked in the series).
     var startPage: Int?
+    /// And in a book, the place on that page (Kavita's XPath).
+    var startXPath: String?
 
     var id: Int { chapter.chapterId }
 
@@ -39,9 +41,10 @@ struct ReaderContainer: View {
         let next = session.contents.nextReaderChapter(after: session.chapter, series: session.series)
         Group {
             if session.series.isEpub {
-                ReaderModelHost(make: { environment.makeBookReader(session.chapter, next: next) }) { model in
+                ReaderModelHost(make: { environment.makeBookReader(session.chapter, next: next,
+                                                                   start: session.startPage.map { ($0, session.startXPath) }) }) { model in
                     if let readAlong = model.readAlong as? ReadAlongModel {
-                        BookReaderView(model: model, onClose: closeReader, onOpenChapter: { chapter in session.chapter = chapter; session.startPage = nil }) {
+                        BookReaderView(model: model, onClose: closeReader, onOpenChapter: { chapter in session.chapter = chapter; session.startPage = nil; session.startXPath = nil }) {
                             if readAlong.isOn {
                                 ReadAlongBar(model: readAlong, showsControls: model.showsChrome)
                                     .task {
@@ -57,12 +60,12 @@ struct ReaderContainer: View {
                             ReadAlongClipRow(model: readAlong)
                         }
                     } else {
-                        BookReaderView(model: model, onClose: closeReader, onOpenChapter: { chapter in session.chapter = chapter; session.startPage = nil })
+                        BookReaderView(model: model, onClose: closeReader, onOpenChapter: { chapter in session.chapter = chapter; session.startPage = nil; session.startXPath = nil })
                     }
                 }
             } else {
                 ReaderModelHost(make: { environment.makeReader(session.chapter, next: next, startPage: session.startPage) }) { model in
-                    MangaReaderView(model: model, onClose: closeReader, onOpenChapter: { chapter in session.chapter = chapter; session.startPage = nil })
+                    MangaReaderView(model: model, onClose: closeReader, onOpenChapter: { chapter in session.chapter = chapter; session.startPage = nil; session.startXPath = nil })
                 }
             }
         }

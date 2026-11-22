@@ -219,6 +219,124 @@ final class BookUITests: XCTestCase {
         XCTAssertLessThan(try markedPixels(), markedMinimum, "the mark stayed after closing")
     }
 
+    /// A highlight with a note and a bookmark go to the test account's Kavita
+    /// (`UITEST_SENDS_MARKS`), show in the series' list, open the book at their place from there,
+    /// and are removed again: Kavita's annotations end as they began. The book's text is never
+    /// asserted on or printed (screenshots stay with the result, out of the repository).
+    func testHighlightNoteAndBookmarkReachKavita() throws {
+        guard ProcessInfo.processInfo.environment["UITEST_DICTIONARY_ZIPS"] != nil else { throw XCTSkip("Needs UITEST_DICTIONARY_ZIPS.") }
+        let before = try serverAnnotations().count
+        app.launchEnvironment["UITEST_SENDS_MARKS"] = "1"
+        openBook()
+        // An ordinary page of text: a section's second page or later (the first pages of a
+        // book are covers, contents and headings).
+        openFirstChapter()
+        let laterPage = /page ([2-9]|\d\d+) of/
+        for _ in 0..<8 where (page.value as? String)?.contains(laterPage) != true {
+            page.swipeRight()
+            sleep(2)
+        }
+        XCTAssertTrue(lookUp(dy: 0.25) || lookUp(dy: 0.45), "a word to look up")
+        let place = position()
+
+        // Highlight its sentence in the third colour, and write a note on it.
+        let colour = app.buttons["highlight.colour.2"].firstMatch
+        XCTAssertTrue(colour.waitForExistence(timeout: 5), "the highlight bar above the popup")
+        colour.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["highlight.bar.highlighted"].waitForExistence(timeout: 5), "highlighted")
+        app.buttons["highlight.note"].firstMatch.tap()
+        let note = app.textViews["note.text"].firstMatch
+        XCTAssertTrue(note.waitForExistence(timeout: 5))
+        note.tap()
+        note.typeText("test note")
+        app.buttons["note.save"].firstMatch.tap()
+        sleep(1)
+        snapshot("book-highlighted")
+        closePopup()
+        XCTAssertGreaterThan(try markedPixels(), markedMinimum, "the highlight is drawn on the page (yellow)")
+        snapshot("book-highlight-on-page")
+        XCTAssertTrue(waitFor { (try? self.serverAnnotations())?.contains { $0["commentPlainText"] as? String == "test note" && $0["selectedSlotIndex"] as? Int == 2 } == true },
+                      "the highlight and its note reached Kavita")
+
+        // Bookmark the place.
+        page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.985)).tap()
+        let bookmark = app.buttons["reader.bookmark"].firstMatch
+        XCTAssertTrue(bookmark.waitForExistence(timeout: 5))
+        bookmark.tap()
+        XCTAssertEqual(bookmark.value as? String, "Bookmarked")
+
+        // The series lists both once Kavita has them; the highlight opens the book at its page.
+        app.buttons["reader.close"].firstMatch.tap()
+        let rows = app.buttons.matching(identifier: "series.mark")
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 20))
+        XCTAssertTrue(waitFor { rows.count == 2 && !rows.allElementsBoundByIndex.contains { $0.label.contains("Not on Kavita yet") } },
+                      "both listed and sent")
+        for _ in 0..<10 where !rows.element(boundBy: 0).isHittable { app.swipeUp() }
+        snapshot("series-marks")
+        rows.element(boundBy: 0).tap()
+        XCTAssertTrue(page.waitForExistence(timeout: 60))
+        sleep(3)
+        XCTAssertEqual(position().split(separator: ",").first, place.split(separator: ",").first, "opened at the mark's page")
+        page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.985)).tap()
+        XCTAssertTrue(app.buttons["reader.close"].firstMatch.waitForExistence(timeout: 5))
+        app.buttons["reader.close"].firstMatch.tap()
+
+        // Remove both from the list (hold → Remove).
+        for _ in 0..<2 {
+            let row = rows.firstMatch
+            XCTAssertTrue(row.waitForExistence(timeout: 10))
+            for _ in 0..<10 where !row.isHittable { app.swipeUp() }
+            row.press(forDuration: 1.2)
+            let remove = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Remove'")).firstMatch
+            XCTAssertTrue(remove.waitForExistence(timeout: 5))
+            remove.tap()
+            sleep(1)
+        }
+        XCTAssertTrue(waitFor { (try? self.serverAnnotations().count) == before },
+                      "removed from Kavita again (annotations: \((try? self.serverAnnotations().count) ?? -1), expected \(before))")
+        // Kavita's bookmarks are listed per volume: a refresh that still found it would list it again.
+        app.swipeDown()
+        app.swipeDown()
+        sleep(5)
+        XCTAssertEqual(rows.count, 0, "nothing comes back from Kavita")
+    }
+
+    /// The test account's annotations on Kavita, read from the test runner.
+    private func serverAnnotations() throws -> [[String: Any]] {
+        let env = ProcessInfo.processInfo.environment
+        let base = try XCTUnwrap(env["UITEST_KAVITA_URL"].flatMap(URL.init(string:)))
+        var components = URLComponents(url: base.appending(path: "api/Annotation/all-filtered"), resolvingAgainstBaseURL: false)!
+        components.queryItems = [URLQueryItem(name: "pageNumber", value: "1"), URLQueryItem(name: "pageSize", value: "100")]
+        var request = URLRequest(url: components.url!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(env["UITEST_KAVITA_KEY"], forHTTPHeaderField: "x-api-key")
+        request.httpBody = Data("{}".utf8)
+        nonisolated(unsafe) var result: Result<[[String: Any]], any Error> = .success([])
+        let done = expectation(description: "annotations")
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            defer { done.fulfill() }
+            if let error { result = .failure(error); return }
+            guard (response as? HTTPURLResponse)?.statusCode == 200, let data,
+                  let list = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                result = .failure(URLError(.badServerResponse))
+                return
+            }
+            result = .success(list)
+        }.resume()
+        wait(for: [done], timeout: 30)
+        return try result.get()
+    }
+
+    private func waitFor(_ timeout: TimeInterval = 45, _ condition: () -> Bool) -> Bool {
+        let end = Date().addingTimeInterval(timeout)
+        while Date() < end {
+            if condition() { return true }
+            sleep(2)
+        }
+        return false
+    }
+
     /// Opens the first Contents entry with words near the top (books start with a cover, a title
     /// page or both) and looks one up. No page shows a mark before.
     private func lookUpInFirstChapter() throws -> Bool {

@@ -148,21 +148,66 @@ import Testing
         #expect(try setup.store.mark(mark.id!) == nil)
     }
 
-    @Test func aServerWithoutAnnotationsStopsBeingOfferedThem() async throws {
+    @Test func aServerWithoutAnnotationsStopsBeingOfferedThemAndKeepsTheNotes() async throws {
         let setup = try setup()
-        let mark = try setup.store.add(highlight(), outbox: setup.outbox)
+        let mark = try setup.store.add(highlight(note: "typed offline"), outbox: setup.outbox)
         let transport = StubTransport(routes: [:])  // every route 404, as before Kavita 0.8.8
         try await send(mark, setup, transport)  // no error: nothing waits to sync for ever
         #expect(try !setup.store.isAvailable(.annotations, account: account))
-        #expect(try setup.store.mark(mark.id!) == nil, "the unsent highlight goes")
-        #expect(transport.requests.count == 1)
+        #expect(transport.requests.map { $0.url!.path() } == ["/api/Annotation/create", "/api/Annotation/all-for-series"],
+                "the list's own route confirmed it")
+        let kept = try #require(try setup.store.mark(mark.id!))
+        #expect(kept.state == .pendingCreate && kept.note == "typed offline", "kept, not on Kavita yet")
 
-        // A refresh finds the same, without failing.
-        let refresh = StubTransport(routes: ["/api/Account": (200, try fixture("account-bookmark-role.json"))])
-        let fresh = try self.setup()
-        try await KavitaReaderMarkSync(client: client(refresh), store: fresh.store, outbox: fresh.outbox, account: account)
+        // While it's so, the highlight's job sends nothing.
+        let quiet = StubTransport { _ in (500, Data()) }
+        try await send(kept, setup, quiet)
+        #expect(quiet.requests.isEmpty)
+
+        // A refresh that finds annotations (the server was upgraded) queues it again.
+        _ = try await setup.outbox.database.writer.write { try $0.execute(sql: "DELETE FROM outboxJob") }
+        let upgraded = StubTransport(routes: [
+            "/api/Account": (200, try fixture("account-bookmark-role.json")),
+            "/api/Annotation/all-for-series": (200, Data("[]".utf8)),
+        ])
+        try await KavitaReaderMarkSync(client: client(upgraded), store: setup.store, outbox: setup.outbox, account: account)
             .refresh(seriesId: 30, libraryId: 40, isBook: true)
-        #expect(try !fresh.store.isAvailable(.annotations, account: account))
+        #expect(try setup.store.isAvailable(.annotations, account: account))
+        #expect(try setup.outbox.waitingCounts()[.kavitaReaderMark] == 1)
+    }
+
+    @Test func oneNotFoundIsNotAnOldServer() async throws {
+        let setup = try setup()
+        let mark = try setup.store.add(highlight(), outbox: setup.outbox)
+        // The create is a 404 (a proxy, a book removed), but the list answers: Kavita has annotations.
+        let transport = StubTransport(routes: ["/api/Annotation/create": (404, Data()), "/api/Annotation/all-for-series": (200, Data("[]".utf8))])
+        await #expect(throws: OutboxPermanentFailure.self) { try await send(mark, setup, transport) }
+        #expect(try setup.store.isAvailable(.annotations, account: account))
+        #expect(try setup.store.mark(mark.id!)?.state == .pendingCreate)
+    }
+
+    @Test func aMarkOfAnotherAccountWaitsForIt() async throws {
+        let setup = try setup()
+        let mark = try setup.store.add(highlight(), outbox: setup.outbox)
+        let transport = StubTransport { _ in (200, annotationJSON(id: 41)) }
+        let job = OutboxJob(id: 1, kind: .kavitaReaderMark, payload: try JSONEncoder().encode(ReaderMarkJob(markId: mark.id!)),
+                            state: .inFlight, nextAttemptAt: .now, createdAt: .now, updatedAt: .now)
+        let handler = KavitaReaderMarkHandler(store: setup.store, account: { "https://other.example#someone" }) { client(transport) }
+        await #expect(throws: ConnectionError.self) { try await handler.send(job, media: []) }
+        #expect(transport.requests.isEmpty, "nothing sent with the other account's key")
+        #expect(try setup.store.mark(mark.id!)?.state == .pendingCreate)
+    }
+
+    @Test func bookmarkRemoveBookmarkAgainSendsOneMake() async throws {
+        let setup = try setup()
+        let first = try setup.store.add(pageBookmark(), outbox: setup.outbox)
+        try setup.store.didSend(first, serverId: nil)
+        try setup.store.remove(first.id!, outbox: setup.outbox)
+        let again = try setup.store.add(pageBookmark(), outbox: setup.outbox)
+        let transport = StubTransport { _ in (200, Data()) }
+        try await send(again, setup, transport)
+        #expect(transport.requests.map { $0.url!.path() } == ["/api/Reader/bookmark"], "no removal goes out")
+        #expect(try setup.store.mark(first.id!)?.state == .synced)
     }
 
     @Test func pageBookmarksWithoutTheBookmarkRoleStopBeingOffered() async throws {

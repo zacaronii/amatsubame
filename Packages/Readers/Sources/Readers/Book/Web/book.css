@@ -106,3 +106,10 @@ html:not(#kb-none) body km-ra {
 html:not(#kb-none)[data-kb-layout="paged"] body km-ra { background: none !important; }
 html:not(#kb-none) .kb-read-along-mark { position: fixed; z-index: 2147483645; pointer-events: none; border-radius: 3px;
   background-color: color-mix(in srgb, var(--ra-accent, #F79A3E) 30%, transparent) !important; }
+
+/* Highlights kept on Kavita (BookReader.js showUserMarks): each in its colour slot's colour. */
+html:not(#kb-none) body km-hl { background: var(--hl) !important; border-radius: 2px; }
+/* Paged, the same colour as boxes over the text (placeUserMarks), below the masks. */
+html:not(#kb-none)[data-kb-layout="paged"] body km-hl { background: none !important; }
+html:not(#kb-none) .kb-user-mark { position: fixed; z-index: 2147483644; pointer-events: none; border-radius: 2px;
+  background-color: var(--hl) !important; }

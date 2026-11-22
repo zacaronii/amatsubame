@@ -8,9 +8,13 @@ public struct KavitaReaderMarkHandler: OutboxHandler {
     public let kind = OutboxJobKind.kavitaReaderMark
     let makeClient: @Sendable () throws -> KavitaClient?
     let store: ReaderMarkStore
+    /// The account signed in now (`ReaderMarkStore.accountKey`); nil skips the check.
+    let account: @Sendable () -> String?
 
-    public init(store: ReaderMarkStore, makeClient: @escaping @Sendable () throws -> KavitaClient?) {
+    public init(store: ReaderMarkStore, account: @escaping @Sendable () -> String? = { nil },
+                makeClient: @escaping @Sendable () throws -> KavitaClient?) {
         self.store = store
+        self.account = account
         self.makeClient = makeClient
     }
 
@@ -22,9 +26,16 @@ public struct KavitaReaderMarkHandler: OutboxHandler {
             throw OutboxPermanentFailure("Unreadable bookmark job: \(error.localizedDescription)")
         }
         // Gone already (removed before it was ever sent, or by a refresh).
-        guard let mark = try store.mark(payload.markId), let id = mark.id else { return }
+        guard let mark = try store.mark(payload.markId) else { return }
+        // A server found without annotations: the highlight waits (shown as not on Kavita yet)
+        // and is queued again when a refresh finds them.
+        if mark.kind == .highlight, try !store.isAvailable(.annotations, account: mark.account) { return }
         guard let client = try makeClient() else {
             throw ConnectionError.message("Kavita isn't set up.")
+        }
+        // Made while signed in to another Kavita account: it waits for that one.
+        if let current = account(), current != mark.account {
+            throw ConnectionError.message("This bookmark belongs to another Kavita account.")
         }
         do {
             switch mark.state {
@@ -36,7 +47,7 @@ public struct KavitaReaderMarkHandler: OutboxHandler {
                 try store.didSend(mark, serverId: try await update(mark, client))
             case .pendingDelete:
                 try await delete(mark, client)
-                try store.didRemove(id)
+                try store.didRemove(mark)
             }
         } catch let error {
             try await settle(error, mark: mark, client: client)
@@ -101,9 +112,15 @@ public struct KavitaReaderMarkHandler: OutboxHandler {
         guard let error = error as? ConnectionError else { throw error }
         switch (mark.kind, error) {
         case (.highlight, .server(status: 404)):
-            // Kavita before 0.8.8: no annotations.
-            try store.setAvailable(false, .annotations, account: mark.account)
-            return
+            // Kavita before 0.8.8 has no annotations. A 404 can also come from a proxy, a server
+            // being upgraded or a book removed, so only the list's own route decides it.
+            do {
+                _ = try await client.annotations(seriesId: mark.seriesId)
+            } catch .server(status: 404) {
+                try store.setAvailable(false, .annotations, account: mark.account)
+                return
+            } catch {}
+            throw OutboxPermanentFailure("Kavita couldn't find what the highlight belongs to (HTTP 404).")
         case (.pageBookmark, .unauthorized):
             // Without the Bookmark role Kavita refuses (403). A key that stopped working is a 401
             // too, so ask who this is before deciding.
@@ -147,7 +164,7 @@ public struct KavitaReaderMarkSync: Sendable {
         if isBook {
             do {
                 let mine = try await client.annotations(seriesId: seriesId).filter { $0.ownerUserId == user.id }
-                try store.setAvailable(true, .annotations, account: account)
+                try store.setAvailable(true, .annotations, account: account, outbox: outbox)
                 try store.merge(mine.map { $0.mark(account: account) }, account: account, kinds: [.highlight],
                                 scope: { $0.seriesId == seriesId }, outbox: outbox)
             } catch ConnectionError.server(status: 404) {
