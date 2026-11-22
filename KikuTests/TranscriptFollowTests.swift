@@ -98,4 +98,27 @@ import Testing
         #expect(PodcastLibrary.episode(after: episodes[0], in: episodes, finished: { _ in false }) == nil, "nothing after the newest")
         #expect(PodcastLibrary.episode(after: episodes[4], in: episodes, finished: { _ in false }) == nil, "no date, no order")
     }
+
+    /// Pause After Each Line and Repeat the Line act as the line that was playing ends.
+    @Test func theLineThatJustEnded() {
+        #expect(TranscriptFollow.lineJustEnded(at: 11.5, previous: 0, in: sentences) == nil, "still playing")
+        #expect(TranscriptFollow.lineJustEnded(at: 12.1, previous: 0, in: sentences) == 0)
+        #expect(TranscriptFollow.lineJustEnded(at: 16.2, previous: 1, in: sentences) == 1)
+        #expect(TranscriptFollow.lineJustEnded(at: 19.5, previous: 1, in: sentences) == nil, "long past it: a jump, not its end")
+        #expect(TranscriptFollow.lineJustEnded(at: 12.1, previous: nil, in: sentences) == nil)
+    }
+
+    /// A show's own speed and skips are kept, and forgotten when they say nothing.
+    @Test func aShowsOwnPlaybackSettings() throws {
+        let database = try AppDatabase.inMemory()
+        #expect(ShowListenSetting.load(database, itemId: "show").speed == nil)
+        var setting = ShowListenSetting(itemId: "show", speed: 0.9, skipStart: 15, skipEnd: 30)
+        try setting.save(database)
+        #expect(ShowListenSetting.load(database, itemId: "show") == setting)
+        #expect(ShowListenSetting.load(database, itemId: "other").skipStart == 0)
+        setting = ShowListenSetting(itemId: "show")
+        try setting.save(database)
+        #expect(ShowListenSetting.load(database, itemId: "show") == ShowListenSetting(itemId: "show"), "nothing left to keep")
+        #expect(ListenSettings.load(database).transcriptScale == 1 && !ListenSettings.load(database).pausesAfterLines)
+    }
 }

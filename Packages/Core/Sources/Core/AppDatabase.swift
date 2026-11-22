@@ -831,6 +831,21 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v51_kiku_listening_extras") { db in
+            // Kiku: the transcript's text size, Pause After Each Line, and each show's own speed
+            // and seconds to skip at the start and end.
+            try db.alter(table: "listenSettings") { t in
+                t.add(column: "transcriptScale", .double).notNull().defaults(to: 1)
+                t.add(column: "pausesAfterLines", .boolean).notNull().defaults(to: false)
+            }
+            try db.create(table: "showListenSetting") { t in
+                t.primaryKey("itemId", .text)
+                t.column("speed", .double)
+                t.column("skipStart", .double).notNull().defaults(to: 0)
+                t.column("skipEnd", .double).notNull().defaults(to: 0)
+            }
+        }
+
         return migrator
     }
 }

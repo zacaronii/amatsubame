@@ -206,6 +206,7 @@ struct ShowAutoDownloadView: View {
                         Text("On keeps these downloaded even when you haven't played the show lately.")
                     }
                 }
+                ShowPlaybackSection(itemId: show.id)
             }
             .formStyle(.grouped)
             .navigationTitle("Download Ahead")
@@ -216,6 +217,47 @@ struct ShowAutoDownloadView: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
         }
+    }
+}
+
+/// A show's own playback: seconds to skip at the start and end of every episode (its jingle, its
+/// sign-off), and whether it keeps a speed of its own (the player's speed menu sets which).
+struct ShowPlaybackSection: View {
+    @Environment(KikuEnvironment.self) private var environment
+    let itemId: String
+    @State private var setting = ShowListenSetting(itemId: "")
+
+    var body: some View {
+        Section {
+            Picker("Skip the First", selection: binding(\.skipStart)) {
+                ForEach(ShowListenSetting.skipChoices, id: \.self) { Text($0 == 0 ? "Nothing" : "\(Int($0)) seconds").tag($0) }
+            }
+            .accessibilityIdentifier("show.skipStart")
+            Picker("Skip the Last", selection: binding(\.skipEnd)) {
+                ForEach(ShowListenSetting.skipChoices, id: \.self) { Text($0 == 0 ? "Nothing" : "\(Int($0)) seconds").tag($0) }
+            }
+            .accessibilityIdentifier("show.skipEnd")
+            if let speed = setting.speed {
+                LabeledContent("Speed") {
+                    Button("\(PlayerView.speedText(speed)) · Use the Usual Speed") {
+                        setting.speed = nil
+                        try? setting.save(environment.common.database)
+                    }
+                }
+            }
+        } header: {
+            Text("Playback")
+        } footer: {
+            Text("For a jingle at the start and the sign-off at the end of every episode. An episode you play from the beginning starts after the first; it counts as finished when the last begins. A speed for this show alone is set from the player's speed menu.")
+        }
+        .onAppear { setting = ShowListenSetting.load(environment.common.database, itemId: itemId) }
+    }
+
+    private func binding(_ keyPath: WritableKeyPath<ShowListenSetting, Double>) -> Binding<Double> {
+        Binding(get: { setting[keyPath: keyPath] }, set: { value in
+            setting[keyPath: keyPath] = value
+            try? setting.save(environment.common.database)
+        })
     }
 }
 

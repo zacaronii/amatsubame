@@ -209,6 +209,12 @@ public struct ListenSettings: Codable, Equatable, Sendable, FetchableRecord, Per
     public var watchLiveText = false
     /// When a podcast episode ends, the show's next one starts by itself (Settings ▸ Playback).
     public var playsNextEpisode = true
+    /// The transcript's text size in the player (1 = the standard size).
+    public var transcriptScale: Double = 1
+    /// Playback stops at the end of every line until play is pressed (intensive listening).
+    public var pausesAfterLines = false
+
+    public static let transcriptScales: [(name: String, scale: Double)] = [("Small", 0.85), ("Medium", 1), ("Large", 1.2), ("Extra Large", 1.45)]
 
     public static let skipChoices: [Double] = [10, 15, 30, 45, 60]
     public static let speeds: [Double] = [0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2]
@@ -229,6 +235,42 @@ public struct ListenSettings: Codable, Equatable, Sendable, FetchableRecord, Per
 
     public func save(_ database: AppDatabase) throws {
         try database.writer.write { try self.save($0) }
+    }
+}
+
+/// One show's (or book's) own playback settings in Kiku: its speed, and seconds to skip at the
+/// start and end of every episode (a jingle, the sign-off).
+public struct ShowListenSetting: Codable, Equatable, Sendable, FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "showListenSetting"
+
+    public var itemId: String
+    /// Nil follows the speed everything else plays at.
+    public var speed: Double?
+    public var skipStart: Double
+    public var skipEnd: Double
+
+    public static let skipChoices: [Double] = [0, 5, 10, 15, 20, 30, 45, 60, 90]
+
+    public init(itemId: String, speed: Double? = nil, skipStart: Double = 0, skipEnd: Double = 0) {
+        self.itemId = itemId
+        self.speed = speed
+        self.skipStart = skipStart
+        self.skipEnd = skipEnd
+    }
+
+    public static func load(_ database: AppDatabase, itemId: String) -> ShowListenSetting {
+        (try? database.reader.read { try ShowListenSetting.fetchOne($0, key: itemId) }) ?? ShowListenSetting(itemId: itemId)
+    }
+
+    /// Saved, or forgotten when it says nothing any more.
+    public func save(_ database: AppDatabase) throws {
+        try database.writer.write { db in
+            if speed == nil, skipStart == 0, skipEnd == 0 {
+                _ = try ShowListenSetting.deleteOne(db, key: itemId)
+            } else {
+                try self.save(db)
+            }
+        }
     }
 }
 
