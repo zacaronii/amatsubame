@@ -224,7 +224,7 @@ struct WatchView: View {
         .overlay {
             if libraries.isEmpty && isLoading && onDevice.isEmpty { ProgressView() }
         }
-        .refreshable {
+        .refreshableByCommand {
             CoverLoader.recheck()
             await load()
         }

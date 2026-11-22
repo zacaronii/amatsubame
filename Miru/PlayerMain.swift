@@ -131,6 +131,8 @@ struct PlayerMenus: Commands {
         CommandMenu("Playback") { menuSections(Self.playbackSections) }
         CommandMenu("Subtitles") { menuSections(Self.subtitleSections) }
         CommandGroup(after: .sidebar) {
+            RefreshCommand()
+            Divider()
             ForEach(Array(Self.shortcutTabs.enumerated()), id: \.offset) { index, tab in
                 Button(tab.title) { environment.selectedTab = tab }
                     .keyboardShortcut(KeyEquivalent(Character(String(index + 1))), modifiers: .command)

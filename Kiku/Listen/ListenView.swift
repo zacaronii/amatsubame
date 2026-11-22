@@ -207,7 +207,7 @@ struct ListenView: View {
             }
             .padding()
         }
-        .refreshable {
+        .refreshableByCommand {
             CoverLoader.recheck()
             await library.refresh()
         }

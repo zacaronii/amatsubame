@@ -107,7 +107,7 @@ struct LibraryView: View {
         .libraryToolbar(filter: $progressFilter, sort: $sort, words: words)
         #endif
         .accessibilityIdentifier("library")
-        .refreshable {
+        .refreshableByCommand {
             CoverLoader.recheck()
             await environment.library.refresh()
         }

@@ -108,7 +108,7 @@ struct JellyfinLibraryView: View {
         #if os(macOS)
         .libraryToolbar(filter: $filter, sort: $sort, words: .watching)
         #endif
-        .refreshable {
+        .refreshableByCommand {
             CoverLoader.recheck()
             await load()
         }
@@ -282,7 +282,7 @@ struct SeriesView: View {
             Text("Each is the original file, often 1–2 GB. They wait for Wi-Fi unless cellular downloads are on in Settings.")
             #endif
         }
-        .refreshable {
+        .refreshableByCommand {
             // The seasons too, if they never arrived (or every season's episodes come as one list).
             if seasons.isEmpty { await loadSeasons() } else { await loadEpisodes() }
         }

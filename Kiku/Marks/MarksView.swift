@@ -81,7 +81,7 @@ struct MarksView: View {
                 }
                 .padding()
             }
-            .refreshable { await model.refresh() }
+            .refreshableByCommand { await model.refresh() }
         }
     }
 

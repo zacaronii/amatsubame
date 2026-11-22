@@ -98,11 +98,7 @@ struct ReaderMenus: Commands {
             .keyboardShortcut("f", modifiers: .command)
         }
         CommandGroup(after: .sidebar) {
-            Button("Refresh") {
-                CoverLoader.recheck()
-                NotificationCenter.default.post(name: .refreshLibrary, object: nil)
-            }
-            .keyboardShortcut("r", modifiers: .command)
+            RefreshCommand()
             Divider()
             ForEach(Array(Self.shortcutTabs.enumerated()), id: \.offset) { index, tab in
                 Button(tab.title) {
