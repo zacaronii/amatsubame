@@ -269,7 +269,9 @@ struct KikuLibrariesSettingsView: View {
                     if loading && environment.audiobookshelfClient() != nil {
                         ProgressView()
                     } else {
-                        Text("Sign in to Audiobookshelf to choose libraries.").foregroundStyle(.secondary)
+                        Text(environment.audiobookshelfClient() == nil ? "Sign in to Audiobookshelf to choose libraries."
+                             : "Couldn\u{2019}t reach Audiobookshelf.")
+                            .foregroundStyle(.secondary)
                     }
                 }
                 ForEach(environment.library.libraries) { library in

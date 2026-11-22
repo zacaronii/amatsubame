@@ -21,6 +21,8 @@ final class MarksModel: LineLookupHost {
     private(set) var sentences: [String: [AudioSentence]] = [:]
     /// Episodes Kaku is still transcribing.
     private(set) var transcribing: Set<String> = []
+    /// Episodes that won't get lines by waiting, and why (no Kaku, a failed job).
+    private(set) var noLines: [String: String] = [:]
     /// The mark whose 15 seconds are playing.
     private(set) var playingMark: Int64?
     private(set) var lookupSentence: AudioSentence?
@@ -113,11 +115,15 @@ final class MarksModel: LineLookupHost {
     /// Asks Kaku for the transcripts of marked episodes that don't have one on the device yet
     /// (and to start one that's missing). Offline, they stay "Transcribing".
     private func fetchTranscripts() async {
-        guard let kaku = environment.kakuClient() else { return }
         let waiting = Dictionary(marks.filter { sentences[$0.key]?.isEmpty ?? true }.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
+        guard let kaku = environment.kakuClient() else {
+            for key in waiting.keys { noLines[key] = "Set up Kaku in Settings to see the lines." }
+            return
+        }
         for (key, mark) in waiting where !asked.contains(key) {
             asked.insert(key)
             transcribing.insert(key)
+            noLines[key] = nil
             switch try? await kaku.transcript(itemId: mark.itemId, episodeId: mark.episodeId) {
             case .ready(let document):
                 if let saved = try? environment.saveTranscript(document, itemId: mark.itemId, episodeId: mark.episodeId,
@@ -128,9 +134,21 @@ final class MarksModel: LineLookupHost {
                 }
             case .missing:
                 _ = try? await kaku.requestJob(itemId: mark.itemId, episodeId: mark.episodeId)
+            case .pending(let job) where job.state == .failed:
+                transcribing.remove(key)
+                noLines[key] = "Kaku couldn\u{2019}t transcribe this episode."
             case .pending, nil:
                 break
             }
+        }
+    }
+
+    /// While the tab shows: asks again for the episodes still being transcribed, every half
+    /// minute (the Mac has no pull to refresh).
+    func followTranscribing() async {
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(30))
+            if !Task.isCancelled, !transcribing.isEmpty { await refresh() }
         }
     }
 
