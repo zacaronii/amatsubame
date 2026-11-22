@@ -544,7 +544,8 @@ public struct StorageSummary: View {
         .accessibilityIdentifier("storage.summary")
     }
 
-    static var deviceName: String {
+    /// "iPhone", "iPad" or "Mac".
+    public static var deviceName: String {
         #if os(macOS)
         "Mac"
         #else

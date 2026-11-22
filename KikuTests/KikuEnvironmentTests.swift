@@ -74,4 +74,27 @@ import Testing
         #expect(EpisodeAudio.miscInfo(entry, at: 45) == CardSource.miscInfo(show: "本", episode: "二", time: 45))
         #expect(entry.fileCount == 1)
     }
+
+    /// Listening updates the shelves' progress without dropping what makes a book a book (its
+    /// chapters went, and the player lost its Chapters menu until the next refresh).
+    @Test func aBookKeepsItsChaptersAsProgressUpdates() async throws {
+        let environment = environment()
+        let server = URL(string: "http://127.0.0.1:9")!
+        try environment.common.accounts.save(ServerAccount(kind: .audiobookshelf, baseURL: server))
+        try environment.common.secrets.setSecret("t", for: .audiobookshelfToken)
+        let json = ##"{"id":"book","libraryId":"books","mediaType":"book","media":{"metadata":{"title":"本","authorName":"著者"},"duration":60,"chapters":[{"id":0,"start":0,"end":30,"title":"一"},{"id":1,"start":30,"end":60,"title":"二"}],"tracks":[{"index":1,"ino":"9","startOffset":0,"duration":60}]}}"##
+        let item = try JSONDecoder().decode(AudiobookshelfItem.self, from: Data(json.utf8))
+        let entry = try #require(environment.library.entry(book: item))
+        let saved = PodcastLibrary.Saved(server: server, shows: [], newEpisodes: [], continueListening: [entry],
+                                         progress: [:], transcriptStatus: [:], newCounts: [:])
+        try AudiobookshelfCacheStore(database: environment.common.database).save(JSONEncoder().encode(saved), for: "home")
+        await environment.library.refresh()
+        #expect(environment.library.continueListening.first?.isBook == true)
+
+        environment.library.update(progress: AudiobookshelfProgress(libraryItemId: "book", episodeId: nil, duration: 60, progress: 0.5,
+                                                                    currentTime: 30, isFinished: false, lastUpdate: 1))
+        let updated = try #require(environment.library.continueListening.first)
+        #expect(updated.progress?.currentTime == 30)
+        #expect(updated.isBook && updated.chapters.count == 2 && updated.collectionTitle == "本")
+    }
 }

@@ -102,7 +102,9 @@ private struct NowPlayingControls: View {
                     .accessibilityLabel("Speed \(WatchNowPlaying.speedText(playing.rate))")
                     .accessibilityIdentifier("watch.speed")
                 }
-                if let notice = session.notice {
+                // In Watch mode the player's own trouble (no headphones) shows here too, or Play
+                // would seem to do nothing.
+                if let notice = session.mode == .watch ? session.player.problem ?? session.notice : session.notice {
                     Text(notice).font(.caption2).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 }
             }

@@ -8,6 +8,8 @@ enum ListenRoute: Hashable {
     case only(AudiobookshelfLibrary)
     case show(String)
     case book(String)
+    /// See All under New Episodes.
+    case newEpisodes
 }
 
 /// What a Listen route opens (also in the Mac's library rows).
@@ -20,7 +22,18 @@ struct ListenDestination: View {
         case .only(let library): LibraryView(only: library)
         case .show(let id): ShowView(itemId: id)
         case .book(let id): BookView(itemId: id)
+        case .newEpisodes: AllNewEpisodesView()
         }
+    }
+}
+
+/// Every new episode (See All).
+private struct AllNewEpisodesView: View {
+    @Environment(KikuEnvironment.self) private var environment
+
+    var body: some View {
+        ScrollView { EpisodeList(entries: environment.library.newEpisodes).padding() }
+            .navigationTitle("New Episodes")
     }
 }
 
@@ -167,10 +180,8 @@ struct ListenView: View {
                         } else {
                             EpisodeList(entries: Array(library.newEpisodes.prefix(Self.newEpisodesShown)))
                             if library.newEpisodes.count > Self.newEpisodesShown {
-                                NavigationLink {
-                                    ScrollView { EpisodeList(entries: library.newEpisodes).padding() }
-                                        .navigationTitle("New Episodes")
-                                } label: {
+                                // A route like the rest, so the Listen tab tapped again leaves it.
+                                NavigationLink(value: ListenRoute.newEpisodes) {
                                     Text("See All \(library.newEpisodes.count)").frame(maxWidth: .infinity)
                                 }
                                 .buttonStyle(.bordered)
