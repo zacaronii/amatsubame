@@ -337,4 +337,5 @@ import Testing
         let fewer = JellyfinUpNext.suggestions(Array(similar.prefix(3)), libraries: libraries, currentLibrary: "anime", hidden: ["secret"])
         #expect(fewer.map(\.id) == ["anime1", "dub"])
     }
+
 }

@@ -291,6 +291,7 @@ extension OutboxJobKind {
         case .kavitaProgress: "Reading Positions for Kavita"
         case .jellyfinProgress: "Watch Positions for Jellyfin"
         case .jellyfinSubtitle: "Subtitles for Jellyfin"
+        case .jellyfinPlayed: "Watched Marks for Jellyfin"
         case .audiobookshelfProgress: "Listening Positions for Audiobookshelf"
         case .audiobookshelfSession: "Listening Sessions for Audiobookshelf"
         case .hachidoriLookupCount: "Lookup Counts for Hachidori"
@@ -305,6 +306,7 @@ extension OutboxJobKind {
         case .kavitaProgress: ("reading position", "reading positions")
         case .jellyfinProgress: ("watch position", "watch positions")
         case .jellyfinSubtitle: ("subtitle", "subtitles")
+        case .jellyfinPlayed: ("watched mark", "watched marks")
         case .audiobookshelfProgress: ("listening position", "listening positions")
         case .audiobookshelfSession: ("listening session", "listening sessions")
         case .hachidoriLookupCount: ("word's lookups", "words' lookups")
@@ -319,6 +321,7 @@ extension OutboxJobKind {
         case .kavitaProgress: "Kavita progress"
         case .jellyfinProgress: "Jellyfin progress"
         case .jellyfinSubtitle: "Jellyfin subtitles"
+        case .jellyfinPlayed: "Jellyfin watched mark"
         case .audiobookshelfProgress: "Audiobookshelf progress"
         case .audiobookshelfSession: "Audiobookshelf listening session"
         case .hachidoriLookupCount: "Hachidori lookup count"

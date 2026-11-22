@@ -42,4 +42,53 @@ final class PlayerOptionsUITests: XCTestCase {
         player.typeKey("o", modifierFlags: [])
         XCTAssertTrue(osd.waitForExistence(timeout: 3))
     }
+
+    /// Holding the picture plays at 2× until it's let go.
+    func testHoldingThePicturePlaysFaster() throws {
+        guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file.")
+        }
+        let app = XCUIApplication()
+        app.launchEnvironment = ["UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video]
+        app.launch()
+        let player = app.descendants(matching: .any)["player.video"].firstMatch
+        XCTAssertTrue(player.waitForExistence(timeout: 10))
+        /// Seconds into the video, from the picture's accessibility value ("12.3 s, playing").
+        func time() -> Double { Double((player.value as? String ?? "").split(separator: " ").first ?? "") ?? -1 }
+        sleep(3)
+        let before = time()
+        player.press(forDuration: 4)
+        let held = time() - before
+        XCTAssertGreaterThan(held, 6, "about 4 s held at 2× (it moved \(held) s)")
+        // Back at normal speed afterwards.
+        let after = time()
+        sleep(3)
+        let normal = time() - after
+        XCTAssertLessThan(normal, 4.5, "normal speed again (it moved \(normal) s)")
+        XCTAssertFalse(app.descendants(matching: .any)["player.holdSpeed"].firstMatch.exists)
+    }
+
+    /// Opening the options menu keeps the controls (it hangs from them) up while you choose.
+    func testTheControlsStayWhileTheOptionsMenuIsOpen() throws {
+        guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file.")
+        }
+        let app = XCUIApplication()
+        app.launchEnvironment = ["UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video]
+        app.launch()
+        let player = app.descendants(matching: .any)["player.video"].firstMatch
+        XCTAssertTrue(player.waitForExistence(timeout: 10))
+        let options = app.descendants(matching: .any)["player.options"].firstMatch
+        let close = app.buttons["player.close"]
+        // By themselves the controls go after a few seconds of playing.
+        XCTAssertTrue(close.waitForNonExistence(timeout: 10), "the controls hide while playing")
+        player.tap()
+        XCTAssertTrue(options.waitForExistence(timeout: 3))
+        options.tap()
+        sleep(6)
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "menu after six seconds"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
 }

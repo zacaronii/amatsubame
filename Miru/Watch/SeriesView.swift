@@ -232,6 +232,8 @@ struct SeriesView: View {
                                 EpisodeDownloadButton(item: episode)
                             }
                             .padding(.vertical, 10)
+                            .contentShape(.rect)
+                            .contextMenu { WatchedMenuItem(item: episode) }
                         }
                     }
                     .padding(.horizontal)
