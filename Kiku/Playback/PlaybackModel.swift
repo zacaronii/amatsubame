@@ -21,6 +21,8 @@ final class PlaybackModel: Identifiable, LineLookupHost {
     enum SleepTimer: Equatable {
         case minutes(Int, ends: Date)
         case endOfEpisode
+        /// A book: when the chapter playing ends (its end, in seconds).
+        case endOfChapter(end: Double)
     }
 
     let entry: EpisodeEntry
@@ -399,6 +401,13 @@ final class PlaybackModel: Identifiable, LineLookupHost {
         sleepTimer = .endOfEpisode
     }
 
+    /// Stops at the end of the chapter playing now (books with chapters).
+    func sleepAtEndOfChapter() {
+        guard let chapter = currentChapter else { return }
+        sleepTask?.cancel()
+        sleepTimer = .endOfChapter(end: chapter.end)
+    }
+
     /// Saves the place and stops (the player was closed for good).
     func close() {
         closed = true
@@ -458,6 +467,11 @@ final class PlaybackModel: Identifiable, LineLookupHost {
         if unlogged >= 10 { flushListening() }
         if abs(time - lastSaved) >= 15 { saveProgress() }
         if case .minutes(_, let ends) = sleepTimer, ends <= .now { sleepTimer = nil }
+        // The chapter's last moment: stop there, at the start of the next one.
+        if case .endOfChapter(let end) = sleepTimer, audio.isPlaying, time >= end - 0.3 {
+            sleepTimer = nil
+            audio.pause()
+        }
     }
 
     private func playStateChanged(_ playing: Bool) {

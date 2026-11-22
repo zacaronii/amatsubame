@@ -108,7 +108,7 @@ struct NewEpisodeRow: View {
         }
         .padding(.vertical, 6)
         .contentShape(.rect)
-        .contextMenu { SendToWatchButton(entry: entry) }
+        .contextMenu { EpisodeMenu(entry: entry) }
         .accessibilityIdentifier("listen.episode")
     }
 }
@@ -134,7 +134,7 @@ struct ShowEpisodeRow: View {
         .padding(.vertical, 10)
         .contentShape(.rect)
         .onTapGesture { environment.play(entry) }
-        .contextMenu { SendToWatchButton(entry: entry) }
+        .contextMenu { EpisodeMenu(entry: entry) }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { environment.play(entry) }
@@ -171,5 +171,27 @@ enum PlainText {
         }
         return text.replacingOccurrences(of: "\n{3,}", with: "\n\n", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+/// An episode row's menu: mark it played or unplayed (heard elsewhere, or not wanted), and send
+/// it to the watch.
+struct EpisodeMenu: View {
+    @Environment(KikuEnvironment.self) private var environment
+    let entry: EpisodeEntry
+
+    var body: some View {
+        // What the library knows now, not the row's copy (it may be a moment behind).
+        let finished = environment.library.progress[entry.id]?.isFinished ?? entry.isFinished
+        Group {
+            if finished {
+                Button("Mark as Unplayed", systemImage: "circle") { environment.setPlayed(entry, false) }
+            } else {
+                Button("Mark as Played", systemImage: "checkmark.circle") { environment.setPlayed(entry, true) }
+            }
+        }
+        // Not the one playing: its place is the player's to save.
+        .disabled(environment.playback?.key == entry.id)
+        SendToWatchButton(entry: entry)
     }
 }
