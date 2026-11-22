@@ -65,9 +65,17 @@ struct ReaderContainer: View {
             }
         }
         .id("\(session.chapter.chapterId)-\(opened)")
-        .onAppear { environment.readerIsOpen = true }
+        .onAppear {
+            environment.readerIsOpen = true
+            #if os(iOS)
+            OrientationLock.readerOpened()
+            #endif
+        }
         .onDisappear {
             environment.readerIsOpen = false
+            #if os(iOS)
+            OrientationLock.release()
+            #endif
             ScreenAwake.set(false, reason: "reading")
         }
         .task {

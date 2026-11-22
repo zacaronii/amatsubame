@@ -1,6 +1,16 @@
 import Foundation
 import GRDB
 
+/// What a tap on the left and right of a page does in the readers.
+public enum ReaderTapZones: String, Codable, CaseIterable, Sendable {
+    /// Toward the next page on the side the book reads to (the left, in a right-to-left book).
+    case standard
+    /// The sides swapped (for the other hand).
+    case inverted
+    /// Taps never turn pages (swipe instead): they only look words up and show the controls.
+    case off
+}
+
 public struct MangaReaderSettings: Codable, Equatable, Sendable {
     public enum Mode: String, Codable, CaseIterable, Sendable { case paged, longStrip }
     public enum Direction: String, Codable, CaseIterable, Sendable { case rightToLeft, leftToRight }
@@ -18,13 +28,17 @@ public struct MangaReaderSettings: Codable, Equatable, Sendable {
     /// While a word is looked up, the bubble's recognized text is typeset over it, so the next
     /// tap lands on an exact character.
     public var showsTextOverlay: Bool = true
+    public var tapZones: ReaderTapZones = .standard
+    /// A double tap zooms into the page (and back). Off by default: with it on, a single tap
+    /// waits a moment to see whether a second follows.
+    public var doubleTapZooms: Bool = false
     /// How many pages after the current one to OCR in advance.
     public var ocrAhead: Int = 3
 
     public init() {}
 
     enum CodingKeys: String, CodingKey {
-        case mode, direction, spreads, coverAlone, stripWidth, showsTextBoxes, ocrAhead, showsTextOverlay
+        case mode, direction, spreads, coverAlone, stripWidth, showsTextBoxes, ocrAhead, showsTextOverlay, tapZones, doubleTapZooms
     }
 
     /// Missing keys (settings saved by an older version) keep their defaults.
@@ -37,6 +51,8 @@ public struct MangaReaderSettings: Codable, Equatable, Sendable {
         stripWidth = try container.decodeIfPresent(Double.self, forKey: .stripWidth) ?? stripWidth
         showsTextBoxes = try container.decodeIfPresent(Bool.self, forKey: .showsTextBoxes) ?? showsTextBoxes
         showsTextOverlay = try container.decodeIfPresent(Bool.self, forKey: .showsTextOverlay) ?? showsTextOverlay
+        tapZones = try container.decodeIfPresent(ReaderTapZones.self, forKey: .tapZones) ?? tapZones
+        doubleTapZooms = try container.decodeIfPresent(Bool.self, forKey: .doubleTapZooms) ?? doubleTapZooms
         ocrAhead = try container.decodeIfPresent(Int.self, forKey: .ocrAhead) ?? ocrAhead
     }
 

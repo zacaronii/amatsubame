@@ -36,15 +36,15 @@ struct PagedReaderView: View {
                                 if index < endIndex, abs(index - (position ?? 0)) > Self.builtAround {
                                     Color.clear
                                 } else if index < endIndex {
-                                    ZoomableContainer {
+                                    ZoomablePage(doubleTapZooms: model.settings.doubleTapZooms) { tap in
                                         // Taps are handled inside the zoomable content: the native
                                         // zoom view receives touches/clicks before outer gestures.
                                         SpreadView(model: model, pages: slots[index], sideInsets: sideInsets)
                                             .contentShape(.rect)
-                                            .onTapGesture(coordinateSpace: .global) { location in
+                                            .gesture(tap { globalX in
                                                 let frame = geometry.frame(in: .global)
-                                                handleTap(at: location.x - frame.minX, width: frame.width)
-                                            }
+                                                handleTap(at: globalX - frame.minX, width: frame.width)
+                                            })
                                             .manualSelectionGesture(model)
                                     }
                                 } else {
@@ -145,10 +145,12 @@ struct PagedReaderView: View {
         // With the popup open, a tap outside the text only closes it.
         if model.popup != nil {
             model.popup = nil
+        } else if model.settings.tapZones == .off {
+            model.showsChrome.toggle()
         } else if x < width / 3 {
-            turn(physicalLeft: true)
+            turn(physicalLeft: model.settings.tapZones != .inverted)
         } else if x > width * 2 / 3 {
-            turn(physicalLeft: false)
+            turn(physicalLeft: model.settings.tapZones == .inverted)
         } else {
             model.showsChrome.toggle()
         }
@@ -248,5 +250,26 @@ struct EndOfChapterView: View {
         .foregroundStyle(.white)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .environment(\.layoutDirection, .leftToRight)
+    }
+}
+
+/// One zoomable page (or spread) and its taps: a single tap turns the page or shows the
+/// controls; with Double-Tap to Zoom on, a double tap zooms in around the finger and back, and
+/// a single tap waits a moment to see which it is.
+private struct ZoomablePage<Content: View>: View {
+    let doubleTapZooms: Bool
+    /// Builds the page, given a maker of its tap gesture (called with the tap's global x).
+    @ViewBuilder let content: (@escaping (@escaping (CGFloat) -> Void) -> AnyGesture<Void>) -> Content
+    @State private var zoom = ZoomControl()
+
+    var body: some View {
+        ZoomableContainer(control: zoom) {
+            content { single in
+                let one = SpatialTapGesture(count: 1, coordinateSpace: .global).onEnded { single($0.location.x) }
+                guard doubleTapZooms else { return AnyGesture(one.map { _ in }) }
+                let two = SpatialTapGesture(count: 2, coordinateSpace: .local).onEnded { zoom.toggleZoom(at: $0.location) }
+                return AnyGesture(two.exclusively(before: one).map { _ in })
+            }
+        }
     }
 }

@@ -247,6 +247,13 @@ final class AppEnvironment {
         if let kavitaURL {
             try? environment.accounts.save(ServerAccount(kind: .kavita, baseURL: kavitaURL, serverName: "Kavita"))
         }
+        // UITEST_READER_TAPS="inverted", "off" or "doubletap": the manga reader's tap settings.
+        if let taps = env["UITEST_READER_TAPS"] {
+            var settings = MangaReaderSettings.default
+            if let zones = ReaderTapZones(rawValue: taps) { settings.tapZones = zones }
+            settings.doubleTapZooms = taps == "doubletap"
+            try? environment.readerSettings.saveAsDefault(settings)
+        }
         // Read-along tests: Audiobookshelf (an API key) and Kaku. Only read from: progress isn't sent.
         if let url = env["UITEST_ABS_URL"].flatMap({ try? ServerURL.parse($0) }), let key = env["UITEST_ABS_KEY"] {
             try? environment.secrets.setSecret(key, for: .audiobookshelfToken)

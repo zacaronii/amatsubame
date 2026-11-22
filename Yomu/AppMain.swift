@@ -1,7 +1,17 @@
 import AppCommon
+import Readers
 import SwiftUI
 #if os(iOS)
 import BackgroundTasks
+#endif
+
+#if os(iOS)
+/// Only for the readers' Lock Rotation: which orientations the app may turn to right now.
+final class YomuAppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        OrientationLock.mask
+    }
+}
 #endif
 
 @main
@@ -10,6 +20,9 @@ struct YomuApp: App {
 
     @State private var environment = AppEnvironment.live()
     @Environment(\.scenePhase) private var scenePhase
+    #if os(iOS)
+    @UIApplicationDelegateAdaptor(YomuAppDelegate.self) private var appDelegate
+    #endif
 
     var body: some Scene {
         WindowGroup {
