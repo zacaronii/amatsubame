@@ -19,6 +19,8 @@ final class AppEnvironment {
     let pageCache: PageCacheStore
     let pages: MangaPageRepository
     let kavitaLibrary: KavitaLibraryRepository
+    /// Bookmarks and highlights (kept on Kavita).
+    let readerMarks: ReaderMarkStore
     let readingProgress: ReadingProgressStore
     let readerSettings: MangaReaderSettingsStore
     let ocrModels: OCRModelStore
@@ -114,8 +116,9 @@ final class AppEnvironment {
     init(
         database: AppDatabase, secrets: any SecretStore, mediaDirectory: URL, cacheDirectory: URL,
         dictionaryDirectory: URL, ocrModelDirectory: URL, startupError: String? = nil,
-        sendsProgress: Bool = true, sendsCards: Bool = true, sharedSetup: SharedSetup? = nil
+        sendsProgress: Bool = true, sendsMarks: Bool? = nil, sendsCards: Bool = true, sharedSetup: SharedSetup? = nil
     ) {
+        let marks = ReaderMarkStore(database: database)
         let http = HTTPClient()
         let tokens = AudiobookshelfTokens(secrets: secrets)
         audiobookshelfTokens = tokens
@@ -123,14 +126,18 @@ final class AppEnvironment {
             database: database, secrets: secrets, mediaDirectory: mediaDirectory, dictionaryDirectory: dictionaryDirectory,
             http: http, startupError: startupError, sendsCards: sendsCards, sharedSetup: sharedSetup,
             appHandlers: { context in
-                guard sendsProgress else { return [] }
+                let makeKavita = Self.kavitaClientFactory(accounts: context.accounts, secrets: context.secrets, http: context.http)
+                // Bookmarks and highlights live on Kavita; UI tests can send them without progress.
+                let markHandlers: [any OutboxHandler] = (sendsMarks ?? sendsProgress)
+                    ? [KavitaReaderMarkHandler(store: marks, makeClient: makeKavita)] : []
+                guard sendsProgress else { return markHandlers }
                 let audiobookshelf = AudioServers.audiobookshelfClientFactory(accounts: context.accounts, tokens: tokens, http: context.http)
                 return [
                     KavitaProgressHandler(makeClient: Self.kavitaClientFactory(accounts: context.accounts, secrets: context.secrets, http: context.http)),
                     // Read-along listening moves the audiobook's place too, and counts as listening.
                     AudiobookshelfProgressHandler(makeClient: audiobookshelf),
                     AudiobookshelfSessionHandler(makeClient: audiobookshelf),
-                ]
+                ] + markHandlers
             }
         )
         self.common = common
@@ -139,6 +146,7 @@ final class AppEnvironment {
         // Yomu green (its AccentColor), with dark text on filled buttons.
         common.lookup.accent = ("#3FC98F", "#04261A")
         kavitaLibrary = KavitaLibraryRepository(database: database)
+        readerMarks = marks
         readAlongPairs = ReadAlongStore(database: database)
         bookLengths = BookLengths(database: database)
         listenProgress = WatchProgressStore(database: database)
@@ -242,7 +250,8 @@ final class AppEnvironment {
             dictionaryDirectory: temp.appending(path: "Dictionaries"),
             // OCR models are large: tests point at an installed copy rather than downloading.
             ocrModelDirectory: env["UITEST_OCR_MODELS"].map { URL(filePath: $0) } ?? temp.appending(path: "OCRModels"),
-            sendsProgress: false, sendsCards: sendsCards
+            // Bookmark tests send to the test account (and remove what they made).
+            sendsProgress: false, sendsMarks: env["UITEST_SENDS_MARKS"] != nil, sendsCards: sendsCards
         )
         if let kavitaURL {
             try? environment.accounts.save(ServerAccount(kind: .kavita, baseURL: kavitaURL, serverName: "Kavita"))
@@ -398,14 +407,38 @@ final class AppEnvironment {
 
     func kakuClient() -> KakuClient? { AudioServers.kakuClient(common) }
 
-    func makeReader(_ chapter: ReaderChapter, next: ReaderChapter?) -> MangaReaderModel {
+    func makeReader(_ chapter: ReaderChapter, next: ReaderChapter?, startPage: Int? = nil) -> MangaReaderModel {
         let model = MangaReaderModel(
             chapter: chapter, nextChapter: next, pages: pages, settingsStore: readerSettings,
             progressStore: readingProgress, outbox: outbox, ocr: ocr, lookup: lookup,
             syncNow: { [weak self] in self?.syncNow() }
         )
         model.activity = common.activity
+        model.opensAt = startPage
+        if let account = readerMarkAccount() {
+            model.bookmarks = PageBookmarks(chapter: chapter, account: account, store: readerMarks, outbox: outbox,
+                                            syncNow: { [weak self] in self?.syncNow() },
+                                            refresh: { [weak self] in
+                                                try? await self?.refreshMarks(seriesId: chapter.seriesId, libraryId: chapter.libraryId, isBook: false)
+                                            })
+        }
         return model
+    }
+
+    // MARK: Bookmarks and highlights
+
+    /// Whose marks are shown: the Kavita account signed in.
+    func readerMarkAccount() -> String? {
+        (try? accounts.account(.kavita)).flatMap { $0 }.map(ReaderMarkStore.accountKey)
+    }
+
+    /// Brings a series' bookmarks and highlights up to date with Kavita. `chapters`: the book's
+    /// volumes whose bookmarks to list.
+    func refreshMarks(seriesId: Int, libraryId: Int, isBook: Bool, chapters: [(chapterId: Int, volumeId: Int)] = []) async throws {
+        guard let account = readerMarkAccount(), let client = kavitaClient() else { return }
+        try await KavitaReaderMarkSync(client: client, store: readerMarks, outbox: outbox, account: account)
+            .refresh(seriesId: seriesId, libraryId: libraryId, isBook: isBook, chapters: chapters)
+        syncNow()
     }
 
     func makeBookReader(_ chapter: ReaderChapter, next: ReaderChapter?) -> BookReaderModel {

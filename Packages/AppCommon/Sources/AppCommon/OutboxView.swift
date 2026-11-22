@@ -296,6 +296,7 @@ extension OutboxJobKind {
         case .audiobookshelfSession: "Listening Sessions for Audiobookshelf"
         case .hachidoriLookupCount: "Lookup Counts for Hachidori"
         case .hachidoriWordStatus: "Known Words for Hachidori"
+        case .kavitaReaderMark: "Bookmarks and Highlights for Kavita"
         }
     }
 
@@ -311,6 +312,7 @@ extension OutboxJobKind {
         case .audiobookshelfSession: ("listening session", "listening sessions")
         case .hachidoriLookupCount: ("word's lookups", "words' lookups")
         case .hachidoriWordStatus: ("known or ignored word", "known or ignored words")
+        case .kavitaReaderMark: ("bookmark or highlight", "bookmarks and highlights")
         }
         return "\(count) \(count == 1 ? one : many)"
     }
@@ -326,6 +328,7 @@ extension OutboxJobKind {
         case .audiobookshelfSession: "Audiobookshelf listening session"
         case .hachidoriLookupCount: "Hachidori lookup count"
         case .hachidoriWordStatus: "Hachidori known word"
+        case .kavitaReaderMark: "Kavita bookmark or highlight"
         }
     }
 }

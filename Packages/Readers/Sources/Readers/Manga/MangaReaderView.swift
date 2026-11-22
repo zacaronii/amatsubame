@@ -84,6 +84,7 @@ public struct MangaReaderView: View {
         .animation(.easeInOut(duration: 0.2), value: model.showsChrome)
         .focusedSceneValue(\.readerPaging, ReaderPaging(next: { model.requestPage(1) }, previous: { model.requestPage(-1) }))
         .task { await model.load() }
+        .task { await model.bookmarks?.follow() }
         .onDisappear { model.flushProgress() }
         .onChange(of: scenePhase) { _, phase in
             if phase != .active { model.flushProgress() }

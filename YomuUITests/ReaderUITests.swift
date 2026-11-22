@@ -422,6 +422,76 @@ final class ReaderUITests: XCTestCase {
         add(attachment)
     }
 
+    /// A page bookmark goes to the test account's Kavita (`UITEST_SENDS_MARKS`), shows in the
+    /// series' list, opens the reader at its page from there, and is removed again: Kavita's
+    /// bookmarks end as they began.
+    func testPageBookmarkReachesKavitaAndOpensFromTheSeries() throws {
+        let before = try serverBookmarkCount()
+        app.launchEnvironment["UITEST_SENDS_MARKS"] = "1"
+        app.launch()
+        openReader()
+        reader.swipeRight()
+        reader.swipeRight()
+        let page = try pageCounter()
+        reader.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        let bookmark = app.buttons["reader.bookmark"].firstMatch
+        XCTAssertTrue(bookmark.waitForExistence(timeout: 10), "a bookmark button in the controls")
+        bookmark.tap()
+        XCTAssertEqual(bookmark.value as? String, "Bookmarked")
+        XCTAssertTrue(waitForServer(before + 1), "the bookmark reached Kavita")
+        snapshot("bookmark-in-reader")
+
+        app.buttons["reader.close"].firstMatch.tap()
+        let row = app.buttons["series.mark"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 20), "the series lists it")
+        for _ in 0..<8 where !row.isHittable { app.swipeUp() }
+        XCTAssertTrue(row.label.contains("Page \(page)"), row.label)
+        snapshot("bookmark-in-series")
+        row.tap()
+        XCTAssertTrue(reader.waitForExistence(timeout: 20))
+        XCTAssertEqual(try pageCounter(), page, "opened at the bookmarked page")
+
+        reader.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(bookmark.waitForExistence(timeout: 10))
+        XCTAssertEqual(bookmark.value as? String, "Bookmarked")
+        bookmark.tap()
+        XCTAssertTrue(waitForServer(before), "removed from Kavita again (bookmarks: \((try? serverBookmarkCount()) ?? -1), expected \(before))")
+    }
+
+    /// The test account's page bookmarks on Kavita, counted from the test runner.
+    private func serverBookmarkCount() throws -> Int {
+        let env = ProcessInfo.processInfo.environment
+        let base = try XCTUnwrap(env["UITEST_KAVITA_URL"].flatMap(URL.init(string:)))
+        var request = URLRequest(url: base.appending(path: "api/Reader/all-bookmarks"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(env["UITEST_KAVITA_KEY"], forHTTPHeaderField: "x-api-key")
+        request.httpBody = Data(#"{"statements":[],"combination":1,"limitTo":0}"#.utf8)
+        nonisolated(unsafe) var result: Result<Int, any Error> = .success(-1)
+        let done = expectation(description: "bookmarks")
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            defer { done.fulfill() }
+            if let error { result = .failure(error); return }
+            guard (response as? HTTPURLResponse)?.statusCode == 200, let data,
+                  let list = try? JSONSerialization.jsonObject(with: data) as? [Any] else {
+                result = .failure(URLError(.badServerResponse))
+                return
+            }
+            result = .success(list.count)
+        }.resume()
+        wait(for: [done], timeout: 30)
+        return try result.get()
+    }
+
+    private func waitForServer(_ count: Int, timeout: TimeInterval = 45) -> Bool {
+        let end = Date().addingTimeInterval(timeout)
+        while Date() < end {
+            if (try? serverBookmarkCount()) == count { return true }
+            sleep(2)
+        }
+        return false
+    }
+
     private var reader: XCUIElement { app.scrollViews["reader.paged"].firstMatch }
 
     private func openReader() {

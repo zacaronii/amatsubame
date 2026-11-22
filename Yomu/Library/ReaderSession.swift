@@ -8,6 +8,8 @@ struct ReaderSession: Codable, Identifiable, Hashable {
     var chapter: ReaderChapter
     var series: KavitaSeries
     var contents: KavitaSeriesContents
+    /// Opens at this page rather than the reading position (a bookmark picked in the series).
+    var startPage: Int?
 
     var id: Int { chapter.chapterId }
 
@@ -39,7 +41,7 @@ struct ReaderContainer: View {
             if session.series.isEpub {
                 ReaderModelHost(make: { environment.makeBookReader(session.chapter, next: next) }) { model in
                     if let readAlong = model.readAlong as? ReadAlongModel {
-                        BookReaderView(model: model, onClose: closeReader, onOpenChapter: { chapter in session.chapter = chapter }) {
+                        BookReaderView(model: model, onClose: closeReader, onOpenChapter: { chapter in session.chapter = chapter; session.startPage = nil }) {
                             if readAlong.isOn {
                                 ReadAlongBar(model: readAlong, showsControls: model.showsChrome)
                                     .task {
@@ -55,12 +57,12 @@ struct ReaderContainer: View {
                             ReadAlongClipRow(model: readAlong)
                         }
                     } else {
-                        BookReaderView(model: model, onClose: closeReader, onOpenChapter: { chapter in session.chapter = chapter })
+                        BookReaderView(model: model, onClose: closeReader, onOpenChapter: { chapter in session.chapter = chapter; session.startPage = nil })
                     }
                 }
             } else {
-                ReaderModelHost(make: { environment.makeReader(session.chapter, next: next) }) { model in
-                    MangaReaderView(model: model, onClose: closeReader, onOpenChapter: { chapter in session.chapter = chapter })
+                ReaderModelHost(make: { environment.makeReader(session.chapter, next: next, startPage: session.startPage) }) { model in
+                    MangaReaderView(model: model, onClose: closeReader, onOpenChapter: { chapter in session.chapter = chapter; session.startPage = nil })
                 }
             }
         }

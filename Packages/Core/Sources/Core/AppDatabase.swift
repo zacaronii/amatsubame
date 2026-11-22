@@ -890,6 +890,41 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v56_reader_marks") { db in
+            // Yomu's bookmarks and highlights, kept on Kavita: the device's copy and what's unsent.
+            try db.create(table: "readerMark") { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("account", .text).notNull()
+                t.column("kind", .text).notNull()
+                t.column("serverId", .integer)
+                t.column("libraryId", .integer).notNull()
+                t.column("seriesId", .integer).notNull()
+                t.column("volumeId", .integer).notNull()
+                t.column("chapterId", .integer).notNull()
+                t.column("page", .integer).notNull()
+                t.column("xpath", .text)
+                t.column("endXPath", .text)
+                t.column("text", .text)
+                t.column("title", .text)
+                t.column("note", .text)
+                t.column("slot", .integer).notNull().defaults(to: 0)
+                t.column("state", .text).notNull()
+                t.column("revision", .integer).notNull().defaults(to: 0)
+                t.column("createdAt", .datetime).notNull()
+                t.column("updatedAt", .datetime).notNull()
+            }
+            try db.create(index: "readerMark_series", on: "readerMark", columns: ["account", "seriesId"])
+            // What a Kavita server turned out not to offer (annotations before 0.8.8, page
+            // bookmarks without the Bookmark role).
+            try db.create(table: "kavitaFeature") { t in
+                t.column("account", .text).notNull()
+                t.column("feature", .text).notNull()
+                t.column("available", .boolean).notNull()
+                t.column("checkedAt", .datetime).notNull()
+                t.primaryKey(["account", "feature"])
+            }
+        }
+
         return migrator
     }
 }
