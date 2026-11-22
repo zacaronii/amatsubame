@@ -7,7 +7,7 @@ import os
 /// Nothing leaves the device unless the user shares the export.
 public enum AppLog {
     public enum Area: String, Sendable {
-        case servers, sync, dictionaries, setup, downloads, app
+        case servers, sync, dictionaries, setup, downloads, playback, app
     }
 
     /// Two files of this size at most: the current one and the one before.

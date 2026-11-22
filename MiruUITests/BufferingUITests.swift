@@ -1,0 +1,24 @@
+import XCTest
+
+/// The player says when the stream runs dry (#143). Needs a video served slower than it plays:
+/// `TEST_RUNNER_UITEST_PLAYER_SLOW_VIDEO=http://127.0.0.1:<port>/…` (a server on this Mac that
+/// sends the start quickly, then a trickle).
+final class BufferingUITests: XCTestCase {
+    func testBufferingShowsWhileTheStreamIsDry() throws {
+        guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_SLOW_VIDEO"] else {
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_SLOW_VIDEO to a slowly served video.")
+        }
+        let app = XCUIApplication()
+        app.launchEnvironment["UITEST_PLAYER"] = "1"
+        app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
+        app.launch()
+        XCTAssertTrue(app.descendants(matching: .any)["player.video"].firstMatch.waitForExistence(timeout: 10))
+        let buffering = app.descendants(matching: .any)["player.buffering"].firstMatch
+        XCTAssertTrue(buffering.waitForExistence(timeout: 40), "the wait is shown")
+        XCTAssertTrue(buffering.label.hasPrefix("Buffering"), buffering.label)
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "buffering"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+}

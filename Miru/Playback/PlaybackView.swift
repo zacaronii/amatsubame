@@ -149,6 +149,7 @@ struct PlaybackView: View {
         }
         .onChange(of: model.mpv.timePosition) { model.timeChanged() }
         .onChange(of: model.mpv.reachedEnd) { model.updateUpNext() }
+        .onChange(of: model.mpv.isBuffering) { model.bufferingChanged() }
         // Keys go back to the video once the cheat sheet closes.
         .onChange(of: model.showsShortcuts) { _, shows in if !shows { focused = true } }
         #if os(macOS)
@@ -248,6 +249,19 @@ struct PlaybackView: View {
     @ViewBuilder private var progressAndError: some View {
         if model.isOpening {
             ProgressView().tint(.white).controlSize(.large)
+        } else if model.showsBuffering, !model.mpv.isPaused {
+            // The stream ran dry: the picture is frozen until more arrives.
+            VStack(spacing: 10) {
+                ProgressView().tint(.white).controlSize(.large)
+                Text(model.mpv.bufferPercent.map { "Buffering \($0)%" } ?? "Buffering")
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(.white)
+            }
+            .padding(16)
+            .background(.black.opacity(0.5), in: .rect(cornerRadius: 12))
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("player.buffering")
+            .allowsHitTesting(false)
         }
         if let error = model.error ?? model.mpv.lastError {
             errorView(error)

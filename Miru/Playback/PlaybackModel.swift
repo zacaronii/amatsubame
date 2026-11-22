@@ -144,6 +144,11 @@ final class PlaybackModel {
     /// A brief message top left after a keyboard shortcut ("Speed 1.10×"), like mpv's.
     private(set) var osd: String?
     @ObservationIgnored private var osdTask: Task<Void, Never>?
+    /// The video has stopped to wait for the stream for long enough to say so (#143).
+    private(set) var showsBuffering = false
+    /// This video's waits for the stream, for the log and the stream info.
+    private(set) var stalls = StallLog()
+    @ObservationIgnored private var bufferingTask: Task<Void, Never>?
     /// The cheat sheet over the video (`?`).
     var showsShortcuts = false
     /// Stream details over the video (`I`), refreshed while they show.
@@ -217,9 +222,12 @@ final class PlaybackModel {
 
     func open() async {
         resetUpNext()
+        stalls = StallLog()
+        showsBuffering = false
         #if DEBUG
-        // UI tests: a local video file instead of a Jellyfin item (gesture tests without a server).
-        if session.itemId.hasPrefix("/") {
+        // UI tests: a local video file instead of a Jellyfin item (gesture tests without a server),
+        // or one served from this Mac (the buffering test's slow server).
+        if session.itemId.hasPrefix("/") || session.itemId.hasPrefix("http://127.0.0.1") {
             // UITEST_PLAYER_FOLLOWING=<path>: a "next episode" for the Up Next card. It and
             // UITEST_PLAYER_START apply to the first video only (the next one starts afresh).
             let firstOpen = !Self.openedDebugVideo
@@ -1156,6 +1164,25 @@ final class PlaybackModel {
         }
     }
 
+    /// mpv started or stopped waiting for the stream. The spinner comes after a moment (a seek
+    /// refills in less); each wait goes in the log, to tell a slow network from anything else.
+    func bufferingChanged() {
+        let waiting = mpv.isBuffering && mpv.hasStarted
+        bufferingTask?.cancel()
+        if waiting {
+            bufferingTask = Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(400))
+                if !Task.isCancelled { self?.showsBuffering = true }
+            }
+        } else {
+            showsBuffering = false
+        }
+        guard mpv.hasStarted || !mpv.isBuffering else { return }
+        if let line = stalls.note(buffering: mpv.isBuffering, position: mpv.timePosition) {
+            AppLog.info(.playback, "\(line): \(item?.name ?? session.title)")
+        }
+    }
+
     private func readStreamInfo() -> [(label: String, value: String)] {
         func number(_ name: String, digits: Int = 0) -> String? {
             mpv.property(name).flatMap(Double.init).map { String(format: "%.\(digits)f", $0) }
@@ -1172,6 +1199,7 @@ final class PlaybackModel {
         if !audio.isEmpty { rows.append(("Audio", audio)) }
         rows.append(("Dropped frames", "\(mpv.property("frame-drop-count") ?? "0") (decoder \(mpv.property("decoder-frame-drop-count") ?? "0"))"))
         if let cache = number("demuxer-cache-duration", digits: 1) { rows.append(("Buffered", "\(cache) s")) }
+        if let waits = stalls.summary { rows.append(("Waited for stream", waits)) }
         rows.append(("Speed", String(format: "%.2f×", mpv.speed)))
         return rows
     }

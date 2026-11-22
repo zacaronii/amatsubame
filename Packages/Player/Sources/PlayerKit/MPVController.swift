@@ -32,6 +32,10 @@ public final class MPVController {
     /// The file has started playing at its start position (mpv's first playback-restart).
     /// Before that, `timePosition` can still read 0 even when starting part-way in.
     public private(set) var hasStarted = false
+    /// mpv has stopped to wait for more of the stream (its cache ran dry): the picture is
+    /// frozen though nothing is paused. `bufferPercent` is how far the refill is (0…100).
+    public private(set) var isBuffering = false
+    public private(set) var bufferPercent: Int?
     public private(set) var tracks: [Track] = []
     public private(set) var lastError: String?
     /// mpv's own volume, 0…100 (the system volume is separate).
@@ -78,7 +82,8 @@ public final class MPVController {
         mpv_initialize(mpv)
         for (name, format) in [("time-pos", MPV_FORMAT_DOUBLE), ("duration", MPV_FORMAT_DOUBLE), ("pause", MPV_FORMAT_FLAG),
                                ("eof-reached", MPV_FORMAT_FLAG), ("track-list", MPV_FORMAT_NODE), ("volume", MPV_FORMAT_DOUBLE),
-                               ("video-params/aspect", MPV_FORMAT_DOUBLE)] {
+                               ("video-params/aspect", MPV_FORMAT_DOUBLE), ("paused-for-cache", MPV_FORMAT_FLAG),
+                               ("cache-buffering-state", MPV_FORMAT_INT64)] {
             mpv_observe_property(mpv, 0, name, format)
         }
         mpv_set_wakeup_callback(mpv, mpvWakeup, Unmanaged.passUnretained(self).toOpaque())
@@ -107,6 +112,8 @@ public final class MPVController {
         mpv_set_option_string(mpv, "start", String(format: "%.3f", max(start, 0)))
         reachedEnd = false
         hasStarted = false
+        isBuffering = false
+        bufferPercent = nil
         setLoop(start: nil, end: nil)
         command(["loadfile", location, "replace"])
         isLoaded = true
@@ -288,6 +295,7 @@ public final class MPVController {
 
     enum Update: Sendable {
         case time(Double), duration(Double), paused(Bool), ended(Bool), tracks([Track]), volume(Double), aspect(Double)
+        case buffering(Bool), bufferPercent(Int)
         case none
     }
 
@@ -305,6 +313,10 @@ public final class MPVController {
             return .volume(property.data.assumingMemoryBound(to: Double.self).pointee)
         case ("video-params/aspect", MPV_FORMAT_DOUBLE):
             return .aspect(property.data.assumingMemoryBound(to: Double.self).pointee)
+        case ("paused-for-cache", MPV_FORMAT_FLAG):
+            return .buffering(property.data.assumingMemoryBound(to: Int32.self).pointee != 0)
+        case ("cache-buffering-state", MPV_FORMAT_INT64):
+            return .bufferPercent(Int(property.data.assumingMemoryBound(to: Int64.self).pointee))
         case ("track-list", MPV_FORMAT_NODE):
             return .tracks(tracks(from: property.data.assumingMemoryBound(to: mpv_node.self).pointee))
         default:
@@ -347,6 +359,8 @@ public final class MPVController {
         case .ended(let value): reachedEnd = value
         case .tracks(let value): tracks = value
         case .volume(let value): volume = value
+        case .buffering(let value): isBuffering = value
+        case .bufferPercent(let value): bufferPercent = value
         case .aspect(let value):
             // Ignore the rotation nudge (a hair's change); only a new video's shape counts.
             if value > 0, videoAspect.map({ abs($0 - value) / $0 > 0.005 }) ?? true { videoAspect = value }
