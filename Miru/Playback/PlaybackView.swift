@@ -1,4 +1,5 @@
 import AppCommon
+import Core
 import Lookup
 import PlayerKit
 import SwiftUI
@@ -18,6 +19,9 @@ struct PlaybackView: View {
     let onClose: () -> Void
     @Environment(\.scenePhase) private var scenePhase
     @State private var showsControls = true
+    /// Playback was paused because the pointer came onto the subtitles.
+    @State private var pausedForHover = false
+    @State private var pictureHeight: CGFloat = 0
     /// The options menu is open: the controls (it hangs from one) don't hide under it.
     @State private var optionsOpen = false
     /// The title-and-scrubber bar's height, so the subtitles and end card sit above it.
@@ -494,12 +498,33 @@ struct PlaybackView: View {
             } onSwipe: { direction in
                 if direction > 0 { model.nextLine() } else { model.previousLine() }
             }
-            .padding(.bottom, 12)
+            .subtitleBehaviour(model, hover: hoverChanged)
+            .background { GeometryReader { geometry in Color.clear.preference(key: SubtitleAreaHeight.self, value: geometry.size.height) } }
+            .padding(.bottom, 12 + pictureHeight * model.look.subtitleLift)
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { pictureHeight = $0 }
     }
 
     private func subtitleSize(_ size: CGSize) -> CGFloat {
-        min(max(min(size.width, size.height) * 0.06, 18), 40)
+        min(max(min(size.width, size.height) * 0.06, 18), 40) * model.look.subtitleScale
+    }
+
+    /// The Mac: playing stops while the pointer rests on the subtitles (when Settings says so),
+    /// and goes on when it leaves, unless a lookup is open or it was paused anyway.
+    private func hoverChanged(_ inside: Bool) {
+        guard model.look.pausesOnHover else { return }
+        if inside {
+            guard !model.mpv.isPaused else { return }
+            pausedForHover = true
+            togglesPauseQuietly = true
+            model.mpv.setPaused(true)
+        } else if pausedForHover {
+            pausedForHover = false
+            if model.popup == nil, model.mpv.isPaused {
+                togglesPauseQuietly = true
+                model.mpv.setPaused(false)
+            }
+        }
     }
 
     /// A panel beside or under the picture (the dictionary), which draws its own background at
@@ -568,7 +593,7 @@ struct PlaybackView: View {
                 Spacer()
                 SubtitleOverlay(
                     cues: cues, highlight: model.highlight,
-                    fontSize: min(max(min(size.width, size.height) * 0.06, 18), 40)
+                    fontSize: subtitleSize(size)
                 ) { cue, index in
                     // A lookup pauses without bringing up the controls.
                     if !model.mpv.isPaused { togglesPauseQuietly = true }
@@ -577,8 +602,10 @@ struct PlaybackView: View {
                     if direction > 0 { model.nextLine() } else { model.previousLine() }
                     scheduleHide()
                 }
-                // Clear of the title and scrubber while the controls show (taller in portrait).
-                .padding(.bottom, showsControls ? bottomBarHeight + 28 : 12)
+                .subtitleBehaviour(model, hover: hoverChanged)
+                // Clear of the title and scrubber while the controls show (taller in portrait),
+                // and as far up as Settings asks (above burnt-in subtitles).
+                .padding(.bottom, max(showsControls ? bottomBarHeight + 28 : 12, size.height * model.look.subtitleLift))
             }
             // Centered in the part of the screen the lookup or Subtitles panel leaves free.
             .frame(maxWidth: size.width * (sidePanelShows && size.width > size.height ? 0.5 : 1))
@@ -657,6 +684,51 @@ struct PlaybackView: View {
         .foregroundStyle(.white)
     }
 
+    /// The subtitles' size and height, hiding them until tapped, pausing under the pointer.
+    private var subtitleLookMenu: some View {
+        let size = Binding<Double>(get: { model.look.subtitleScale }, set: { value in model.setLook { $0.subtitleScale = value } })
+        let lift = Binding<Double>(get: { model.look.subtitleLift }, set: { value in model.setLook { $0.subtitleLift = value } })
+        let conceals = Binding<Bool>(get: { model.look.concealsSubtitles }, set: { value in model.setLook { $0.concealsSubtitles = value } })
+        let hover = Binding<Bool>(get: { model.look.pausesOnHover }, set: { value in model.setLook { $0.pausesOnHover = value } })
+        return Menu("Subtitles") {
+            Picker("Size", selection: size) {
+                ForEach(PlayerSettings.subtitleScales, id: \.scale) { Text($0.name).tag($0.scale) }
+            }
+            .pickerStyle(.menu)
+            Picker("Position", selection: lift) {
+                ForEach(PlayerSettings.subtitleLifts, id: \.lift) { Text($0.name).tag($0.lift) }
+            }
+            .pickerStyle(.menu)
+            Toggle("Hide Until Tapped", isOn: conceals)
+            #if os(macOS)
+            Toggle("Pause Under the Pointer", isOn: hover)
+            #else
+            let _ = hover
+            #endif
+        }
+    }
+
+    private var sleepMenu: some View {
+        Menu(sleepTitle) {
+            ForEach([15, 30, 45, 60], id: \.self) { minutes in
+                Button("\(minutes) Minutes") { model.setSleepTimer(minutes: minutes) }
+            }
+            Button(model.item?.isEpisode == true ? "End of Episode" : "End of Movie") { model.setSleepTimer(.endOfEpisode) }
+            if model.sleepTimer != nil {
+                Divider()
+                Button("Turn Off", role: .destructive) { model.setSleepTimer(nil) }
+            }
+        }
+    }
+
+    private var sleepTitle: String {
+        switch model.sleepTimer {
+        case .minutes(_, let ends)?: "Sleep Timer · \(ends.formatted(date: .omitted, time: .shortened))"
+        case .endOfEpisode?: "Sleep Timer · End of Episode"
+        case nil: "Sleep Timer"
+        }
+    }
+
     /// Speed, the audio track, English subtitles and pausing after lines, for a finger: they
     /// were keys only (`[` `]` `#` `E`), which an iPhone doesn't have.
     private var optionsMenu: some View {
@@ -681,6 +753,8 @@ struct PlaybackView: View {
             if model.hasEnglish || model.showsEnglish {
                 Toggle("English Subtitles", isOn: Binding(get: { model.showsEnglish }, set: { _ in model.perform(.english) }))
             }
+            subtitleLookMenu
+            sleepMenu
             Toggle("Pause After Each Line", isOn: Binding(get: { model.pausesAfterLines }, set: { model.setPausesAfterLines($0) }))
                 .onAppear {
                     optionsOpen = true
@@ -1136,5 +1210,20 @@ struct PlayerScreen {
     func leftOfFold(_ rect: CGRect) -> CGRect {
         let x = fold.map { $0.minX } ?? screen.midX - 4
         return CGRect(x: rect.minX, y: rect.minY, width: max(x - rect.minX, 0), height: rect.height)
+    }
+}
+
+private struct SubtitleAreaHeight: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+private extension SubtitleOverlay {
+    /// Settings' behaviour for the lines: blurred until tapped, and the pointer's comings and goings.
+    func subtitleBehaviour(_ model: PlaybackModel, hover: @escaping (Bool) -> Void) -> SubtitleOverlay {
+        var overlay = self
+        overlay.concealed = model.look.concealsSubtitles
+        overlay.onHover = hover
+        return overlay
     }
 }
