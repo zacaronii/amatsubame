@@ -50,7 +50,7 @@ struct PinnedStack: View {
 /// Home: Today, Continue Watching (in progress), Next Up and each library's newest shows.
 struct WatchView: View {
     /// The Watch tab's navigation (a suggestion from the player opens a series here).
-    @State private var path: [JellyfinItem] = []
+    @State private var path = NavigationPath()
     @Environment(PlayerEnvironment.self) private var environment
     @Environment(CommonEnvironment.self) private var common
     @Environment(\.scenePhase) private var scenePhase
@@ -95,9 +95,9 @@ struct WatchView: View {
             .toolbar {
                 if common.serverAccounts[.jellyfin]?.userId != nil {
                     ToolbarItem(placement: .primaryAction) {
-                        NavigationLink {
-                            JellyfinSearchView(playback: $playback)
-                        } label: {
+                        // On the path like the shows it opens: a screen pushed outside the path was
+                        // rebuilt (empty, in front again) when a result joined the path (#145).
+                        NavigationLink(value: JellyfinSearchRoute()) {
                             Label("Search", systemImage: "magnifyingglass")
                         }
                         .accessibilityIdentifier("watch.search")
@@ -105,11 +105,12 @@ struct WatchView: View {
                 }
             }
             .navigationDestination(for: JellyfinItem.self) { WatchDestination(item: $0, playback: $playback) }
+            .navigationDestination(for: JellyfinSearchRoute.self) { _ in JellyfinSearchView(playback: $playback) }
         }
         .playbackPresentation($playback)
         .onChange(of: environment.openSeriesRequest, initial: true) { _, series in
             guard let series else { return }
-            path = [series]
+            path = NavigationPath([series])
             environment.openSeriesRequest = nil
         }
         .task(id: common.serverAccounts[.jellyfin]?.userId) { await load() }
@@ -362,12 +363,16 @@ private struct LibraryShelf: View {
     }
 }
 
+/// Search's place on the Watch tab's path.
+struct JellyfinSearchRoute: Hashable {}
+
 /// Shows and movies in every library by name (Jellyfin's search).
 struct JellyfinSearchView: View {
     @Environment(PlayerEnvironment.self) private var environment
     @Binding var playback: PlaybackSession?
     @State private var query = ""
     @State private var searching = false
+    @State private var opened = false
     @State private var results: [JellyfinItem] = []
     @State private var error: String?
 
@@ -399,7 +404,11 @@ struct JellyfinSearchView: View {
         }
         // The field takes the keyboard as the screen opens.
         .searchable(text: $query, isPresented: $searching, prompt: "Shows and Movies")
-        .onAppear { searching = true }
+        // Only as it opens: coming back from a result, the results are what's wanted.
+        .onAppear {
+            if !opened { searching = true }
+            opened = true
+        }
         .navigationTitle("Search")
         .task(id: query) {
             let text = query.trimmingCharacters(in: .whitespaces)
