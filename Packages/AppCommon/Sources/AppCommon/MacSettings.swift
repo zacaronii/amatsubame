@@ -131,6 +131,20 @@ public extension MacSettingsPage {
         ]
     }
 
+    /// Stats: the same on every device, through iCloud.
+    static var statsCloud: MacSettingsPage {
+        MacSettingsPage("statsCloud", title: "iCloud", systemImage: "icloud") {
+            Form {
+                Section {
+                    StatsCloudRow()
+                } footer: {
+                    Text("Keeps this app's Stats the same on all your devices signed in to the same iCloud account.")
+                }
+            }
+            .navigationTitle("iCloud")
+        }
+    }
+
     /// Stats: kechimochi.
     static var kechimochi: MacSettingsPage {
         MacSettingsPage("kechimochi", title: "kechimochi", systemImage: "chart.bar") {
@@ -145,7 +159,7 @@ public extension MacSettingsGroup {
     static func shared<Anki: View>(@ViewBuilder anki: @escaping () -> Anki) -> [MacSettingsGroup] {
         [
             MacSettingsGroup("Lookup and Mining", pages: MacSettingsPage.lookupAndMining(anki: anki)),
-            MacSettingsGroup("Stats", pages: [.kechimochi]),
+            MacSettingsGroup("Stats", pages: [.kechimochi, .statsCloud]),
         ]
     }
 
