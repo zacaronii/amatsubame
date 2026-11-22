@@ -30,6 +30,23 @@ struct OCRModelTests {
         try OCRPipeline(modelDirectory: compiled)
     }
 
+    /// The fixture page's bubbles come back with their lines measured, and the characters
+    /// shared among them add up.
+    @Test func blocksCarryTheirLines() async throws {
+        let url = try #require(Bundle.module.url(forResource: "pepper-carrot-e01p02", withExtension: "jpg", subdirectory: "Fixtures"))
+        let source = try #require(CGImageSourceCreateWithURL(url as CFURL, nil))
+        let image = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        let (page, _) = try await Self.pipeline().recognize(page: image)
+        #expect(!page.blocks.isEmpty)
+        for block in page.blocks {
+            let lines = block.lines ?? []
+            print("LINES", block.text.count, "chars,", lines.count, "lines,", block.vertical ? "vertical" : "horizontal",
+                  TextLayout.characterCounts(lines.map { block.vertical ? $0.height : $0.width }, total: block.text.count), block.text)
+            #expect(!lines.isEmpty, "a block of lettering has at least one line")
+            #expect(lines.count <= max(block.text.count, 1))
+        }
+    }
+
     @Test(arguments: [("食べさせられなかった", true), ("今日はいい天気ですね", false), ("本当に？", true)])
     func recognizesRenderedText(text: String, vertical: Bool) async throws {
         let image = SyntheticPage.text(text, vertical: vertical)

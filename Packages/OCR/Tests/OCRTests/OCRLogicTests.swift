@@ -201,3 +201,100 @@ import CoreML
         #expect(TextOrientation.isVertical(pixelSize: size, text: text) == vertical)
     }
 }
+
+/// A block's real lines, measured from its picture, place a tap on the right character.
+@Suite struct TextLinesTests {
+    /// Black cells on white: `columns` are the vertical lines right to left, each a count of
+    /// characters; `furigana` adds a thin strip beside the first one. Cells are 20 px with a 4 px
+    /// gap, columns 12 px apart.
+    static func block(columns: [Int], furigana: Bool = false, inverted: Bool = false) -> (gray: [UInt8], width: Int, height: Int) {
+        let cell = 20, gap = 4, between = 12, margin = 10
+        let width = margin * 2 + columns.count * cell + (columns.count - 1) * between + (furigana ? 10 : 0)
+        let height = margin * 2 + (columns.max() ?? 1) * (cell + gap)
+        var gray = [UInt8](repeating: inverted ? 0 : 255, count: width * height)
+        let ink: UInt8 = inverted ? 255 : 0
+        for (index, count) in columns.enumerated() {
+            // The first column is the rightmost.
+            let x = width - margin - (furigana ? 10 : 0) - (index + 1) * cell - index * between
+            for character in 0..<count {
+                let y = margin + character * (cell + gap)
+                for row in y..<(y + cell) { for column in x..<(x + cell) { gray[row * width + column] = ink } }
+            }
+        }
+        if furigana {
+            let x = width - margin - 6
+            for row in (margin + 4)..<(margin + 40) { for column in x..<(x + 5) { gray[row * width + column] = ink } }
+        }
+        return (gray, width, height)
+    }
+
+    @Test func findsColumnsOfDifferentLengths() {
+        let picture = Self.block(columns: [5, 5, 2])
+        let lines = TextLines.lines(gray: picture.gray, width: picture.width, height: picture.height, vertical: true)
+        #expect(lines.count == 3)
+        #expect(lines[0].midX > lines[1].midX && lines[1].midX > lines[2].midX, "right to left")
+        #expect(lines[2].height < lines[0].height * 0.5, "the last column is short")
+    }
+
+    @Test func furiganaIsNotALineAndWhiteOnBlackWorks() {
+        let withFurigana = Self.block(columns: [4, 3], furigana: true)
+        #expect(TextLines.lines(gray: withFurigana.gray, width: withFurigana.width, height: withFurigana.height, vertical: true).count == 2)
+        let inverted = Self.block(columns: [4, 4, 4], inverted: true)
+        #expect(TextLines.lines(gray: inverted.gray, width: inverted.width, height: inverted.height, vertical: true).count == 3)
+    }
+
+    /// The case the even spread gets wrong: 12 characters as 5 + 5 + 2.
+    @Test func aTapLandsOnItsCharacter() {
+        let picture = Self.block(columns: [5, 5, 2])
+        let lines = TextLines.lines(gray: picture.gray, width: picture.width, height: picture.height, vertical: true)
+        let box = CGRect(x: 0, y: 0, width: picture.width, height: picture.height)
+        /// The middle of character `row` in column `column` (0 = rightmost).
+        func tap(_ column: Int, _ row: Int) -> CGPoint {
+            CGPoint(x: Double(picture.width - 10 - column * 32 - 10), y: Double(10 + row * 24 + 10))
+        }
+        var measured = 0, even = 0
+        let cells = [(0, 5), (1, 5), (2, 2)].flatMap { column, count in (0..<count).map { (column, $0) } }
+        for (expected, cell) in cells.enumerated() {
+            let point = tap(cell.0, cell.1)
+            if TextLayout.characterIndex(of: point, in: box, characterCount: 12, vertical: true, lines: lines) == expected { measured += 1 }
+            if TextLayout.characterIndex(of: point, in: box, characterCount: 12, vertical: true) == expected { even += 1 }
+        }
+        #expect(measured == 12, "every character, with the measured lines")
+        #expect(even < 12, "the even spread misses some (\(even) of 12), which is what was reported")
+    }
+
+    @Test func charactersAreSharedByLength() {
+        #expect(TextLayout.characterCounts([100, 100, 40], total: 12) == [5, 5, 2])
+        #expect(TextLayout.characterCounts([100, 10], total: 5) == [4, 1], "a line always has one")
+        #expect(TextLayout.characterCounts([50, 50], total: 7).reduce(0, +) == 7)
+    }
+
+    /// Real glyphs (Hiragino, drawn as manga columns): columns of 6, 5 and 2 characters, with
+    /// characters that have gaps inside them (い, 川) and small punctuation.
+    @Test func realLetteringInThreeColumns() {
+        let columns = ["今日はいい天", "気ですね。", "川い"]
+        let width = 3 * 48 + 2 * 26 + 48, height = 6 * 51 + 48
+        let context = SyntheticPage.context(width: width, height: height)
+        for (index, text) in columns.enumerated() {
+            SyntheticPage.draw(text, in: context, at: CGPoint(x: Double(width - 24 - 48 - index * 74), y: 24), vertical: true, height: height)
+        }
+        let image = context.makeImage()!
+        let lines = TextLines.lines(of: NormalizedRect(x: 0, y: 0, width: 1, height: 1), in: image, vertical: true)
+        #expect(lines.count == 3, "three columns (found \(lines.count))")
+        guard lines.count == 3 else { return }
+        let counts = TextLayout.characterCounts(lines.map(\.height), total: 13)
+        #expect(counts == [6, 5, 2], "characters per column from their lengths (\(counts))")
+        // A tap in the middle of each character finds it.
+        let box = CGRect(x: 0, y: 0, width: width, height: height)
+        var right = 0
+        var expected = 0
+        for (index, text) in columns.enumerated() {
+            for row in 0..<text.count {
+                let point = CGPoint(x: Double(width - 24 - 24 - index * 74), y: 24 + Double(row) * 48 * 1.05 + 24)
+                if TextLayout.characterIndex(of: point, in: box, characterCount: 13, vertical: true, lines: lines) == expected { right += 1 }
+                expected += 1
+            }
+        }
+        #expect(right >= 12, "\(right) of 13 taps land on their character")
+    }
+}

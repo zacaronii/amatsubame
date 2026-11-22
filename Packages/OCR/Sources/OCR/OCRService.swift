@@ -36,7 +36,15 @@ public actor OCRService {
 
     /// The page's text blocks, from the cache or by running OCR on `imageData`.
     public func page(chapterId: Int, page: Int, imageData: Data) async throws -> OCRResult {
-        if let cached = cache.page(chapterId: chapterId, page: page) { return OCRResult(page: cached, timings: nil) }
+        if let cached = cache.page(chapterId: chapterId, page: page) {
+            // Read before each block's lines were kept: measure them now (no models needed).
+            guard cached.blocks.contains(where: { $0.lines == nil }), let image = try? Self.decode(imageData) else {
+                return OCRResult(page: cached, timings: nil)
+            }
+            let measured = Self.measuringLines(cached, in: image)
+            try? cache.store(measured, chapterId: chapterId, page: page)
+            return OCRResult(page: measured, timings: nil)
+        }
         let key = PageKey(chapterId: chapterId, page: page)
         if let task = inFlight[key] { return try await task.value }
         let pipeline = try loadedPipeline()
@@ -50,6 +58,18 @@ public actor OCRService {
         inFlight[key] = task
         defer { inFlight[key] = nil }
         return try await task.value
+    }
+
+    /// The page with each block's lines of lettering measured where they're missing.
+    static func measuringLines(_ page: OCRPage, in image: CGImage) -> OCRPage {
+        var page = page
+        page.blocks = page.blocks.map { block in
+            guard block.lines == nil else { return block }
+            var block = block
+            block.lines = TextLines.lines(of: block.box, in: image, vertical: block.vertical).map(NormalizedRect.init)
+            return block
+        }
+        return page
     }
 
     /// Reads a region the user drew on a page.

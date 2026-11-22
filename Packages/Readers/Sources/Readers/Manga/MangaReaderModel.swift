@@ -263,8 +263,27 @@ public final class MangaReaderModel {
             lastTimings = LookupTimings(ocr: nil, lookup: ContinuousClock.now - started)
             popupAnchor = anchor
             popupPage = page
+            lookupBlock = (page, block)
             popup = LookupPopupModel(page: result, context: miningContext(page: page))
         }
+    }
+
+    /// The block whose word is being looked up (its recognized text is typeset over it).
+    @ObservationIgnored private var lookupBlock: (page: Int, block: OCRBlock)?
+
+    /// While the popup is open: the block to typeset over the page, and which of its characters
+    /// the word showing covers (it follows taps in the popup's sentence too).
+    public func textOverlay(page: Int) -> (block: OCRBlock, highlight: Range<Int>?)? {
+        guard settings.showsTextOverlay, let popup, let lookupBlock, lookupBlock.page == page else { return nil }
+        let text = lookupBlock.block.text
+        let source = popup.pages.last { $0.source?.text == text }?.source
+        let range = source.map { source -> Range<Int> in
+            let start = text.distance(from: text.startIndex, to: String.Index(utf16Offset: min(source.utf16Offset, text.utf16.count), in: text))
+            let end = text.distance(from: text.startIndex,
+                                    to: String.Index(utf16Offset: min(source.utf16Offset + source.utf16Length, text.utf16.count), in: text))
+            return start..<max(start, end)
+        }
+        return (lookupBlock.block, range)
     }
 
     /// Cards mined from `page` get the page as their picture and the chapter as their source.
