@@ -212,12 +212,51 @@ final class PlaybackModel {
         self.environment = environment
         lines = LineLookup(service: environment.common.lookup)
         let settings = PlayerSettings.load(environment.common.database)
+        look = settings
         pausesAfterLines = settings.pausesAfterLines
         // The speed last chosen carries over (mpv keeps it from then on).
         if settings.speed != 1 { mpv.setSpeed(settings.speed) }
     }
 
     // MARK: The player's menu (speed, audio, English, pausing after lines)
+
+    /// The subtitles' look and behaviour from Settings (size, height, blurred until tapped,
+    /// pausing under the pointer), kept here so the player follows a change at once.
+    private(set) var look = PlayerSettings()
+
+    func setLook(_ change: (inout PlayerSettings) -> Void) {
+        var settings = PlayerSettings.load(environment.common.database)
+        change(&settings)
+        try? settings.save(environment.common.database)
+        look = settings
+    }
+
+    // MARK: Sleep
+
+    enum SleepTimer: Equatable {
+        case minutes(Int, ends: Date)
+        /// Stop when this episode ends: no Up Next.
+        case endOfEpisode
+    }
+
+    private(set) var sleepTimer: SleepTimer?
+    @ObservationIgnored private var sleepTask: Task<Void, Never>?
+
+    func setSleepTimer(_ timer: SleepTimer?) {
+        sleepTask?.cancel()
+        sleepTimer = timer
+        guard case .minutes(let minutes, _) = timer else { return }
+        sleepTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Double(minutes) * 60))
+            guard !Task.isCancelled, let self else { return }
+            mpv.setPaused(true)
+            sleepTimer = nil
+        }
+    }
+
+    func setSleepTimer(minutes: Int) {
+        setSleepTimer(.minutes(minutes, ends: Date().addingTimeInterval(Double(minutes) * 60)))
+    }
 
     /// The speeds the menu offers; the keys still step freely.
     static let speeds: [Double] = [0.5, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 2]
@@ -474,7 +513,7 @@ final class PlaybackModel {
         let credits = segments.first { $0.kind == .outro }?.start
         let offer = JellyfinUpNext.offerTime(duration: mpv.duration, creditsStart: credits)
         let inWindow = mpv.reachedEnd || (offer.map { mpv.timePosition >= $0 } ?? false)
-        if upNext != nil, !upNextCancelled, inWindow {
+        if upNext != nil, !upNextCancelled, sleepTimer != .endOfEpisode, inWindow {
             if upNextCountdown == nil { startCountdown() }
         } else if upNextCountdown != nil {
             // Seeked back before the end, or cancelled.

@@ -175,6 +175,17 @@ public struct PlayerSettings: Codable, Equatable, Sendable, FetchableRecord, Per
     public var speed = 1.0
     /// Pause at the end of every Japanese line (intensive listening), until play is pressed.
     public var pausesAfterLines = false
+    /// The Japanese subtitles' size (1 = sized to the picture) and how far up from the bottom
+    /// they sit (a fraction of the picture's height, to clear burnt-in subtitles).
+    public var subtitleScale = 1.0
+    public var subtitleLift = 0.0
+    /// The Japanese line is blurred until it's tapped (or pointed at): listening first.
+    public var concealsSubtitles = false
+    /// On the Mac, playback pauses while the pointer rests on the subtitles.
+    public var pausesOnHover = false
+
+    public static let subtitleScales: [(name: String, scale: Double)] = [("Small", 0.8), ("Medium", 1), ("Large", 1.25), ("Extra Large", 1.5)]
+    public static let subtitleLifts: [(name: String, lift: Double)] = [("Bottom", 0), ("Higher", 0.12), ("Highest", 0.25)]
 
     public enum CardPicture: String, Codable, CaseIterable, Sendable {
         case screenshot, animated

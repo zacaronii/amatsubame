@@ -145,6 +145,14 @@ final class PlayerEnvironment {
                 lines: [(1, 3, "吾輩は猫である。"), (4, 6, "名前はまだ無い。"), (7, 9, "どこで生れたか\nとんと見当がつかぬ。")])
         }
         if env["UITEST_STATS"] != nil { seedStats(environment.common.activity, kind: .watching) }
+        // UITEST_PLAYER_LOOK="conceal,large,higher": the subtitles' look, set before the player opens.
+        if let look = env["UITEST_PLAYER_LOOK"] {
+            var settings = PlayerSettings.load(environment.common.database)
+            settings.concealsSubtitles = look.contains("conceal")
+            if look.contains("large") { settings.subtitleScale = 1.5 }
+            if look.contains("higher") { settings.subtitleLift = 0.25 }
+            try? settings.save(environment.common.database)
+        }
         if env["UITEST_JIMAKU"] != nil {
             // Subtitle search against canned Jimaku answers, with a key already set.
             try? environment.common.secrets.setSecret("uitest", for: .jimakuAPIKey)

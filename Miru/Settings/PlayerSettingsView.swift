@@ -226,9 +226,48 @@ struct SubtitlesSettingsView: View {
             } footer: {
                 Text("Jimaku has subtitles for most anime. When it has none, Kaku can make them from the episode's Japanese audio. Episodes with several audio tracks always start on the Japanese one.")
             }
+            SubtitleLookSection()
         }
         .formStyle(.grouped)
         .navigationTitle("Subtitles")
+    }
+}
+
+/// How the Japanese line looks and behaves in the player (also in the player's options menu).
+struct SubtitleLookSection: View {
+    @Environment(CommonEnvironment.self) private var common
+    @State private var settings = PlayerSettings()
+
+    var body: some View {
+        Section {
+            Picker("Size", selection: binding(\.subtitleScale)) {
+                ForEach(PlayerSettings.subtitleScales, id: \.scale) { Text($0.name).tag($0.scale) }
+            }
+            Picker("Position", selection: binding(\.subtitleLift)) {
+                ForEach(PlayerSettings.subtitleLifts, id: \.lift) { Text($0.name).tag($0.lift) }
+            }
+            Toggle("Hide Until Tapped", isOn: binding(\.concealsSubtitles))
+                .accessibilityIdentifier("subtitles.conceal")
+            #if os(macOS)
+            Toggle("Pause Under the Pointer", isOn: binding(\.pausesOnHover))
+            #endif
+        } header: {
+            Text("In the Player")
+        } footer: {
+            #if os(macOS)
+            Text("Higher positions clear subtitles burnt into the picture. Hide Until Tapped blurs each Japanese line until you click or point at it, to listen first. Pause Under the Pointer stops the video while the pointer rests on the line.")
+            #else
+            Text("Higher positions clear subtitles burnt into the picture. Hide Until Tapped blurs each Japanese line until you tap it, to listen first.")
+            #endif
+        }
+        .onAppear { settings = PlayerSettings.load(common.database) }
+    }
+
+    private func binding<Value>(_ keyPath: WritableKeyPath<PlayerSettings, Value>) -> Binding<Value> {
+        Binding(get: { settings[keyPath: keyPath] }, set: { value in
+            settings[keyPath: keyPath] = value
+            try? settings.save(common.database)
+        })
     }
 }
 

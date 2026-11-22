@@ -846,6 +846,17 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v52_miru_subtitle_look") { db in
+            // Miru: the subtitles' size and height, blurring them until tapped, and pausing while
+            // the pointer is on them (the Mac).
+            try db.alter(table: "playerSettings") { t in
+                t.add(column: "subtitleScale", .double).notNull().defaults(to: 1)
+                t.add(column: "subtitleLift", .double).notNull().defaults(to: 0)
+                t.add(column: "concealsSubtitles", .boolean).notNull().defaults(to: false)
+                t.add(column: "pausesOnHover", .boolean).notNull().defaults(to: false)
+            }
+        }
+
         return migrator
     }
 }

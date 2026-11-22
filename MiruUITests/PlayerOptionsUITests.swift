@@ -91,4 +91,36 @@ final class PlayerOptionsUITests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
     }
+
+    /// Hide Until Tapped: the line is blurred and can't be looked up until a tap shows it; and
+    /// the size and position from Settings apply.
+    func testHiddenSubtitlesShowOnATap() throws {
+        guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file.")
+        }
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment = ["UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video, "UITEST_JIMAKU": "1", "UITEST_PLAYER_LOOK": "conceal,large,higher"]
+        app.launch()
+        let player = app.descendants(matching: .any)["player.video"].firstMatch
+        XCTAssertTrue(player.waitForExistence(timeout: 10))
+        let find = app.buttons["player.noSubtitles"]
+        for _ in 0..<3 where !(find.waitForExistence(timeout: 3) && find.isHittable) { player.tap() }
+        find.tap()
+        let file = app.buttons.matching(identifier: "subtitles.file").firstMatch
+        XCTAssertTrue(file.waitForExistence(timeout: 10))
+        file.tap()
+        let reveal = app.descendants(matching: .any)["subtitle.reveal"].firstMatch
+        XCTAssertTrue(reveal.waitForExistence(timeout: 10), "the line comes up hidden")
+        let hidden = XCTAttachment(screenshot: app.screenshot())
+        hidden.name = "hidden line"
+        hidden.lifetime = .keepAlways
+        add(hidden)
+        reveal.tap()
+        XCTAssertTrue(reveal.waitForNonExistence(timeout: 3), "a tap shows it")
+        let shown = XCTAttachment(screenshot: app.screenshot())
+        shown.name = "shown line"
+        shown.lifetime = .keepAlways
+        add(shown)
+    }
 }
