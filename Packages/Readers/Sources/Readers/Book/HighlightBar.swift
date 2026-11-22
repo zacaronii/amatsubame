@@ -77,7 +77,8 @@ struct NoteEditor: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        save(text)
+                        // Nothing but spaces is no note.
+                        save(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : text)
                         dismiss()
                     }
                     .accessibilityIdentifier("note.save")

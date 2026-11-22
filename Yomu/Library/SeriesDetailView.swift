@@ -558,8 +558,11 @@ struct SeriesDetailView: View {
                 series.pagesRead = read
                 // Bookmarks and highlights made elsewhere (Kavita's own reader, another device).
                 // Book bookmarks are listed per volume: only the volumes started (here or in Kavita).
+                // And the volumes with a bookmark on this device (made, or kept from before).
+                let saved = environment.readerMarkAccount().flatMap { try? environment.readerMarks.marks(account: $0, seriesId: series.id) }
+                let marked = Set((saved ?? []).map(\.chapterId))
                 let chapters = (refreshed.readingOrder + refreshed.specials)
-                    .filter { $0.pagesRead > 0 || local[$0.id] != nil }
+                    .filter { $0.pagesRead > 0 || local[$0.id] != nil || marked.contains($0.id) }
                     .map { refreshed.readerChapter($0, series: series) }
                 try? await environment.refreshMarks(seriesId: series.id, libraryId: series.libraryId, isBook: series.isEpub,
                                                     chapters: chapters.map { (chapterId: $0.chapterId, volumeId: $0.volumeId) })

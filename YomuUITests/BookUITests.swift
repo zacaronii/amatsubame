@@ -225,7 +225,11 @@ final class BookUITests: XCTestCase {
     /// asserted on or printed (screenshots stay with the result, out of the repository).
     func testHighlightNoteAndBookmarkReachKavita() throws {
         guard ProcessInfo.processInfo.environment["UITEST_DICTIONARY_ZIPS"] != nil else { throw XCTSkip("Needs UITEST_DICTIONARY_ZIPS.") }
-        let before = try serverAnnotations().count
+        let kavita = try KavitaTestAccount()
+        let marksBefore = try kavita.snapshot(bookSeries: series)
+        // Whatever happens, the test account ends as it began.
+        addTeardownBlock { XCTAssertNil(try marksBefore.restore(), "the test account's marks were put back") }
+        let before = marksBefore.annotations.count
         app.launchEnvironment["UITEST_SENDS_MARKS"] = "1"
         openBook()
         // An ordinary page of text: a section's second page or later (the first pages of a
@@ -255,7 +259,7 @@ final class BookUITests: XCTestCase {
         closePopup()
         XCTAssertGreaterThan(try markedPixels(), markedMinimum, "the highlight is drawn on the page (yellow)")
         snapshot("book-highlight-on-page")
-        XCTAssertTrue(waitFor { (try? self.serverAnnotations())?.contains { $0["commentPlainText"] as? String == "test note" && $0["selectedSlotIndex"] as? Int == 2 } == true },
+        XCTAssertTrue(waitFor { (try? kavita.annotations())?.contains { $0["commentPlainText"] as? String == "test note" && $0["selectedSlotIndex"] as? Int == 2 } == true },
                       "the highlight and its note reached Kavita")
 
         // Bookmark the place.
@@ -292,40 +296,14 @@ final class BookUITests: XCTestCase {
             remove.tap()
             sleep(1)
         }
-        XCTAssertTrue(waitFor { (try? self.serverAnnotations().count) == before },
-                      "removed from Kavita again (annotations: \((try? self.serverAnnotations().count) ?? -1), expected \(before))")
+        XCTAssertTrue(waitFor { (try? kavita.annotations().count) == before },
+                      "removed from Kavita again (annotations: \((try? kavita.annotations().count) ?? -1), expected \(before))")
         // Kavita's bookmarks are listed per volume: a refresh that still found it would list it again.
         app.swipeDown()
         app.swipeDown()
         sleep(5)
         XCTAssertEqual(rows.count, 0, "nothing comes back from Kavita")
-    }
-
-    /// The test account's annotations on Kavita, read from the test runner.
-    private func serverAnnotations() throws -> [[String: Any]] {
-        let env = ProcessInfo.processInfo.environment
-        let base = try XCTUnwrap(env["UITEST_KAVITA_URL"].flatMap(URL.init(string:)))
-        var components = URLComponents(url: base.appending(path: "api/Annotation/all-filtered"), resolvingAgainstBaseURL: false)!
-        components.queryItems = [URLQueryItem(name: "pageNumber", value: "1"), URLQueryItem(name: "pageSize", value: "100")]
-        var request = URLRequest(url: components.url!)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(env["UITEST_KAVITA_KEY"], forHTTPHeaderField: "x-api-key")
-        request.httpBody = Data("{}".utf8)
-        nonisolated(unsafe) var result: Result<[[String: Any]], any Error> = .success([])
-        let done = expectation(description: "annotations")
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            defer { done.fulfill() }
-            if let error { result = .failure(error); return }
-            guard (response as? HTTPURLResponse)?.statusCode == 200, let data,
-                  let list = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                result = .failure(URLError(.badServerResponse))
-                return
-            }
-            result = .success(list)
-        }.resume()
-        wait(for: [done], timeout: 30)
-        return try result.get()
+        XCTAssertEqual(Set(try kavita.bookBookmarks(series: series)), marksBefore.bookBookmarks, "the bookmark is gone from Kavita")
     }
 
     private func waitFor(_ timeout: TimeInterval = 45, _ condition: () -> Bool) -> Bool {

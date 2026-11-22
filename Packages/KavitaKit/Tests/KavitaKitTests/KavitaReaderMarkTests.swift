@@ -1,6 +1,7 @@
 import Core
 import CoreTestSupport
 import Foundation
+import Synchronization
 @testable import KavitaKit
 import Testing
 
@@ -97,32 +98,75 @@ import Testing
         #expect(row.state == .pendingUpdate && row.serverId == 41 && row.note == "later")
     }
 
+    func editedHighlight(_ setup: Setup, note: String? = "n", slot: Int = 1) throws -> ReaderMark {
+        let mark = try setup.store.add(highlight(), outbox: setup.outbox)
+        try setup.store.didSend(mark, serverId: 41)
+        try setup.store.edit(mark.id!, note: note, slot: slot, outbox: setup.outbox)
+        return try #require(try setup.store.mark(mark.id!))
+    }
+
     @Test func anEditToAHighlightRemovedElsewhereMakesItAgainOnce() async throws {
         let setup = try setup()
-        var mark = try setup.store.add(highlight(), outbox: setup.outbox)
-        try setup.store.didSend(mark, serverId: 41)
-        try setup.store.edit(mark.id!, note: "n", slot: 1, outbox: setup.outbox)
-        mark = try #require(try setup.store.mark(mark.id!))
+        let mark = try editedHighlight(setup)
         let transport = StubTransport(routes: [
-            "/api/Annotation/update": (400, Data("Something went wrong".utf8)),
             "/api/Annotation/41": (404, Data()),
             "/api/Annotation/create": (200, annotationJSON(id: 57)),
         ])
         try await send(mark, setup, transport)
-        #expect(transport.requests.map { $0.url!.path() } == ["/api/Annotation/update", "/api/Annotation/41", "/api/Annotation/create"])
+        #expect(transport.requests.map { $0.url!.path() } == ["/api/Annotation/41", "/api/Annotation/create"])
         let row = try #require(try setup.store.mark(mark.id!))
         #expect(row.state == .synced && row.serverId == 57)
     }
 
+    @Test func anEditRemovedWhileOnItsWayIsMadeAgainOnce() async throws {
+        let setup = try setup()
+        let mark = try editedHighlight(setup)
+        // There when looked at, gone by the update (Kavita's 400), then its own address is a 404.
+        let looked = Mutex(0)
+        let transport = StubTransport { request in
+            switch request.url!.path() {
+            case "/api/Annotation/41":
+                let first = looked.withLock { count in count += 1; return count == 1 }
+                return first ? (200, annotationJSON(id: 41)) : (404, Data())
+            case "/api/Annotation/update": return (400, Data("Something went wrong".utf8))
+            case "/api/Annotation/create": return (200, annotationJSON(id: 58))
+            default: return (500, Data())
+            }
+        }
+        try await send(mark, setup, transport)
+        #expect(transport.requests.filter { $0.url!.path().hasSuffix("/create") }.count == 1)
+        #expect(try setup.store.mark(mark.id!)?.serverId == 58)
+    }
+
     @Test func aRefusedEditOfAHighlightThatStillExistsNeedsTheUser() async throws {
         let setup = try setup()
-        var mark = try setup.store.add(highlight(), outbox: setup.outbox)
-        try setup.store.didSend(mark, serverId: 41)
-        try setup.store.edit(mark.id!, note: "n", slot: 1, outbox: setup.outbox)
-        mark = try #require(try setup.store.mark(mark.id!))
+        let mark = try editedHighlight(setup)
         let transport = StubTransport(routes: ["/api/Annotation/update": (400, Data()), "/api/Annotation/41": (200, annotationJSON(id: 41))])
         await #expect(throws: OutboxPermanentFailure.self) { try await send(mark, setup, transport) }
         #expect(!transport.requests.contains { $0.url!.path().hasSuffix("/create") }, "nothing made")
+    }
+
+    @Test func aColourChangeKeepsANoteFormattedInKavita() async throws {
+        let formatted = Data(#"{"id":41,"xPath":"//body/p[1]","endingXPath":"//body/p[1]","selectedText":"テスト","comment":"a note","commentHtml":"<p><b>a</b> note</p>","commentPlainText":"a note","highlightCount":3,"containsSpoiler":false,"pageNumber":2,"selectedSlotIndex":1,"likes":[],"chapterId":10,"volumeId":20,"seriesId":30,"libraryId":40,"ownerUserId":7}"#.utf8)
+        let setup = try setup()
+        let mark = try editedHighlight(setup, note: "a note", slot: 3)
+        let transport = StubTransport(routes: ["/api/Annotation/41": (200, formatted), "/api/Annotation/update": (200, annotationJSON(id: 41))])
+        try await send(mark, setup, transport)
+        let body = try transport.requests[1].jsonBody()
+        #expect(body["commentHtml"] as? String == "<p><b>a</b> note</p>", "the same note's formatting stays")
+        #expect(body["selectedSlotIndex"] as? Int == 3)
+
+        // A changed note replaces it.
+        let other = try self.setup()
+        let changed = try editedHighlight(other, note: "another", slot: 1)
+        let second = StubTransport(routes: ["/api/Annotation/41": (200, formatted), "/api/Annotation/update": (200, annotationJSON(id: 41))])
+        try await send(changed, other, second)
+        #expect(try second.requests[1].jsonBody()["commentHtml"] as? String == "<p>another</p>")
+    }
+
+    @Test func anEmptyNoteIsNoNote() async throws {
+        let mark = try editedHighlight(try setup(), note: "   \n ")
+        #expect(mark.note == nil)
     }
 
     @Test func removingSomethingAlreadyGoneIsDone() async throws {
@@ -136,6 +180,36 @@ import Testing
         try await send(try #require(try setup.store.mark(mark.id!)), setup, transport)
         #expect(try setup.store.mark(mark.id!) == nil)
         #expect(transport.requests.count == 2)
+    }
+
+    @Test func aRemovalAnswered404IsDone() async throws {
+        let setup = try setup()
+        let mark = try setup.store.add(highlight(), outbox: setup.outbox)
+        try setup.store.didSend(mark, serverId: 41)
+        try setup.store.remove(mark.id!, outbox: setup.outbox)
+        try await send(try #require(try setup.store.mark(mark.id!)), setup, StubTransport { _ in (404, Data()) })
+        #expect(try setup.store.mark(mark.id!) == nil)
+    }
+
+    @Test func aBookBookmarkAlreadyOnKavitaIsMade() async throws {
+        let setup = try setup()
+        var entry = highlight()
+        entry.kind = .bookBookmark
+        entry.page = 4
+        entry.title = "テスト用のしおり"
+        let mark = try setup.store.add(entry, outbox: setup.outbox)
+        let transport = StubTransport(routes: [
+            "/api/Reader/create-ptoc": (400, Data("Duplicate bookmark entry already exists".utf8)),
+            "/api/Reader/ptoc": (200, try fixture("ptoc.json")),
+        ])
+        try await send(mark, setup, transport)
+        #expect(try setup.store.mark(mark.id!)?.state == .synced)
+        // Not there after all: the refusal stands.
+        let other = try self.setup()
+        var elsewhere = entry
+        elsewhere.title = "別のしおり"
+        let missing = try other.store.add(elsewhere, outbox: other.outbox)
+        await #expect(throws: OutboxPermanentFailure.self) { try await send(missing, other, transport) }
     }
 
     @Test func aHighlightRemovedBeforeItWasSentNeverReachesKavita() async throws {
@@ -174,6 +248,15 @@ import Testing
             .refresh(seriesId: 30, libraryId: 40, isBook: true)
         #expect(try setup.store.isAvailable(.annotations, account: account))
         #expect(try setup.outbox.waitingCounts()[.kavitaReaderMark] == 1)
+    }
+
+    @Test func aListThatCantBeReachedTriesAgainLater() async throws {
+        let setup = try setup()
+        let mark = try setup.store.add(highlight(), outbox: setup.outbox)
+        // The create is a 404, and the list can't be asked: nothing is decided, the job waits.
+        let transport = StubTransport(routes: ["/api/Annotation/create": (404, Data()), "/api/Annotation/all-for-series": (503, Data())])
+        await #expect(throws: ConnectionError.server(status: 503)) { try await send(mark, setup, transport) }
+        #expect(try setup.store.isAvailable(.annotations, account: account))
     }
 
     @Test func oneNotFoundIsNotAnOldServer() async throws {

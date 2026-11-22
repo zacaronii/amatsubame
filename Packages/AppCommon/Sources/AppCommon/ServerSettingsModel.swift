@@ -59,6 +59,8 @@ open class ServerSettingsModel {
             try environment.secrets.setSecret(value, for: key)
         }
         try environment.accounts.save(account)
+        // Signed in (again): what waited for this server goes now, not after its backoff.
+        environment.syncNow(retryWaiting: true)
     }
 
     public func remove(secrets keys: [SecretKey]) {

@@ -62,27 +62,55 @@ public struct KavitaReaderMarkHandler: OutboxHandler {
         case .highlight:
             return try await client.createAnnotation(KavitaAnnotation(mark)).id
         case .bookBookmark:
-            try await client.createPersonalToC(KavitaCreatePersonalToC(mark))
+            let entry = KavitaCreatePersonalToC(mark)
+            do {
+                try await client.createPersonalToC(entry)
+            } catch .server(status: 400) {
+                // "Duplicate bookmark entry already exists": made again before its removal was
+                // sent, or on another device. Already there is made.
+                let listed = try await client.personalToC(chapterId: mark.chapterId)
+                guard listed.contains(where: { $0.pageNumber == entry.pageNumber && $0.title == entry.title }) else {
+                    throw .server(status: 400)
+                }
+            }
             return nil
         case .pageBookmark:
+            // Kavita takes the same page again without complaint.
             try await client.bookmarkPage(KavitaPageBookmark(mark))
             return nil
         }
     }
 
-    /// Only a highlight's note and colour change. One removed meanwhile on another device is
-    /// made again (once): Kavita answers 400 for it, and the annotation's own address is a 404.
+    /// Only a highlight's note and colour change. It's sent over Kavita's current copy, so a
+    /// note formatted in Kavita's web reader keeps its formatting unless the note's text was
+    /// changed here. One removed meanwhile on another device is made again (once).
     private func update(_ mark: ReaderMark, _ client: KavitaClient) async throws(ConnectionError) -> Int? {
         guard mark.kind == .highlight else { return mark.serverId }
         guard let serverId = mark.serverId else { return try await create(mark, client) }
-        do {
-            return try await client.updateAnnotation(KavitaAnnotation(mark)).id
-        } catch .server(status: 400) {
-            guard try await client.annotation(id: serverId) == nil else { throw .server(status: 400) }
-            var again = mark
-            again.serverId = nil
-            return try await create(again, client)
+        guard var annotation = try await client.annotation(id: serverId) else { return try await createAgain(mark, client) }
+        annotation.selectedSlotIndex = min(max(mark.slot, 0), 4)
+        let theirs = (annotation.commentPlainText ?? annotation.comment).flatMap {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0.trimmingCharacters(in: .whitespacesAndNewlines)
         }
+        let mine = mark.note?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if theirs != mine {
+            annotation.comment = mark.note
+            annotation.commentHtml = mark.note.map(KavitaAnnotation.html)
+            annotation.commentPlainText = mark.note
+        }
+        do {
+            return try await client.updateAnnotation(annotation).id
+        } catch .server(status: 400) {
+            // Kavita answers 400 for one that's gone; its own address is then a 404.
+            guard try await client.annotation(id: serverId) == nil else { throw .server(status: 400) }
+            return try await createAgain(mark, client)
+        }
+    }
+
+    private func createAgain(_ mark: ReaderMark, _ client: KavitaClient) async throws(ConnectionError) -> Int? {
+        var again = mark
+        again.serverId = nil
+        return try await create(again, client)
     }
 
     /// Already gone counts as done.
@@ -93,6 +121,8 @@ public struct KavitaReaderMarkHandler: OutboxHandler {
             guard let serverId = mark.serverId else { return }
             do {
                 try await client.deleteAnnotation(id: serverId)
+            } catch .server(status: 404) {
+                // Nothing there to remove (no annotations on this server any more).
             } catch .server(status: 400) {
                 guard try await client.annotation(id: serverId) == nil else { throw .server(status: 400) }
             }
@@ -119,7 +149,8 @@ public struct KavitaReaderMarkHandler: OutboxHandler {
             } catch .server(status: 404) {
                 try store.setAvailable(false, .annotations, account: mark.account)
                 return
-            } catch {}
+            }
+            // The list answered: annotations are there, and only this one went wrong.
             throw OutboxPermanentFailure("Kavita couldn't find what the highlight belongs to (HTTP 404).")
         case (.pageBookmark, .unauthorized):
             // Without the Bookmark role Kavita refuses (403). A key that stopped working is a 401
