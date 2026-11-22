@@ -64,6 +64,7 @@ final class LibraryModel {
         }
         labelContinueReading(environment, refresh: true)
         try? await environment.refreshWantToRead()
+        try? await environment.refreshCollections()
         // Its series are cached by the refresh, just after the list changed: show them now.
         if let account = environment.readerMarkAccount(), let ids = try? environment.wantToRead.wanted(account: account) {
             wantToRead = ids.compactMap { try? environment.kavitaLibrary.cachedSeries(id: $0) }
@@ -146,6 +147,7 @@ struct LibraryView: View {
                 path = NavigationPath([library])
             }
             .navigationDestination(for: KavitaSeries.self) { SeriesDetailView(series: $0) }
+            .navigationDestination(for: CollectionRow.self) { CollectionView(collection: $0) }
             .toolbar {
                 if model.isRefreshing {
                     ToolbarItem { ProgressView() }
@@ -262,6 +264,7 @@ struct LibraryView: View {
                     .accessibilityIdentifier("home.wantToRead")
                 }
                 shelves(offline: offline, downloaded: downloaded)
+                CollectionsSection()
             }
             .padding()
         }

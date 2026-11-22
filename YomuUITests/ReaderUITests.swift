@@ -518,6 +518,75 @@ final class ReaderUITests: XCTestCase {
         XCTAssertTrue(shelf.waitForNonExistence(timeout: 10), "no shelf when it's empty")
     }
 
+    /// A new collection made from the series page reaches the test account's Kavita (made empty,
+    /// then filled), shows on the Library home and opens with the series; taking the series out
+    /// (the last one, so confirmed) deletes it on Kavita. Teardown deletes any collection the test
+    /// made and fails if one that was there changed.
+    func testNewCollectionReachesKavitaAndGoesWithItsLastSeries() throws {
+        let kavita = try KavitaTestAccount()
+        let marksBefore = try kavita.snapshot()
+        addTeardownBlock { XCTAssertNil(try marksBefore.restore(), "the test account's collections were put back") }
+        let seriesId = try kavita.seriesId(named: series)
+        let title = KavitaTestAccount.testCollectionTitle
+        app.launchEnvironment["UITEST_SENDS_MARKS"] = "1"
+        app.launch()
+
+        let libraryRow = app.buttons[library].firstMatch
+        XCTAssertTrue(libraryRow.waitForExistence(timeout: 20))
+        for _ in 0..<6 where !libraryRow.isHittable { app.swipeUp() }
+        libraryRow.tap()
+        let tile = app.buttons["series.\(series)"].firstMatch
+        XCTAssertTrue(tile.waitForExistence(timeout: 20))
+        tile.tap()
+        openCollectionsSheet()
+        app.buttons["collections.new"].firstMatch.tap()
+        let field = app.alerts.textFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "asks for a title")
+        field.typeText(title)
+        app.alerts.buttons["Make"].firstMatch.tap()
+        let row = app.buttons["collections.row.\(title)"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertEqual(row.value as? String, "In it")
+        app.buttons["Done"].firstMatch.tap()
+        XCTAssertTrue(waitFor { (try? kavita.collections())?.values.contains([seriesId]) == true }, "made on Kavita with the series in it")
+
+        // The Library home lists it, and it opens with the series.
+        app.navigationBars.buttons.firstMatch.tap()
+        app.navigationBars.buttons.firstMatch.tap()
+        app.swipeDown()
+        let listed = app.buttons["collection.\(title)"].firstMatch
+        if !listed.waitForExistence(timeout: 20) { snapshot("collections-missing") }
+        XCTAssertTrue(listed.exists, "the Library home lists the collection")
+        for _ in 0..<10 where !listed.isHittable { app.swipeUp() }
+        listed.tap()
+        XCTAssertTrue(app.buttons["collection.series.\(series)"].firstMatch.waitForExistence(timeout: 20), "the collection shows its series")
+        app.buttons["collection.series.\(series)"].firstMatch.tap()
+
+        // Out again: it's the last series, so it asks, and Kavita deletes the collection.
+        openCollectionsSheet()
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.tap()
+        let confirm = app.buttons["Take Out and Delete \u{201C}\(title)\u{201D}"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "asks before taking out the last series")
+        confirm.tap()
+        XCTAssertTrue(row.waitForNonExistence(timeout: 5), "it leaves the sheet at once")
+        XCTAssertTrue(waitFor { (try? kavita.collections())?.isEmpty == true }, "the collection is gone from Kavita")
+        app.buttons["Done"].firstMatch.tap()
+        app.navigationBars.buttons.firstMatch.tap()
+        app.navigationBars.buttons.firstMatch.tap()
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertFalse(app.buttons["collection.\(title)"].firstMatch.waitForExistence(timeout: 5), "and from the Library home")
+    }
+
+    private func openCollectionsSheet() {
+        let more = app.buttons["series.downloads"].firstMatch
+        XCTAssertTrue(more.waitForExistence(timeout: 20))
+        more.tap()
+        let item = app.buttons["series.collections"].firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 5), "Collections in the series menu")
+        item.tap()
+    }
+
     private func waitFor(_ timeout: TimeInterval = 45, _ condition: () -> Bool) -> Bool {
         let end = Date().addingTimeInterval(timeout)
         while Date() < end {
