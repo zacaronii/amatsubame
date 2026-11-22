@@ -64,6 +64,26 @@ public struct PopupSettingsPage: View {
                 Text("What shows through is always blurred, and text stays solid; at low opacity it gets a soft halo so it stays readable.")
             }
             .disabled(followsHachidori)
+            #if os(macOS)
+            // The Mac's own (not one of Hachidori's options), so it stays changeable.
+            Section {
+                Picker("Look Up on Hover", selection: setting(\.hoverLookup)) {
+                    Text("Off").tag(PopupSettings.HoverLookup.off)
+                    Divider()
+                    Text("Holding Shift ⇧").tag(PopupSettings.HoverLookup.shift)
+                    Text("Holding Option ⌥").tag(PopupSettings.HoverLookup.option)
+                    Text("Holding Control ⌃").tag(PopupSettings.HoverLookup.control)
+                    Text("Holding Command ⌘").tag(PopupSettings.HoverLookup.command)
+                    Divider()
+                    Text("Without a Key").tag(PopupSettings.HoverLookup.always)
+                }
+                .accessibilityIdentifier("popup.hoverLookup")
+            } header: {
+                Text("Pointer")
+            } footer: {
+                Text("Point at a word in Miru\u{2019}s subtitles or Kiku\u{2019}s transcript to look it up without clicking: while holding the key, or just by resting on it. Clicking a word always works.")
+            }
+            #endif
             Section {
                 Toggle("Record and Show Lookup Counts", isOn: Binding { lookup.showsLookupCounts } set: { lookup.setShowsLookupCounts($0) })
                     .accessibilityIdentifier("popup.lookupCounts")
