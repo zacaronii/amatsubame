@@ -1,0 +1,23 @@
+{
+  "MediaSources": [
+    {
+      "Id": "fa4e0000000000000000000000000041",
+      "Container": "mkv",
+      "Size": 1500000000,
+      "Bitrate": 7900000,
+      "RunTimeTicks": 14400000000,
+      "SupportsDirectPlay": false,
+      "SupportsDirectStream": false,
+      "SupportsTranscoding": true,
+      "TranscodingUrl": "/videos/fa4e0000-0000-0000-0000-000000000042/master.m3u8?DeviceId=device-1&MediaSourceId=fa4e0000000000000000000000000041&VideoCodec=h264&AudioCodec=aac&AudioStreamIndex=2&VideoBitrate=1616000&AudioBitrate=384000&MaxFramerate=23.976025&SegmentContainer=ts&MinSegments=1&PlaySessionId=fa4e0000000000000000000000000043&ApiKey=tok&TranscodingMaxAudioChannels=2&TranscodeReasons=ContainerBitrateExceedsLimit",
+      "TranscodingSubProtocol": "hls",
+      "TranscodingContainer": "ts",
+      "DefaultAudioStreamIndex": 2,
+      "MediaStreams": [
+        { "Index": 1, "Type": "Video", "Codec": "h264" },
+        { "Index": 2, "Type": "Audio", "Codec": "ac3", "Language": "jpn" }
+      ]
+    }
+  ],
+  "PlaySessionId": "fa4e0000000000000000000000000043"
+}

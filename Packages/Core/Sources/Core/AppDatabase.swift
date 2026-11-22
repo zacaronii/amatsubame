@@ -876,6 +876,13 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v54_miru_stream_quality") { db in
+            // Miru: the streaming quality (0 = the original file; else Jellyfin transcodes down to it).
+            try db.alter(table: "playerSettings") { t in
+                t.add(column: "maxStreamBitrate", .integer).notNull().defaults(to: 0)
+            }
+        }
+
         return migrator
     }
 }

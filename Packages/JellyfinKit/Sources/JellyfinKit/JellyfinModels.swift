@@ -137,6 +137,9 @@ public struct JellyfinMediaSource: Decodable, Equatable, Hashable, Sendable {
     public var supportsDirectPlay: Bool?
     public var defaultAudioStreamIndex: Int?
     public var mediaStreams: [JellyfinMediaStream]?
+    /// Where the server's transcoded stream is (a path on the server), when one was asked
+    /// for (`JellyfinClient.transcodingInfo`).
+    public var transcodingUrl: String?
 }
 
 public struct JellyfinPlaybackInfo: Decodable, Sendable {
@@ -245,10 +248,13 @@ public struct JellyfinProgressPayload: Codable, Equatable, Sendable {
     /// When the position was taken (a queued report can be sent much later; nil in reports
     /// queued by older versions).
     public var reportedAt: Date?
+    /// True when the server is transcoding the stream (a lower quality was asked for).
+    public var isTranscoding: Bool?
 
     public init(itemId: String, mediaSourceId: String, playSessionId: String?, positionTicks: Int64,
                 isPaused: Bool = false, event: Event, audioStreamIndex: Int? = nil, subtitleStreamIndex: Int? = nil,
-                reportedAt: Date? = nil) {
+                reportedAt: Date? = nil, isTranscoding: Bool? = nil) {
+        self.isTranscoding = isTranscoding
         self.itemId = itemId
         self.mediaSourceId = mediaSourceId
         self.playSessionId = playSessionId

@@ -90,8 +90,15 @@ Watching.
 If the video stops to wait for the network, Miru shows **Buffering** with how far the refill is. When
 it keeps happening Miru gathers more before carrying on (up to 20 seconds of video), so a slow
 connection gives a few longer waits instead of stopping every few seconds, and it shows how fast the
-video is arriving next to what it needs. Miru plays the original file, so a connection slower than
-the video can't keep up: download the episode first for those. With
+video is arriving next to what it needs.
+
+**Quality.** Miru plays the original file unless you choose a lower **Streaming Quality** (8, 4, 2, 1
+or 0.5 Mbps) in **Settings → Playback** or the player's sliders menu. Jellyfin then makes a smaller
+stream for any file larger than that, which is what a slow connection needs; changing it while
+watching carries on from the same place. When the connection can't keep up, the buffering box offers
+the quality that fits it in one tap. Your subtitles, lookups and cards work the same (cards still
+take their picture and audio from the original), but the audio menu has only the track being played:
+Japanese when the file has it. Downloads always play as they are. With
 a keyboard, **I** shows the stream's details, including how often and how long it has waited.
 
 ### Tapping subtitles

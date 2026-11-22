@@ -173,6 +173,11 @@ final class PlaybackModel {
     @ObservationIgnored private var client: JellyfinClient?
     @ObservationIgnored private var mediaSourceId: String?
     @ObservationIgnored private var playSessionId: String?
+    /// The bits a second Jellyfin is transcoding this video down to; nil when it's the original
+    /// file (or a download).
+    private(set) var transcodeBitrate: Int?
+    /// Jellyfin's index of the audio in the transcode (mpv then sees only that one).
+    @ObservationIgnored private var transcodeAudioIndex: Int?
     @ObservationIgnored private var lastSaved = Date.distantPast
     /// The play session as Jellyfin last heard of it: started (not stopped yet), when and where.
     @ObservationIgnored private var sessionStarted = false
@@ -386,6 +391,32 @@ final class PlaybackModel {
             error = "Jellyfin has no playable file for this item."
             return
         }
+        // A lower streaming quality (Settings, or the player's menu): the server transcodes when
+        // the file is over the limit. If it can't, the original plays.
+        var transcode: URL?
+        transcodeBitrate = nil
+        transcodeAudioIndex = nil
+        // Read now: Settings may have changed it since the player's own copy was made.
+        look.maxStreamBitrate = PlayerSettings.load(environment.common.database).maxStreamBitrate
+        #if DEBUG
+        // UI tests: UITEST_STREAM_QUALITY=<bits a second> for this run only (nothing is saved).
+        if let quality = ProcessInfo.processInfo.environment["UITEST_STREAM_QUALITY"].flatMap(Int.init) { look.maxStreamBitrate = quality }
+        #endif
+        let limit = look.maxStreamBitrate
+        if downloaded == nil, let client, limit > 0, (source?.bitrate ?? Int.max) > limit {
+            let streams = source?.mediaStreams ?? item.mediaStreams ?? []
+            let audio = (streams.first { $0.isAudio && $0.isJapanese })?.index ?? source?.defaultAudioStreamIndex
+            if let info = try? await client.transcodingInfo(itemId: item.id, mediaSourceId: sourceId, maxBitrate: limit, audioStreamIndex: audio),
+               let path = info.mediaSources.first?.transcodingUrl, let url = client.transcodeURL(path, maxBitrate: limit) {
+                transcode = url
+                transcodeBitrate = limit
+                transcodeAudioIndex = audio
+                playSessionId = info.playSessionId ?? playSessionId
+            } else {
+                showOSD("Couldn't get a lower quality: playing the original")
+            }
+            guard session.itemId == opening else { return }
+        }
         self.item = item
         mediaSourceId = sourceId
         localFile = downloaded
@@ -407,7 +438,7 @@ final class PlaybackModel {
         if let downloaded {
             mpv.load(downloaded.path(percentEncoded: false), start: start)
         } else if let client {
-            mpv.load(client.streamURL(itemId: item.id, mediaSourceId: sourceId, playSessionId: playSessionId),
+            mpv.load(transcode ?? client.streamURL(itemId: item.id, mediaSourceId: sourceId, playSessionId: playSessionId),
                      headers: client.playbackHeaders, start: start)
         }
         session.startAt = nil
@@ -1316,9 +1347,40 @@ final class PlaybackModel {
     /// While buffering on a connection slower than the video: both speeds, so it's clear the
     /// waits aren't a fault. Nil when the stream is keeping up or nothing's been measured yet.
     var slowStreamNote: String? {
-        guard let speed = mpv.streamSpeed, let needed = mpv.averageBitRate, speed < needed * 0.95 else { return nil }
+        guard let speed = mpv.streamSpeed, let needed = mpv.averageBitRate ?? transcodeBitrate.map(Double.init),
+              speed < needed * 0.95 else { return nil }
         func megabits(_ bits: Double) -> String { (bits / 1_000_000).formatted(.number.precision(.fractionLength(1))) }
         return "Arriving at \(megabits(speed)) Mbps\nThis video needs \(megabits(needed))"
+    }
+
+    // MARK: Streaming quality
+
+    /// True when the quality can be chosen: a stream, not a download or a test file.
+    var canChooseQuality: Bool { item != nil && localFile == nil && client != nil }
+
+    /// The quality to offer while buffering on a connection slower than the video: the best one
+    /// the connection keeps up with, when that's lower than what's playing.
+    var lowerQualityOffer: (name: String, bitrate: Int)? {
+        guard canChooseQuality, slowStreamNote != nil, let speed = mpv.streamSpeed else { return nil }
+        let fitting = PlayerSettings.streamQuality(fitting: speed)
+        let playing = transcodeBitrate ?? Int.max
+        guard fitting < playing, let quality = PlayerSettings.streamQualities.first(where: { $0.bitrate == fitting }) else { return nil }
+        return quality
+    }
+
+    /// Changes the streaming quality (kept for the next videos too) and carries on from the
+    /// same place at the new one.
+    func chooseQuality(_ bitrate: Int) {
+        guard bitrate != look.maxStreamBitrate else { return }
+        setLook { $0.maxStreamBitrate = bitrate }
+        let name = PlayerSettings.streamQualities.first { $0.bitrate == bitrate }?.name ?? ""
+        showOSD("Quality: \(name)")
+        guard canChooseQuality, mpv.hasStarted else { return }
+        // The session at the old quality ends (the server stops its transcode); a new one starts.
+        let position = mpv.timePosition
+        saveProgress(.stopped)
+        session.startAt = position
+        Task { await open() }
     }
 
     /// mpv started or stopped waiting for the stream. The spinner comes after a moment (a seek
@@ -1358,6 +1420,11 @@ final class PlaybackModel {
         rows.append(("Dropped frames", "\(mpv.property("frame-drop-count") ?? "0") (decoder \(mpv.property("decoder-frame-drop-count") ?? "0"))"))
         if let cache = number("demuxer-cache-duration", digits: 1) { rows.append(("Buffered", "\(cache) s")) }
         if let waits = stalls.summary { rows.append(("Waited for stream", waits)) }
+        if let transcodeBitrate {
+            rows.append(("Quality", "transcoded to \(PlayerSettings.streamQualities.first { $0.bitrate == transcodeBitrate }?.name ?? "\(transcodeBitrate / 1000) kbps")"))
+        } else if localFile == nil {
+            rows.append(("Quality", "original"))
+        }
         rows.append(("Speed", String(format: "%.2f×", mpv.speed)))
         return rows
     }
@@ -1486,6 +1553,7 @@ final class PlaybackModel {
 
     /// Jellyfin's index of the audio stream mpv is playing.
     private var audioStreamIndex: Int? {
+        if transcodeBitrate != nil { return transcodeAudioIndex }
         guard let ffIndex = mpv.tracks.first(where: { $0.type == "audio" && $0.isSelected })?.ffIndex else { return nil }
         return mediaStreams.first { $0.isAudio && $0.ffmpegIndex(in: mediaStreams) == ffIndex }?.index
     }
@@ -1586,7 +1654,8 @@ final class PlaybackModel {
         let report = JellyfinProgressPayload(
             itemId: item.id, mediaSourceId: mediaSourceId, playSessionId: playSessionId,
             positionTicks: JellyfinTicks.ticks(position), isPaused: mpv.isPaused, event: event,
-            audioStreamIndex: audioStreamIndex, subtitleStreamIndex: subtitleStreamIndex, reportedAt: now)
+            audioStreamIndex: audioStreamIndex, subtitleStreamIndex: subtitleStreamIndex, reportedAt: now,
+            isTranscoding: transcodeBitrate != nil ? true : nil)
         sessionStarted = event != .stopped
         lastReported = now
         do {

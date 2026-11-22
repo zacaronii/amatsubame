@@ -288,6 +288,16 @@ struct PlaybackView: View {
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("player.buffering")
             .allowsHitTesting(false)
+            .overlay(alignment: .bottom) {
+                if let offer = model.lowerQualityOffer {
+                    // The connection can't keep up with this quality: one tap for one it can.
+                    Button("Play at \(offer.name)") { model.chooseQuality(offer.bitrate) }
+                        .buttonStyle(.borderedProminent)
+                        .fixedSize()
+                        .alignmentGuide(.bottom) { $0[.top] - 12 }
+                        .accessibilityIdentifier("player.lowerQuality")
+                }
+            }
         }
         if let error = model.error ?? model.mpv.lastError {
             errorView(error)
@@ -759,6 +769,14 @@ struct PlaybackView: View {
             }
             if model.hasEnglish || model.showsEnglish {
                 Toggle("English Subtitles", isOn: Binding(get: { model.showsEnglish }, set: { _ in model.perform(.english) }))
+            }
+            if model.canChooseQuality {
+                Picker("Quality", selection: Binding(get: { model.look.maxStreamBitrate }, set: { model.chooseQuality($0) })) {
+                    ForEach(PlayerSettings.streamQualities, id: \.bitrate) { quality in
+                        Text(quality.name).tag(quality.bitrate)
+                    }
+                }
+                .pickerStyle(.menu)
             }
             subtitleLookMenu
             sleepMenu
