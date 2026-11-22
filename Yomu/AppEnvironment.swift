@@ -23,6 +23,8 @@ final class AppEnvironment {
     let readerMarks: ReaderMarkStore
     /// Kavita's Want to Read, per account.
     let wantToRead: WantToReadStore
+    /// Kavita's collections, per account.
+    let collections: CollectionStore
     let readingProgress: ReadingProgressStore
     let readerSettings: MangaReaderSettingsStore
     let ocrModels: OCRModelStore
@@ -122,6 +124,7 @@ final class AppEnvironment {
     ) {
         let marks = ReaderMarkStore(database: database)
         let wants = WantToReadStore(database: database)
+        let collectionStore = CollectionStore(database: database)
         let http = HTTPClient()
         let tokens = AudiobookshelfTokens(secrets: secrets)
         audiobookshelfTokens = tokens
@@ -137,6 +140,7 @@ final class AppEnvironment {
                 let markHandlers: [any OutboxHandler] = (sendsMarks ?? sendsProgress) ? [
                     KavitaReaderMarkHandler(store: marks, account: signedIn, makeClient: makeKavita),
                     KavitaWantToReadHandler(store: wants, features: marks, account: signedIn, makeClient: makeKavita),
+                    KavitaCollectionHandler(store: collectionStore, features: marks, outbox: OutboxStore(database: database), account: signedIn, makeClient: makeKavita),
                 ] : []
                 guard sendsProgress else { return markHandlers }
                 let audiobookshelf = AudioServers.audiobookshelfClientFactory(accounts: context.accounts, tokens: tokens, http: context.http)
@@ -156,6 +160,7 @@ final class AppEnvironment {
         kavitaLibrary = KavitaLibraryRepository(database: database)
         readerMarks = marks
         wantToRead = wants
+        collections = collectionStore
         readAlongPairs = ReadAlongStore(database: database)
         bookLengths = BookLengths(database: database)
         listenProgress = WatchProgressStore(database: database)
@@ -455,6 +460,31 @@ final class AppEnvironment {
         guard let account = readerMarkAccount(), let client = kavitaClient(),
               (try? readerMarks.isAvailable(.wantToRead, account: account)) ?? true else { return }
         try await KavitaWantToReadSync(client: client, store: wantToRead, features: readerMarks, account: account).check(seriesId: seriesId)
+    }
+
+    // MARK: Collections
+
+    private func collectionSync() -> KavitaCollectionSync? {
+        guard let account = readerMarkAccount(), let client = kavitaClient() else { return nil }
+        let username = (try? accounts.account(.kavita)).flatMap { $0 }?.username
+        return KavitaCollectionSync(client: client, store: collections, features: readerMarks, account: account, username: username)
+    }
+
+    /// The collection list (one request).
+    func refreshCollections() async throws {
+        try await collectionSync()?.refresh()
+    }
+
+    /// A collection's series, cached for its grid.
+    func refreshSeries(of collection: CollectionRow) async throws {
+        guard let sync = collectionSync() else { return }
+        let series = try await sync.series(of: collection)
+        try? kavitaLibrary.remember(series)
+    }
+
+    /// The own collections a series is in (the Collections sheet asks when it opens).
+    func refreshMembership(of seriesId: Int) async throws {
+        try await collectionSync()?.membership(of: seriesId)
     }
 
     /// Adds the series to Want to Read or removes it (sent to Kavita by the outbox).

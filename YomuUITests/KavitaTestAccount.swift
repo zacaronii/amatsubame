@@ -72,6 +72,19 @@ struct KavitaTestAccount {
                               body: #"{"statements":[],"combination":1,"limitTo":0}"#), "Want to Read").compactMap { $0["id"] as? Int })
     }
 
+    /// The test account's own collections, each with its series.
+    func collections() throws -> [Int: Set<Int>] {
+        var result: [Int: Set<Int>] = [:]
+        for collection in try list(try call("GET", "api/Collection", query: ["ownedOnly": "true"]), "collections") {
+            guard let id = collection["id"] as? Int else { throw UnexpectedAnswer(what: "a collection's id") }
+            let series = try list(try call("POST", "api/Series/v2", query: ["pageNumber": "1", "pageSize": "500"],
+                                           body: #"{"statements":[{"field":7,"comparison":0,"value":"\#(id)"}],"combination":1,"limitTo":0}"#),
+                                  "a collection's series")
+            result[id] = Set(series.compactMap { $0["id"] as? Int })
+        }
+        return result
+    }
+
     /// A series' id, found by its name.
     func seriesId(named name: String) throws -> Int {
         let found = try XCTUnwrap(try call("GET", "api/Search/search", query: ["queryString": name]) as? [String: Any], "the search")
@@ -114,7 +127,7 @@ struct KavitaTestAccount {
         Snapshot(account: self, bookSeries: bookSeries, annotations: Set(try annotations().compactMap { $0["id"] as? Int }),
                  pageBookmarks: Set(try pageBookmarks().compactMap { $0["id"] as? Int }),
                  bookBookmarks: Set(try bookSeries.map { try bookBookmarks(series: $0) } ?? []),
-                 wantToRead: try wantToRead())
+                 wantToRead: try wantToRead(), collections: try collections())
     }
 
     struct Snapshot {
@@ -124,6 +137,7 @@ struct KavitaTestAccount {
         let pageBookmarks: Set<Int>
         let bookBookmarks: Set<BookBookmark>
         let wantToRead: Set<Int>
+        let collections: [Int: Set<Int>]
 
         /// Removes the marks made since the snapshot. Returns what's still left over.
         @discardableResult
@@ -152,6 +166,15 @@ struct KavitaTestAccount {
                 try account.call("POST", "api/want-to-read/add-series", body: #"{"seriesIds":\#(Array(removed))}"#)
             }
             if try account.wantToRead() != wantToRead { return "Want to Read differs from before the test" }
+            // Collections made since go; ones that were there are never edited, only compared.
+            let made = try account.collections().keys.filter { collections[$0] == nil }
+            if !made.isEmpty {
+                try account.call("POST", "api/Collection/delete-multiple", body: #"{"collectionIds":\#(Array(made))}"#)
+            }
+            let now = try account.collections()
+            if now != collections {
+                return "collections differ from before the test: had \(collections.count) (series \(collections.values.map(\.count))), now \(now.count) (series \(now.values.map(\.count)))"
+            }
             let left = (try account.annotations().count - annotations.count, try account.pageBookmarks().count - pageBookmarks.count,
                         try bookSeries.map { try account.bookBookmarks(series: $0).count - bookBookmarks.count } ?? 0)
             return left == (0, 0, 0) ? nil : "left over on Kavita: \(left.0) annotations, \(left.1) page bookmarks, \(left.2) book bookmarks"

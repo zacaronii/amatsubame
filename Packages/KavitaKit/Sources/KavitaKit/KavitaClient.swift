@@ -276,4 +276,9 @@ struct SeriesFilter: Encodable {
     init() {
         statements = []
     }
+
+    /// A collection's series (Kavita's field 7, CollectionTags).
+    init(collectionId: Int) {
+        statements = [Statement(field: 7, value: String(collectionId))]
+    }
 }

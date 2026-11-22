@@ -39,6 +39,7 @@ struct SeriesDetailView: View {
     /// In Kavita's Want to Read (the device's copy), and whether this server has it.
     @State private var wanted = false
     @State private var canWantToRead = false
+    @State private var showsCollections = false
 
     /// Volumes as covers (default) or the rows with reading and download status.
     enum VolumeLayout: String, CaseIterable {
@@ -90,6 +91,10 @@ struct SeriesDetailView: View {
                                 environment.setWantToRead(!wanted, seriesId: series.id)
                             }
                             .accessibilityIdentifier("series.wantToRead")
+                        }
+                        if environment.readerMarkAccount().map({ (try? environment.readerMarks.isAvailable(.collections, account: $0)) ?? true }) == true {
+                            Button("Collections…", systemImage: "square.stack") { showsCollections = true }
+                                .accessibilityIdentifier("series.collections")
                         }
                         Button("Download \(notDownloaded.count) Volumes", systemImage: "arrow.down.circle") {
                             confirmsDownloadAll = true
@@ -160,6 +165,7 @@ struct SeriesDetailView: View {
             await countCharacters()
         }
         .task { await loadMetadata() }
+        .sheet(isPresented: $showsCollections) { CollectionsSheet(seriesId: series.id) }
         .task(id: environment.readerMarkAccount()) {
             guard let account = environment.readerMarkAccount() else { return }
             canWantToRead = (try? environment.readerMarks.isAvailable(.wantToRead, account: account)) ?? true

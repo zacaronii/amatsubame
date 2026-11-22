@@ -298,6 +298,7 @@ extension OutboxJobKind {
         case .hachidoriWordStatus: "Known Words for Hachidori"
         case .kavitaReaderMark: "Bookmarks and Highlights for Kavita"
         case .kavitaWantToRead: "Want to Read for Kavita"
+        case .kavitaCollection: "Collections for Kavita"
         }
     }
 
@@ -315,6 +316,7 @@ extension OutboxJobKind {
         case .hachidoriWordStatus: ("known or ignored word", "known or ignored words")
         case .kavitaReaderMark: ("bookmark or highlight", "bookmarks and highlights")
         case .kavitaWantToRead: ("Want to Read change", "Want to Read changes")
+        case .kavitaCollection: ("collection change", "collection changes")
         }
         return "\(count) \(count == 1 ? one : many)"
     }
@@ -326,6 +328,8 @@ extension OutboxJobKind {
             "They won't reach the server, and at the next refresh this device shows what Kavita has again: a bookmark or highlight made here and not sent (with its note) goes, and one removed here comes back."
         case .kavitaWantToRead:
             "They won't reach the server, and at the next refresh this device shows Kavita's Want to Read again."
+        case .kavitaCollection:
+            "They won't reach the server, and at the next refresh this device shows Kavita's collections again: series added or removed here and collections made here that weren't sent go back to how Kavita has them."
         default:
             "They won't reach the server. The server keeps whatever it last had."
         }
@@ -344,6 +348,7 @@ extension OutboxJobKind {
         case .hachidoriWordStatus: "Hachidori known word"
         case .kavitaReaderMark: "Kavita bookmark or highlight"
         case .kavitaWantToRead: "Kavita Want to Read"
+        case .kavitaCollection: "Kavita collection"
         }
     }
 }

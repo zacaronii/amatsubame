@@ -938,6 +938,37 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v58_collections") { db in
+            // Kavita's collections per account, and their series: Kavita's lists and the
+            // changes not sent yet.
+            try db.create(table: "kavitaCollection") { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("account", .text).notNull()
+                t.column("serverId", .integer)
+                t.column("title", .text).notNull()
+                t.column("isOwn", .boolean).notNull()
+                t.column("owner", .text)
+                t.column("promoted", .boolean).notNull()
+                t.column("source", .integer).notNull()
+                t.column("itemCount", .integer).notNull()
+                t.column("position", .integer).notNull()
+                t.column("state", .text).notNull()
+                t.column("confirmed", .boolean).notNull()
+                t.column("createAttempts", .integer).notNull()
+                t.column("revision", .integer).notNull()
+                t.column("updatedAt", .datetime).notNull()
+            }
+            try db.create(index: "kavitaCollection_account", on: "kavitaCollection", columns: ["account"])
+            try db.create(table: "kavitaCollectionSeries") { t in
+                t.column("collectionId", .integer).notNull().references("kavitaCollection", onDelete: .cascade)
+                t.column("seriesId", .integer).notNull()
+                t.column("state", .text).notNull()
+                t.column("revision", .integer).notNull()
+                t.column("updatedAt", .datetime).notNull()
+                t.primaryKey(["collectionId", "seriesId"])
+            }
+        }
+
         return migrator
     }
 }
