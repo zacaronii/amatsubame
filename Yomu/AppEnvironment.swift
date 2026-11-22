@@ -478,8 +478,9 @@ final class AppEnvironment {
     /// A collection's series, cached for its grid.
     func refreshSeries(of collection: CollectionRow) async throws {
         guard let sync = collectionSync() else { return }
-        let series = try await sync.series(of: collection)
-        try? kavitaLibrary.remember(series)
+        // Cached before the ids are merged: the grid follows the ids and reads the cache.
+        let library = kavitaLibrary
+        try await sync.series(of: collection) { try? library.remember($0) }
     }
 
     /// The own collections a series is in (the Collections sheet asks when it opens).

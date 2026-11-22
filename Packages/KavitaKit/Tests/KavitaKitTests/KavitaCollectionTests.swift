@@ -258,4 +258,43 @@ import Testing
         try await send(CollectionJob(account: account, collectionId: again.id!), other, adopting)
         #expect(paths(adopting) == ["/api/Collection"])
     }
+
+    @Test func theSeriesAreCachedBeforeTheirIdsReachTheGrid() async throws {
+        let setup = try setup()
+        try setup.store.merge([.init(serverId: 40, title: "Mine", isOwn: true, owner: "reader", promoted: false, source: 0, itemCount: 3)], account: account)
+        let mine = try #require(try setup.store.collections(account: account).first)
+        let transport = StubTransport(routes: ["/api/Series/v2": (200, try Fixture.data("series-v2.json", in: .module))])
+        let store = setup.store
+        let idsWhenCached = Mutex<[Int]?>(nil)
+        try await KavitaCollectionSync(client: client(transport), store: setup.store, features: setup.features, account: account, username: "reader")
+            .series(of: mine) { series in
+                #expect(series.count == 3)
+                idsWhenCached.withLock { $0 = (try? store.seriesRow(collectionId: mine.id!, seriesId: 9)).map { _ in [9] } ?? [] }
+            }
+        #expect(idsWhenCached.withLock { $0 } == [], "cached while the ids weren't merged yet")
+        #expect(try setup.store.seriesRow(collectionId: mine.id!, seriesId: 9)?.state == .synced)
+    }
+
+    @Test func aRemoveThatMayHaveBeenTheLastDropsTheCollectionIfKavitaDeletedIt() async throws {
+        let setup = try setup()
+        try setup.store.merge([.init(serverId: 40, title: "Mine", isOwn: true, owner: "reader", promoted: false, source: 0, itemCount: 3)], account: account)
+        let mine = try #require(try setup.store.collections(account: account).first).id!
+        try setup.store.mergeSeries([1, 2, 3], collectionId: mine)
+        try setup.store.merge([.init(serverId: 40, title: "Mine", isOwn: true, owner: "reader", promoted: false, source: 0, itemCount: 1)], account: account)
+        #expect(try setup.store.takeOut(1, collectionId: mine) == .unknown)
+        try setup.store.set(false, seriesId: 1, collectionId: mine, outbox: setup.outbox)
+        let removed = Mutex(false)
+        let transport = StubTransport { request in
+            switch request.url!.path() {
+            case "/api/Collection": return (200, removed.withLock { $0 } ? list([]) : list([(40, "Mine")]))
+            case "/api/Collection/update-series":
+                removed.withLock { $0 = true }
+                return (200, Data())
+            default: return (500, Data())
+            }
+        }
+        try await send(CollectionJob(account: account, collectionId: mine, seriesId: 1), setup, transport)
+        #expect(paths(transport) == ["/api/Collection", "/api/Collection/update-series", "/api/Collection"], "can't tell: one look")
+        #expect(try setup.store.collection(mine) == nil, "Kavita deleted it, so it goes here")
+    }
 }

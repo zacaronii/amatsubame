@@ -159,7 +159,8 @@ struct CollectionsSheet: View {
     @State private var naming = false
     @State private var newTitle = ""
     @State private var problem: String?
-    @State private var removingLast: CollectionRow?
+    /// Taking out a series that is, or may be, the last: asked first.
+    @State private var removingLast: (collection: CollectionRow, sure: Bool)?
 
     static func readOnlyReason(_ collection: CollectionRow) -> String? {
         if !collection.isOwn { return "Promoted by \(collection.owner ?? "another user"): read-only." }
@@ -205,11 +206,17 @@ struct CollectionsSheet: View {
             } message: {
                 Text(problem ?? "")
             }
-            .confirmationDialog("Take out the last series?", isPresented: Binding { removingLast != nil } set: { if !$0 { removingLast = nil } },
-                                titleVisibility: .visible, presenting: removingLast) { collection in
-                Button("Take Out and Delete \u{201C}\(collection.title)\u{201D}", role: .destructive) { deleteEmptied(collection) }
-            } message: { _ in
-                Text("Kavita deletes a collection when its last series is taken out.")
+            .confirmationDialog(removingLast?.sure == false ? "Take out this series?" : "Take out the last series?",
+                                isPresented: Binding { removingLast != nil } set: { if !$0 { removingLast = nil } },
+                                titleVisibility: .visible, presenting: removingLast) { removal in
+                if removal.sure {
+                    Button("Take Out and Delete \u{201C}\(removal.collection.title)\u{201D}", role: .destructive) { deleteEmptied(removal.collection) }
+                } else {
+                    Button("Take Out", role: .destructive) { toggle(removal.collection, on: false) }
+                }
+            } message: { removal in
+                Text(removal.sure ? "Kavita deletes a collection when its last series is taken out."
+                     : "This may be its last series. Kavita deletes a collection when its last series is taken out.")
             }
         }
         .task(id: environment.readerMarkAccount()) {
@@ -233,9 +240,10 @@ struct CollectionsSheet: View {
         let isIn = holding.contains(id)
         return Button {
             guard collection.isEditable else { return }
-            if isIn, (try? environment.collections.takingOutEmpties(seriesId, collectionId: id)) ?? true {
-                removingLast = collection
-            } else {
+            switch isIn ? ((try? environment.collections.takeOut(seriesId, collectionId: id)) ?? .unknown) : .notLast {
+            case .last: removingLast = (collection, true)
+            case .unknown: removingLast = (collection, false)
+            case .notLast:
                 toggle(collection, on: !isIn)
             }
         } label: {

@@ -221,12 +221,22 @@ public struct CollectionStore: Sendable {
         }
     }
 
-    /// Whether taking the series out would leave the collection empty (or that can't be told),
-    /// so the user is asked first: Kavita deletes a collection when its last series goes.
-    public func takingOutEmpties(_ seriesId: Int, collectionId: Int64) throws -> Bool {
-        guard let count = try seriesCount(collectionId: collectionId) else { return true }
+    /// What taking a series out of a collection does, as far as this device can tell.
+    public enum TakeOut: Equatable, Sendable {
+        /// Others stay in it.
+        case notLast
+        /// It's the last: Kavita deletes the collection (Yomu deletes it, and says so first).
+        case last
+        /// The series read earlier don't add up to Kavita's count: it may be the last. Yomu asks,
+        /// but only takes the series out (the handler's look afterwards drops the collection if
+        /// Kavita deleted it).
+        case unknown
+    }
+
+    public func takeOut(_ seriesId: Int, collectionId: Int64) throws -> TakeOut {
+        guard let count = try seriesCount(collectionId: collectionId) else { return .unknown }
         let isIn = try seriesRow(collectionId: collectionId, seriesId: seriesId)?.isIn ?? false
-        return count - (isIn ? 1 : 0) <= 0
+        return count - (isIn ? 1 : 0) <= 0 ? .last : .notLast
     }
 
     // MARK: Changes made here (each in one write with its job)

@@ -141,7 +141,7 @@ import Testing
         let (store, outbox, _) = try stores()
         let id = try collection(store, items: 3)
         try store.mergeMembership([3], seriesId: 1, account: account)
-        #expect(try !store.takingOutEmpties(1, collectionId: id))
+        #expect(try store.takeOut(1, collectionId: id) == .notLast)
         try store.set(false, seriesId: 1, collectionId: id, outbox: outbox)
         #expect(try store.seriesCount(collectionId: id) == 2)
     }
@@ -150,7 +150,7 @@ import Testing
         let (store, _, _) = try stores()
         let id = try collection(store, items: 1)
         try store.mergeMembership([3], seriesId: 1, account: account)
-        #expect(try store.takingOutEmpties(1, collectionId: id))
+        #expect(try store.takeOut(1, collectionId: id) == .last)
     }
 
     @Test func c_anotherAddedAndSentThenTheFirstUnchecked() throws {
@@ -160,7 +160,7 @@ import Testing
         try store.set(true, seriesId: 2, collectionId: id, outbox: outbox)
         try store.didSend(try #require(try store.seriesRow(collectionId: id, seriesId: 2)))
         #expect(try store.seriesCount(collectionId: id) == 2, "Kavita's count follows the add it took")
-        #expect(try !store.takingOutEmpties(1, collectionId: id))
+        #expect(try store.takeOut(1, collectionId: id) == .notLast)
     }
 
     @Test func d_addedAndTakenOutBeforeSending() throws {
@@ -172,13 +172,20 @@ import Testing
     }
 
     @Test func e_readEarlierThenKavitaSaysFewerAsks() throws {
-        let (store, _, _) = try stores()
+        let (store, outbox, _) = try stores()
         let id = try collection(store, items: 3)
         try store.mergeSeries([1, 2, 3], collectionId: id)
-        #expect(try !store.takingOutEmpties(1, collectionId: id))
+        #expect(try store.takeOut(1, collectionId: id) == .notLast)
         try store.merge([listed(3, "Mine", items: 1)], account: account)
         #expect(try store.seriesCount(collectionId: id) == nil, "the rows and Kavita's count disagree")
-        #expect(try store.takingOutEmpties(1, collectionId: id))
+        #expect(try store.takeOut(1, collectionId: id) == .unknown, "asks, without claiming it's the last")
+        // Confirmed: only the series comes out; the collection and its other rows stay, and only
+        // a remove is queued (no delete).
+        try store.set(false, seriesId: 1, collectionId: id, outbox: outbox)
+        #expect(try store.collection(id)?.state == .synced)
+        #expect(try store.seriesRow(collectionId: id, seriesId: 2)?.state == .synced)
+        #expect(try store.isQueued(CollectionJob(account: account, collectionId: id, seriesId: 1)))
+        #expect(try !store.isQueued(CollectionJob(account: account, collectionId: id)))
     }
 
     // MARK: A create whose answer was lost, seen by a refresh first

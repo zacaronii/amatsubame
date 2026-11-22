@@ -322,14 +322,14 @@ public struct KavitaCollectionSync: Sendable {
         return true
     }
 
-    /// One collection's series (when it's opened). Returns them, to cache for the grid.
-    @discardableResult
-    public func series(of collection: CollectionRow) async throws -> [(KavitaSeries, raw: Data)] {
-        guard let id = collection.id, let serverId = collection.serverId else { return [] }
+    /// One collection's series (when it's opened). `cache` keeps them for the grid before the
+    /// ids are merged, so the grid, which follows the ids, finds them cached.
+    public func series(of collection: CollectionRow, cache: @Sendable ([(KavitaSeries, raw: Data)]) -> Void = { _ in }) async throws {
+        guard let id = collection.id, let serverId = collection.serverId else { return }
         let listedAt = Date()
         let series = try await client.series(inCollection: serverId)
+        cache(series)
         try store.mergeSeries(series.map(\.0.id), collectionId: id, listedAt: listedAt)
-        return series
     }
 
     /// The own collections a series is in (the series sheet, when it opens).
