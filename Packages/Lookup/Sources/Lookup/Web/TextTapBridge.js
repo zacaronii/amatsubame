@@ -68,16 +68,27 @@
 
   // Looks up the character at a point (viewport coordinates), or reports a miss.
   function tapAt(x, y) {
+    lookAt(x, y, false);
+  }
+
+  // `hovering`: the pointer rests there (the Mac's Look Up on Hover). Unlike a tap it never
+  // reports a miss (a miss turns the page), and it leaves the word that's showing alone.
+  function lookAt(x, y, hovering) {
     if (window.getSelection()?.toString()) return;
 
     // Taps that land on no character (margins, pictures) go to the host: readers turn pages with them.
-    const miss = () => post({kind: 'miss', x, y});
+    const miss = () => { if (!hovering) post({kind: 'miss', x, y}); };
     const caret = caretAt(x, y);
     if (!caret || caret.node.nodeType !== Node.TEXT_NODE) return miss();
     // Ignore furigana: look up from the base text instead.
     if (caret.node.parentElement?.closest('rt, rp')) return;
     const index = characterAt(caret.node, caret.offset, x, y);
     if (index === null) return miss();
+    if (hovering) {
+      // Letters, kana, kanji and digits only, and not the word already looked up.
+      if (!/[\p{L}\p{N}]/u.test(caret.node.textContent[index])) return;
+      if (caret.node.parentElement?.closest('span.lookup-highlight')) return;
+    }
 
     const block = caret.node.parentElement.closest(blockSelector) ?? document.body;
     lastBlock = block;
@@ -105,6 +116,46 @@
   }
 
   let lastBlock = null;
+
+  // Look Up on Hover (the Mac; Settings ▸ Popup): 'off', a key that must be held ('shift',
+  // 'option', 'control', 'command'), or 'always'. Off until the host turns it on (setHover),
+  // so the popup's own pages and the Safari extension don't scan under the pointer.
+  let hoverMode = 'off';
+  let hoverTimer = null;
+  let pointer = null;
+
+  function hoverAllowed(event) {
+    switch (hoverMode) {
+      case 'shift': return event.shiftKey;
+      case 'option': return event.altKey;
+      case 'control': return event.ctrlKey;
+      case 'command': return event.metaKey;
+      case 'always': return true;
+      default: return false;
+    }
+  }
+
+  // After a short rest, so the pointer crossing the text on its way elsewhere looks nothing up.
+  function hoverSoon(event) {
+    clearTimeout(hoverTimer);
+    if (!pointer || !hoverAllowed(event)) return;
+    const at = pointer;
+    hoverTimer = setTimeout(() => lookAt(at.x, at.y, true), hoverMode === 'always' ? 180 : 60);
+  }
+
+  document.addEventListener('mousemove', (event) => {
+    if (hoverMode === 'off') return;
+    pointer = {x: event.clientX, y: event.clientY};
+    hoverSoon(event);
+  });
+  // The key pressed with the pointer already on a word.
+  document.addEventListener('keydown', (event) => {
+    if (hoverMode !== 'off' && !event.repeat) hoverSoon(event);
+  });
+  document.addEventListener('mouseleave', () => {
+    pointer = null;
+    clearTimeout(hoverTimer);
+  });
 
   /// Marks `length` characters from `offset` in the last tapped block (offsets as sent,
   /// i.e. without furigana) by wrapping them in <span class="lookup-highlight">. (The CSS
@@ -144,6 +195,7 @@
 
   window.lookupBridge = {
     tapAt,
+    setHover: (mode) => { hoverMode = mode; },
     scrollToTop: () => window.scrollTo(0, 0),
     highlight,
     clearHighlight,

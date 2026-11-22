@@ -81,7 +81,7 @@ public struct PopupSettingsPage: View {
             } header: {
                 Text("Pointer")
             } footer: {
-                Text("Point at a word in Miru\u{2019}s subtitles or Kiku\u{2019}s transcript to look it up without clicking: while holding the key, or just by resting on it. Clicking a word always works.")
+                Text("Point at a word in a book in Yomu, Miru\u{2019}s subtitles or Kiku\u{2019}s transcript to look it up without clicking: while holding the key, or just by resting on it. Clicking a word always works. Manga pages still need a click.")
             }
             #endif
             Section {

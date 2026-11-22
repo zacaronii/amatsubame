@@ -83,6 +83,9 @@ enum BookWebEvent: Equatable {
 final class BookWebController: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     let webView: WKWebView
     var onEvent: (BookWebEvent) -> Void = { _ in }
+    /// Settings ▸ Popup ▸ Look Up on Hover as the page's tap bridge names it ("shift", "always",
+    /// "off"…), asked as each section loads. The Mac only: there's no pointer to rest elsewhere.
+    var hoverLookup: () -> String = { "off" }
     /// The section loading: its settings and place, given to the reader once it has loaded.
     private var pendingOpen: (settings: [String: Any], position: String)?
     /// A load awaited without the reader's layout (read-along reads the text this way).
@@ -192,6 +195,9 @@ final class BookWebController: NSObject, WKScriptMessageHandler, WKNavigationDel
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         if finishWaiting(true) { return }
+        #if os(macOS)
+        run("window.lookupBridge?.setHover(\(Self.jsString(hoverLookup())))")
+        #endif
         if let open = pendingOpen {
             pendingOpen = nil
             run("window.bookReader?.open(\(Self.json(open.settings)), \(open.position))")

@@ -166,6 +166,7 @@ public final class BookReaderModel {
             updateReadingSpeed()
             let controller = BookWebController(folder: book.folder)
             controller.onEvent = { [weak self] event in self?.handle(event) }
+            controller.hoverLookup = { [weak self] in self?.lookup?.popupSettings.hoverLookup.rawValue ?? "off" }
             controller.setScrollEnabled(settings.layout == .scroll)
             web = controller
         } catch {
@@ -289,6 +290,7 @@ public final class BookReaderModel {
             if spread, companion == nil, let folder {
                 let controller = BookWebController(folder: folder)
                 controller.onEvent = { [weak self] event in self?.handleCompanion(event) }
+                controller.hoverLookup = { [weak self] in self?.lookup?.popupSettings.hoverLookup.rawValue ?? "off" }
                 controller.setScrollEnabled(false)
                 companion = controller
             } else if !spread {
