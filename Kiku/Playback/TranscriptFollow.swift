@@ -10,6 +10,17 @@ enum TranscriptFollow {
         LineFollow.index(at: time, in: sentences, start: \.start)
     }
 
+    /// Playing again after a pause: where to pick up, so the line that was cut off is heard
+    /// whole (other apps rewind a few seconds; here the line's start is known). Nil when there's
+    /// nothing to do: the pause was a moment, there's no line, or its start is too far back.
+    static func resumeTarget(at time: Double, in sentences: [AudioSentence], pausedFor pause: Double) -> Double? {
+        guard pause >= 2, let index = index(at: time, in: sentences) else { return nil }
+        let line = sentences[index]
+        // Only inside the line (not in the gap after it), and not a long way back.
+        guard time < line.end, time - line.start > 0.3, time - line.start <= 20 else { return nil }
+        return line.start
+    }
+
     /// How far into a line "previous" restarts it rather than going back one.
     static let restartAfter = 2.0
 

@@ -93,6 +93,15 @@ final class PodcastLibrary {
                      progress: progress[episode.key])
     }
 
+    /// What plays after `episode` ends: the show's next episode by date that isn't finished.
+    /// Nil after the newest one.
+    static func episode(after episode: AudiobookshelfEpisode, in episodes: [AudiobookshelfEpisode],
+                        finished: (AudiobookshelfEpisode) -> Bool) -> AudiobookshelfEpisode? {
+        guard let published = episode.publishedAt else { return nil }
+        return episodes.filter { $0.id != episode.id && ($0.publishedAt ?? 0) > published && !finished($0) }
+            .min { ($0.publishedAt ?? 0) < ($1.publishedAt ?? 0) }
+    }
+
     /// A book to play (needs its details: chapters and tracks).
     func entry(book: AudiobookshelfItem) -> EpisodeEntry? {
         guard let episode = AudiobookshelfEpisode.wholeBook(book) else { return nil }
