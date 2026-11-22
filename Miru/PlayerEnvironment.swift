@@ -61,6 +61,9 @@ final class PlayerEnvironment {
                 let subtitles = LocalSubtitleStore(database: database)
                 return [
                     JellyfinProgressHandler(makeClient: makeClient),
+                    JellyfinPlayedHandler(makeClient: makeClient, didSend: { itemId in
+                        Task { @MainActor in NotificationCenter.default.post(name: .playbackDidClose, object: itemId) }
+                    }),
                     JellyfinSubtitleHandler(makeClient: makeClient, didUpload: { itemId in
                         try? subtitles.markUploaded(itemId: itemId, at: Date())
                         Task { @MainActor in
@@ -237,6 +240,19 @@ final class PlayerEnvironment {
 
     /// Kaku, for subtitles Jimaku lacks (its own sign-in until the apps can share one).
     func kakuClient() -> KakuClient? { AudioServers.kakuClient(common) }
+
+    /// Marks an episode or movie watched or unwatched (its row's menu): this device's own place
+    /// at once, then Jellyfin through the outbox. Unwatched also clears the resume point.
+    func setWatched(_ item: JellyfinItem, _ watched: Bool) {
+        let duration = item.duration ?? 0
+        try? watchProgress.save(LocalWatchProgress(itemId: item.id, seriesId: item.seriesId, position: watched ? duration : 0,
+                                                   duration: duration, updatedAt: Date()))
+        let payload = JellyfinPlayedPayload(itemId: item.id, played: watched)
+        try? common.outbox.enqueue(payload, kind: .jellyfinPlayed, coalesceKey: payload.coalesceKey)
+        common.syncNow()
+        // The lists read this device's progress again now, and Jellyfin's once it has the mark.
+        NotificationCenter.default.post(name: .playbackDidClose, object: item.id)
+    }
 
     func jellyfinClient() -> JellyfinClient? {
         try? Self.jellyfinClientFactory(accounts: common.accounts, secrets: common.secrets, identity: identity, http: common.http)()

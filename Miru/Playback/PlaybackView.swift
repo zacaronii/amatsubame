@@ -249,6 +249,19 @@ struct PlaybackView: View {
     }
 
     @ViewBuilder private var progressAndError: some View {
+        if model.holdsFast {
+            // While the picture is held.
+            Label(String(format: "%g×", model.mpv.speed), systemImage: "forward.fill")
+                .font(.subheadline.weight(.semibold).monospacedDigit())
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(.black.opacity(0.55), in: .capsule)
+                .frame(maxHeight: .infinity, alignment: .top)
+                .padding(.top, 24)
+                .allowsHitTesting(false)
+                .accessibilityIdentifier("player.holdSpeed")
+        }
         if model.isOpening {
             ProgressView().tint(.white).controlSize(.large)
         } else if model.showsBuffering, !model.mpv.isPaused {

@@ -236,6 +236,24 @@ final class PlaybackModel {
         showOSD(on ? "Pausing after each line" : "Not pausing after lines")
     }
 
+    /// The picture is being held: 2× until it's let go, then the speed it had. Not kept as the
+    /// chosen speed.
+    private(set) var holdsFast = false
+    @ObservationIgnored private var speedBeforeHold: Double?
+
+    func setHoldsFast(_ held: Bool) {
+        if held {
+            guard !holdsFast, !mpv.isPaused, mpv.hasStarted, popup == nil else { return }
+            speedBeforeHold = mpv.speed
+            holdsFast = true
+            mpv.setSpeed(max(2, mpv.speed))
+        } else if holdsFast {
+            holdsFast = false
+            if let speedBeforeHold { mpv.setSpeed(speedBeforeHold) }
+            speedBeforeHold = nil
+        }
+    }
+
     func chooseSpeed(_ value: Double) {
         setSpeed(value)
     }

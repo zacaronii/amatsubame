@@ -256,6 +256,7 @@ struct WatchView: View {
     }
 
     @ViewBuilder private func downloadMenu(_ item: JellyfinItem) -> some View {
+        WatchedMenuItem(item: item)
         if let record = environment.downloader.records[item.id] {
             Button("Delete Download", systemImage: "trash", role: .destructive) {
                 Task { await environment.downloader.delete(record) }
@@ -365,6 +366,27 @@ private struct LibraryShelf: View {
 
 /// Search's place on the Watch tab's path.
 struct JellyfinSearchRoute: Hashable {}
+
+/// Mark as Watched / Unwatched for an episode or movie (a row's menu): for something watched
+/// elsewhere, or to clear a sampled episode out of Continue Watching.
+struct WatchedMenuItem: View {
+    @Environment(PlayerEnvironment.self) private var environment
+    let item: JellyfinItem
+
+    var body: some View {
+        if item.type == "Episode" || item.type == "Movie" {
+            if item.userData?.played == true {
+                Button("Mark as Unwatched", systemImage: "circle") { environment.setWatched(item, false) }
+            } else {
+                Button("Mark as Watched", systemImage: "checkmark.circle") { environment.setWatched(item, true) }
+                // Started but not finished: back to the beginning, and out of Continue Watching.
+                if (item.resumePosition ?? 0) > 0 {
+                    Button("Mark as Unwatched", systemImage: "circle") { environment.setWatched(item, false) }
+                }
+            }
+        }
+    }
+}
 
 /// Shows and movies in every library by name (Jellyfin's search).
 struct JellyfinSearchView: View {

@@ -41,6 +41,8 @@ private struct PlayerGestures: ViewModifier {
     @State private var twoFingerTapAt = Date.distantPast
     @State private var badgeTask: Task<Void, Never>?
     @State private var originalBrightness: CGFloat?
+    /// A finger is resting on the picture (a cancelled touch lets go by itself).
+    @GestureState private var holding = false
 
     func body(content: Content) -> some View {
         content
@@ -57,6 +59,17 @@ private struct PlayerGestures: ViewModifier {
             // it becomes a double-tap.
             .simultaneousGesture(TapGesture().onEnded(onTap), including: enabled ? .subviews : .all)
             .simultaneousGesture(drag)
+            // Hold the picture: 2× until the finger lifts (the subtitles are their own views
+            // above this one, so holding a word doesn't count).
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.45)
+                    .sequenced(before: DragGesture(minimumDistance: 0))
+                    .updating($holding) { value, holding, _ in
+                        if case .second = value { holding = true }
+                    },
+                including: enabled ? .all : .subviews
+            )
+            .onChange(of: holding) { _, held in model.setHoldsFast(held) }
             .gesture(TwoFingerTap {
                 guard enabled else { return }
                 twoFingerTapAt = Date()
@@ -73,7 +86,8 @@ private struct PlayerGestures: ViewModifier {
     private var drag: some Gesture {
         DragGesture(minimumDistance: 15)
             .onChanged { value in
-                guard enabled else { return }
+                // Not while the picture is held for 2×: a finger never rests quite still.
+                guard enabled, !holding else { return }
                 let dx = value.translation.width, dy = value.translation.height
                 if dragMode == nil {
                     if abs(dx) > abs(dy) {

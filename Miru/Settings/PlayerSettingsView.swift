@@ -118,7 +118,7 @@ struct PlayerSettingsView: View {
     private var accounts: [ServerKind: ServerAccount] { environment.common.serverAccounts }
 
     static var advanced: some View {
-        AdvancedSettingsView(kinds: [.ankiNote, .jellyfinProgress, .jellyfinSubtitle],
+        AdvancedSettingsView(kinds: [.ankiNote, .jellyfinProgress, .jellyfinPlayed, .jellyfinSubtitle],
                              extraLogs: ["dev-setup.log", "nowplaying.log"].map { URL.applicationSupportDirectory.appending(path: $0) })
     }
 
