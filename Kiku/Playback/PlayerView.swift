@@ -170,6 +170,23 @@ struct PlayerView: View {
             } label: {
                 Label(sleepTitle, systemImage: "moon.zzz")
             }
+            if model.transcript == .ready, let source = model.transcriptSource {
+                // What made the transcript, and asking Kaku for a fresh one (#149).
+                Menu {
+                    Section(PlaybackModel.sourceText(source)) {
+                        Button(model.isTranscribingAgain ? "Kaku Is Transcribing It Again…" : "Transcribe Again", systemImage: "arrow.clockwise") {
+                            model.transcribeAgain()
+                        }
+                        .disabled(model.isTranscribingAgain)
+                        if let problem = model.transcribeAgainProblem {
+                            Text(problem)
+                        }
+                    }
+                } label: {
+                    Label("Transcript", systemImage: "text.quote")
+                }
+                .accessibilityIdentifier("player.transcriptMenu")
+            }
             if model.entry.isBook {
                 ReadInYomuButton(entry: model.entry)
             }

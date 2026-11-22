@@ -15,7 +15,14 @@ public struct KakuTranscript: Decodable, Equatable, Sendable {
         public var fingerprint: String
         public var duration: Double?
         public var model: String?
+        /// Kaku's version when it made the transcript.
+        public var kaku: String?
         public var createdAt: String?
+
+        /// `createdAt` as a date.
+        public var created: Date? {
+            createdAt.flatMap { try? Date($0, strategy: .iso8601) }
+        }
     }
 
     public struct Sentence: Decodable, Equatable, Sendable {
@@ -231,15 +238,18 @@ public struct KakuClient: Sendable {
     }
 
     /// Asks for an episode (or a book, with an empty episode id) now (top of the queue). Nil when it's already done.
+    /// `force` (Kaku 1.6) transcribes it again even though its transcript is current; the old
+    /// one serves until the new one replaces it.
     @discardableResult
-    public func requestJob(itemId: String, episodeId: String) async throws(ConnectionError) -> KakuJob? {
+    public func requestJob(itemId: String, episodeId: String, force: Bool = false) async throws(ConnectionError) -> KakuJob? {
         struct Body: Encodable {
             var itemId: String
             var episodeId: String
+            var force: Bool?
         }
         let request: URLRequest
         do {
-            request = try .json("POST", baseURL.appending(path: "jobs"), body: Body(itemId: itemId, episodeId: episodeId))
+            request = try .json("POST", baseURL.appending(path: "jobs"), body: Body(itemId: itemId, episodeId: episodeId, force: force ? true : nil))
         } catch {
             throw .message(error.localizedDescription)
         }

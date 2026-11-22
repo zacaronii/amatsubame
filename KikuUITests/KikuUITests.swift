@@ -161,6 +161,24 @@ final class KikuBookUITests: XCTestCase {
         let back = expectation(for: NSPredicate(format: "label == '第三章 再会' OR label == '第二章 出会い'"), evaluatedWith: subtitle)
         wait(for: [back], timeout: 5)
     }
+
+    /// More ▸ Transcript says what made the transcript and offers Transcribe Again (#149).
+    func testTranscriptMenuSaysWhatMadeIt() {
+        let app = XCUIApplication()
+        app.launchEnvironment = ["UITEST_KIKU": "1", "UITEST_KIKU_BOOK": "1"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["player.subtitle"].waitForExistence(timeout: 10))
+        app.buttons["More"].tap()
+        let menu = app.buttons["player.transcriptMenu"].firstMatch
+        XCTAssertTrue(menu.waitForExistence(timeout: 5))
+        menu.tap()
+        let again = app.buttons["Transcribe Again"].firstMatch
+        XCTAssertTrue(again.waitForExistence(timeout: 5))
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "transcript menu"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
 }
 
 final class KikuMarksAndStatsUITests: XCTestCase {

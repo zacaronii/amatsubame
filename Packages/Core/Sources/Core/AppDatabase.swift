@@ -799,6 +799,15 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v47_transcript_source") { db in
+            // Kiku: what made each saved transcript and when, for the player's Transcript menu (#149).
+            try db.alter(table: "audioTranscript") { t in
+                t.add(column: "model", .text)
+                t.add(column: "kakuVersion", .text)
+                t.add(column: "transcribedAt", .datetime)
+            }
+        }
+
         return migrator
     }
 }
