@@ -1,6 +1,8 @@
 import CoreGraphics
 import Core
 import Foundation
+import ImageIO
+import UniformTypeIdentifiers
 @testable import OCR
 import Testing
 
@@ -128,6 +130,32 @@ import Testing
         #expect(newer.page(chapterId: 1, page: 0) == nil, "another model version re-runs OCR")
         try newer.removeOtherVersions()
         #expect(try newer.count() == 0)
+    }
+
+    /// A page read by an earlier version (its lettering measured the old way, or not at all)
+    /// isn't handed out as it is: opening it measures it again from its picture, with no models.
+    @Test func pagesMeasuredBeforeAreMeasuredAgain() async throws {
+        let cache = OCRCache(database: try AppDatabase.inMemory(), modelVersion: "v1")
+        let service = OCRService(cache: cache, storeDirectory: FileManager.default.temporaryDirectory.appending(path: "no-models-\(UUID())"))
+        let text = "今日はいい天"
+        let width = 96, height = 6 * 51 + 48
+        let context = SyntheticPage.context(width: width, height: height)
+        SyntheticPage.draw(text, in: context, at: CGPoint(x: 24, y: 24), vertical: true, height: height)
+        let data = NSMutableData()
+        let destination = try #require(CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil))
+        CGImageDestinationAddImage(destination, context.makeImage()!, nil)
+        CGImageDestinationFinalize(destination)
+        // As an earlier version left it: lines and places, but no word on how they were measured.
+        var old = OCRBlock(box: NormalizedRect(x: 0, y: 0, width: 1, height: 1), text: text, vertical: true, kind: .bubbleText)
+        old.lines = [NormalizedRect(x: 0, y: 0, width: 1, height: 1)]
+        old.cells = (0..<6).map { NormalizedRect(x: 0, y: Double($0) / 6, width: 1, height: 1.0 / 6) }
+        try cache.store(OCRPage(imageWidth: width, imageHeight: height, blocks: [old]), chapterId: 7, page: 0)
+
+        #expect(await service.cachedPage(chapterId: 7, page: 0) == nil, "not used as it is")
+        let measured = try await service.page(chapterId: 7, page: 0, imageData: data as Data).page
+        #expect(measured.blocks.first?.measured == TextLines.version)
+        #expect(measured.blocks.first?.cellsExact == true)
+        #expect(await service.cachedPage(chapterId: 7, page: 0) == measured, "and kept")
     }
 
     @Test func blockHitTesting() {
