@@ -48,7 +48,10 @@ struct LinesView: View {
         } empty: {
             // Wide, nothing picked yet: the latest episode.
             if let entry = history?.entries.first {
+                // Its own identity: the latest episode changes after watching another, and the
+                // pane would keep the old one's lines under the new title.
                 TranscriptView(route: Self.route(entry), playback: $playback)
+                    .id(entry.id)
             } else {
                 ContentUnavailableView("Choose an Episode", systemImage: "text.quote")
             }
