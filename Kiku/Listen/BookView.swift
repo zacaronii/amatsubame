@@ -100,7 +100,7 @@ struct BookView: View {
             await environment.library.loadBook(itemId)
             loaded = true
         }
-        .refreshable {
+        .refreshableByCommand {
             CoverLoader.recheck()
             await environment.library.loadBook(itemId)
         }

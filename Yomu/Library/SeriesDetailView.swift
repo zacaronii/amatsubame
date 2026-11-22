@@ -151,7 +151,7 @@ struct SeriesDetailView: View {
             await countCharacters()
         }
         .task { await loadMetadata() }
-        .onReceive(NotificationCenter.default.publisher(for: .refreshLibrary)) { _ in Task { await load() } }
+        .onReceive(NotificationCenter.default.publisher(for: .refreshRequested)) { _ in Task { await load() } }
         .readerPresentation($session)
         .onReceive(NotificationCenter.default.publisher(for: .readerDidClose)) { _ in
             // Back from the reader: pick up the progress just made (after the outbox sends it).

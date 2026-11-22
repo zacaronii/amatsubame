@@ -168,7 +168,7 @@ struct LinesView: View {
                 }
             }
         }
-        .refreshable { await history.refresh() }
+        .refreshableByCommand { await history.refresh() }
     }
 
     // MARK: Search
