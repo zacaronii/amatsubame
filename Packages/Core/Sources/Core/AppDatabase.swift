@@ -955,6 +955,7 @@ public final class AppDatabase: Sendable {
                 t.column("state", .text).notNull()
                 t.column("confirmed", .boolean).notNull()
                 t.column("createAttempts", .integer).notNull()
+                t.column("seriesReadAt", .datetime)
                 t.column("revision", .integer).notNull()
                 t.column("updatedAt", .datetime).notNull()
             }
@@ -963,6 +964,7 @@ public final class AppDatabase: Sendable {
                 t.column("collectionId", .integer).notNull().references("kavitaCollection", onDelete: .cascade)
                 t.column("seriesId", .integer).notNull()
                 t.column("state", .text).notNull()
+                t.column("inKavita", .boolean).notNull()
                 t.column("revision", .integer).notNull()
                 t.column("updatedAt", .datetime).notNull()
                 t.primaryKey(["collectionId", "seriesId"])

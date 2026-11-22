@@ -172,7 +172,11 @@ public struct KavitaCollectionHandler: OutboxHandler {
         guard let found = try await made(collection, client) else {
             throw ConnectionError.message("Kavita hasn't listed the new collection yet.")
         }
-        try store.didCreate(id, serverId: found)
+        // Deleted here while this create was on its way: what it just made goes too (never one
+        // it only adopted).
+        if try !store.didCreate(id, serverId: found) {
+            try await client.deleteCollection(found)
+        }
     }
 
     /// An own collection with the title (as Kavita compares titles) this device doesn't know yet.
@@ -221,12 +225,18 @@ public struct KavitaCollectionHandler: OutboxHandler {
         let adds = try store.pendingSeries(collectionId: id).filter { $0.state == .pendingAdd }
         if !adds.isEmpty { try await add(adds, to: collection, serverId: serverId, client) }
         guard let tag = try await client.collections(ownedOnly: true).first(where: { $0.0.id == serverId })?.raw else {
-            // Not there any more: nothing to take it out of.
-            try store.didSend(row)
+            // Not there any more: nothing to take it out of, and the collection goes here too.
+            try store.dropCollection(id)
             return
         }
         try await client.removeFromCollection(tag: tag, seriesIds: [seriesId])
         try store.didSend(row)
+        // Kavita deletes a collection when its last series goes: when the count here says so (or
+        // can't tell), one look, and a collection gone goes here too.
+        if (try store.seriesCount(collectionId: id)).map({ $0 == 0 }) ?? true,
+           try await !client.collections(ownedOnly: true).contains(where: { $0.0.id == serverId }) {
+            try store.dropCollection(id)
+        }
     }
 
     private func add(_ rows: [CollectionSeriesRow], to collection: CollectionRow, serverId: Int, _ client: KavitaClient) async throws {
@@ -238,8 +248,8 @@ public struct KavitaCollectionHandler: OutboxHandler {
                 throw OutboxPermanentFailure("Kavita refused to add to \u{201C}\(collection.title)\u{201D} (HTTP 400).")
             }
             if collection.confirmed {
-                // Deleted on another device: the add goes with it.
-                for row in rows { try store.dropSeries(row) }
+                // Deleted on another device: it goes here too, with the adds and their jobs.
+                try store.dropCollection(id)
                 return
             }
             // Made here and cleaned up empty by Kavita before its first series: made again.

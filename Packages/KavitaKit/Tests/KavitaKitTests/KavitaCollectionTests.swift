@@ -130,8 +130,8 @@ import Testing
         let mine = try #require(try other.store.collections(account: account).first).id!
         try other.store.set(true, seriesId: 8, collectionId: mine, outbox: other.outbox)
         try await send(CollectionJob(account: account, collectionId: mine, seriesId: 8), other, gone)
-        #expect(try other.store.seriesRow(collectionId: mine, seriesId: 8) == nil)
-        #expect(try other.outbox.waitingCounts()[.kavitaCollection] == 1, "no create queued")
+        #expect(try other.store.collection(mine) == nil, "the collection goes here too")
+        #expect(try (other.outbox.waitingCounts()[.kavitaCollection] ?? 0) == 0, "no create queued, the add's job gone with it")
     }
 
     @Test func addsGoBeforeARemoveInTheSameCollection() async throws {
@@ -167,5 +167,95 @@ import Testing
         #expect(try await KavitaCollectionSync(client: client(StubTransport(routes: [:])), store: old.store, features: old.features,
                                                account: account, username: "reader").refresh() == false)
         #expect(try !old.features.isAvailable(.collections, account: account))
+    }
+
+    @Test func aCreateAfterARefreshAdoptedItSendsNothing() async throws {
+        let setup = try setup()
+        let made = try setup.store.create(title: "Later", with: 7, account: account, outbox: setup.outbox)
+        try setup.store.merge([.init(serverId: 40, title: "Later", isOwn: true, owner: "reader", promoted: false, source: 0, itemCount: 0)], account: account)
+        let transport = StubTransport { _ in (200, list([(40, "Later")])) }
+        try await send(CollectionJob(account: account, collectionId: made.id!), setup, transport)
+        #expect(transport.requests.isEmpty, "found made: no list, no post")
+        #expect(try setup.store.collections(account: account).count == 1)
+    }
+
+    @Test func takingOutTheLastSeriesTakesTheCollectionOffTheDevice() async throws {
+        let setup = try setup()
+        try setup.store.merge([.init(serverId: 40, title: "Mine", isOwn: true, owner: "reader", promoted: false, source: 0, itemCount: 1)], account: account)
+        let mine = try #require(try setup.store.collections(account: account).first).id!
+        try setup.store.mergeSeries([1], collectionId: mine)
+        try setup.store.set(false, seriesId: 1, collectionId: mine, outbox: setup.outbox)
+        let removed = Mutex(false)
+        let transport = StubTransport { request in
+            switch request.url!.path() {
+            case "/api/Collection": return (200, removed.withLock { $0 } ? list([]) : list([(40, "Mine")]))
+            case "/api/Collection/update-series":
+                removed.withLock { $0 = true }
+                return (200, Data())
+            default: return (500, Data())
+            }
+        }
+        try await send(CollectionJob(account: account, collectionId: mine, seriesId: 1), setup, transport)
+        #expect(paths(transport) == ["/api/Collection", "/api/Collection/update-series", "/api/Collection"], "one look after, as the count said empty")
+        #expect(try setup.store.collection(mine) == nil, "gone here too")
+
+        // Not the last: no look.
+        let other = try self.setup()
+        try other.store.merge([.init(serverId: 40, title: "Mine", isOwn: true, owner: "reader", promoted: false, source: 0, itemCount: 2)], account: account)
+        let two = try #require(try other.store.collections(account: account).first).id!
+        try other.store.mergeSeries([1, 2], collectionId: two)
+        try other.store.set(false, seriesId: 1, collectionId: two, outbox: other.outbox)
+        let quiet = StubTransport(routes: ["/api/Collection": (200, list([(40, "Mine")])), "/api/Collection/update-series": (200, Data())])
+        try await send(CollectionJob(account: account, collectionId: two, seriesId: 1), other, quiet)
+        #expect(paths(quiet) == ["/api/Collection", "/api/Collection/update-series"])
+        #expect(try other.store.collection(two) != nil)
+    }
+
+    @Test func aCollectionDeletedElsewhereGoesWithTheAdd() async throws {
+        let setup = try setup()
+        try setup.store.merge([.init(serverId: 41, title: "Mine", isOwn: true, owner: "reader", promoted: false, source: 0, itemCount: 2)], account: account)
+        let mine = try #require(try setup.store.collections(account: account).first).id!
+        try setup.store.set(true, seriesId: 8, collectionId: mine, outbox: setup.outbox)
+        try setup.store.set(true, seriesId: 9, collectionId: mine, outbox: setup.outbox)
+        let gone = StubTransport(routes: ["/api/Collection/update-for-series": (400, Data("collection-doesnt-exists".utf8)), "/api/Collection": (200, list([]))])
+        try await send(CollectionJob(account: account, collectionId: mine, seriesId: 8), setup, gone)
+        #expect(try setup.store.collection(mine) == nil, "the collection goes, with its rows")
+        #expect(try (setup.outbox.waitingCounts()[.kavitaCollection] ?? 0) == 0, "and the other add's job")
+    }
+
+    @Test func aCollectionDeletedWhileItsCreateWasOnItsWayIsDeletedOnKavitaToo() async throws {
+        let setup = try setup()
+        let made = try setup.store.create(title: "Later", with: 7, account: account, outbox: setup.outbox)
+        let store = setup.store, outbox = setup.outbox
+        let created = Mutex(false)
+        let transport = StubTransport { request in
+            switch request.url!.path() {
+            case "/api/Collection": return (200, created.withLock { $0 } ? list([(40, "Later")]) : list([]))
+            case "/api/Collection/update-for-series":
+                created.withLock { $0 = true }
+                // Deleted here while the create is with Kavita.
+                try store.delete(made.id!, outbox: outbox)
+                return (200, Data())
+            case "/api/Collection/delete-multiple": return (200, Data())
+            default: return (500, Data())
+            }
+        }
+        try await send(CollectionJob(account: account, collectionId: made.id!), setup, transport)
+        #expect(paths(transport).last == "/api/Collection/delete-multiple", "what it made is deleted")
+        #expect(try transport.requests.last!.jsonBody()["collectionIds"] as? [Int] == [40])
+
+        // One it only adopted (never posted) isn't deleted.
+        let other = try self.setup()
+        let again = try other.store.create(title: "Later", with: 7, account: account, outbox: other.outbox)
+        let otherStore = other.store, otherOutbox = other.outbox
+        let adopting = StubTransport { request in
+            if request.url!.path() == "/api/Collection" {
+                try otherStore.delete(again.id!, outbox: otherOutbox)
+                return (200, list([(40, "Later")]))
+            }
+            return (500, Data())
+        }
+        try await send(CollectionJob(account: account, collectionId: again.id!), other, adopting)
+        #expect(paths(adopting) == ["/api/Collection"])
     }
 }

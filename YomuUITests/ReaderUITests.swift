@@ -527,7 +527,7 @@ final class ReaderUITests: XCTestCase {
         let marksBefore = try kavita.snapshot()
         addTeardownBlock { XCTAssertNil(try marksBefore.restore(), "the test account's collections were put back") }
         let seriesId = try kavita.seriesId(named: series)
-        let title = "amatsubame-uitest"
+        let title = KavitaTestAccount.testCollectionTitle
         app.launchEnvironment["UITEST_SENDS_MARKS"] = "1"
         app.launch()
 
@@ -569,7 +569,13 @@ final class ReaderUITests: XCTestCase {
         let confirm = app.buttons["Take Out and Delete \u{201C}\(title)\u{201D}"].firstMatch
         XCTAssertTrue(confirm.waitForExistence(timeout: 5), "asks before taking out the last series")
         confirm.tap()
+        XCTAssertTrue(row.waitForNonExistence(timeout: 5), "it leaves the sheet at once")
         XCTAssertTrue(waitFor { (try? kavita.collections())?.isEmpty == true }, "the collection is gone from Kavita")
+        app.buttons["Done"].firstMatch.tap()
+        app.navigationBars.buttons.firstMatch.tap()
+        app.navigationBars.buttons.firstMatch.tap()
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertFalse(app.buttons["collection.\(title)"].firstMatch.waitForExistence(timeout: 5), "and from the Library home")
     }
 
     private func openCollectionsSheet() {

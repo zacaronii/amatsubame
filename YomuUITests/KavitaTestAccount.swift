@@ -72,6 +72,19 @@ struct KavitaTestAccount {
                               body: #"{"statements":[],"combination":1,"limitTo":0}"#), "Want to Read").compactMap { $0["id"] as? Int })
     }
 
+    /// The only title a test gives a collection it makes.
+    static let testCollectionTitle = "amatsubame-uitest"
+
+    /// The test account's own collections' titles.
+    func collectionTitles() throws -> [Int: String] {
+        var titles: [Int: String] = [:]
+        for collection in try list(try call("GET", "api/Collection", query: ["ownedOnly": "true"]), "collections") {
+            guard let id = collection["id"] as? Int, let title = collection["title"] as? String else { throw UnexpectedAnswer(what: "a collection") }
+            titles[id] = title
+        }
+        return titles
+    }
+
     /// The test account's own collections, each with its series.
     func collections() throws -> [Int: Set<Int>] {
         var result: [Int: Set<Int>] = [:]
@@ -166,10 +179,11 @@ struct KavitaTestAccount {
                 try account.call("POST", "api/want-to-read/add-series", body: #"{"seriesIds":\#(Array(removed))}"#)
             }
             if try account.wantToRead() != wantToRead { return "Want to Read differs from before the test" }
-            // Collections made since go; ones that were there are never edited, only compared.
-            let made = try account.collections().keys.filter { collections[$0] == nil }
+            // Collections the tests made go (only those, by their made-up title); any other new one,
+            // and any that was there and changed, fails the run instead and is left alone.
+            let made = try account.collectionTitles().filter { collections[$0.key] == nil && $0.value == KavitaTestAccount.testCollectionTitle }.map(\.key)
             if !made.isEmpty {
-                try account.call("POST", "api/Collection/delete-multiple", body: #"{"collectionIds":\#(Array(made))}"#)
+                try account.call("POST", "api/Collection/delete-multiple", body: #"{"collectionIds":\#(made)}"#)
             }
             let now = try account.collections()
             if now != collections {

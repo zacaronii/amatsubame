@@ -57,20 +57,17 @@ struct CollectionView: View {
     @Environment(\.dismiss) private var dismiss
     let collection: CollectionRow
     @State private var seriesIds: [Int] = []
+    /// The series shown (read from the cache when the ids change, not on every render).
+    @State private var shown: [KavitaSeries] = []
+    /// The series list has been read (here or before), so "not shown" can be told.
+    @State private var seriesRead = false
     @State private var error: String?
     @State private var confirmsDelete = false
 
     var body: some View {
-        let all = seriesIds.compactMap { try? environment.kavitaLibrary.cachedSeries(id: $0) }
-        let readable = Set(((try? environment.kavitaLibrary.cachedLibraries()) ?? []).filter { $0.isMangaReadable || $0.isBookLibrary }.map(\.id))
-        let offline = environment.isLibraryOffline
-        let downloaded = environment.downloadedSeriesIds
-        let shown = all.filter {
-            readable.contains($0.libraryId) && !environment.hiddenLibraries.contains($0.libraryId) && (!offline || downloaded.contains($0.id))
-        }
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                if let note = note(shown: shown.count) {
+                if let note = note() {
                     Text(note).font(.callout).foregroundStyle(.secondary)
                         .accessibilityIdentifier("collection.note")
                 }
@@ -106,11 +103,15 @@ struct CollectionView: View {
         } message: {
             Text("It's deleted on Kavita too. The series stay in your library.")
         }
+        .onChange(of: seriesIds, initial: true) { _, ids in shown = Self.shown(ids, environment) }
+        .onChange(of: environment.isLibraryOffline) { shown = Self.shown(seriesIds, environment) }
         .task {
             guard let id = collection.id else { return }
+            seriesRead = (try? environment.collections.collection(id))??.seriesReadAt != nil
             Task {
                 do {
                     try await environment.refreshSeries(of: collection)
+                    seriesRead = true
                     error = nil
                 } catch {
                     self.error = "Offline: showing what's on this device."
@@ -122,14 +123,25 @@ struct CollectionView: View {
         }
     }
 
-    /// "3 of 5 series: the others are in libraries Yomu doesn't show", or why it's read-only.
-    private func note(shown: Int) -> String? {
+    /// Filtered as the Want to Read shelf is: libraries Yomu reads, none hidden in Settings,
+    /// offline only downloaded series.
+    static func shown(_ ids: [Int], _ environment: AppEnvironment) -> [KavitaSeries] {
+        let readable = Set(((try? environment.kavitaLibrary.cachedLibraries()) ?? []).filter { $0.isMangaReadable || $0.isBookLibrary }.map(\.id))
+        let offline = environment.isLibraryOffline
+        let downloaded = environment.downloadedSeriesIds
+        return ids.compactMap { try? environment.kavitaLibrary.cachedSeries(id: $0) }.filter {
+            readable.contains($0.libraryId) && !environment.hiddenLibraries.contains($0.libraryId) && (!offline || downloaded.contains($0.id))
+        }
+    }
+
+    /// "3 of 5 series: …" once the series were read, and why it's read-only.
+    private func note() -> String? {
         var lines: [String] = []
-        let total = max(seriesIds.count, collection.itemCount)
-        if total > shown {
-            lines.append(shown == 0
+        let total = seriesIds.count
+        if seriesRead, total > shown.count {
+            lines.append(shown.isEmpty
                 ? "Its \(total) series are in libraries Yomu doesn't show (or aren't downloaded)."
-                : "\(shown) of \(total) series: the others are in libraries Yomu doesn't show (or aren't downloaded).")
+                : "\(shown.count) of \(total) series: the others are in libraries Yomu doesn't show (or aren't downloaded).")
         }
         if let reason = CollectionsSheet.readOnlyReason(collection) { lines.append(reason) }
         return lines.isEmpty ? nil : lines.joined(separator: "\n")
@@ -195,7 +207,7 @@ struct CollectionsSheet: View {
             }
             .confirmationDialog("Take out the last series?", isPresented: Binding { removingLast != nil } set: { if !$0 { removingLast = nil } },
                                 titleVisibility: .visible, presenting: removingLast) { collection in
-                Button("Take Out and Delete \u{201C}\(collection.title)\u{201D}", role: .destructive) { toggle(collection, on: false) }
+                Button("Take Out and Delete \u{201C}\(collection.title)\u{201D}", role: .destructive) { deleteEmptied(collection) }
             } message: { _ in
                 Text("Kavita deletes a collection when its last series is taken out.")
             }
@@ -203,13 +215,15 @@ struct CollectionsSheet: View {
         .task(id: environment.readerMarkAccount()) {
             guard let account = environment.readerMarkAccount() else { return }
             Task { try? await environment.refreshMembership(of: seriesId) }
-            Task {
-                do {
-                    for try await ids in environment.collections.observeCollections(ofSeries: seriesId, account: account) { holding = ids }
-                } catch {}
-            }
             do {
                 for try await rows in environment.collections.observe(account: account) { collections = rows }
+            } catch {}
+        }
+        // Its own task, so it ends with the sheet.
+        .task(id: "\(environment.readerMarkAccount() ?? "")#holding") {
+            guard let account = environment.readerMarkAccount() else { return }
+            do {
+                for try await ids in environment.collections.observeCollections(ofSeries: seriesId, account: account) { holding = ids }
             } catch {}
         }
     }
@@ -219,7 +233,7 @@ struct CollectionsSheet: View {
         let isIn = holding.contains(id)
         return Button {
             guard collection.isEditable else { return }
-            if isIn, (try? environment.collections.seriesCount(collectionId: id)) ?? 2 <= 1 {
+            if isIn, (try? environment.collections.takingOutEmpties(seriesId, collectionId: id)) ?? true {
                 removingLast = collection
             } else {
                 toggle(collection, on: !isIn)
@@ -241,6 +255,18 @@ struct CollectionsSheet: View {
         .foregroundStyle(collection.isEditable ? .primary : .secondary)
         .accessibilityValue(isIn ? "In it" : "")
         .accessibilityIdentifier("collections.row.\(collection.title)")
+    }
+
+    /// Taking out the last series deletes the collection (Kavita does the same): it goes from
+    /// this device at once, and Kavita deletes it.
+    private func deleteEmptied(_ collection: CollectionRow) {
+        guard let id = collection.id else { return }
+        do {
+            try environment.collections.delete(id, outbox: environment.outbox)
+            environment.syncNow()
+        } catch {
+            problem = error.localizedDescription
+        }
     }
 
     private func toggle(_ collection: CollectionRow, on: Bool) {

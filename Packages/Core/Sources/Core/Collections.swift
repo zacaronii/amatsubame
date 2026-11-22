@@ -36,12 +36,15 @@ public struct CollectionRow: Codable, Equatable, Hashable, Sendable, Identifiabl
     public var confirmed: Bool
     /// How often the create was sent again because Kavita had cleaned up the empty collection.
     public var createAttempts: Int
+    /// When its whole series list was last read (opening it): until then only `itemCount` says
+    /// how many it has.
+    public var seriesReadAt: Date?
     public var revision: Int
     public var updatedAt: Date
 
     public init(id: Int64? = nil, account: String, serverId: Int? = nil, title: String, isOwn: Bool = true, owner: String? = nil,
                 promoted: Bool = false, source: Int = 0, itemCount: Int = 0, position: Int = 0, state: State,
-                confirmed: Bool = false, createAttempts: Int = 0, revision: Int = 0, updatedAt: Date) {
+                confirmed: Bool = false, createAttempts: Int = 0, seriesReadAt: Date? = nil, revision: Int = 0, updatedAt: Date) {
         self.id = id
         self.account = account
         self.serverId = serverId
@@ -55,6 +58,7 @@ public struct CollectionRow: Codable, Equatable, Hashable, Sendable, Identifiabl
         self.state = state
         self.confirmed = confirmed
         self.createAttempts = createAttempts
+        self.seriesReadAt = seriesReadAt
         self.revision = revision
         self.updatedAt = updatedAt
     }
@@ -101,8 +105,19 @@ public struct CollectionSeriesRow: Codable, Equatable, Hashable, Sendable, Fetch
     public var collectionId: Int64
     public var seriesId: Int
     public var state: State
+    /// Whether Kavita has it in the collection, as last known (listed, or an add or remove it took).
+    public var inKavita: Bool
     public var revision: Int
     public var updatedAt: Date
+
+    public init(collectionId: Int64, seriesId: Int, state: State, inKavita: Bool, revision: Int = 0, updatedAt: Date) {
+        self.collectionId = collectionId
+        self.seriesId = seriesId
+        self.state = state
+        self.inKavita = inKavita
+        self.revision = revision
+        self.updatedAt = updatedAt
+    }
 
     public var isIn: Bool { state == .synced || state == .pendingAdd }
 }
@@ -191,19 +206,27 @@ public struct CollectionStore: Sendable {
         try database.reader.read { try CollectionSeriesRow.fetchOne($0, key: ["collectionId": collectionId, "seriesId": seriesId]) }
     }
 
-    /// How many series the collection has with this device's unsent changes counted: what
-    /// "the last series" is judged on (all of them, not only the ones Yomu shows).
-    public func seriesCount(collectionId: Int64) throws -> Int {
+    /// How many series the collection will have once this device's unsent changes are sent, or
+    /// nil when that can't be told (the series read earlier don't add up to Kavita's count any
+    /// more): what "the last series" is judged on, the whole collection, not the series shown.
+    /// `itemCount` is Kavita's count, kept up to date with the changes Kavita has taken from here.
+    public func seriesCount(collectionId: Int64) throws -> Int? {
         try database.reader.read { db in
             guard let collection = try CollectionRow.fetchOne(db, key: collectionId) else { return 0 }
             let rows = try CollectionSeriesRow.filter(Column("collectionId") == collectionId).fetchAll(db)
-            let known = rows.filter { $0.state == .synced || $0.state == .pendingRemove || $0.state == .removed }.count
-            let added = rows.filter { $0.state == .pendingAdd }.count
-            let removed = rows.filter { $0.state == .pendingRemove || $0.state == .removed }.count
-            // Kavita's count when the series haven't been read here; the rows when they have.
-            let base = rows.contains { $0.state == .synced } ? known : collection.itemCount
-            return max(0, base + added - removed)
+            if collection.seriesReadAt != nil, rows.filter(\.inKavita).count != collection.itemCount { return nil }
+            let unsent = rows.filter { $0.state == .pendingAdd || $0.state == .pendingRemove }
+                .reduce(0) { $0 + ($1.isIn ? 1 : 0) - ($1.inKavita ? 1 : 0) }
+            return max(0, collection.itemCount + unsent)
         }
+    }
+
+    /// Whether taking the series out would leave the collection empty (or that can't be told),
+    /// so the user is asked first: Kavita deletes a collection when its last series goes.
+    public func takingOutEmpties(_ seriesId: Int, collectionId: Int64) throws -> Bool {
+        guard let count = try seriesCount(collectionId: collectionId) else { return true }
+        let isIn = try seriesRow(collectionId: collectionId, seriesId: seriesId)?.isIn ?? false
+        return count - (isIn ? 1 : 0) <= 0
     }
 
     // MARK: Changes made here (each in one write with its job)
@@ -222,7 +245,7 @@ public struct CollectionStore: Sendable {
             try row.insert(db)
             let id = row.id!
             try queue(CollectionJob(account: account, collectionId: id), outbox: outbox, in: db)
-            try CollectionSeriesRow(collectionId: id, seriesId: seriesId, state: .pendingAdd, revision: 1, updatedAt: now()).insert(db)
+            try CollectionSeriesRow(collectionId: id, seriesId: seriesId, state: .pendingAdd, inKavita: false, revision: 1, updatedAt: now()).insert(db)
             try queue(CollectionJob(account: account, collectionId: id, seriesId: seriesId), outbox: outbox, in: db)
             return row
         }
@@ -234,7 +257,7 @@ public struct CollectionStore: Sendable {
             guard let collection = try CollectionRow.fetchOne(db, key: collectionId), collection.state != .pendingDelete else { return }
             guard collection.isEditable else { throw CollectionError.readOnly(collection.title) }
             var row = try CollectionSeriesRow.fetchOne(db, key: ["collectionId": collectionId, "seriesId": seriesId])
-                ?? CollectionSeriesRow(collectionId: collectionId, seriesId: seriesId, state: .removed, revision: 0, updatedAt: now())
+                ?? CollectionSeriesRow(collectionId: collectionId, seriesId: seriesId, state: .removed, inKavita: false, updatedAt: now())
             guard row.isIn != inCollection else { return }
             row.state = inCollection ? .pendingAdd : .pendingRemove
             row.revision += 1
@@ -283,14 +306,18 @@ public struct CollectionStore: Sendable {
         try database.reader.read { try OutboxStore.queuedKeys($0, kind: .kavitaCollection).contains(job.coalesceKey) }
     }
 
-    /// The create reached Kavita: its id.
-    public func didCreate(_ collectionId: Int64, serverId: Int) throws {
+    /// The create reached Kavita: its id. False when the collection was deleted here meanwhile
+    /// (what was made is then deleted on Kavita too, if this create made it).
+    @discardableResult
+    public func didCreate(_ collectionId: Int64, serverId: Int) throws -> Bool {
         try database.writer.write { db in
-            guard var row = try CollectionRow.fetchOne(db, key: collectionId), row.state == .pendingCreate else { return }
+            guard var row = try CollectionRow.fetchOne(db, key: collectionId) else { return false }
+            guard row.state == .pendingCreate else { return true }
             row.serverId = serverId
             row.state = .synced
             row.updatedAt = now()
             try row.update(db)
+            return true
         }
     }
 
@@ -308,11 +335,14 @@ public struct CollectionStore: Sendable {
             guard var row = try CollectionSeriesRow.fetchOne(db, key: ["collectionId": sent.collectionId, "seriesId": sent.seriesId]),
                   row.revision == sent.revision, row.state == .pendingAdd || row.state == .pendingRemove else { return }
             let added = row.state == .pendingAdd
+            let wasIn = row.inKavita
             row.state = added ? .synced : .removed
+            row.inKavita = added
             row.updatedAt = now()
             try row.update(db)
-            if added, var collection = try CollectionRow.fetchOne(db, key: sent.collectionId) {
-                collection.confirmed = true
+            if var collection = try CollectionRow.fetchOne(db, key: sent.collectionId) {
+                if added { collection.confirmed = true }
+                collection.itemCount = max(0, collection.itemCount + (added ? 1 : 0) - (wasIn ? 1 : 0))
                 try collection.update(db)
             }
         }
@@ -406,10 +436,20 @@ public struct CollectionStore: Sendable {
                 try row.delete(db)
             }
             let known = Dictionary(rows.compactMap { row in row.serverId.map { ($0, row) } }, uniquingKeysWith: { first, _ in first })
+            // A New Collection whose create reached Kavita but whose answer didn't: the listed one
+            // with its title is it (its create job then finds it made and sends nothing).
+            var creating = rows.filter { $0.state == .pendingCreate && $0.serverId == nil && waiting($0) }
             for (position, item) in listed.enumerated() {
-                var row = known[item.serverId]
-                    ?? CollectionRow(account: account, serverId: item.serverId, title: item.title, state: .synced, updatedAt: now())
-                if row.id != nil, waiting(row) { continue }
+                var row: CollectionRow
+                if let existing = known[item.serverId] {
+                    row = existing
+                    if row.id != nil, waiting(row) { continue }
+                } else if item.isOwn, let index = creating.firstIndex(where: { CollectionRow.normalized($0.title) == CollectionRow.normalized(item.title) }) {
+                    row = creating.remove(at: index)
+                    row.serverId = item.serverId
+                } else {
+                    row = CollectionRow(account: account, serverId: item.serverId, title: item.title, state: .synced, updatedAt: now())
+                }
                 row.title = item.title
                 row.isOwn = item.isOwn
                 row.owner = item.owner
@@ -440,31 +480,56 @@ public struct CollectionStore: Sendable {
                 return listedAt.map { row.updatedAt > $0 } == true
             }
             let listed = Set(seriesIds)
-            for row in rows where !kept(row) && !listed.contains(row.seriesId) { try row.delete(db) }
-            for seriesId in listed {
-                if let row = rows.first(where: { $0.seriesId == seriesId }), kept(row) { continue }
-                try CollectionSeriesRow(collectionId: collectionId, seriesId: seriesId, state: .synced, revision: 0, updatedAt: now()).save(db)
+            for var row in rows where !listed.contains(row.seriesId) {
+                if kept(row) {
+                    // Waiting: Kavita doesn't have it (yet), as this list says.
+                    if row.inKavita, row.state != .synced, row.state != .removed { row.inKavita = false; try row.update(db) }
+                    continue
+                }
+                try row.delete(db)
             }
+            for seriesId in listed {
+                if var row = rows.first(where: { $0.seriesId == seriesId }), kept(row) {
+                    if !row.inKavita, row.state == .pendingAdd || row.state == .pendingRemove { row.inKavita = true; try row.update(db) }
+                    continue
+                }
+                try CollectionSeriesRow(collectionId: collectionId, seriesId: seriesId, state: .synced, inKavita: true, updatedAt: now()).save(db)
+            }
+            // The whole list was read: Kavita's count is its length.
+            var read = collection
+            read.seriesReadAt = now()
+            read.itemCount = seriesIds.count
+            try read.update(db)
         }
     }
 
     /// Which own collections hold a series, as Kavita answered (the series sheet asks when it
-    /// opens), with the same rules as `mergeSeries`.
+    /// opens), with the same rules as `mergeSeries`: a waiting change stays (Kavita's side is
+    /// noted), and so does one Kavita took after the answer.
     public func mergeMembership(_ serverIds: Set<Int>, seriesId: Int, account: String, listedAt: Date? = nil) throws {
         try database.writer.write { db in
             let queued = try OutboxStore.queuedKeys(db, kind: .kavitaCollection)
             for collection in try CollectionRow.filter(Column("account") == account && Column("isOwn") == true).fetchAll(db) {
                 guard let id = collection.id, let serverId = collection.serverId else { continue }
-                let row = try CollectionSeriesRow.fetchOne(db, key: ["collectionId": id, "seriesId": seriesId])
-                if let row {
+                let inKavita = serverIds.contains(serverId)
+                if var row = try CollectionSeriesRow.fetchOne(db, key: ["collectionId": id, "seriesId": seriesId]) {
                     let pending = row.state == .pendingAdd || row.state == .pendingRemove
-                    if pending, queued.contains(CollectionJob(account: account, collectionId: id, seriesId: seriesId).coalesceKey) { continue }
+                    if pending, queued.contains(CollectionJob(account: account, collectionId: id, seriesId: seriesId).coalesceKey) {
+                        row.inKavita = inKavita
+                        try row.update(db)
+                        continue
+                    }
                     if !pending, let listedAt, row.updatedAt > listedAt { continue }
-                }
-                if serverIds.contains(serverId) {
-                    try CollectionSeriesRow(collectionId: id, seriesId: seriesId, state: .synced, revision: row?.revision ?? 0, updatedAt: now()).save(db)
-                } else if let row {
-                    try row.delete(db)
+                    if inKavita {
+                        row.state = .synced
+                        row.inKavita = true
+                        row.updatedAt = now()
+                        try row.update(db)
+                    } else {
+                        try row.delete(db)
+                    }
+                } else if inKavita {
+                    try CollectionSeriesRow(collectionId: id, seriesId: seriesId, state: .synced, inKavita: true, updatedAt: now()).insert(db)
                 }
             }
         }

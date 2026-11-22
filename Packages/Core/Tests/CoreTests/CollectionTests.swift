@@ -129,4 +129,67 @@ import Testing
         try store.didSend(try #require(try store.seriesRow(collectionId: made.id!, seriesId: 7)))
         #expect(try store.collection(made.id!)?.confirmed == true)
     }
+
+    // MARK: The last series (review cases a–e)
+
+    func collection(_ store: CollectionStore, items: Int) throws -> Int64 {
+        try store.merge([listed(3, "Mine", items: items)], account: account)
+        return try #require(try store.collections(account: account).first).id!
+    }
+
+    @Test func a_threeNeverOpenedOneUnchecked() throws {
+        let (store, outbox, _) = try stores()
+        let id = try collection(store, items: 3)
+        try store.mergeMembership([3], seriesId: 1, account: account)
+        #expect(try !store.takingOutEmpties(1, collectionId: id))
+        try store.set(false, seriesId: 1, collectionId: id, outbox: outbox)
+        #expect(try store.seriesCount(collectionId: id) == 2)
+    }
+
+    @Test func b_oneNeverOpenedAsks() throws {
+        let (store, _, _) = try stores()
+        let id = try collection(store, items: 1)
+        try store.mergeMembership([3], seriesId: 1, account: account)
+        #expect(try store.takingOutEmpties(1, collectionId: id))
+    }
+
+    @Test func c_anotherAddedAndSentThenTheFirstUnchecked() throws {
+        let (store, outbox, _) = try stores()
+        let id = try collection(store, items: 1)
+        try store.mergeMembership([3], seriesId: 1, account: account)
+        try store.set(true, seriesId: 2, collectionId: id, outbox: outbox)
+        try store.didSend(try #require(try store.seriesRow(collectionId: id, seriesId: 2)))
+        #expect(try store.seriesCount(collectionId: id) == 2, "Kavita's count follows the add it took")
+        #expect(try !store.takingOutEmpties(1, collectionId: id))
+    }
+
+    @Test func d_addedAndTakenOutBeforeSending() throws {
+        let (store, outbox, _) = try stores()
+        let id = try collection(store, items: 2)
+        try store.set(true, seriesId: 5, collectionId: id, outbox: outbox)
+        try store.set(false, seriesId: 5, collectionId: id, outbox: outbox)
+        #expect(try store.seriesCount(collectionId: id) == 2, "as it was")
+    }
+
+    @Test func e_readEarlierThenKavitaSaysFewerAsks() throws {
+        let (store, _, _) = try stores()
+        let id = try collection(store, items: 3)
+        try store.mergeSeries([1, 2, 3], collectionId: id)
+        #expect(try !store.takingOutEmpties(1, collectionId: id))
+        try store.merge([listed(3, "Mine", items: 1)], account: account)
+        #expect(try store.seriesCount(collectionId: id) == nil, "the rows and Kavita's count disagree")
+        #expect(try store.takingOutEmpties(1, collectionId: id))
+    }
+
+    // MARK: A create whose answer was lost, seen by a refresh first
+
+    @Test func aRefreshAdoptsTheCollectionAWaitingCreateMade() throws {
+        let (store, outbox, _) = try stores()
+        let made = try store.create(title: "Later", with: 7, account: account, outbox: outbox)
+        try store.merge([listed(40, "LATER", items: 0), listed(41, "Other")], account: account)
+        let rows = try store.collections(account: account)
+        #expect(rows.count == 2, "one row for it, not two")
+        let adopted = try #require(try store.collection(made.id!))
+        #expect(adopted.serverId == 40 && adopted.state == .synced)
+    }
 }
