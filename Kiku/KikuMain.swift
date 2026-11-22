@@ -41,7 +41,9 @@ struct KikuApp: App {
             case .active:
                 environment.common.syncNow(retryWaiting: true)
                 environment.retryConnections()
-            case .background: scheduleOutboxRefresh()
+            case .background:
+                scheduleOutboxRefresh()
+                environment.common.statsSync.send()
             default: break
             }
         }

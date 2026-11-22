@@ -120,3 +120,104 @@ import Testing
         #expect(cached.data == Data("b".utf8) && cached.fetchedAt == then.addingTimeInterval(60))
     }
 }
+
+@Suite struct StatsSyncTests {
+    private func folder() throws -> StatsSyncFolder {
+        StatsSyncFolder(url: FileManager.default.temporaryDirectory.appending(path: "stats-sync-\(UUID().uuidString)"))
+    }
+
+    private let book = ActivitySubject(kind: .reading, seriesKey: "s1", seriesTitle: "A Book", itemKey: "c1")
+    private func day(_ month: Int, _ day: Int, hour: Int = 12) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        return calendar.date(from: DateComponents(year: 2026, month: month, day: day, hour: hour))!
+    }
+
+    @Test func twoDevicesSeeEachOthersActivityOnce() throws {
+        let folder = try folder()
+        let phone = try AppDatabase.inMemory(), pad = try AppDatabase.inMemory()
+        try ActivityLog(database: phone).record(book, at: day(10, 30), characters: 500)
+        try ActivityLog(database: phone).record(book, at: day(11, 2), characters: 300)
+        try ActivityLog(database: phone).recordLookup(at: day(11, 2))
+        try ActivityLog(database: pad).record(book, at: day(11, 3), characters: 200)
+
+        #expect(try StatsSync(database: phone).sync(with: folder) == false)
+        #expect(try StatsSync(database: pad).sync(with: folder) == true)
+        #expect(try StatsSync(database: phone).sync(with: folder) == true)
+        // Again and again: nothing new, nothing counted twice.
+        #expect(try StatsSync(database: pad).sync(with: folder) == false)
+        #expect(try StatsSync(database: phone).sync(with: folder) == false)
+
+        for database in [phone, pad] {
+            let log = ActivityLog(database: database)
+            #expect(try log.sessions(kind: .reading).map(\.characters).sorted() == [200, 300, 500])
+            #expect(try log.lookupDates().count == 1)
+        }
+        #expect(try ActivityLog(database: pad).sessions(kind: .reading, localOnly: true).map(\.characters) == [200])
+        // One file a device a month.
+        #expect(try folder.entries().count == 3)
+    }
+
+    @Test func aSessionThatGrowsIsReplacedNotAdded() throws {
+        let folder = try folder()
+        let phone = try AppDatabase.inMemory(), pad = try AppDatabase.inMemory()
+        try ActivityLog(database: phone).record(book, at: day(11, 2), characters: 300)
+        try StatsSync(database: phone).sync(with: folder)
+        try StatsSync(database: pad).sync(with: folder)
+        // The same sitting goes on, on the phone.
+        try ActivityLog(database: phone).record(book, at: day(11, 2).addingTimeInterval(60), characters: 100)
+        // (A file's date is its token: make sure the rewrite gets a later one.)
+        Thread.sleep(forTimeInterval: 0.05)
+        try StatsSync(database: phone).sync(with: folder)
+        #expect(try StatsSync(database: pad).sync(with: folder) == true)
+        #expect(try ActivityLog(database: pad).sessions(kind: .reading).map(\.characters) == [400])
+    }
+
+    @Test func readingOnThisDeviceDoesNotAddToAnotherDevicesSession() throws {
+        let folder = try folder()
+        let phone = try AppDatabase.inMemory(), pad = try AppDatabase.inMemory()
+        try ActivityLog(database: phone).record(book, at: day(11, 2), characters: 300)
+        try StatsSync(database: phone).sync(with: folder)
+        try StatsSync(database: pad).sync(with: folder)
+        // A minute later, the same chapter on the iPad.
+        try ActivityLog(database: pad).record(book, at: day(11, 2).addingTimeInterval(60), characters: 50)
+        #expect(try ActivityLog(database: pad).sessions(kind: .reading).map(\.characters).sorted() == [50, 300])
+        try StatsSync(database: pad).sync(with: folder)
+        try StatsSync(database: phone).sync(with: folder)
+        #expect(try ActivityLog(database: phone).sessions(kind: .reading).map(\.characters).sorted() == [50, 300])
+    }
+
+    @Test func aDatabaseCopiedToAnotherDeviceStartsUnderANewName() throws {
+        let folder = try folder()
+        let database = try AppDatabase.inMemory()
+        try ActivityLog(database: database).record(book, at: day(11, 2), characters: 300)
+        let sync = StatsSync(database: database)
+        let old = try sync.deviceID(hardware: "old-phone")
+        try sync.sync(with: folder, hardware: "old-phone")
+        #expect(try sync.deviceID(hardware: "old-phone") == old)
+        #expect(try sync.deviceID() == old)
+
+        // Restored onto a new phone: what was logged stays the old phone's.
+        try sync.sync(with: folder, hardware: "new-phone")
+        let new = try sync.deviceID(hardware: "new-phone")
+        #expect(new != old)
+        try ActivityLog(database: database).record(book, at: day(11, 5), characters: 80)
+        try sync.sync(with: folder, hardware: "new-phone")
+        #expect(try ActivityLog(database: database).sessions(kind: .reading).map(\.characters).sorted() == [80, 300])
+        #expect(try ActivityLog(database: database).sessions(kind: .reading, localOnly: true).map(\.characters) == [80])
+
+        // A third device counts each once.
+        let pad = try AppDatabase.inMemory()
+        try StatsSync(database: pad).sync(with: folder)
+        #expect(try ActivityLog(database: pad).sessions(kind: .reading).map(\.characters).sorted() == [80, 300])
+    }
+
+    @Test func otherFilesInTheFolderAreLeftAlone() throws {
+        let folder = try folder()
+        try folder.write(Data("hello".utf8), to: "notes.txt")
+        try folder.write(Data("{".utf8), to: "abc_2026-11.json")
+        let database = try AppDatabase.inMemory()
+        #expect(try StatsSync(database: database).sync(with: folder) == false)
+        #expect(try ActivityLog(database: database).sessions(kind: .reading).isEmpty)
+    }
+}

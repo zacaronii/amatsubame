@@ -26,4 +26,25 @@ KIKU_DEVICE_ENTITLEMENTS_YES_NO = Shared/SharedSetup.entitlements
 KIKU_DEVICE_ENTITLEMENTS_NO_YES = Kiku/Resources/Kiku-CarPlay.entitlements
 KIKU_DEVICE_ENTITLEMENTS_NO_NO =
 KIKU_DEVICE_ENTITLEMENTS = $(KIKU_DEVICE_ENTITLEMENTS_$(AMATSUBAME_APP_GROUP)_$(AMATSUBAME_CARPLAY))
+
+// iCloud (Yomu, Miru, Kiku): Stats on every device (docs/shared.md ▸ Stats across devices). Needs
+// the App Group's paid team with the iCloud capability and the container iCloud.com.amatsubame, so
+// it's off unless AMATSUBAME_ICLOUD = YES (and only together with AMATSUBAME_APP_GROUP).
+// scripts/upload-dev.sh and scripts/release.sh turn it on for the builds they make; without it the
+// apps just don't sync. Simulator builds never have it.
+AMATSUBAME_ICLOUD = NO
+AMATSUBAME_CLOUD_DEVICE_ENTITLEMENTS_YES_YES = Shared/App-iOS-AppGroup-iCloud.entitlements
+AMATSUBAME_CLOUD_DEVICE_ENTITLEMENTS_YES_NO = Shared/SharedSetup.entitlements
+AMATSUBAME_CLOUD_DEVICE_ENTITLEMENTS_NO_YES =
+AMATSUBAME_CLOUD_DEVICE_ENTITLEMENTS_NO_NO =
+AMATSUBAME_CLOUD_DEVICE_ENTITLEMENTS = $(AMATSUBAME_CLOUD_DEVICE_ENTITLEMENTS_$(AMATSUBAME_APP_GROUP)_$(AMATSUBAME_ICLOUD))
+AMATSUBAME_CLOUD_MAC_SUFFIX_YES_YES = -AppGroup-iCloud
+AMATSUBAME_CLOUD_MAC_SUFFIX_YES_NO = -AppGroup
+AMATSUBAME_CLOUD_MAC_SUFFIX_NO_YES =
+AMATSUBAME_CLOUD_MAC_SUFFIX_NO_NO =
+AMATSUBAME_CLOUD_MAC_SUFFIX = $(AMATSUBAME_CLOUD_MAC_SUFFIX_$(AMATSUBAME_APP_GROUP)_$(AMATSUBAME_ICLOUD))
+KIKU_CLOUD_ENTITLEMENTS_YES = Kiku/Resources/Kiku-AppGroup-CarPlay-iCloud.entitlements
+KIKU_CLOUD_ENTITLEMENTS_NO = Kiku/Resources/Kiku-AppGroup-CarPlay.entitlements
+KIKU_DEVICE_ENTITLEMENTS_YES_YES = $(KIKU_CLOUD_ENTITLEMENTS_$(AMATSUBAME_ICLOUD))
+KIKU_DEVICE_ENTITLEMENTS_YES_NO = $(AMATSUBAME_CLOUD_DEVICE_ENTITLEMENTS)
 #include? "Signing.local.xcconfig"

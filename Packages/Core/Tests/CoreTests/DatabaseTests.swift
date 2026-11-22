@@ -25,7 +25,7 @@ import Testing
             "download", "downloadSettings",
             "mediaSegment", "playerSettings",
             "localSubtitle",
-            "autoDownloadSetting", "showListenSetting",
+            "autoDownloadSetting", "showListenSetting", "statsSyncFile",
             "activitySession", "lookupEvent", "statsState", "lookupCount", "popupSettings", "hachidoriSettings",
             "japaneseOnlyJellyfinLibrary", "jellyfinAudioCheck", "pinnedItem", "wordStatus",
             "audioTranscript", "audioSentence", "audioSentenceSearch", "listenSettings", "audiobookshelfCache", "audioMark", "readAlongPair",

@@ -857,6 +857,25 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v53_stats_sync") { db in
+            // Stats across devices (StatsSync): rows that came from another device carry its
+            // name; this install's own name; and what's been sent and read so far.
+            try db.alter(table: "activitySession") { t in
+                t.add(column: "device", .text)
+            }
+            try db.alter(table: "lookupEvent") { t in
+                t.add(column: "device", .text)
+            }
+            try db.alter(table: "statsState") { t in
+                t.add(column: "deviceId", .text)
+                t.add(column: "deviceHardware", .text)
+            }
+            try db.create(table: "statsSyncFile") { t in
+                t.primaryKey("name", .text)
+                t.column("token", .text).notNull()
+            }
+        }
+
         return migrator
     }
 }

@@ -71,10 +71,10 @@ targets:
         PRODUCT_MODULE_NAME: Yomu
         PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).yomu
         CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Shared/SharedSetup.entitlements
-        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: $(AMATSUBAME_DEVICE_ENTITLEMENTS)
+        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: $(AMATSUBAME_CLOUD_DEVICE_ENTITLEMENTS)
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         TARGETED_DEVICE_FAMILY: "1,2"
-        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Shared/App-macOS$(AMATSUBAME_MAC_SUFFIX).entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Shared/App-macOS$(AMATSUBAME_CLOUD_MAC_SUFFIX).entitlements
         ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_FILE: Yomu/Resources/Info.plist
@@ -142,10 +142,10 @@ targets:
         PRODUCT_MODULE_NAME: Miru
         PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).miru
         CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Shared/SharedSetup.entitlements
-        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: $(AMATSUBAME_DEVICE_ENTITLEMENTS)
+        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: $(AMATSUBAME_CLOUD_DEVICE_ENTITLEMENTS)
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         TARGETED_DEVICE_FAMILY: "1,2"
-        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Shared/App-macOS$(AMATSUBAME_MAC_SUFFIX).entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Shared/App-macOS$(AMATSUBAME_CLOUD_MAC_SUFFIX).entitlements
         ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_FILE: Miru/Resources/Info.plist
@@ -183,7 +183,7 @@ targets:
         CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: $(KIKU_DEVICE_ENTITLEMENTS)
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         TARGETED_DEVICE_FAMILY: "1,2"
-        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Shared/App-macOS$(AMATSUBAME_MAC_SUFFIX).entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Shared/App-macOS$(AMATSUBAME_CLOUD_MAC_SUFFIX).entitlements
         ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_FILE: Kiku/Resources/Info.plist

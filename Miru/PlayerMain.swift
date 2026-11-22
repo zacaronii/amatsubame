@@ -24,7 +24,9 @@ struct MiruApp: App {
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active: environment.common.syncNow(retryWaiting: true)
-            case .background: scheduleOutboxRefresh()
+            case .background:
+                scheduleOutboxRefresh()
+                environment.common.statsSync.send()
             default: break
             }
         }
