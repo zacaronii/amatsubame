@@ -391,6 +391,7 @@ public struct StatsSettingsLink: View {
                                  systemImage: "chart.bar.fill", color: .orange)
             }
             .accessibilityIdentifier("settings.kechimochi")
+            StatsCloudRow()
         }
         .onAppear { address = (try? environment.activity.kechimochiURL()) ?? nil }
     }

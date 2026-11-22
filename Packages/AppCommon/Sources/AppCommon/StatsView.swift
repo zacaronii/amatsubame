@@ -48,6 +48,14 @@ public final class StatsModel {
         summarize()
     }
 
+    /// Syncs with iCloud, and counts again when the other devices had something new.
+    public func loadFromCloud() async {
+        guard await environment.statsSync.sync(force: true) else { return }
+        sessions = (try? environment.activity.sessions(kind: kind)) ?? []
+        lookups = (try? environment.activity.lookupDates()) ?? []
+        summarize()
+    }
+
     /// Asks Anki for the mining deck's notes and keeps the copy that Stats and the Today rows
     /// read offline. Nil without AnkiConnect.
     @discardableResult
@@ -160,12 +168,16 @@ public struct StatsView<Cover: View>: View {
             }
             #endif
             .task { await model.load() }
+            // The other devices' reading, when iCloud has it: looked for as Stats opens.
+            .task { await model.loadFromCloud() }
             .onReceive(NotificationCenter.default.publisher(for: .kechimochiAddressDidChange)) { _ in
                 Task { await immersion.load() }
             }
             .refreshable {
                 switch board {
-                case .app: await model.load()
+                case .app:
+                    await model.loadFromCloud()
+                    await model.load()
                 case .all: await immersion.load()
                 }
             }
@@ -606,5 +618,28 @@ public struct ChipRow<Item: Hashable, Label: View>: View {
             }
         }
         .shelfScrollClip()
+    }
+}
+
+/// Settings ▸ Stats ▸ iCloud: this app's Stats on all your devices.
+struct StatsCloudRow: View {
+    @Environment(CommonEnvironment.self) private var environment
+
+    var body: some View {
+        @Bindable var sync = environment.statsSync
+        Toggle(isOn: $sync.isOn) {
+            SettingsRowLabel("Sync Stats with iCloud", subtitle: subtitle, systemImage: "icloud.fill", color: .blue)
+        }
+        .accessibilityIdentifier("stats.iCloud")
+    }
+
+    private var subtitle: String {
+        switch environment.statsSync.state {
+        case .off: "Stats stay on this device"
+        case .syncing: "The same Stats on all your devices"
+        case .unavailable: "iCloud isn't available here"
+        case .synced(let date): "Synced \(date.formatted(date: .omitted, time: .shortened))"
+        case .failed(let message): "Couldn't sync: \(message)"
+        }
     }
 }

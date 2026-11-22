@@ -26,9 +26,12 @@ public struct ActivitySession: Codable, Equatable, Sendable, FetchableRecord, Mu
     public var characters: Int
     public var pages: Int
     public var seconds: Double
+    /// Nil for what this device logged; another device's name for what came from it (`StatsSync`).
+    public var device: String?
 
     public init(id: Int64? = nil, kind: Kind, seriesKey: String, seriesTitle: String, itemKey: String, start: Date, end: Date,
-                characters: Int = 0, pages: Int = 0, seconds: Double = 0) {
+                characters: Int = 0, pages: Int = 0, seconds: Double = 0, device: String? = nil) {
+        self.device = device
         self.id = id
         self.kind = kind
         self.seriesKey = seriesKey
@@ -82,6 +85,8 @@ public struct ActivityLog: Sendable {
         try database.writer.write { db in
             if var open = try ActivitySession
                 .filter(Column("kind") == subject.kind.rawValue && Column("itemKey") == subject.itemKey)
+                // Only this device's own: another device's session isn't ours to add to.
+                .filter(Column("device") == nil)
                 .filter(Column("end") >= date.addingTimeInterval(-Self.gap))
                 .order(Column("end").desc)
                 .fetchOne(db) {
@@ -106,9 +111,11 @@ public struct ActivityLog: Sendable {
         }
     }
 
-    public func sessions(kind: ActivitySession.Kind, since date: Date? = nil) throws -> [ActivitySession] {
+    /// Every device's sessions (those synced from the others too), or only this device's own.
+    public func sessions(kind: ActivitySession.Kind, since date: Date? = nil, localOnly: Bool = false) throws -> [ActivitySession] {
         try database.reader.read { db in
             var request = ActivitySession.filter(Column("kind") == kind.rawValue)
+            if localOnly { request = request.filter(Column("device") == nil) }
             if let date { request = request.filter(Column("end") >= date) }
             return try request.order(Column("start")).fetchAll(db)
         }

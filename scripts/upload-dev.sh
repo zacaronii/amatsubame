@@ -13,7 +13,8 @@
 # the tag build-<number> is pushed on the commit, so a release can find what a build came from.
 #
 # Needs, besides a clean checkout:
-# - Config/Signing.local.xcconfig with DEVELOPMENT_TEAM (a paid team) and AMATSUBAME_APP_GROUP = YES.
+# - Config/Signing.local.xcconfig with DEVELOPMENT_TEAM (a paid team) and AMATSUBAME_APP_GROUP = YES. The
+#   builds also get iCloud (Stats across devices); AMATSUBAME_ICLOUD=NO in the environment leaves it out.
 # - That team's Apple ID signed in to Xcode (Settings ▸ Accounts): signing goes through it, since an
 #   App Manager API key can't manage certificates and profiles.
 # - For uploading, an App Store Connect API key (App Manager) in the login keychain (scripts/asc-key.sh).
@@ -104,7 +105,7 @@ for app in "${apps[@]}"; do
     xcodebuild archive -project Amatsubame.xcodeproj -scheme "$app" -configuration Release \
       -destination "generic/platform=$platform" -archivePath "$archive" \
       -derivedDataPath "build.noindex/testflight/derived-$platform" \
-      CURRENT_PROJECT_VERSION="$build" AMATSUBAME_APP_GROUP=YES ${extra[@]+"${extra[@]}"} -allowProvisioningUpdates >"$log" 2>&1 \
+      CURRENT_PROJECT_VERSION="$build" AMATSUBAME_APP_GROUP=YES AMATSUBAME_ICLOUD="${AMATSUBAME_ICLOUD:-YES}" ${extra[@]+"${extra[@]}"} -allowProvisioningUpdates >"$log" 2>&1 \
       || fail "archiving $app for $platform failed; see $log"
     echo "• $app ($platform): exporting"
     xcodebuild -exportArchive -archivePath "$archive" -exportOptionsPlist "$work/ExportOptions.plist" \

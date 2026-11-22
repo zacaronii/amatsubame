@@ -39,7 +39,9 @@ struct YomuApp: App {
             case .active:
                 environment.syncNow(retryWaiting: true)
                 environment.autoDownloads.schedule()
-            case .background: scheduleOutboxRefresh()
+            case .background:
+                scheduleOutboxRefresh()
+                environment.common.statsSync.send()
             default: break
             }
         }

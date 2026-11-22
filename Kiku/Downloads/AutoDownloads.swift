@@ -144,7 +144,7 @@ final class AudioAutoDownloadManager {
         guard let environment else { return [:] }
         let since = Date.now.addingTimeInterval(-AudioAutoDownloadPlanner.playedWithin)
         var result: [String: Date] = [:]
-        for session in (try? environment.common.activity.sessions(kind: .listening, since: since)) ?? [] {
+        for session in (try? environment.common.activity.sessions(kind: .listening, since: since, localOnly: true)) ?? [] {
             result[session.seriesKey] = max(result[session.seriesKey] ?? .distantPast, session.end)
         }
         for progress in environment.library.progress.values where progress.episodeId?.isEmpty == false {

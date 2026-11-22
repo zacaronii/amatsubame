@@ -129,7 +129,7 @@ public enum ListeningSessionBackfill {
     @MainActor
     public static func runOnce(activity: ActivityLog, outbox: OutboxStore, device: AudiobookshelfDeviceInfo,
                                position: (String) -> (position: Double, duration: Double)?, defaults: UserDefaults = .standard) {
-        guard !defaults.bool(forKey: doneKey), let rows = try? activity.sessions(kind: .listening) else { return }
+        guard !defaults.bool(forKey: doneKey), let rows = try? activity.sessions(kind: .listening, localOnly: true) else { return }
         let since = defaults.object(forKey: sinceKey) as? Date ?? .now
         for session in sessions(rows, before: since, device: device, position: position) {
             try? outbox.enqueue(session, kind: .audiobookshelfSession, coalesceKey: session.coalesceKey)

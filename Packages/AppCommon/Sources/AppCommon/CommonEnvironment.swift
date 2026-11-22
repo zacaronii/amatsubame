@@ -38,6 +38,8 @@ public final class CommonEnvironment {
     public let mining: MiningService
     /// Reading, watching and lookups for the Stats tab.
     public let activity: ActivityLog
+    /// Stats on every device, through iCloud.
+    public let statsSync: StatsCloudSync
     /// Words in subtitle and transcript lines, marked by their state in the mining deck.
     public let wordMarks: WordMarkCache
     public let ankiSync: AnkiSyncScheduler
@@ -126,6 +128,7 @@ public final class CommonEnvironment {
         lookup = LookupService(library: dictionaries, audio: AudioService(database: setupDatabase, http: http, secrets: routedSecrets), history: database)
         dictionaryUpdater = DictionaryUpdater(library: dictionaries, lookup: lookup, reachability: reachability)
         activity = ActivityLog(database: database)
+        statsSync = StatsCloudSync(database: database)
         lookup.activity = activity
         ankiSettings = AnkiSettingsStore(database: setupDatabase)
         minedWords = MinedWordStore(database: setupDatabase)
@@ -353,6 +356,7 @@ public final class CommonEnvironment {
     public func syncNow(retryWaiting: Bool = false) {
         if retryWaiting { _ = try? outbox.retryWaitingNow() }
         Task { await worker.drain() }
+        Task { await statsSync.sync() }
     }
 
     // MARK: Anki

@@ -105,7 +105,7 @@ EOP
       cp "$local_config" "$tree/Config/"
       (cd "$tree" && xcodebuild archive -project Amatsubame.xcodeproj -scheme "$app" -configuration Release \
         -destination generic/platform=macOS -archivePath "$archive" -derivedDataPath "$root/build.noindex/release-archive" \
-        CURRENT_PROJECT_VERSION="$build" AMATSUBAME_APP_GROUP=YES ARCHS=arm64 -allowProvisioningUpdates) >"$log" 2>&1 \
+        CURRENT_PROJECT_VERSION="$build" AMATSUBAME_APP_GROUP=YES AMATSUBAME_ICLOUD="${AMATSUBAME_ICLOUD:-YES}" ARCHS=arm64 -allowProvisioningUpdates) >"$log" 2>&1 \
         || fail "archiving $app failed; see $log"
     fi
     echo "  $app: exporting with Developer ID"
