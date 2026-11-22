@@ -71,6 +71,8 @@ final class EpisodeDownloader {
     @ObservationIgnored private var session: URLSession!
     /// Downloads being paused on purpose, so their cancellation isn't reported as a failure.
     @ObservationIgnored private var pausing: Set<Int64> = []
+    /// Items whose download is being started (before their record exists).
+    @ObservationIgnored private var starting: Set<String> = []
     @ObservationIgnored private var lastProgressWrite: [Int64: Date] = [:]
     @ObservationIgnored private var backgroundEventsDone: (() -> Void)?
 
@@ -141,6 +143,9 @@ final class EpisodeDownloader {
             return
         }
         if let existing = records[item.id], existing.state == .done || existing.isActive { return }
+        // A second tap (or "Download N Episodes" chosen twice) before the record exists: one download.
+        guard starting.insert(item.id).inserted else { return }
+        defer { starting.remove(item.id) }
         do {
             let full = item.mediaSources == nil ? try await client.item(id: item.id) : item
             guard let source = full.mediaSources?.first else {
@@ -148,7 +153,8 @@ final class EpisodeDownloader {
                 return
             }
             var meta = DownloadedEpisode(item: full, source: source)
-            await saveExtras(&meta, item: full, source: source, client: client)
+            // The file first, so the button shows it at once; the subtitles, segments and poster
+            // (small, but several requests) come alongside.
             let record = try store.enqueue(DownloadRecord(
                 kind: .jellyfinItem, itemKey: full.id, seriesKey: full.seriesId ?? full.id,
                 seriesTitle: full.seriesName ?? full.name,
@@ -159,6 +165,13 @@ final class EpisodeDownloader {
                 bytesTotal: source.size, extra: try JSONEncoder().encode(meta), createdAt: Date()))
             await startTransfer(record)
             lastError = nil
+            await saveExtras(&meta, item: full, source: source, client: client)
+            // Onto the record as it is now (it may have finished, or been removed, meanwhile).
+            if let id = record.id, let current = try? store.download(id: id), var saved = Self.metadata(current) {
+                saved.englishSubtitleFile = meta.englishSubtitleFile
+                saved.imageFile = meta.imageFile
+                try? store.setExtra(id, try? JSONEncoder().encode(saved))
+            }
         } catch {
             lastError = error.localizedDescription
         }
@@ -206,6 +219,19 @@ final class EpisodeDownloader {
               record.state == .done, let file = record.file else { return nil }
         let url = directory.appending(path: file)
         return FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) ? url : nil
+    }
+
+    /// The downloaded episodes of the same show after `current`, in order: what plays next when
+    /// Jellyfin can't be asked.
+    func downloadedEpisodes(after current: DownloadedEpisode) -> [DownloadedEpisode] {
+        Self.episodes(after: current, in: records.values.filter { $0.state == .done }.compactMap(Self.metadata))
+    }
+
+    static func episodes(after current: DownloadedEpisode, in downloads: [DownloadedEpisode]) -> [DownloadedEpisode] {
+        guard let series = current.seriesId, let episode = current.episode else { return [] }
+        let place = (current.season ?? 0, episode)
+        return downloads.filter { $0.seriesId == series && $0.episode != nil && ($0.season ?? 0, $0.episode ?? 0) > place }
+            .sorted { ($0.season ?? 0, $0.episode ?? 0) < ($1.season ?? 0, $1.episode ?? 0) }
     }
 
     func metadata(itemId: String) -> DownloadedEpisode? {

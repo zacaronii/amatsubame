@@ -271,8 +271,14 @@ final class PlaybackModel {
         var source: JellyfinMediaSource?
         do {
             guard let client else { throw ConnectionError.message("Not signed in.") }
-            item = try await client.item(id: session.itemId)
-            let info = try await client.playbackInfo(itemId: session.itemId)
+            let itemId = session.itemId
+            let fetch: @Sendable () async throws -> (JellyfinItem, JellyfinPlaybackInfo) = {
+                (try await client.item(id: itemId), try await client.playbackInfo(itemId: itemId))
+            }
+            // A download doesn't wait a minute for a server that isn't answering: a few seconds
+            // for its fresh details, then it plays from the saved ones.
+            let info: JellyfinPlaybackInfo
+            (item, info) = downloaded != nil && saved != nil ? try await Self.within(seconds: 4, fetch) : try await fetch()
             source = info.mediaSources.first ?? item.mediaSources?.first
             playSessionId = info.playSessionId
         } catch {
@@ -338,7 +344,8 @@ final class PlaybackModel {
         localEnglish = environment.downloader.englishSubtitles(itemId: item.id)
         englishTrackId = nil
         showsEnglish = false
-        segments = []
+        // The saved intro and credits at once (a download has them); Jellyfin's replace them below.
+        segments = environment.segments.saved(itemId: item.id)
         currentSegment = nil
         autoSkipped = []
         let segmentsTask = Task { [environment, itemId = item.id] in await environment.segments.refresh(itemId: itemId, client: client) }
@@ -359,6 +366,19 @@ final class PlaybackModel {
         segments = loaded
         updateSegment()
         await resolveUpNext(client: client, item: item)
+    }
+
+    /// `operation`'s result, or a timeout error after `seconds`.
+    static func within<T: Sendable>(seconds: Double, _ operation: @escaping @Sendable () async throws -> T) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask { try await operation() }
+            group.addTask {
+                try await Task.sleep(for: .seconds(seconds))
+                throw ConnectionError.message("The server took too long to answer.")
+            }
+            defer { group.cancelAll() }
+            return try await group.next()!
+        }
     }
 
     // MARK: Up Next
@@ -384,6 +404,12 @@ final class PlaybackModel {
         } else if let nextId = session.following.first {
             let next = try? await client?.item(id: nextId)
             upNext = next.map(UpNext.init) ?? UpNext(itemId: nextId, title: "Next episode")
+        }
+        // Jellyfin couldn't say what's next (offline): the next downloaded episode of the show.
+        if session.following.isEmpty, let current = environment.downloader.metadata(itemId: item.id) {
+            let next = environment.downloader.downloadedEpisodes(after: current)
+            session.following = next.map(\.itemId)
+            upNext = next.first.map { UpNext(itemId: $0.itemId, title: [$0.season.map { "S\($0)" }, $0.episode.map { "E\($0)" }].compactMap(\.self).joined(separator: " · ") + " – " + $0.name) }
         }
         hasNoNext = session.following.isEmpty
         endsSeries = item.isEpisode
