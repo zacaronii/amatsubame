@@ -38,7 +38,7 @@ public actor OCRService {
     public func page(chapterId: Int, page: Int, imageData: Data) async throws -> OCRResult {
         if let cached = cache.page(chapterId: chapterId, page: page) {
             // Read before each block's lines were kept: measure them now (no models needed).
-            guard cached.blocks.contains(where: { $0.lines == nil }), let image = try? Self.decode(imageData) else {
+            guard cached.blocks.contains(where: { $0.lines == nil || $0.cells == nil }), let image = try? Self.decode(imageData) else {
                 return OCRResult(page: cached, timings: nil)
             }
             let measured = Self.measuringLines(cached, in: image)
@@ -64,9 +64,11 @@ public actor OCRService {
     static func measuringLines(_ page: OCRPage, in image: CGImage) -> OCRPage {
         var page = page
         page.blocks = page.blocks.map { block in
-            guard block.lines == nil else { return block }
+            guard block.lines == nil || block.cells == nil else { return block }
             var block = block
-            block.lines = TextLines.lines(of: block.box, in: image, vertical: block.vertical).map(NormalizedRect.init)
+            let layout = TextLines.layout(of: block.box, in: image, vertical: block.vertical, characterCount: block.text.count)
+            block.lines = layout.lines.map(NormalizedRect.init)
+            block.cells = layout.cells.map(NormalizedRect.init)
             return block
         }
         return page

@@ -31,13 +31,9 @@ struct OCRTextLayer: View {
                             .contentShape(.rect)
                             // Measured in the layer's space so the block's own rect applies directly.
                             .onTapGesture(coordinateSpace: .named(Self.space)) { location in
-                                // On the block's measured lines when it has them (pages read since
-                                // they're kept); the even spread otherwise.
-                                let index = TextLayout.characterIndex(
-                                    of: location, in: rect,
-                                    characterCount: block.text.count, vertical: block.vertical,
-                                    lines: (block.lines ?? []).map(\.cgRect)
-                                )
+                                // The character whose place in the lettering the tap is in
+                                // (measured from the picture; estimated on pages without that).
+                                let index = TextLayout.characterIndex(of: location, in: rect, cells: block.characterRects(boxSize: rect.size))
                                 model.lookUp(block, page: page, characterIndex: index, anchor: rect.offsetBy(dx: frame.minX, dy: frame.minY))
                             }
                             .accessibilityElement()
@@ -49,13 +45,19 @@ struct OCRTextLayer: View {
                             .position(x: rect.midX, y: rect.midY)
                     }
                 }
-                if let overlay = model.textOverlay(page: page) {
-                    // The looked-up bubble's text, set over it: the next tap is on a real character.
+                if let overlay = model.textOverlay(page: page), let range = overlay.highlight {
+                    // The word being looked up, marked on the lettering itself: nothing is drawn
+                    // but a tint over its characters, so it shows what the tap was taken for.
                     let rect = overlay.block.box.pixels(in: size)
-                    OCRTypesetBlock(block: overlay.block, rect: rect, highlight: overlay.highlight) { index in
-                        model.lookUp(overlay.block, page: page, characterIndex: index, anchor: rect.offsetBy(dx: frame.minX, dy: frame.minY))
+                    ForEach(Array(Self.marks(overlay.block, range: range, in: rect).enumerated()), id: \.offset) { _, mark in
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(.tint.opacity(0.3))
+                            .frame(width: mark.width, height: mark.height)
+                            .position(x: mark.midX, y: mark.midY)
+                            .allowsHitTesting(false)
+                            .accessibilityElement()
+                            .accessibilityIdentifier("ocr.highlight")
                     }
-                    .transition(.opacity)
                 }
                 if model.isSelecting {
                     Color.clear
@@ -84,6 +86,36 @@ struct OCRTextLayer: View {
         }
         // Offsets are physical positions on the page, even in a right-to-left reader.
         .environment(\.layoutDirection, .leftToRight)
+    }
+}
+
+extension OCRTextLayer {
+    /// The rects to tint for characters `range` of a block drawn in `rect`: one per line the
+    /// word runs over, a little larger than the ink.
+    static func marks(_ block: OCRBlock, range: Range<Int>, in rect: CGRect) -> [CGRect] {
+        // Only where each character's place was measured in the lettering: a mark that's a
+        // guess is worse than none.
+        guard let measured = block.cells, measured.count == block.text.count else { return [] }
+        let cells = measured.map(\.cgRect)
+        var marks: [CGRect] = []
+        for index in range where cells.indices.contains(index) {
+            let cell = CGRect(x: rect.minX + cells[index].minX * rect.width, y: rect.minY + cells[index].minY * rect.height,
+                              width: cells[index].width * rect.width, height: cells[index].height * rect.height)
+            // The same line as the one before: one mark for both.
+            if let last = marks.last,
+               block.vertical ? abs(last.midX - cell.midX) < cell.width / 2 : abs(last.midY - cell.midY) < cell.height / 2 {
+                marks[marks.count - 1] = last.union(cell)
+            } else {
+                marks.append(cell)
+            }
+        }
+        // Lettering that isn't in lines (a title drawn at angles) measures as one "line" as wide
+        // as the block: its places aren't character-shaped, so there's nothing exact to mark.
+        let count = CGFloat(range.count)
+        let along = marks.reduce(0) { $0 + (block.vertical ? $1.height : $1.width) } / max(count, 1)
+        let across = marks.map { block.vertical ? $0.width : $0.height }.max() ?? 0
+        guard along > 0, across <= along * 2.5 else { return [] }
+        return marks.map { $0.insetBy(dx: -2, dy: -2) }
     }
 }
 

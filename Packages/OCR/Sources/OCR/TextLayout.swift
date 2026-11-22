@@ -46,6 +46,50 @@ public enum TextLayout {
         return clamp(counts[..<line].reduce(0, +) + position, 0, count - 1)
     }
 
+    /// Where each character is taken to be, in reading order and in the block's unit square,
+    /// when its place wasn't measured in the picture (`TextLines.cells`): along the block's
+    /// lines by their lengths, or without lines the even spread over the whole box.
+    public static func characterRects(characterCount count: Int, vertical: Bool, lines: [CGRect], boxSize: CGSize) -> [CGRect] {
+        guard count > 0 else { return [] }
+        if !lines.isEmpty, lines.count <= count {
+            let counts = characterCounts(lines.map { vertical ? $0.height : $0.width }, total: count)
+            return zip(lines, counts).flatMap { line, characters in
+                (0..<characters).map { index in
+                    let from = CGFloat(index) / CGFloat(characters), size = 1 / CGFloat(characters)
+                    return vertical
+                        ? CGRect(x: line.minX, y: line.minY + from * line.height, width: line.width, height: size * line.height)
+                        : CGRect(x: line.minX + from * line.width, y: line.minY, width: size * line.width, height: line.height)
+                }
+            }
+        }
+        guard boxSize.width > 0, boxSize.height > 0 else { return [] }
+        let across = vertical ? boxSize.width : boxSize.height
+        let characterSize = sqrt(boxSize.width * boxSize.height / CGFloat(count))
+        let lineCount = max(1, min(count, Int((across / characterSize).rounded())))
+        let perLine = Int((Double(count) / Double(lineCount)).rounded(.up))
+        return (0..<count).map { index in
+            let line = CGFloat(index / perLine), position = CGFloat(index % perLine)
+            let thickness = 1 / CGFloat(lineCount), length = 1 / CGFloat(perLine)
+            return vertical
+                ? CGRect(x: 1 - (line + 1) * thickness, y: position * length, width: thickness, height: length)
+                : CGRect(x: position * length, y: line * thickness, width: length, height: thickness)
+        }
+    }
+
+    /// The character whose place (`cells`, in the box's unit square) the point is in, or the
+    /// nearest one.
+    public static func characterIndex(of point: CGPoint, in box: CGRect, cells: [CGRect]) -> Int {
+        guard box.width > 0, box.height > 0, !cells.isEmpty else { return 0 }
+        let unit = CGPoint(x: (point.x - box.minX) / box.width, y: (point.y - box.minY) / box.height)
+        func distance(_ cell: CGRect) -> CGFloat {
+            // Measured in the box's own proportions, so "nearest" means nearest on the page.
+            let dx = max(cell.minX - unit.x, 0, unit.x - cell.maxX) * box.width
+            let dy = max(cell.minY - unit.y, 0, unit.y - cell.maxY) * box.height
+            return dx * dx + dy * dy
+        }
+        return cells.indices.min { distance(cells[$0]) < distance(cells[$1]) } ?? 0
+    }
+
     /// `total` characters shared among lines by their lengths: each at least one, the
     /// remainders going to the lines that came closest to another character.
     public static func characterCounts(_ lengths: [CGFloat], total: Int) -> [Int] {
