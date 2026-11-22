@@ -61,6 +61,18 @@ import Testing
         #expect(try setup.store.row(account: account, seriesId: 7)?.state == .removed)
     }
 
+    @Test func aJobRunAgainAfterTheAppDiedSendsNothing() async throws {
+        let setup = try setup()
+        try setup.store.merge([7], account: account)
+        try setup.store.set(false, seriesId: 7, account: account, outbox: setup.outbox)
+        let transport = StubTransport { _ in (200, Data()) }
+        try await send(7, setup, transport)
+        // The app died before the job was marked sent: on launch it's pending again, and runs.
+        try await send(7, setup, transport)
+        #expect(transport.requests.count == 1, "sent once")
+        #expect(try !setup.store.isWanted(account: account, seriesId: 7))
+    }
+
     @Test func anotherAccountsToggleWaits() async throws {
         let setup = try setup()
         try setup.store.set(true, seriesId: 7, account: account, outbox: setup.outbox)

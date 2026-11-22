@@ -89,12 +89,12 @@ import Testing
         try store.set(true, seriesId: 3, account: account, outbox: outbox)
         try store.merge([1, 2], account: account)
         #expect(try store.wanted(account: account) == [3, 2], "while their jobs wait, the toggles stand")
-        _ = try outbox.cancelAll(kind: .kavitaWantToRead)
+        try outbox.cancelAll(kind: .kavitaWantToRead)
         try store.merge([1, 2], account: account)
         #expect(try store.wanted(account: account) == [1, 2], "cleared: Kavita's list again, both directions")
         // The series page's check too.
         try store.set(true, seriesId: 4, account: account, outbox: outbox)
-        _ = try outbox.cancelAll(kind: .kavitaWantToRead)
+        try outbox.cancelAll(kind: .kavitaWantToRead)
         try store.note(false, seriesId: 4, account: account)
         #expect(try !store.isWanted(account: account, seriesId: 4))
     }
@@ -123,7 +123,7 @@ import Testing
         try store.set(true, seriesId: 6, account: account, outbox: outbox)
         try store.didSend(try #require(try store.row(account: account, seriesId: 5)))
         try store.didSend(try #require(try store.row(account: account, seriesId: 6)))
-        _ = try outbox.cancelAll(kind: .kavitaWantToRead)
+        try outbox.cancelAll(kind: .kavitaWantToRead)
         // ... and the older list arrives.
         try store.merge([5], account: account, listedAt: listedAt)
         #expect(try store.wanted(account: account) == [6], "neither undone")
@@ -132,5 +132,34 @@ import Testing
         try store.merge([6], account: account, listedAt: clock.withLock { $0 })
         #expect(try store.wanted(account: account) == [6])
         #expect(try store.row(account: account, seriesId: 5) == nil, "the removal's record goes")
+    }
+
+    @Test func aRowAndItsJobAreWrittenTogether() throws {
+        let database = try AppDatabase.inMemory()
+        let outbox = OutboxStore(database: database)
+        struct Stop: Error {}
+        #expect(throws: Stop.self) {
+            try database.writer.write { db in
+                try outbox.enqueue(WantToReadJob(account: account, seriesId: 1), kind: .kavitaWantToRead, coalesceKey: "k", in: db)
+                throw Stop()
+            }
+        }
+        #expect(try outbox.waitingCounts()[.kavitaWantToRead] == nil, "rolled back with the write it was in")
+        let store = WantToReadStore(database: database)
+        try store.set(true, seriesId: 1, account: account, outbox: outbox)
+        let waiting = try database.reader.read { db in try WantToReadStore.waiting(db, try WantToReadRow.fetchAll(db)) }
+        #expect(waiting == [1], "the row is never without its job")
+    }
+
+    @Test func aSettledToggleIsntSettledAgain() throws {
+        let database = try AppDatabase.inMemory()
+        let store = WantToReadStore(database: database), outbox = OutboxStore(database: database)
+        try store.merge([5], account: account)
+        try store.set(false, seriesId: 5, account: account, outbox: outbox)
+        let sent = try #require(try store.row(account: account, seriesId: 5))
+        try store.didSend(sent)
+        try store.didSend(sent)
+        #expect(try store.row(account: account, seriesId: 5)?.state == .removed, "not turned back into wanted")
+        #expect(try !store.isWanted(account: account, seriesId: 5))
     }
 }

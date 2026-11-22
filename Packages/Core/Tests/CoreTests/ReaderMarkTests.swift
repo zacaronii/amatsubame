@@ -108,7 +108,7 @@ import Testing
         var kept = try store.add(mark(nil, .pageBookmark, page: 8), outbox: outbox)
         try store.didSend(kept, serverId: 9)
         try store.remove(kept.id!, outbox: outbox)
-        _ = try outbox.cancelAll(kind: .kavitaReaderMark)
+        try outbox.cancelAll(kind: .kavitaReaderMark)
         try store.merge([mark(nil, .pageBookmark, serverId: 9, page: 8)], account: account, kinds: [.pageBookmark],
                         scope: { $0.seriesId == 2 }, outbox: outbox)
         let left = try store.marks(account: account, seriesId: 2)

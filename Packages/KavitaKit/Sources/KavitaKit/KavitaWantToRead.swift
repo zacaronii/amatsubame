@@ -64,7 +64,10 @@ public struct KavitaWantToReadHandler: OutboxHandler {
         } catch {
             throw OutboxPermanentFailure("Unreadable Want to Read job: \(error.localizedDescription)")
         }
-        guard let row = try store.row(account: payload.account, seriesId: payload.seriesId), row.state != .synced else { return }
+        // Only a toggle still to be sent (a job run again after the app died mid-way finds its
+        // row settled, and sends nothing).
+        guard let row = try store.row(account: payload.account, seriesId: payload.seriesId),
+              row.state == .pendingAdd || row.state == .pendingRemove else { return }
         guard let client = try makeClient() else { throw ConnectionError.message("Kavita isn't set up.") }
         // Toggled while signed in to another Kavita account: it waits for that one.
         if let current = account(), current != row.account {

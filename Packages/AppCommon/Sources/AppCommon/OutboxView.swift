@@ -58,7 +58,7 @@ public struct OutboxView: View {
                 Section {
                     Button("Clear \(kind.waitingTitle)", role: .destructive) { confirmsClear = true }
                 } footer: {
-                    Text("They won't reach the server. The server keeps whatever it last had.")
+                    Text(kind.clearFooter)
                 }
             }
         }
@@ -317,6 +317,18 @@ extension OutboxJobKind {
         case .kavitaWantToRead: ("Want to Read change", "Want to Read changes")
         }
         return "\(count) \(count == 1 ? one : many)"
+    }
+
+    /// Under Waiting to Sync's Clear button: what clearing does.
+    var clearFooter: String {
+        switch self {
+        case .kavitaReaderMark:
+            "They won't reach the server, and at the next refresh this device shows what Kavita has again: a bookmark or highlight made here and not sent (with its note) goes, and one removed here comes back."
+        case .kavitaWantToRead:
+            "They won't reach the server, and at the next refresh this device shows Kavita's Want to Read again."
+        default:
+            "They won't reach the server. The server keeps whatever it last had."
+        }
     }
 
     var displayName: String {

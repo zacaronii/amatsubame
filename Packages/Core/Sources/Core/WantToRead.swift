@@ -81,19 +81,19 @@ public struct WantToReadStore: Sendable {
 
     /// Adds the series to Want to Read or removes it, at once here, and queues it for Kavita.
     public func set(_ wanted: Bool, seriesId: Int, account: String, outbox: OutboxStore) throws {
-        let changed: Bool = try database.writer.write { db in
+        try database.writer.write { db in
             var row = try WantToReadRow.fetchOne(db, key: ["account": account, "seriesId": seriesId])
                 ?? WantToReadRow(account: account, seriesId: seriesId, state: .removed, position: 0, revision: 0, updatedAt: now())
-            guard row.isWanted != wanted else { return false }
+            guard row.isWanted != wanted else { return }
             row.state = wanted ? .pendingAdd : .pendingRemove
             row.revision += 1
             row.updatedAt = now()
             try row.save(db)
-            return true
+            // The job in the same write (`outbox` is on this database): a refresh never sees the
+            // toggle without it.
+            let job = WantToReadJob(account: account, seriesId: seriesId)
+            try outbox.enqueue(job, kind: .kavitaWantToRead, coalesceKey: job.coalesceKey, in: db)
         }
-        guard changed else { return }
-        let job = WantToReadJob(account: account, seriesId: seriesId)
-        try outbox.enqueue(job, kind: .kavitaWantToRead, coalesceKey: job.coalesceKey)
     }
 
     /// After Kavita took the toggle. A toggle made meanwhile keeps its own state (its job
@@ -101,7 +101,7 @@ public struct WantToReadStore: Sendable {
     public func didSend(_ sent: WantToReadRow) throws {
         try database.writer.write { db in
             guard var row = try WantToReadRow.fetchOne(db, key: ["account": sent.account, "seriesId": sent.seriesId]),
-                  row.revision == sent.revision else { return }
+                  row.revision == sent.revision, row.state == .pendingAdd || row.state == .pendingRemove else { return }
             row.state = row.state == .pendingRemove ? .removed : .synced
             row.updatedAt = now()
             try row.update(db)
