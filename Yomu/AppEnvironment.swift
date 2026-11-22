@@ -95,6 +95,22 @@ final class AppEnvironment {
     var startupError: String? { common.startupError }
     func syncNow(retryWaiting: Bool = false) { common.syncNow(retryWaiting: retryWaiting) }
 
+    /// Marks volumes or chapters read or unread (the series page's menus): this device's place
+    /// at once, then Kavita through the outbox, the same way reading reports it (all pages
+    /// read, or none).
+    func setRead(_ chapters: [KavitaChapter], series: KavitaSeries, _ read: Bool) {
+        let now = Date()
+        for chapter in chapters {
+            try? readingProgress.save(LocalReadingProgress(
+                chapterId: chapter.id, seriesId: series.id, volumeId: chapter.volumeId, libraryId: series.libraryId,
+                page: read ? max(chapter.pages - 1, 0) : 0, pages: chapter.pages, updatedAt: now))
+            let payload = KavitaProgressPayload(volumeId: chapter.volumeId, chapterId: chapter.id, pageNum: read ? chapter.pages : 0,
+                                                seriesId: series.id, libraryId: series.libraryId, bookScrollId: nil)
+            try? outbox.enqueue(payload, kind: .kavitaProgress, coalesceKey: "kavita.chapter.\(chapter.id)")
+        }
+        syncNow()
+    }
+
     init(
         database: AppDatabase, secrets: any SecretStore, mediaDirectory: URL, cacheDirectory: URL,
         dictionaryDirectory: URL, ocrModelDirectory: URL, startupError: String? = nil,
