@@ -1361,7 +1361,12 @@ final class PlaybackModel {
     /// The quality to offer while buffering on a connection slower than the video: the best one
     /// the connection keeps up with, when that's lower than what's playing.
     var lowerQualityOffer: (name: String, bitrate: Int)? {
-        guard canChooseQuality, slowStreamNote != nil, let speed = mpv.streamSpeed else { return nil }
+        var offered = canChooseQuality
+        #if DEBUG
+        // UI tests: the offer on a test video too (which has no qualities), to see where it sits.
+        if ProcessInfo.processInfo.environment["UITEST_QUALITY_OFFER"] != nil { offered = true }
+        #endif
+        guard offered, slowStreamNote != nil, let speed = mpv.streamSpeed else { return nil }
         let fitting = PlayerSettings.streamQuality(fitting: speed)
         let playing = transcodeBitrate ?? Int.max
         guard fitting < playing, let quality = PlayerSettings.streamQualities.first(where: { $0.bitrate == fitting }) else { return nil }

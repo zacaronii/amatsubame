@@ -66,6 +66,19 @@ public struct OCRBlock: Codable, Equatable, Hashable, Sendable {
     /// Each character's place in the block's unit square, in reading order (`TextLines.cells`):
     /// one per `Character` of `text`. Nil where it wasn't measured.
     public var cells: [NormalizedRect]?
+    /// Whether `cells` were all found in the lettering (they can be drawn on the page) or are
+    /// a best guess (enough to aim a tap by).
+    public var cellsExact: Bool?
+    /// The `TextLines.version` that measured `lines` and `cells`.
+    public var measured: Int?
+
+    /// Takes the lines and places measured in the block's picture.
+    public mutating func place(_ layout: TextLines.Layout) {
+        lines = layout.lines.map(NormalizedRect.init)
+        cells = layout.cells.map(NormalizedRect.init)
+        cellsExact = layout.exact
+        measured = TextLines.version
+    }
 
     /// Where each character is, measured if it was and estimated otherwise: what taps are
     /// matched against and what the looked-up word's highlight is drawn on.

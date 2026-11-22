@@ -78,10 +78,12 @@ public struct PopupSettingsPage: View {
                     Text("Without a Key").tag(PopupSettings.HoverLookup.always)
                 }
                 .accessibilityIdentifier("popup.hoverLookup")
+                Toggle("Close When the Pointer Leaves", isOn: setting(\.closeOnPointerExit))
+                    .accessibilityIdentifier("popup.closeOnPointerExit")
             } header: {
                 Text("Pointer")
             } footer: {
-                Text("Point at a word in a book in Yomu, Miru\u{2019}s subtitles or Kiku\u{2019}s transcript to look it up without clicking: while holding the key, or just by resting on it. Clicking a word always works. Manga pages still need a click.")
+                Text("Point at a word in a book in Yomu, Miru\u{2019}s subtitles or Kiku\u{2019}s transcript to look it up without clicking: while holding the key, or just by resting on it. Clicking a word always works. Manga pages still need a click.\n\nWith Close When the Pointer Leaves, moving the pointer into the popup and out again closes it, in every app. Clicking elsewhere and Esc still do too.")
             }
             #endif
             Section {

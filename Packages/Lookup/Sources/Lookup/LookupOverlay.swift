@@ -127,6 +127,10 @@ struct LookupOverlayHost<Panel: View>: View {
     let panel: (LookupPopupModel) -> Panel
     @State private var tall = false
     @State private var drag: CGFloat = 0
+    /// The Mac's Close When the Pointer Leaves: whether the pointer has been in this popup, and
+    /// the close that's waiting to see if it comes straight back.
+    @State private var pointerEntered = false
+    @State private var leaving: Task<Void, Never>?
 
     var body: some View {
         GeometryReader { geometry in
@@ -139,6 +143,7 @@ struct LookupOverlayHost<Panel: View>: View {
                         let local = anchor.map { $0.offsetBy(dx: -origin.x, dy: -origin.y) }
                         let frame = LookupOverlayPlacement.cardFrame(anchor: local, in: CGRect(origin: .zero, size: geometry.size), beside: beside)
                         chrome(popup)
+                            .onHover(perform: pointerMoved)
                             .frame(width: frame.width, height: frame.height)
                             .position(x: frame.midX, y: frame.midY)
                             .transition(.opacity.combined(with: .scale(scale: 0.96)))
@@ -147,7 +152,30 @@ struct LookupOverlayHost<Panel: View>: View {
             }
         }
         .animation(.spring(duration: 0.3), value: popup?.id)
-        .onChange(of: popup?.id) { tall = false; drag = 0 }
+        .onChange(of: popup?.id) {
+            tall = false
+            drag = 0
+            pointerEntered = false
+            leaving?.cancel()
+        }
+    }
+
+    /// Settings ▸ Popup ▸ Close When the Pointer Leaves (the Mac): leaving the popup closes it,
+    /// once the pointer has been in it. A moment's grace covers a slip over the edge, and a
+    /// sheet over the window (Already in Anki) isn't leaving.
+    private func pointerMoved(inside: Bool) {
+        #if os(macOS)
+        leaving?.cancel()
+        if inside {
+            pointerEntered = true
+        } else if pointerEntered, service.popupSettings.closeOnPointerExit {
+            leaving = Task {
+                try? await Task.sleep(for: .milliseconds(250))
+                guard !Task.isCancelled, !NSApp.windows.contains(where: { $0.isSheet && $0.isVisible }) else { return }
+                onClose()
+            }
+        }
+        #endif
     }
 
     /// A narrow screen: half the height, pulled up to almost all of it or down to close. It

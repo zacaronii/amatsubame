@@ -70,12 +70,11 @@ public actor OCRPipeline {
             guard !text.isEmpty else { continue }
             let pixels = detection.box.pixels(in: CGSize(width: image.width, height: image.height))
             let vertical = TextOrientation.isVertical(pixelSize: pixels.size, text: text)
-            let layout = TextLines.layout(of: detection.box, in: image, vertical: vertical, characterCount: text.count)
-            blocks.append(OCRBlock(
-                box: detection.box, text: text, vertical: vertical,
-                kind: detection.label == .textInBubble ? .bubbleText : .freeText, score: detection.score,
-                lines: layout.lines.map(NormalizedRect.init), cells: layout.cells.map(NormalizedRect.init)
-            ))
+            let layout = TextLines.layout(of: detection.box, in: image, vertical: vertical, text: text)
+            var block = OCRBlock(box: detection.box, text: text, vertical: vertical,
+                                 kind: detection.label == .textInBubble ? .bubbleText : .freeText, score: detection.score)
+            block.place(layout)
+            blocks.append(block)
         }
         timings.recognition = clock.now - recognitionStart
         timings.blocks = blocks.count
@@ -87,9 +86,10 @@ public actor OCRPipeline {
         let text = try read(region, in: image, padding: 0)
         let pixels = region.pixels(in: CGSize(width: image.width, height: image.height))
         let vertical = TextOrientation.isVertical(pixelSize: pixels.size, text: text)
-        let layout = TextLines.layout(of: region, in: image, vertical: vertical, characterCount: text.count)
-        return OCRBlock(box: region, text: text, vertical: vertical, kind: .manual,
-                        lines: layout.lines.map(NormalizedRect.init), cells: layout.cells.map(NormalizedRect.init))
+        let layout = TextLines.layout(of: region, in: image, vertical: vertical, text: text)
+        var block = OCRBlock(box: region, text: text, vertical: vertical, kind: .manual)
+        block.place(layout)
+        return block
     }
 
     // MARK: Detection

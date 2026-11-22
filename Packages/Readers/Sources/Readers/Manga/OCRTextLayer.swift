@@ -95,7 +95,7 @@ extension OCRTextLayer {
     static func marks(_ block: OCRBlock, range: Range<Int>, in rect: CGRect) -> [CGRect] {
         // Only where each character's place was measured in the lettering: a mark that's a
         // guess is worse than none.
-        guard let measured = block.cells, measured.count == block.text.count else { return [] }
+        guard block.cellsExact == true, let measured = block.cells, measured.count == block.text.count else { return [] }
         let cells = measured.map(\.cgRect)
         var marks: [CGRect] = []
         for index in range where cells.indices.contains(index) {

@@ -29,5 +29,14 @@ import Testing
         try store.save(settings)
         #expect(try store.settings().hoverLookup == .always)
     }
+
+    @Test func closingWhenThePointerLeavesIsOffUntilChosen() throws {
+        let store = LookupCountStore(database: try AppDatabase.inMemory())
+        #expect(try !store.settings().closeOnPointerExit)
+        var settings = try store.settings()
+        settings.closeOnPointerExit = true
+        try store.save(settings)
+        #expect(try store.settings().closeOnPointerExit)
+    }
 }
 #endif

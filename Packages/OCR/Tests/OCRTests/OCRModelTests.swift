@@ -156,9 +156,13 @@ struct RealPageOCR {
             let (page, timings) = try await pipeline.recognize(page: image)
             print("== \(file.lastPathComponent) \(image.width)x\(image.height): \(page.blocks.count) blocks, detect \(timings.detection), read \(timings.recognition)")
             for (index, block) in page.blocks.enumerated() {
-                print(String(format: "  %2d %@ %.2f [%.2f %.2f %.2f %.2f] %@", index + 1, block.vertical ? "V" : "H", block.score,
-                             block.box.x, block.box.y, block.box.width, block.box.height, block.text))
+                let measured = block.cells?.count == block.text.count && !block.text.isEmpty
+                print(String(format: "  %2d %@ %.2f [%.2f %.2f %.2f %.2f] %@ %@", index + 1, block.vertical ? "V" : "H", block.score,
+                             block.box.x, block.box.y, block.box.width, block.box.height,
+                             block.cellsExact == true ? "exact" : measured ? "guessed" : "NO CELLS (\(block.lines?.count ?? 0) lines)", block.text))
             }
+            let measured = page.blocks.filter { $0.cellsExact == true }.count
+            print("   characters placed in \(measured) of \(page.blocks.count) blocks")
             try Annotation.write(image, page: page, to: directory.appending(path: "annotated-\(file.deletingPathExtension().lastPathComponent).png"))
         }
     }
@@ -174,13 +178,26 @@ enum Annotation {
             var rect = block.box.pixels(in: size)
             rect.origin.y = size.height - rect.maxY
             context.setStrokeColor(CGColor(red: 1, green: 0, blue: 0, alpha: 0.9))
-            context.setLineWidth(3)
+            context.setLineWidth(1)
             context.stroke(rect)
+            // The lines found (a guessed block's in orange), then each character's measured
+            // place, alternating colours so neighbours tell apart.
+            for line in block.lines ?? [] where block.cellsExact != true {
+                context.setStrokeColor(CGColor(red: 1, green: 0.5, blue: 0, alpha: 1))
+                context.stroke(CGRect(x: rect.minX + line.x * rect.width, y: rect.maxY - (line.y + line.height) * rect.height,
+                                      width: line.width * rect.width, height: line.height * rect.height))
+            }
+            for (place, cell) in (block.cells ?? []).enumerated() {
+                let cell = CGRect(x: rect.minX + cell.x * rect.width, y: rect.maxY - (cell.y + cell.height) * rect.height,
+                                  width: cell.width * rect.width, height: cell.height * rect.height)
+                context.setFillColor(place.isMultiple(of: 2) ? CGColor(red: 0, green: 0.4, blue: 1, alpha: 0.3) : CGColor(red: 0, green: 0.7, blue: 0.2, alpha: 0.3))
+                context.fill(cell)
+            }
             let label = NSAttributedString(string: "\(index + 1)", attributes: [
-                kCTFontAttributeName as NSAttributedString.Key: CTFontCreateWithName("Helvetica-Bold" as CFString, 34, nil),
+                kCTFontAttributeName as NSAttributedString.Key: CTFontCreateWithName("Helvetica-Bold" as CFString, 16, nil),
                 kCTForegroundColorAttributeName as NSAttributedString.Key: CGColor(red: 1, green: 0, blue: 0, alpha: 1),
             ])
-            context.textPosition = CGPoint(x: rect.minX + 4, y: rect.maxY - 34)
+            context.textPosition = CGPoint(x: rect.minX + 4, y: rect.maxY + 2)
             CTLineDraw(CTLineCreateWithAttributedString(label), context)
         }
         let destination = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil)!

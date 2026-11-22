@@ -350,6 +350,58 @@ import CoreML
         #expect(TextLayout.characterCounts([50, 50], total: 7).reduce(0, +) == 7)
     }
 
+    /// Lettering is set one character to a square, but not everything read is: the … drawn in
+    /// one square is read as three dots, and ⁉ as two marks. The text is matched to the squares.
+    @Test func dotsAndPairedMarksShareTheirSquares() {
+        let width = 48 + 48, height = 6 * 51 + 48
+        let context = SyntheticPage.context(width: width, height: height)
+        SyntheticPage.draw("本当に何…⁉", in: context, at: CGPoint(x: 24, y: 24), vertical: true, height: height)
+        let layout = TextLines.layout(of: NormalizedRect(x: 0, y: 0, width: 1, height: 1), in: context.makeImage()!, vertical: true, text: "本当に何．．．！？")
+        #expect(layout.exact)
+        #expect(layout.cells.count == 9)
+        guard layout.cells.count == 9 else { return }
+        // The first four in their own squares, the dots sharing the fifth, the marks side by
+        // side in the sixth.
+        let fifth = CGFloat(24 + 4 * 50) / CGFloat(height), sixth = CGFloat(24 + 5 * 50) / CGFloat(height)
+        #expect(layout.cells[3].maxY <= fifth + 0.02)
+        for dot in 4...6 { #expect(layout.cells[dot].minY >= fifth - 0.02 && layout.cells[dot].maxY <= sixth + 0.02) }
+        #expect(layout.cells[7].minY >= layout.cells[6].maxY - 0.01 && layout.cells[7].maxX <= layout.cells[8].minX + 0.001)
+    }
+
+    /// A bubble's outline through the block's corners, the screen tone beyond it and a stray
+    /// mark beside the lettering are not lettering: the characters are still all found.
+    @Test func outlineToneAndStrayMarksAreLeftOut() {
+        let columns = ["今日はいい天", "気ですね。"]
+        let width = 2 * 48 + 26 + 120, height = 6 * 51 + 100
+        let context = SyntheticPage.context(width: width, height: height)
+        for (index, text) in columns.enumerated() {
+            SyntheticPage.draw(text, in: context, at: CGPoint(x: Double(width - 60 - 48 - index * 74), y: 50), vertical: true, height: height)
+        }
+        context.setStrokeColor(CGColor(gray: 0, alpha: 1))
+        context.setLineWidth(4)
+        // The outline cuts the corners off; past it, dots of tone.
+        context.strokeEllipse(in: CGRect(x: -20, y: -20, width: width + 40, height: height + 40))
+        context.setFillColor(CGColor(gray: 0, alpha: 1))
+        for dot in 0..<4 { context.fillEllipse(in: CGRect(x: 3 + dot % 2 * 9, y: 3 + dot / 2 * 9, width: 4, height: 4)) }
+        // A sweat drop beside the lettering.
+        context.fillEllipse(in: CGRect(x: 34, y: height / 2, width: 9, height: 14))
+        let layout = TextLines.layout(of: NormalizedRect(x: 0, y: 0, width: 1, height: 1), in: context.makeImage()!, vertical: true, text: columns.joined())
+        #expect(layout.exact)
+        #expect(layout.lines.count == 2, "two lines (found \(layout.lines.count))")
+        #expect(layout.cells.count == 11)
+    }
+
+    /// Text that doesn't match what's drawn (a character missed in reading) is placed as well
+    /// as can be, but not called exact: nothing will be drawn on the page for it.
+    @Test func misreadTextIsNotExact() {
+        let width = 96, height = 5 * 51 + 48
+        let context = SyntheticPage.context(width: width, height: height)
+        SyntheticPage.draw("食べたいな", in: context, at: CGPoint(x: 24, y: 24), vertical: true, height: height)
+        let layout = TextLines.layout(of: NormalizedRect(x: 0, y: 0, width: 1, height: 1), in: context.makeImage()!, vertical: true, text: "食べたい")
+        #expect(!layout.exact)
+        #expect(layout.cells.count == 4)
+    }
+
     /// Real glyphs (Hiragino, drawn as manga columns): columns of 6, 5 and 2 characters, with
     /// characters that have gaps inside them (い, 川) and small punctuation.
     @Test func realLetteringInThreeColumns() {
@@ -378,8 +430,9 @@ import CoreML
         }
         #expect(right >= 12, "\(right) of 13 taps land on their character")
         // And the measured places of real glyphs: every tap in the middle of a character.
-        let layout = TextLines.layout(of: NormalizedRect(x: 0, y: 0, width: 1, height: 1), in: image, vertical: true, characterCount: 13)
+        let layout = TextLines.layout(of: NormalizedRect(x: 0, y: 0, width: 1, height: 1), in: image, vertical: true, text: columns.joined())
         #expect(layout.cells.count == 13)
+        #expect(layout.exact, "found on the grid")
         var exact = 0
         expected = 0
         for (index, text) in columns.enumerated() {

@@ -883,6 +883,13 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v55_popup_close_on_pointer_exit") { db in
+            // Settings ▸ Popup ▸ Close When the Pointer Leaves (the Mac), off by default.
+            try db.alter(table: "popupSettings") { t in
+                t.add(column: "closeOnPointerExit", .boolean).notNull().defaults(to: false)
+            }
+        }
+
         return migrator
     }
 }
