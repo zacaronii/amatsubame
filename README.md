@@ -173,7 +173,7 @@ Amatsubame stands on the work of many people. Thank you to:
 
 ## License
 
-The apps are licensed under the [GNU General Public License v3.0](LICENSE): they link the GPL-3.0
+The apps are licensed under the [GNU General Public License, version 3 only (GPL-3.0-only)](LICENSE): they link the GPL-3.0
 dictionary engine [hoshidicts](https://github.com/Manhhao/hoshidicts). Kaku is a separate program under
 the [MIT License](Server/kaku/LICENSE). Third-party components and their licenses are listed in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
