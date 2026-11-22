@@ -414,6 +414,13 @@ public struct OutboxStore: Sendable {
         return Set(keys.compactMap(\.self))
     }
 
+    /// The coalesce keys of a kind's jobs still to be sent: waiting or being sent (not failed).
+    static func sendingKeys(_ db: Database, kind: OutboxJobKind) throws -> Set<String> {
+        Set(try String?.fetchAll(db, OutboxJob.select(Column("coalesceKey"))
+            .filter(Column("kind") == kind && [OutboxJobState.pending.rawValue, OutboxJobState.inFlight.rawValue].contains(Column("state"))))
+            .compactMap(\.self))
+    }
+
     /// The coalesce keys of a kind's jobs waiting (not yet being sent).
     static func pendingKeys(_ db: Database, kind: OutboxJobKind) throws -> Set<String> {
         Set(try String?.fetchAll(db, OutboxJob.select(Column("coalesceKey"))

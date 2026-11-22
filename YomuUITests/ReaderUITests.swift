@@ -602,7 +602,8 @@ final class ReaderUITests: XCTestCase {
         XCTAssertTrue(first.waitForExistence(timeout: 20))
         let chapters = try kavita.chapters(series: series)
         let progressBefore = try chapters.map { try kavita.progress(chapterId: $0) }
-        func items() -> [Int]? { (try? kavita.readingLists())?.values.first }
+        // The list this test made (not one the account already had).
+        func items() -> [Int]? { (try? kavita.readingLists())?.first { marksBefore.readingLists[$0.key] == nil }?.value }
 
         // 1. A new list with the first volume.
         first.press(forDuration: 1.2)
@@ -623,7 +624,7 @@ final class ReaderUITests: XCTestCase {
         XCTAssertTrue(waitFor { items()?.count == 2 }, "the second volume added")
         let added = try XCTUnwrap(items())
 
-        // 3. From the Library home; the second dragged first, and Kavita follows.
+        // 3. From the Library home: an item opens; the second dragged first, and Kavita follows.
         app.navigationBars.buttons.firstMatch.tap()
         app.navigationBars.buttons.firstMatch.tap()
         app.swipeDown()
@@ -632,12 +633,21 @@ final class ReaderUITests: XCTestCase {
         for _ in 0..<10 where !listed.isHittable { app.swipeUp() }
         listed.tap()
         XCTAssertTrue(app.buttons["readingList.item.\(added[1])"].firstMatch.waitForExistence(timeout: 20))
+        // An item opens the reader (progress is held in UI tests and checked below).
+        app.buttons["readingList.item.\(added[0])"].firstMatch.tap()
+        XCTAssertTrue(reader.waitForExistence(timeout: 20), "the reader opened from the list")
+        reader.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.08)).tap()
+        let close = app.buttons["reader.close"].firstMatch
+        XCTAssertTrue(close.waitForExistence(timeout: 5), "reader controls")
+        close.tap()
+        XCTAssertTrue(app.buttons["readingList.edit"].firstMatch.waitForExistence(timeout: 10))
         app.buttons["readingList.edit"].firstMatch.tap()
         let handles = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Reorder'"))
         XCTAssertTrue(handles.element(boundBy: 1).waitForExistence(timeout: 5), "reorder handles")
         handles.element(boundBy: 1).press(forDuration: 0.6, thenDragTo: handles.element(boundBy: 0))
         XCTAssertTrue(waitFor { items() == [added[1], added[0]] }, "Kavita's order follows")
 
+        // (Step 4, Next in List, comes with the next part.)
         // 5. Both taken out (the last one says the list stays): Kavita keeps the list, empty.
         app.buttons["readingList.edit"].firstMatch.tap()
         for chapter in [added[1], added[0]] {
@@ -656,7 +666,7 @@ final class ReaderUITests: XCTestCase {
         app.buttons["readingList.more"].firstMatch.tap()
         app.buttons["readingList.delete"].firstMatch.tap()
         app.buttons["Delete Reading List"].firstMatch.tap()
-        XCTAssertTrue(waitFor { (try? kavita.readingLists())?.isEmpty == true }, "deleted on Kavita")
+        XCTAssertTrue(waitFor { (try? kavita.readingLists()).map { Set($0.keys) == Set(marksBefore.readingLists.keys) } == true }, "deleted on Kavita")
         XCTAssertEqual(try chapters.map { try kavita.progress(chapterId: $0) }, progressBefore, "no reading progress changed")
     }
 

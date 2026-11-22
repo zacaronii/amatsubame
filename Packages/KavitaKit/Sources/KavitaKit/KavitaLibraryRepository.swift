@@ -123,6 +123,15 @@ public struct KavitaLibraryRepository: Sendable {
         return fetched.map(\.0)
     }
 
+    /// Fetches one series and caches it as a library listing would (a reading list's item from a
+    /// series not seen yet). False when its library isn't cached.
+    @discardableResult
+    public func rememberSeries(id: Int, using client: KavitaClient) async throws -> Bool {
+        let fetched = try await client.seriesWithRaw(id: id)
+        try remember([fetched])
+        return try cachedSeries(id: id) != nil
+    }
+
     /// Caches series seen outside a library listing (e.g. On Deck) so detail screens work offline.
     public func remember(_ series: [(KavitaSeries, raw: Data)]) throws {
         let now = now()

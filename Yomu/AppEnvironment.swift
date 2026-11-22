@@ -512,15 +512,24 @@ final class AppEnvironment {
     }
 
     /// A reader session for a chapter of any series (a reading list's item): from the cache, or
-    /// fetched first.
-    func session(chapterId: Int, seriesId: Int) async -> ReaderSession? {
+    /// fetched first. Throws why it can't open.
+    func session(chapterId: Int, seriesId: Int) async throws -> ReaderSession {
         if let cached = session(chapterId: chapterId) { return cached }
-        guard let client = kavitaClient() else { return nil }
-        if (try? kavitaLibrary.cachedSeries(id: seriesId)) == nil, let series = try? await client.series(id: seriesId) {
-            try? kavitaLibrary.remember([(series, raw: (try? JSONEncoder().encode(series)) ?? Data())])
+        guard let client = kavitaClient() else { throw ReaderOpenError.message("Kavita isn't set up.") }
+        do {
+            if try kavitaLibrary.cachedSeries(id: seriesId) == nil, try await !kavitaLibrary.rememberSeries(id: seriesId, using: client) {
+                throw ReaderOpenError.message("Its library isn't on this device yet: pull to refresh the Library, then try again.")
+            }
+            try await kavitaLibrary.refreshVolumes(seriesId: seriesId, using: client)
+        } catch let error as ReaderOpenError {
+            throw error
+        } catch {
+            throw ReaderOpenError.message("Couldn't reach Kavita, and it isn't on this device: \(error.localizedDescription)")
         }
-        _ = try? await kavitaLibrary.refreshVolumes(seriesId: seriesId, using: client)
-        return session(chapterId: chapterId)
+        guard let session = session(chapterId: chapterId) else {
+            throw ReaderOpenError.message("Kavita no longer has it.")
+        }
+        return session
     }
 
     /// Adds the series to Want to Read or removes it (sent to Kavita by the outbox).
@@ -614,4 +623,10 @@ extension AppEnvironment {
         let contents = KavitaSeriesContents(volumes: volumes)
         return ReaderSession(chapter: contents.readerChapter(chapter, series: series), series: series, contents: contents)
     }
+}
+
+/// Why a reading list's item can't be opened.
+enum ReaderOpenError: LocalizedError {
+    case message(String)
+    var errorDescription: String? { switch self { case .message(let text): text } }
 }

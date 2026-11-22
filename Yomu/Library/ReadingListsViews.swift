@@ -60,7 +60,7 @@ struct ReadingListView: View {
     @State private var error: String?
     @State private var confirmsDelete = false
     @State private var lastItem: ReadingListItemRow?
-    @State private var session: ReaderSession?
+    @State private var cantOpen: String?
 
     var body: some View {
         List {
@@ -106,7 +106,11 @@ struct ReadingListView: View {
         } message: { _ in
             Text("The list stays, empty. Kavita removes empty reading lists when it cleans up (daily, unless your server is set otherwise).")
         }
-        .readerPresentation($session)
+        .alert("Can't Open It", isPresented: Binding { cantOpen != nil } set: { if !$0 { cantOpen = nil } }) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(cantOpen ?? "")
+        }
         .task {
             guard let id = list.id else { return }
             Task {
@@ -133,8 +137,19 @@ struct ReadingListView: View {
     private func row(_ item: ReadingListItemRow) -> some View {
         let reason = reason(item)
         return Button {
-            guard reason == nil else { return }
-            Task { session = await environment.session(chapterId: item.chapterId, seriesId: item.seriesId) }
+            if let reason {
+                cantOpen = reason
+                return
+            }
+            Task {
+                do {
+                    // Opened from the root, as a link is (presenting it from this list's screen
+                    // kept SwiftUI laying out forever on iOS 26).
+                    environment.requestedReader = try await environment.session(chapterId: item.chapterId, seriesId: item.seriesId)
+                } catch {
+                    cantOpen = error.localizedDescription
+                }
+            }
         } label: {
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.seriesName.isEmpty ? item.title : item.seriesName).lineLimit(1)
@@ -142,6 +157,7 @@ struct ReadingListView: View {
                     .compactMap(\.self).joined(separator: " · "))
                     .font(.caption).foregroundStyle(.secondary).lineLimit(2)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(.rect)
         }
         .buttonStyle(.plain)

@@ -132,6 +132,11 @@ public struct KavitaReadingListHandler: OutboxHandler {
         }
         do {
             if let moveId = payload.moveId {
+                // In order: an earlier add or move of the list backing off would otherwise be
+                // overtaken, and Kavita would end in another order than the device shows.
+                if try store.hasEarlierChange(account: list.account, listId: id, before: job.id) {
+                    throw ConnectionError.message("Waiting for an earlier change to \u{201C}\(list.title)\u{201D}.")
+                }
                 try await move(moveId, in: list, client)
             } else if let chapterId = payload.chapterId {
                 try await sendItem(chapterId, of: list, client)
@@ -282,11 +287,7 @@ public struct KavitaReadingListHandler: OutboxHandler {
             return
         }
         guard let itemId = items.first(where: { $0.chapterId == move.chapterId })?.serverItemId else {
-            // Not on Kavita (yet): an add still to come is waited for; otherwise nothing to move.
-            if try store.item(listId: id, chapterId: move.chapterId)?.state == .pendingAdd,
-               try store.isQueued(ReadingListJob(account: list.account, listId: id, chapterId: move.chapterId)) {
-                throw ConnectionError.message("Waiting for the item to be added.")
-            }
+            // Not on Kavita: its add, if any, was queued earlier and failed for good. Nothing to move.
             try store.dropMove(moveId)
             return
         }

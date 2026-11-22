@@ -28,10 +28,13 @@ import Testing
     }
 
     func send(_ job: ReadingListJob, _ setup: Setup, _ transport: StubTransport) async throws {
-        let outboxJob = OutboxJob(id: 1, kind: .kavitaReadingList, payload: try JSONEncoder().encode(job), state: .inFlight,
+        let queued = try await setup.store.database.reader.read { try OutboxJob.filter(Column("coalesceKey") == job.coalesceKey).fetchOne($0) }
+        let outboxJob = OutboxJob(id: queued?.id ?? 1, kind: .kavitaReadingList, payload: try JSONEncoder().encode(job), state: .inFlight,
                                   nextAttemptAt: .now, createdAt: .now, updatedAt: .now)
         try await KavitaReadingListHandler(store: setup.store, features: setup.features, outbox: setup.outbox) { client(transport) }
             .send(outboxJob, media: [])
+        // Sent: the worker deletes the job.
+        if let id = queued?.id { _ = try await setup.store.database.writer.write { try OutboxJob.deleteOne($0, key: id) } }
     }
 
     func chapter(_ id: Int) -> ReadingListChapter {
@@ -185,6 +188,81 @@ import Testing
         try other.store.set(true, chapter: chapter(6), listId: full, outbox: other.outbox)
         try await send(ReadingListJob(account: account, listId: full, chapterId: 6), other, gone)
         #expect(try other.store.list(full) == nil, "deleted elsewhere: it goes here, with the add")
+    }
+
+    /// The first of two moves backs off: the second waits instead of overtaking it.
+    @Test func aMoveWaitsForAnEarlierMoveBackingOff() async throws {
+        let setup = try setup()
+        let id = try abcd(setup)
+        try setup.store.move(1, after: 4, listId: id, outbox: setup.outbox)   // B C D A
+        let first = try moveId(setup)
+        try setup.store.move(2, after: 1, listId: id, outbox: setup.outbox)   // C D A B
+        let second = try moveId(setup)
+        let transport = StubTransport { _ in (200, Data()) }
+        await #expect(throws: ConnectionError.self) { try await send(ReadingListJob(account: account, listId: id, moveId: second), setup, transport) }
+        #expect(transport.requests.isEmpty, "nothing sent while the first is still to go")
+        let firstJob = ReadingListJob(account: account, listId: id, moveId: first)
+        try await send(firstJob, setup, transport)
+        _ = try await setup.store.database.writer.write { try OutboxJob.filter(Column("coalesceKey") == firstJob.coalesceKey).deleteAll($0) }
+        try await send(ReadingListJob(account: account, listId: id, moveId: second), setup, transport)
+        #expect(try transport.requests.map { try $0.jsonBody()["toPosition"] as? Int } == [3, 3])
+        #expect(try setup.store.kavitaItems(listId: id).map(\.chapterId) == [3, 4, 1, 2], "Kavita ends as the device shows")
+    }
+
+    /// An add sent while a read was on its way: the read doesn't count as fresh, so a remove of it
+    /// reads again and finds its Kavita id.
+    @Test func aRemoveOfAnAddTheReadMissedFindsItsId() async throws {
+        let setup = try setup()
+        let id = try abcd(setup)
+        let readAt = Date(timeIntervalSinceNow: -5)
+        try setup.store.set(true, chapter: chapter(7), listId: id, outbox: setup.outbox)
+        try setup.store.didSend(try #require(try setup.store.item(listId: id, chapterId: 7)))
+        try setup.store.mergeItems((1...4).map { .init(serverItemId: 100 + $0, chapter: chapter($0)) }, listId: id, listedAt: readAt)
+        #expect(try !setup.store.itemsAreFresh(id))
+        #expect(try setup.store.list(id)?.kavitaItemCount == 5, "the read's count isn't taken")
+        try setup.store.set(false, chapter: chapter(7), listId: id, outbox: setup.outbox)
+        let transport = StubTransport { request in
+            request.url!.path() == "/api/ReadingList/items" ? (200, itemsJSON([1, 2, 3, 4, 7])) : (200, Data())
+        }
+        try await send(ReadingListJob(account: account, listId: id, chapterId: 7), setup, transport)
+        #expect(paths(transport) == ["/api/ReadingList/items", "/api/ReadingList/delete-item"])
+        #expect(try transport.requests.last!.jsonBody()["readingListItemId"] as? Int == 107)
+    }
+
+    /// A refresh that no longer lists an emptied list with an add waiting keeps it; the add's job
+    /// then makes it again.
+    @Test func aRefreshLeavesAnEmptiedListWithAWaitingAddToTheHandler() async throws {
+        let setup = try setup()
+        try setup.store.merge([.init(serverId: 9, title: "Emptied", isOwn: true, owner: "reader", promoted: false, isSynced: false, itemCount: 0)], account: account)
+        let emptied = try #require(try setup.store.lists(account: account).first).id!
+        try setup.store.set(true, chapter: chapter(5), listId: emptied, outbox: setup.outbox)
+        try setup.store.merge([], account: account)
+        #expect(try setup.store.list(emptied) != nil, "kept for the add's job")
+        let gone = StubTransport { request in
+            request.url!.path() == "/api/ReadingList/items" ? (404, Data()) : (400, Data("permission".utf8))
+        }
+        await #expect(throws: ConnectionError.self) { try await send(ReadingListJob(account: account, listId: emptied, chapterId: 5), setup, gone) }
+        #expect(try setup.store.list(emptied)?.state == .pendingCreate, "made again")
+        #expect(try setup.store.item(listId: emptied, chapterId: 5)?.state == .pendingAdd)
+        // Without an add waiting, a list Kavita no longer lists goes.
+        try setup.outbox.cancelAll(kind: .kavitaReadingList)
+        try setup.store.merge([.init(serverId: 9, title: "Emptied", isOwn: true, owner: "reader", promoted: false, isSynced: false, itemCount: 0)], account: account)
+        try setup.store.merge([], account: account)
+        #expect(try setup.store.lists(account: account).isEmpty)
+    }
+
+    @Test func aSeriesFetchedForAnItemIsCachedWithKavitasBytes() async throws {
+        let database = try AppDatabase.inMemory()
+        let repository = KavitaLibraryRepository(database: database)
+        let transport = StubTransport(routes: [
+            "/api/Library/libraries": (200, try Fixture.data("libraries.json", in: .module)),
+            "/api/Series/34": (200, try Fixture.data("series.json", in: .module)),
+        ])
+        _ = try await repository.refreshLibraries(using: client(transport))
+        #expect(try await repository.rememberSeries(id: 34, using: client(transport)))
+        let cached = try #require(try repository.cachedSeries(id: 34))
+        #expect(cached.localizedName != nil, "decoded from what Kavita sent, not the columns")
+        #expect(cached.created != nil)
     }
 
     @Test func aRefreshReadsEveryPageAndTellsOwnWithoutOwnerNames() async throws {

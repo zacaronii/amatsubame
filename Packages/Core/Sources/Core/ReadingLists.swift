@@ -401,6 +401,20 @@ public struct ReadingListStore: Sendable {
         try database.reader.read { try OutboxStore.queuedKeys($0, kind: .kavitaReadingList).contains(job.coalesceKey) }
     }
 
+    /// Whether an add or move of the list queued before this job is still to be sent (waiting or
+    /// being sent; one that failed for good doesn't count).
+    public func hasEarlierChange(account: String, listId: Int64, before jobId: Int64?) throws -> Bool {
+        guard let jobId else { return false }
+        let prefix = ReadingListJob(account: account, listId: listId).coalesceKey
+        return try database.reader.read { db in
+            try Bool.fetchOne(db, sql: """
+                SELECT EXISTS (SELECT 1 FROM outboxJob o WHERE o.kind = ? AND o.state IN ('pending', 'inFlight') AND o.id < ?
+                  AND (o.coalesceKey LIKE ? OR (o.coalesceKey LIKE ? AND EXISTS (SELECT 1 FROM kavitaReadingListItem i
+                    WHERE i.listId = ? AND i.state = 'pendingAdd' AND o.coalesceKey = ? || i.chapterId))))
+                """, arguments: [OutboxJobKind.kavitaReadingList.rawValue, jobId, prefix + ":move:%", prefix + ":item:%", listId, prefix + ":item:"]) ?? false
+        }
+    }
+
     public func moveRow(_ id: Int64) throws -> ReadingListMoveRow? {
         try database.reader.read { try ReadingListMoveRow.fetchOne($0, key: id) }
     }
@@ -543,14 +557,23 @@ public struct ReadingListStore: Sendable {
     public func merge(_ listed: [Listed], account: String, listedAt: Date? = nil) throws {
         try database.writer.write { db in
             let queued = try OutboxStore.queuedKeys(db, kind: .kavitaReadingList)
+            let sending = try OutboxStore.sendingKeys(db, kind: .kavitaReadingList)
             let rows = try ReadingListRow.filter(Column("account") == account).fetchAll(db)
             func waiting(_ row: ReadingListRow) -> Bool {
                 row.state != .synced && row.id.map { queued.contains(ReadingListJob(account: account, listId: $0).coalesceKey) } == true
+            }
+            /// Empty as last known with an add still to send: Kavita's cleanup may have taken it,
+            /// and the add's job makes it again (it's left to the handler).
+            func emptiedWithAdd(_ row: ReadingListRow) throws -> Bool {
+                guard row.kavitaItemCount == 0, let id = row.id else { return false }
+                return try ReadingListItemRow.filter(Column("listId") == id && Column("state") == ReadingListItemRow.State.pendingAdd.rawValue)
+                    .fetchAll(db).contains { sending.contains(ReadingListJob(account: account, listId: id, chapterId: $0.chapterId).coalesceKey) }
             }
             let byServerId = Set(listed.map(\.serverId))
             for row in rows where !waiting(row) {
                 if let serverId = row.serverId, byServerId.contains(serverId) { continue }
                 if row.state == .synced, let listedAt, row.updatedAt > listedAt { continue }
+                if row.state == .synced, try emptiedWithAdd(row) { continue }
                 if let id = row.id { try Self.dropRows(db, id) }
                 try row.delete(db)
             }
@@ -613,6 +636,9 @@ public struct ReadingListStore: Sendable {
                 row.state != .pendingAdd && row.state != .pendingRemove && listedAt.map { row.updatedAt > $0 } == true
             }
             let byChapter = Dictionary(listed.enumerated().map { ($1.chapter.chapterId, ($0, $1)) }, uniquingKeysWith: { first, _ in first })
+            // A row changed after the read (an add sent meanwhile) keeps what it has, so the read
+            // doesn't count as fresh: the item's Kavita id isn't known from it.
+            var skipped = false
             for var row in rows {
                 let remote = byChapter[row.chapterId]
                 if waiting(row) {
@@ -621,6 +647,7 @@ public struct ReadingListStore: Sendable {
                     row.kavitaOrder = remote?.0 ?? .max
                     try row.update(db)
                 } else if newer(row) {
+                    skipped = true
                     continue
                 } else if remote == nil {
                     try row.delete(db)
@@ -640,9 +667,9 @@ public struct ReadingListStore: Sendable {
             where !queued.contains(ReadingListJob(account: list.account, listId: listId, moveId: move.id).coalesceKey) {
                 try move.delete(db)
             }
-            list.kavitaItemCount = listed.count
+            if !skipped { list.kavitaItemCount = listed.count }
             list.itemsReadAt = now()
-            list.itemsStale = false
+            list.itemsStale = skipped
             try list.update(db)
         }
     }
