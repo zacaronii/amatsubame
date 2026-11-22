@@ -134,10 +134,32 @@ final class PodcastLibrary {
     }
 
     /// Just the server's libraries, for Settings ▸ Libraries before the Listen tab has loaded.
-    func refreshLibraries() async {
-        guard let client = environment?.audiobookshelfClient() else { return }
+    /// False when Audiobookshelf couldn't be asked (the list is then what was saved, if anything).
+    @discardableResult
+    func refreshLibraries() async -> Bool {
+        guard let client = environment?.audiobookshelfClient() else { return false }
         restoreSaved()
-        if let all = try? await client.libraries() { libraries = all }
+        guard let all = try? await client.libraries() else { return false }
+        libraries = all
+        return true
+    }
+
+    /// Signed out, or in as someone else: nothing of the last account's library stays (its
+    /// saved copy included: it isn't restored for the next one).
+    func clear() {
+        shows = []
+        books = []
+        bookDetails = [:]
+        libraries = []
+        newEpisodes = []
+        continueListening = []
+        progress = [:]
+        transcriptStatus = [:]
+        showEpisodes = [:]
+        newCounts = [:]
+        error = nil
+        isOffline = false
+        restored = true
     }
 
     func refresh() async {

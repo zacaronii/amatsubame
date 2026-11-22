@@ -63,6 +63,8 @@ final class PlaybackModel: Identifiable, LineLookupHost {
     @ObservationIgnored private var offeredDownload = false
     @ObservationIgnored private var transcriptTask: Task<Void, Never>?
     @ObservationIgnored private var againTask: Task<Void, Never>?
+    /// `close()` has run: nothing still on its way may start the audio or a transcript loop.
+    @ObservationIgnored private var closed = false
     /// What made the transcript showing and when (the More menu); nil until one is saved.
     private(set) var transcriptSource: AudioTranscriptInfo?
     /// Kaku was asked to transcribe this again; its new transcript replaces the one showing.
@@ -115,7 +117,10 @@ final class PlaybackModel: Identifiable, LineLookupHost {
             resumeChoice = choice
             autoplay = false
         }
-        if let problem = await episodeAudio.resolve(environment: environment) {
+        let problem = await episodeAudio.resolve(environment: environment)
+        // Stopped (or another episode started) while the audio was being found.
+        guard !closed else { return }
+        if let problem {
             audio.pauseWithError(problem)
             return
         }
@@ -158,6 +163,7 @@ final class PlaybackModel: Identifiable, LineLookupHost {
     // MARK: Transcript
 
     func loadTranscript() {
+        guard !closed else { return }
         transcriptTask?.cancel()
         transcriptTask = Task { [weak self] in
             guard let self else { return }
@@ -395,6 +401,7 @@ final class PlaybackModel: Identifiable, LineLookupHost {
 
     /// Saves the place and stops (the player was closed for good).
     func close() {
+        closed = true
         saveProgress(force: true)
         flushListening()
         environment.sessions.send()

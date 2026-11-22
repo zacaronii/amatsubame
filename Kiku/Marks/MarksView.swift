@@ -12,6 +12,7 @@ struct MarksView: View {
     @State private var query = ""
     @State private var results: [AudioSearchGroup] = []
     @State private var opening: String?
+    @State private var cantOpen = false
 
     var body: some View {
         NavigationStack {
@@ -41,6 +42,12 @@ struct MarksView: View {
             let model = model ?? MarksModel(environment: environment)
             self.model = model
             await model.observe()
+        }
+        .task(id: model == nil) { await model?.followTranscribing() }
+        .alert("Can\u{2019}t Play This Episode", isPresented: $cantOpen) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Connect to Audiobookshelf, or download the episode, to play it.")
         }
         .onAppear { model?.reloadLines() }
         .onDisappear { model?.discard() }
@@ -137,6 +144,9 @@ struct MarksView: View {
         defer { opening = nil }
         if let entry = await environment.entry(itemId: info.itemId, episodeId: info.episodeId, showTitle: info.showTitle) {
             environment.play(entry, at: sentence.start)
+        } else {
+            // Not in reach and not downloaded: say so, rather than a tap that does nothing.
+            cantOpen = true
         }
     }
 
@@ -197,7 +207,7 @@ private struct MarkCard: View {
                     Text(Self.made(mark)).font(.subheadline).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
-                if window == nil {
+                if window == nil, model.noLines[mark.key] == nil {
                     Label("Transcribing", systemImage: "hourglass")
                         .font(.caption.weight(.medium))
                         .padding(.horizontal, 10).padding(.vertical, 5)
@@ -225,7 +235,8 @@ private struct MarkCard: View {
                 .padding(.leading, 12)
                 .overlay(alignment: .leading) { Capsule().fill(.quaternary).frame(width: 3) }
             } else {
-                Text("The 15-second clip still plays; the lines fill in when Kaku finishes.")
+                Text(model.noLines[mark.key].map { "The 15-second clip still plays. \($0)" }
+                     ?? "The 15-second clip still plays; the lines fill in when Kaku finishes.")
                     .font(.subheadline).foregroundStyle(.secondary)
             }
             if let word = mark.minedWord {

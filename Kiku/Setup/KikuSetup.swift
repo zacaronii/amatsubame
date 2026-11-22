@@ -104,6 +104,7 @@ struct KikuLibrariesStep: View {
     @Environment(KikuEnvironment.self) private var environment
     @Environment(SetupFlow.self) private var flow
     @State private var loaded = false
+    @State private var unreachable = false
 
     var body: some View {
         let library = environment.library
@@ -111,11 +112,12 @@ struct KikuLibrariesStep: View {
             libraries: loaded ? library.libraries.map {
                 SetupLibrary(id: $0.id, name: $0.name, detail: $0.mediaType == .book ? "Audiobooks" : "Podcasts")
             } : nil,
-            problem: loaded || environment.audiobookshelfClient() != nil ? nil : "Audiobookshelf isn't connected.",
+            problem: unreachable ? "Couldn\u{2019}t reach Audiobookshelf. You can choose libraries later in Settings."
+                : loaded || environment.audiobookshelfClient() != nil ? nil : "Audiobookshelf isn't connected.",
             isShown: { !library.hiddenLibraries.contains($0) },
             setShown: { id, shown in Task { await library.setHidden(id, !shown) } })
             .task {
-                await library.refreshLibraries()
+                unreachable = await !library.refreshLibraries() && library.libraries.isEmpty
                 let all = library.libraries
                 var guess: [String: Bool] = [:]
                 flow.guessLibrariesOnce {

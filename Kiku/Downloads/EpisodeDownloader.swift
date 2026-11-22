@@ -46,6 +46,8 @@ final class EpisodeDownloader {
     /// Saves the episode's transcript from Kaku with the audio (nil when Kaku isn't set up).
     @ObservationIgnored private let saveTranscript: @MainActor (EpisodeEntry) async -> Void
     @ObservationIgnored private var session: URLSession!
+    /// Episodes whose download is being started (before their record exists).
+    @ObservationIgnored private var starting: Set<String> = []
     @ObservationIgnored private var pausing: Set<Int64> = []
     @ObservationIgnored private var lastProgressWrite: [Int64: Date] = [:]
     @ObservationIgnored private var backgroundEventsDone: (() -> Void)?
@@ -118,25 +120,23 @@ final class EpisodeDownloader {
             return
         }
         if let existing = records[entry.id], existing.state == .done || existing.isActive { return }
+        // A second tap before the first has a record: one download, not two.
+        guard starting.insert(entry.id).inserted else { return }
+        defer { starting.remove(entry.id) }
         if reason == nil { try? AudioAutoDownloadSettingsStore(database: database).undecline(entry.id) }
         guard let audio = entry.episode.audioFile else {
             lastError = "Audiobookshelf has no audio file for \(entry.episode.title)."
             return
         }
         let ext = audio.fileExtension
-        var meta = DownloadedAudio(itemId: entry.itemId, episodeId: entry.episode.id, title: entry.episode.title,
+        let meta = DownloadedAudio(itemId: entry.itemId, episodeId: entry.episode.id, title: entry.episode.title,
                                    showTitle: entry.showTitle, duration: entry.episode.length, publishedAt: entry.episode.publishedAt,
                                    ino: audio.ino, file: "\(entry.itemId)-\(entry.episode.id).\(ext)", reason: reason)
-        await saveTranscript(entry)
-        if let request = try? await client.coverRequest(itemId: entry.itemId, width: 600),
-           let (data, response) = try? await URLSession.shared.data(for: request),
-           (response as? HTTPURLResponse)?.statusCode == 200, !data.isEmpty {
-            let name = "\(entry.itemId).jpg"
-            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            if (try? data.write(to: directory.appending(path: name))) != nil { meta.imageFile = name }
-        }
+        // The audio first, so the button shows it at once; the transcript and cover (small, but
+        // Kaku out of reach can take a minute to say so) come alongside.
+        let record: DownloadRecord
         do {
-            let record = try store.enqueue(DownloadRecord(
+            record = try store.enqueue(DownloadRecord(
                 kind: .audiobookshelfEpisode, itemKey: entry.id, seriesKey: entry.itemId, seriesTitle: entry.collectionTitle,
                 title: entry.episode.title, detail: entry.episode.publishedDate.map { EpisodeEntry.dayText($0) },
                 bytesTotal: entry.episode.size.map(Int64.init), extra: try JSONEncoder().encode(meta), createdAt: Date()))
@@ -144,6 +144,20 @@ final class EpisodeDownloader {
             lastError = nil
         } catch {
             lastError = error.localizedDescription
+            return
+        }
+        await saveTranscript(entry)
+        if let request = try? await client.coverRequest(itemId: entry.itemId, width: 600),
+           let (data, response) = try? await URLSession.shared.data(for: request),
+           (response as? HTTPURLResponse)?.statusCode == 200, !data.isEmpty {
+            let name = "\(entry.itemId).jpg"
+            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            // Onto the record as it is now (it may have finished, or been removed, meanwhile).
+            if (try? data.write(to: directory.appending(path: name))) != nil, let id = record.id,
+               let current = try? store.download(id: id), var saved = Self.metadata(current) {
+                saved.imageFile = name
+                try? store.setExtra(id, try? JSONEncoder().encode(saved))
+            }
         }
     }
 

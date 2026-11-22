@@ -48,6 +48,13 @@ struct ListenView: View {
     @State private var today: TodaySummary?
     @State private var query = ""
     @State private var path: [ListenRoute] = []
+    /// The account the library on screen was loaded for.
+    @State private var shownAccount: String?
+
+    /// The Audiobookshelf server and user ("" signed out).
+    private var account: String {
+        environment.common.serverAccounts[.audiobookshelf].map { "\($0.baseURL.absoluteString) \($0.username ?? "")" } ?? ""
+    }
     /// Bumped when the Listen tab is tapped again.
     var reset = 0
 
@@ -91,7 +98,13 @@ struct ListenView: View {
             query = ""
             path = [.only(library)]
         }
-        .task(id: environment.common.serverAccounts[.audiobookshelf]?.baseURL) {
+        .task(id: account) {
+            // Another server or user than the library on screen came from: start clean.
+            if let shown = shownAccount, shown != account {
+                environment.stopPlayback()
+                library.clear()
+            }
+            shownAccount = account
             if library.shows.isEmpty { await library.refresh() }
         }
         .onAppear { loadToday() }
