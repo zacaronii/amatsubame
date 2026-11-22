@@ -1,6 +1,6 @@
 # Third-party notices
 
-Amatsubame's apps are licensed under the GNU General Public License v3.0 (`LICENSE`). Kaku, the
+Amatsubame's apps are licensed under the GNU General Public License, version 3 only (GPL-3.0-only) (`LICENSE`). Kaku, the
 transcription server in `Server/kaku`, is a separate program under the MIT License
 (`Server/kaku/LICENSE`).
 
