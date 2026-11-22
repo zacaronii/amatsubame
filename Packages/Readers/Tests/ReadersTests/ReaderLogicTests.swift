@@ -145,7 +145,9 @@ import UniformTypeIdentifiers
         let recorder = recorder(debounce: .milliseconds(50))
         recorder.start(at: 0)
         recorder.record(page: 2)
-        try await Task.sleep(for: .milliseconds(300))
+        // Waits for it rather than a fixed time: with web views in the same test run, the main
+        // actor can be busy past a short sleep.
+        for _ in 0..<40 where try queuedPayloads().isEmpty { try await Task.sleep(for: .milliseconds(50)) }
         #expect(try queuedPayloads().map(\.pageNum) == [2])
     }
 }

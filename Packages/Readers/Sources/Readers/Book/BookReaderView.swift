@@ -77,6 +77,7 @@ public struct BookReaderView: View {
                             .readerLookupOverlay(model.spread ? nil : model.popup, lookup: model.lookup, anchor: model.popupAnchor,
                                                  beside: model.isVertical, onClose: { model.popup = nil }) { popup, lookup in
                                 VStack(spacing: 0) {
+                                    HighlightBar(model: model)
                                     if let popupHeader { popupHeader }
                                     LookupPopupView(service: lookup, model: popup, drawsBackground: false)
                                 }
@@ -155,6 +156,7 @@ public struct BookReaderView: View {
             model.prefersDark = colorScheme == .dark
             await model.load()
         }
+        .task { await model.marks?.follow() }
         .onChange(of: colorScheme) { _, scheme in model.prefersDark = scheme == .dark }
         // A word mined, Anki refreshed, or marks switched off: restyle the words on the page.
         .onChange(of: model.lookup?.mining?.revision) { Task { await model.markWords() } }
@@ -164,6 +166,9 @@ public struct BookReaderView: View {
         }
         .sheet(isPresented: $showsSettings) { BookSettingsSheet(model: model) }
         .sheet(isPresented: $showsContents) { contents }
+        .sheet(item: $model.editingNote) { mark in
+            NoteEditor(mark: mark) { note in model.marks?.edit(mark, note: note, slot: mark.slot) }
+        }
         #if os(iOS)
         // Hidden with the controls too: on the open iPhone Duo the clock and Wi-Fi drew over the
         // first column and the Aa button.
@@ -283,6 +288,7 @@ public struct BookReaderView: View {
     private func lookupPanel(_ popup: LookupPopupModel, over page: CGRect) -> some View {
         let height = min(page.height - 16, 560)
         return VStack(spacing: 0) {
+            HighlightBar(model: model)
             if let popupHeader { popupHeader }
             if let lookup = model.lookup { LookupPopupView(service: lookup, model: popup, drawsBackground: false) }
         }
@@ -327,6 +333,16 @@ public struct BookReaderView: View {
                     .labelStyle(.iconOnly)
                     .buttonBorderShape(.circle)
                     .disabled(model.package?.toc.isEmpty ?? true)
+                if model.marks != nil, model.state == .ready {
+                    let marked = model.currentBookmark != nil
+                    Button(marked ? "Remove Bookmark" : "Bookmark This Place", systemImage: marked ? "bookmark.fill" : "bookmark") {
+                        model.toggleBookmark()
+                    }
+                    .labelStyle(.iconOnly)
+                    .buttonBorderShape(.circle)
+                    .accessibilityIdentifier("reader.bookmark")
+                    .accessibilityValue(marked ? "Bookmarked" : "")
+                }
                 if let barItem { barItem }
                 ReaderSettingsButton { showsSettings = true }
             }

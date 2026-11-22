@@ -255,6 +255,7 @@
         ? `left:0;top:0;bottom:0;width:${pad('left') + spare}px` : `left:0;right:0;bottom:0;height:${pad('bottom') + spare}px`;
     }
     placeReadAlongMark();
+    placeUserMarks();
     report();
   }
 
@@ -487,6 +488,7 @@
     if (place?.xpath) state.place = place;
     placeLookupMark();
     placeReadAlongMark();
+    placeUserMarks();
   }
 
   // MARK: Lookup mark
@@ -897,9 +899,184 @@
     return element ? xpathTo(element) : '';
   }
 
+  // MARK: Highlights (Kavita annotations)
+  // Kavita keeps a highlight as the elements it starts and ends in (XPaths like the position's)
+  // and its text; the characters are found again by that text. Each is wrapped in <km-hl>, an
+  // element name of its own like <km-w>, so XPaths and the layout stay put; paged, the colour
+  // is drawn as boxes outside the body, like read-along.
+
+  let userMarks = [], userMarkBoxes = [];
+
+  /// The element a text node is in, past the reader's own wrappers (word marks, highlights,
+  /// the lookup mark), as Kavita's reader would see it.
+  function container(node) {
+    let element = node.parentElement;
+    while (element && element !== document.body && (element.localName.startsWith('km-') || element.classList.contains('lookup-highlight'))) {
+      element = element.parentElement;
+    }
+    return element ?? document.body;
+  }
+
+  /// The text nodes from the start of `start` to the end of `end`, without furigana.
+  function textNodesBetween(start, end) {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+      acceptNode: (node) => node.parentElement?.closest('rt, rp, script, style, .kb-mask') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
+    });
+    const nodes = [];
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const afterStart = start.contains(node) || (start.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING);
+      const beforeEnd = end.contains(node) || (end.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_PRECEDING);
+      if (afterStart && beforeEnd) nodes.push(node);
+      else if (nodes.length) break;
+    }
+    return nodes;
+  }
+
+  function clearUserMarks() {
+    const parents = new Set();
+    for (const mark of document.querySelectorAll('km-hl')) {
+      const parent = mark.parentNode;
+      while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
+      mark.remove();
+      parents.add(parent);
+    }
+    parents.forEach((parent) => parent.normalize());
+  }
+
+  /// `marks`: [{id, xpath, endXPath, text, color}]. Returns the ids found on the page.
+  function showUserMarks(marks) {
+    clearUserMarks();
+    userMarks = marks;
+    const shown = [];
+    for (const mark of marks) {
+      const start = resolveXPath(mark.xpath);
+      const end = resolveXPath(mark.endXPath || mark.xpath) ?? start;
+      if (!start || !end || !mark.text) continue;
+      const nodes = textNodesBetween(start, end);
+      const whole = nodes.map((node) => node.textContent).join('');
+      // Matched without whitespace: line breaks between paragraphs (and in the source) differ
+      // between readers.
+      const kept = [];
+      for (let i = 0; i < whole.length; i++) if (!/\s/.test(whole[i])) kept.push(i);
+      const compact = kept.map((i) => whole[i]).join('');
+      const wanted = mark.text.replace(/\s+/g, '');
+      const found = wanted ? compact.indexOf(wanted) : -1;
+      if (found < 0) continue;
+      const at = kept[found], until = kept[found + wanted.length - 1] + 1;
+      const pieces = [];
+      let position = 0;
+      for (const node of nodes) {
+        const length = node.textContent.length;
+        const from = Math.max(at, position), to = Math.min(until, position + length);
+        if (from < to && node.textContent.slice(from - position, to - position).trim()) pieces.push({node, from: from - position, to: to - position});
+        position += length;
+        if (position >= until) break;
+      }
+      for (const {node, from, to} of pieces.reverse()) {
+        const middle = node.splitText(from);
+        middle.splitText(to - from);
+        const wrap = document.createElement('km-hl');
+        wrap.dataset.id = String(mark.id);
+        wrap.style.setProperty('--hl', mark.color);
+        middle.parentNode.insertBefore(wrap, middle);
+        wrap.appendChild(middle);
+      }
+      shown.push(mark.id);
+    }
+    placeUserMarks();
+    return shown;
+  }
+
+  function placeUserMarks() {
+    userMarkBoxes.forEach((box) => box.remove());
+    userMarkBoxes = [];
+    if (state.settings.layout !== 'paged') return;
+    for (const mark of document.querySelectorAll('km-hl')) {
+      for (const r of mark.getClientRects()) {
+        if (r.right < 0 || r.left > window.innerWidth || r.bottom < 0 || r.top > window.innerHeight) continue;
+        const box = document.createElement('div');
+        box.className = 'kb-user-mark';
+        box.dataset.id = mark.dataset.id;
+        box.style.cssText = `left: ${r.left}px; top: ${r.top}px; width: ${r.width}px; height: ${r.height}px; --hl: ${mark.style.getPropertyValue('--hl')}`;
+        document.documentElement.appendChild(box);
+        userMarkBoxes.push(box);
+      }
+    }
+  }
+
+  const sentenceEnds = '。！？!?\n';
+  const closers = '」』）)〉》】"’”';
+
+  /// The character at a point (viewport coordinates, as the tap reported it): its text node
+  /// and index, or null.
+  function characterAtPoint(x, y) {
+    const range = document.caretRangeFromPoint?.(x, y);
+    const node = range?.startContainer;
+    if (!node || node.nodeType !== Node.TEXT_NODE) return null;
+    for (const index of [range.startOffset, range.startOffset - 1]) {
+      if (index < 0 || index >= node.textContent.length) continue;
+      const one = document.createRange();
+      one.setStart(node, index);
+      one.setEnd(node, index + 1);
+      for (const r of one.getClientRects()) {
+        if (x >= r.left - 1 && x <= r.right + 1 && y >= r.top - 1 && y <= r.bottom + 1) return {node, index};
+      }
+    }
+    return {node, index: Math.min(range.startOffset, Math.max(node.textContent.length - 1, 0))};
+  }
+
+  /// The highlight at a point (its row id), if any.
+  function markAt(x, y) {
+    return characterAtPoint(x, y)?.node.parentElement?.closest('km-hl')?.dataset.id ?? null;
+  }
+
+  /// The sentence at a point, as Kavita keeps a highlight: {xpath, endXPath, text}.
+  function sentenceAt(x, y) {
+    const hit = characterAtPoint(x, y);
+    if (!hit) return null;
+    let runIndex = -1, offset = 0;
+    const runs = textRuns();
+    runs.some((run, index) => {
+      let position = 0;
+      for (const node of run.nodes) {
+        if (node === hit.node) { runIndex = index; offset = position + hit.index; return true; }
+        position += node.textContent.length;
+      }
+      return false;
+    });
+    const run = runs[runIndex];
+    if (!run) return null;
+    const text = run.nodes.map((node) => node.textContent).join('');
+    let start = Math.min(offset, text.length);
+    while (start > 0 && !sentenceEnds.includes(text[start - 1])) start--;
+    while (start < text.length && (/\s/.test(text[start]) || closers.includes(text[start]))) start++;
+    let end = Math.min(offset, text.length);
+    while (end < text.length && !sentenceEnds.includes(text[end])) end++;
+    while (end < text.length && (sentenceEnds.includes(text[end]) || closers.includes(text[end]))) end++;
+    if (end <= start) return null;
+    const nodeAt = (at) => {
+      let position = 0;
+      for (const node of run.nodes) {
+        if (at < position + node.textContent.length) return node;
+        position += node.textContent.length;
+      }
+      return run.nodes[run.nodes.length - 1];
+    };
+    return {xpath: xpathTo(container(nodeAt(start))), endXPath: xpathTo(container(nodeAt(end - 1))), text: text.slice(start, end)};
+  }
+
+  /// The first words on screen (a bookmark's title), and the place for it.
+  function pageStart() {
+    const place = firstVisiblePlace();
+    const run = textRuns()[place.run];
+    const text = run ? run.nodes.map((node) => node.textContent).join('').slice(place.offset).trim() : '';
+    return {xpath: currentXPath(), text: text.slice(0, 40)};
+  }
+
   window.bookReader = {open, update, repaint, next, previous, follow, currentXPath, resolveXPath, xpathTo, audit,
     highlight, clearHighlight,
     wordRuns, markWords, unmarkWords,
+    marks: {show: showUserMarks, sentenceAt, markAt, pageStart},
     readAlong: {show: showReadAlong, clear: clearReadAlong, split: () => readAlongSplit, advance: advanceReadAlong, lastTap: () => lastTap, xpathOfRun, firstVisiblePlace},
     pageCount: () => state.pages.length, page: () => state.page};
 })();

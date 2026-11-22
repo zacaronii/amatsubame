@@ -161,17 +161,35 @@ public struct ReaderMarkStore: Sendable {
 
     // MARK: Changes made here (each one queued for the server)
 
-    /// Adds a mark and queues it. Returns the row.
+    /// Adds a mark and queues it. Returns the row. Bookmarking a page again while its removal
+    /// is still waiting takes that same row back, so there's never a removal and a make of the
+    /// same bookmark in the queue at once (a retried removal could go after the make).
     @discardableResult
     public func add(_ mark: ReaderMark, outbox: OutboxStore) throws -> ReaderMark {
         var mark = mark
-        mark.id = nil
-        mark.serverId = nil
-        mark.state = .pendingCreate
-        mark.revision = 0
-        mark.createdAt = now()
-        mark.updatedAt = mark.createdAt
-        try database.writer.write { try mark.insert($0) }
+        let now = now()
+        mark = try database.writer.write { db in
+            if mark.kind != .highlight, let key = mark.serverKey,
+               var waiting = try ReaderMark.filter(Column("account") == mark.account && Column("kind") == mark.kind
+                                                   && Column("chapterId") == mark.chapterId && Column("state") == ReaderMark.State.pendingDelete)
+                   .fetchAll(db).first(where: { $0.serverKey == key }) {
+                waiting.state = .pendingCreate
+                waiting.text = mark.text ?? waiting.text
+                waiting.xpath = mark.xpath ?? waiting.xpath
+                waiting.revision += 1
+                waiting.updatedAt = now
+                try waiting.update(db)
+                return waiting
+            }
+            mark.id = nil
+            mark.serverId = nil
+            mark.state = .pendingCreate
+            mark.revision = 0
+            mark.createdAt = now
+            mark.updatedAt = now
+            try mark.insert(db)
+            return mark
+        }
         try queue(mark, outbox: outbox)
         return mark
     }
@@ -230,9 +248,22 @@ public struct ReaderMarkStore: Sendable {
         }
     }
 
-    /// Once the server no longer has it (or it never got there), the row goes.
-    public func didRemove(_ id: Int64) throws {
-        _ = try database.writer.write { try ReaderMark.deleteOne($0, key: id) }
+    /// Once the server no longer has it (or it never got there), the row goes, unless it was
+    /// taken back meanwhile (bookmarked again): then its own job makes it again.
+    public func didRemove(_ sent: ReaderMark) throws {
+        guard let id = sent.id else { return }
+        try database.writer.write { db in
+            guard let row = try ReaderMark.fetchOne(db, key: id), row.revision == sent.revision || row.state == .pendingDelete else { return }
+            try row.delete(db)
+        }
+    }
+
+    /// Queues again the unsent marks of a kind (annotations found available after all).
+    public func requeueUnsent(_ kind: ReaderMark.Kind, account: String, outbox: OutboxStore) throws {
+        let marks = try database.reader.read {
+            try ReaderMark.filter(Column("account") == account && Column("kind") == kind && Column("state") != ReaderMark.State.synced).fetchAll($0)
+        }
+        for mark in marks { try queue(mark, outbox: outbox) }
     }
 
     // MARK: What the server can do
@@ -243,15 +274,19 @@ public struct ReaderMarkStore: Sendable {
         }
     }
 
-    /// Records what the server answered. When it can't do a kind of mark, the unsent marks of
-    /// that kind go: they'd never get there.
-    public func setAvailable(_ available: Bool, _ feature: KavitaFeature, account: String) throws {
+    /// Records what the server answered. Unsent page bookmarks go when the account can't keep
+    /// them (nothing typed is lost). Unsent highlights stay, with their notes, shown as not on
+    /// Kavita yet: they're queued again when the server is found to have annotations (`outbox`).
+    public func setAvailable(_ available: Bool, _ feature: KavitaFeature, account: String, outbox: OutboxStore? = nil) throws {
+        let wasAvailable = try isAvailable(feature, account: account)
         try database.writer.write { db in
             try KavitaFeatureRecord(account: account, feature: feature, available: available, checkedAt: now()).save(db)
-            guard !available else { return }
-            let kind: ReaderMark.Kind = feature == .annotations ? .highlight : .pageBookmark
-            try ReaderMark.filter(Column("account") == account && Column("kind") == kind && Column("state") != ReaderMark.State.synced)
-                .deleteAll(db)
+            guard !available, feature == .pageBookmarks else { return }
+            try ReaderMark.filter(Column("account") == account && Column("kind") == ReaderMark.Kind.pageBookmark
+                                  && Column("state") != ReaderMark.State.synced).deleteAll(db)
+        }
+        if available, !wasAvailable, feature == .annotations, let outbox {
+            try requeueUnsent(.highlight, account: account, outbox: outbox)
         }
     }
 

@@ -187,7 +187,7 @@ struct SeriesDetailView: View {
     @ViewBuilder private var volumesAndReadAlong: some View {
         if let contents {
             volumes(contents)
-            ReaderMarksSection(series: series, contents: contents) { chapter, page in open(chapter, at: page) }
+            ReaderMarksSection(series: series, contents: contents) { chapter, mark in open(chapter, at: mark) }
             if series.isEpub, environment.serverAccounts[.audiobookshelf] != nil {
                 ReadAlongSection(series: series, volumes: readAlongVolumes(contents))
             }
@@ -521,11 +521,11 @@ struct SeriesDetailView: View {
         return "\(chapter.pages) pages"
     }
 
-    /// From a bookmark: the manga opens at its page (books open the volume).
-    private func open(_ chapter: KavitaChapter, at page: Int) {
+    /// From a bookmark or highlight: opens at its page (and in a book, its place on the page).
+    private func open(_ chapter: KavitaChapter, at mark: ReaderMark) {
         guard let contents else { return }
         session = ReaderSession(chapter: contents.readerChapter(chapter, series: series), series: series, contents: contents,
-                                startPage: series.isEpub ? nil : page)
+                                startPage: mark.page, startXPath: mark.xpath)
     }
 
     private func open(_ chapter: KavitaChapter) {
@@ -557,7 +557,13 @@ struct SeriesDetailView: View {
                     + refreshed.specials.reduce(0) { $0 + min($1.pagesRead, $1.pages) }
                 series.pagesRead = read
                 // Bookmarks and highlights made elsewhere (Kavita's own reader, another device).
-                let chapters = (refreshed.readingOrder + refreshed.specials).map { refreshed.readerChapter($0, series: series) }
+                // Book bookmarks are listed per volume: only the volumes started (here or in Kavita).
+                // And the volumes with a bookmark on this device (made, or kept from before).
+                let saved = environment.readerMarkAccount().flatMap { try? environment.readerMarks.marks(account: $0, seriesId: series.id) }
+                let marked = Set((saved ?? []).map(\.chapterId))
+                let chapters = (refreshed.readingOrder + refreshed.specials)
+                    .filter { $0.pagesRead > 0 || local[$0.id] != nil || marked.contains($0.id) }
+                    .map { refreshed.readerChapter($0, series: series) }
                 try? await environment.refreshMarks(seriesId: series.id, libraryId: series.libraryId, isBook: series.isEpub,
                                                     chapters: chapters.map { (chapterId: $0.chapterId, volumeId: $0.volumeId) })
             }

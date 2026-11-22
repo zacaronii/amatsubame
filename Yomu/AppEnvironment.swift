@@ -129,7 +129,9 @@ final class AppEnvironment {
                 let makeKavita = Self.kavitaClientFactory(accounts: context.accounts, secrets: context.secrets, http: context.http)
                 // Bookmarks and highlights live on Kavita; UI tests can send them without progress.
                 let markHandlers: [any OutboxHandler] = (sendsMarks ?? sendsProgress)
-                    ? [KavitaReaderMarkHandler(store: marks, makeClient: makeKavita)] : []
+                    ? [KavitaReaderMarkHandler(store: marks, account: { [accounts = context.accounts] in
+                        (try? accounts.account(.kavita)).flatMap { $0 }.map(ReaderMarkStore.accountKey)
+                    }, makeClient: makeKavita)] : []
                 guard sendsProgress else { return markHandlers }
                 let audiobookshelf = AudioServers.audiobookshelfClientFactory(accounts: context.accounts, tokens: tokens, http: context.http)
                 return [
@@ -441,7 +443,7 @@ final class AppEnvironment {
         syncNow()
     }
 
-    func makeBookReader(_ chapter: ReaderChapter, next: ReaderChapter?) -> BookReaderModel {
+    func makeBookReader(_ chapter: ReaderChapter, next: ReaderChapter?, start: (page: Int, xpath: String?)? = nil) -> BookReaderModel {
         let makeKavita = Self.kavitaClientFactory(accounts: accounts, secrets: secrets, http: http)
         let http = http
         let model = BookReaderModel(
@@ -459,6 +461,15 @@ final class AppEnvironment {
         )
         model.activity = common.activity
         model.lengths = bookLengths
+        model.opensAt = start
+        if let account = readerMarkAccount() {
+            model.marks = BookMarks(chapter: chapter, account: account, store: readerMarks, outbox: outbox,
+                                    syncNow: { [weak self] in self?.syncNow() },
+                                    refresh: { [weak self] in
+                                        try? await self?.refreshMarks(seriesId: chapter.seriesId, libraryId: chapter.libraryId, isBook: true,
+                                                                      chapters: [(chapterId: chapter.chapterId, volumeId: chapter.volumeId)])
+                                    })
+        }
         #if DEBUG
         model.auditsPages = ProcessInfo.processInfo.environment["UITEST_BOOK_AUDIT"] != nil
         #endif

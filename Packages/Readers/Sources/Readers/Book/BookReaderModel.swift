@@ -92,6 +92,8 @@ public final class BookReaderModel {
                 web?.clearHighlight()
                 companion?.clearHighlight()
                 if oldValue != nil { readAlong?.lookupClosed() }
+                tappedHighlight = nil
+                tappedSentence = nil
             }
         }
     }
@@ -99,6 +101,18 @@ public final class BookReaderModel {
     public private(set) var toast: String?
 
     public let lookup: LookupService?
+    /// Highlights, notes and bookmarks on Kavita; nil without a Kavita account.
+    public var marks: BookMarks? {
+        didSet { marks?.onChange = { [weak self] in self?.showMarks() } }
+    }
+    /// Opens here instead of the reading position (a bookmark or highlight picked in the series).
+    public var opensAt: (page: Int, xpath: String?)?
+    /// The place on screen (Kavita's XPath), for bookmarks.
+    public private(set) var currentXPath: String?
+    /// The highlight the looked-up word is in, while the popup is open.
+    public private(set) var tappedHighlight: ReaderMark?
+    /// The highlight whose note is being written.
+    public var editingNote: ReaderMark?
     let repository: BookRepository
     private let settingsStore: BookReaderSettingsStore
     private let progressStore: ReadingProgressStore
@@ -175,7 +189,8 @@ public final class BookReaderModel {
         }
         let local = try? progressStore.progress(chapterId: chapter.chapterId)
         let server = await quickServerProgress()
-        let start = ProgressSyncPolicy.startPosition(local: local, server: server, pages: sectionCount)
+        var start = ProgressSyncPolicy.startPosition(local: local, server: server, pages: sectionCount)
+        if let opensAt { start = (min(max(opensAt.page, 0), max(sectionCount - 1, 0)), opensAt.xpath) }
         recorder.start(at: start.page, scrollId: start.scrollId)
         state = .ready
         open(section: start.page, at: Self.startPlace(start, local: local, index: textIndex))
@@ -349,6 +364,7 @@ public final class BookReaderModel {
                 companion?.run("window.bookReader?.follow(\(sectionPage + 1))")
             }
             Task { await markWords() }
+            showMarks()
             if let cue = readAlongCue, cue.section == spineIndex {
                 companion?.run("window.bookReader?.readAlong.show(\(cue.run), \(cue.offset), \(cue.length), false)")
             }
@@ -382,6 +398,7 @@ public final class BookReaderModel {
             let readBefore = charactersRead
             sectionPage = page
             sectionPages = max(pages, 1)
+            currentXPath = xpath.isEmpty ? nil : xpath
             isVertical = vertical
             // The page's count of this section, scaled to the precomputed one (they can differ
             // slightly; contents pages count as nothing).
@@ -430,6 +447,7 @@ public final class BookReaderModel {
             }
         case .ready:
             Task { await markWords() }
+            showMarks()
             // Read-along: the cue waiting for this section, or the current one shown again.
             if let pending = pendingReadAlong, pending.cue.section == spineIndex {
                 pendingReadAlong = nil
@@ -494,6 +512,10 @@ public final class BookReaderModel {
         Task {
             // Read the tap's place in the runs first: the lookup highlight splits text nodes.
             let place = readAlong == nil ? nil : await tapPlace(in: source)
+            // And the sentence for a highlight, and the highlight it's in: the section can lay
+            // out again while the popup opens, and the point would then be somewhere else.
+            let sentence = marks == nil ? nil : await object(source, "window.bookReader.marks.sentenceAt(\(rect.midX), \(rect.midY))")
+            let inMark = marks == nil ? nil : await source.evaluate("window.bookReader.marks.markAt(\(rect.midX), \(rect.midY))") as? String
             let page = await lookup.lookup(text: text, utf16Offset: offset)
             // Nothing there to look up: like a tap that missed a word, it closes an open popup.
             guard let length = page.results.first?.matched.utf16.count, length > 0 else { popup = nil; return }
@@ -508,6 +530,90 @@ public final class BookReaderModel {
                 context.sentenceClip = readAlong.sentenceAudio(section: place.section, run: place.run, offset: place.offset)
             }
             popup = LookupPopupModel(page: page, context: context)
+            tappedSource = onCompanion
+            tappedSentence = sentence
+            tappedHighlight = marks?.highlights.first { $0.id.map(String.init) == inMark }
+        }
+    }
+
+    // MARK: Highlights and bookmarks
+
+    /// Which page the open popup's word is on (the facing page's, or this one's), and where.
+    private var tappedSource = false
+    /// The sentence the looked-up word is in, as Kavita keeps a highlight ({xpath, endXPath, text}).
+    private var tappedSentence: [String: Any]?
+
+    /// Draws the volume's highlights on the section each page shows.
+    func showMarks() {
+        func payload(_ section: Int?) -> String {
+            let list: [[String: Any]] = (marks?.highlights ?? []).filter { $0.page == section }.compactMap { mark in
+                guard let id = mark.id, let xpath = mark.xpath, let text = mark.text else { return nil }
+                return ["id": id, "xpath": xpath, "endXPath": mark.endXPath ?? xpath, "text": text, "color": BookMarks.color(mark.slot)]
+            }
+            return BookWebController.json(list)
+        }
+        web?.run("window.bookReader?.marks.show(\(payload(spineIndex)))")
+        if let companion, let section = companionSection { companion.run("window.bookReader?.marks.show(\(payload(section)))") }
+        // The popup's highlight follows its row (a colour or note changed).
+        if let tapped = tappedHighlight { tappedHighlight = marks?.highlights.first { $0.id == tapped.id } }
+    }
+
+    /// Highlights the sentence the looked-up word is in, or changes its highlight's colour.
+    public func highlightTapped(slot: Int) {
+        guard let marks else { return }
+        if let tapped = tappedHighlight {
+            marks.edit(tapped, note: tapped.note, slot: slot)
+            return
+        }
+        let section = tappedSource ? (companionSection ?? spineIndex) : spineIndex
+        guard let place = tappedSentence, let xpath = place["xpath"] as? String, let text = place["text"] as? String,
+              !text.isEmpty else { return }
+        tappedHighlight = marks.addHighlight(page: section, xpath: xpath, endXPath: place["endXPath"] as? String ?? xpath,
+                                             text: text, slot: slot)
+    }
+
+    /// Writes a note on the looked-up word's highlight (highlighting its sentence first).
+    public func noteOnTapped() {
+        guard let marks else { return }
+        if let tapped = tappedHighlight {
+            editingNote = tapped
+            return
+        }
+        let section = tappedSource ? (companionSection ?? spineIndex) : spineIndex
+        guard let place = tappedSentence, let xpath = place["xpath"] as? String, let text = place["text"] as? String,
+              !text.isEmpty else { return }
+        tappedHighlight = marks.addHighlight(page: section, xpath: xpath, endXPath: place["endXPath"] as? String ?? xpath,
+                                             text: text, slot: 0)
+        editingNote = tappedHighlight
+    }
+
+    public func removeTappedHighlight() {
+        guard let tapped = tappedHighlight else { return }
+        marks?.remove(tapped)
+        tappedHighlight = nil
+    }
+
+    /// An object from the page, passed as JSON (as `tapPlace` does).
+    private func object(_ source: BookWebController?, _ script: String) async -> [String: Any]? {
+        guard let json = await source?.evaluate("JSON.stringify(\(script) ?? null)") as? String else { return nil }
+        return (try? JSONSerialization.jsonObject(with: Data(json.utf8))) as? [String: Any]
+    }
+
+    /// The bookmark at the place on screen.
+    public var currentBookmark: ReaderMark? { marks?.bookmark(page: spineIndex, xpath: currentXPath) }
+
+    /// Bookmarks the place on screen, or removes its bookmark.
+    public func toggleBookmark() {
+        guard let marks, let web else { return }
+        let page = spineIndex, xpath = currentXPath
+        if marks.bookmark(page: page, xpath: xpath) != nil {
+            marks.toggleBookmark(page: page, xpath: xpath, text: "")
+            return
+        }
+        Task {
+            let start = await object(web, "window.bookReader.marks.pageStart()")
+            let text = (start?["text"] as? String).map { String($0.prefix(24)) } ?? ""
+            marks.toggleBookmark(page: page, xpath: xpath ?? (start?["xpath"] as? String), text: text)
         }
     }
 
