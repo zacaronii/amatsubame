@@ -118,6 +118,18 @@ struct PlayerView: View {
                     .accessibilityIdentifier("player.markToast")
             }
         }
+        // With a keyboard: [ and ] step the speed (← → the lines, M marks, T the transcript, Space plays).
+        .background {
+            Group {
+                Button("Slower") { model.stepSpeed(-1) }.keyboardShortcut("[", modifiers: [])
+                Button("Faster") { model.stepSpeed(1) }.keyboardShortcut("]", modifiers: [])
+                Button("Replay Line") { model.replayLine() }.keyboardShortcut("r", modifiers: [])
+            }
+            .opacity(0)
+            .accessibilityHidden(true)
+        }
+        // A tick in the hand when a mark is made.
+        .sensoryFeedback(.success, trigger: environment.lastMark?.id)
         .task(id: environment.lastMark?.id) {
             guard let mark = environment.lastMark, mark.key == model.key, Date.now.timeIntervalSince(mark.createdAt) < 2 else { return }
             withAnimation { markToast = "Marked \(mark.time.clockText)" }
@@ -209,6 +221,7 @@ struct PlayerView: View {
                 Image(systemName: "bookmark").font(.title3).frame(width: 36, height: 36)
             }
             .buttonStyle(.plain)
+            .keyboardShortcut("m", modifiers: [])
             .accessibilityLabel("Mark")
             .accessibilityIdentifier("player.mark")
             moreMenu
@@ -240,6 +253,20 @@ struct PlayerView: View {
                 }
             } label: {
                 Label(sleepTitle, systemImage: "moon.zzz")
+            }
+            if model.transcript == .ready, !model.sentences.isEmpty {
+                // How the lines play and read.
+                Menu {
+                    Toggle("Pause After Each Line", isOn: Binding(get: { model.pausesAfterLines }, set: { model.setPausesAfterLines($0) }))
+                    Toggle("Repeat the Line", isOn: Binding(get: { model.repeatsLine }, set: { model.repeatsLine = $0 }))
+                    Picker("Text Size", selection: Binding(get: { model.transcriptScale }, set: { model.setTranscriptScale($0) })) {
+                        ForEach(ListenSettings.transcriptScales, id: \.scale) { Text($0.name).tag($0.scale) }
+                    }
+                    .pickerStyle(.menu)
+                } label: {
+                    Label("Lines", systemImage: "text.alignleft")
+                }
+                .accessibilityIdentifier("player.linesMenu")
             }
             if model.transcript == .ready, let source = model.transcriptSource {
                 // What made the transcript, and asking Kaku for a fresh one (#149).
@@ -386,7 +413,7 @@ struct PlayerView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 4) {
                     ForEach(model.sentences, id: \.position) { sentence in
-                        SentenceRow(sentence: sentence, isCurrent: sentence.position == model.currentIndex,
+                        SentenceRow(sentence: sentence, isCurrent: sentence.position == model.currentIndex, scale: model.transcriptScale,
                                     marks: common.wordMarks.marks(for: TappableLine.sentence(sentence.text)),
                                     highlighted: model.lookup.highlightedRange(for: String(sentence.position)),
                                     onTime: { model.play(from: sentence) },
@@ -442,6 +469,10 @@ struct PlayerView: View {
                             if abs(Double(model.audio.rate) - speed) < 0.01 { Label(Self.speedText(speed), systemImage: "checkmark") } else { Text(Self.speedText(speed)) }
                         }
                     }
+                    Divider()
+                    // A fast talker at 0.9×, an easy show at 1.25×: this one keeps its own.
+                    Toggle(model.entry.isBook ? "Only for This Book" : "Only for This Show",
+                           isOn: Binding(get: { model.usesShowSpeed }, set: { model.setUsesShowSpeed($0) }))
                 } label: {
                     Text(Self.speedText(Double(model.audio.rate)))
                         .font(.subheadline.weight(.semibold).monospacedDigit())
@@ -452,6 +483,7 @@ struct PlayerView: View {
                 .accessibilityLabel("Speed")
                 Spacer()
                 lineButton(model.sentences.isEmpty ? "gobackward.15" : "backward.end.fill", label: "Previous line") { model.previousLine() }
+                    .keyboardShortcut(.leftArrow, modifiers: [])
                     .accessibilityIdentifier("player.previousLine")
                 Spacer()
                 Button { model.audio.toggle() } label: {
@@ -475,6 +507,7 @@ struct PlayerView: View {
                 .accessibilityIdentifier("player.playPause")
                 Spacer()
                 lineButton(model.sentences.isEmpty ? "goforward.30" : "forward.end.fill", label: "Next line") { model.nextLine() }
+                    .keyboardShortcut(.rightArrow, modifiers: [])
                     .accessibilityIdentifier("player.nextLine")
                 Spacer()
                 // Like Music's lyrics button: the transcript, or the artwork.
@@ -486,6 +519,7 @@ struct PlayerView: View {
                         .background(model.showsTranscript ? AnyShapeStyle(.tint) : AnyShapeStyle(.quaternary), in: .capsule)
                 }
                 .buttonStyle(.plain)
+                .keyboardShortcut("t", modifiers: [])
                 .accessibilityLabel("Transcript")
                 .accessibilityValue(model.showsTranscript ? "On" : "Off")
                 .accessibilityIdentifier("player.transcript")
@@ -514,6 +548,8 @@ struct PlayerView: View {
 private struct SentenceRow: View {
     let sentence: AudioSentence
     let isCurrent: Bool
+    /// Settings' text size (1 = standard).
+    var scale: Double = 1
     let marks: [Int: WordMarkState]
     let highlighted: Range<Int>?
     let onTime: () -> Void
@@ -529,7 +565,7 @@ private struct SentenceRow: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Play from \(sentence.start.clockText)")
             .accessibilityIdentifier("player.lineTime")
-            TappableLine(text: sentence.text, highlighted: highlighted, marks: marks, fontSize: isCurrent ? 24 : 19,
+            TappableLine(text: sentence.text, highlighted: highlighted, marks: marks, fontSize: (isCurrent ? 24 : 19) * scale,
                          alignment: .leading, onTap: onTap)
                 .fontWeight(isCurrent ? .bold : .regular)
         }

@@ -21,6 +21,14 @@ enum TranscriptFollow {
         return line.start
     }
 
+    /// Pause After Each Line and Repeat Line: the line that has just ended at `time`, when
+    /// `previous` was the line playing a moment ago (it ends before the next begins, or as it does).
+    static func lineJustEnded(at time: Double, previous: Int?, in sentences: [AudioSentence]) -> Int? {
+        guard let previous, sentences.indices.contains(previous), time >= sentences[previous].end else { return nil }
+        // Not after a jump far past it.
+        return time - sentences[previous].end < 2 ? previous : nil
+    }
+
     /// How far into a line "previous" restarts it rather than going back one.
     static let restartAfter = 2.0
 

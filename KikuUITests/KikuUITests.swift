@@ -176,6 +176,53 @@ final class KikuPlayerPullUITests: XCTestCase {
     }
 }
 
+/// More ▸ Lines: Pause After Each Line stops playback as each line ends; Text Size changes the transcript.
+final class KikuLinesMenuUITests: XCTestCase {
+    func testPauseAfterEachLineAndTextSize() {
+        let app = XCUIApplication()
+        app.launchEnvironment = ["UITEST_KIKU": "1", "UITEST_KIKU_PLAYER": "1"]
+        app.launch()
+        let playPause = app.buttons["player.playPause"]
+        XCTAssertTrue(playPause.waitForExistence(timeout: 10))
+        func item(_ title: String) -> XCUIElement {
+            app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", title)).firstMatch
+        }
+        app.buttons["More"].tap()
+        app.buttons["player.linesMenu"].firstMatch.tap()
+        XCTAssertTrue(item("Pause After Each Line").waitForExistence(timeout: 5))
+        XCTAssertTrue(item("Repeat the Line").exists)
+        item("Pause After Each Line").tap()
+
+        playPause.tap()
+        XCTAssertEqual(playPause.value as? String, "playing")
+        let paused = expectation(for: NSPredicate(format: "value == 'paused'"), evaluatedWith: playPause)
+        wait(for: [paused], timeout: 15)
+        XCTAssertTrue(app.descendants(matching: .any)["player.currentLine"].exists, "stopped on a line")
+        // Play again: on to the next line, then stopped again.
+        playPause.tap()
+        let again = expectation(for: NSPredicate(format: "value == 'paused'"), evaluatedWith: playPause)
+        wait(for: [again], timeout: 15)
+
+        // Off again (it's remembered), and a larger text size.
+        app.buttons["More"].tap()
+        app.buttons["player.linesMenu"].firstMatch.tap()
+        item("Pause After Each Line").tap()
+        app.buttons["More"].tap()
+        app.buttons["player.linesMenu"].firstMatch.tap()
+        item("Text Size").tap()
+        item("Extra Large").tap()
+        sleep(1)
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "extra large lines"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        app.buttons["More"].tap()
+        app.buttons["player.linesMenu"].firstMatch.tap()
+        item("Text Size").tap()
+        item("Medium").tap()
+    }
+}
+
 /// The lookup's bottom panel: a slow pull on its handle shrinks it and lets go closed, never
 /// up to the full height (it used to rubber-band and could end as a flick up).
 final class KikuLookupPanelUITests: XCTestCase {

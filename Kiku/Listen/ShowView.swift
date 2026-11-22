@@ -106,7 +106,7 @@ struct ShowView: View {
         .toolbar {
             if let show {
                 ToolbarItem {
-                    Button("Download Ahead", systemImage: "arrow.down.circle.dotted") { editsAutoDownload = true }
+                    Button("Download Ahead and Playback", systemImage: "slider.horizontal.3") { editsAutoDownload = true }
                         .accessibilityIdentifier("show.autoDownload")
                 }
             }

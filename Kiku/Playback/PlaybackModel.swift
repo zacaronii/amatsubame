@@ -82,6 +82,7 @@ final class PlaybackModel: Identifiable, LineLookupHost {
     @ObservationIgnored let episodeAudio: EpisodeAudio
 
     init(entry: EpisodeEntry, environment: KikuEnvironment) {
+        show = ShowListenSetting.load(environment.common.database, itemId: entry.itemId)
         self.entry = entry
         self.environment = environment
         episodeAudio = EpisodeAudio(entry: entry)
@@ -103,7 +104,9 @@ final class PlaybackModel: Identifiable, LineLookupHost {
         }
         let settings = ListenSettings.load(environment.common.database)
         showsTranscript = settings.showsTranscript
-        audio.rate = Float(settings.speed)
+        transcriptScale = settings.transcriptScale
+        pausesAfterLines = settings.pausesAfterLines
+        audio.rate = Float(show.speed ?? settings.speed)
         audio.skipIntervals = (settings.skipBackward, settings.skipForward)
     }
 
@@ -115,6 +118,8 @@ final class PlaybackModel: Identifiable, LineLookupHost {
         var position = time ?? LocalWatchProgress.resumePosition(
             local: local, server: entry.progress?.currentTime, serverDate: entry.progress?.updatedAt)
         if time == nil, entry.isFinished || (entry.duration > 0 && position > entry.duration - 5) { position = 0 }
+        // From the top: past the show's jingle.
+        if time == nil, position == 0, show.skipStart > 0, entry.duration > show.skipStart + 30 { position = show.skipStart }
         var autoplay = autoplay
         // Not in the car: the question is a dialog on the phone, and the car would stay silent.
         if time == nil, !Self.playsInCar, let choice = Self.resumeChoice(local: local, entry: entry, position: position, autoplay: autoplay,
@@ -382,8 +387,67 @@ final class PlaybackModel: Identifiable, LineLookupHost {
 
     func setSpeed(_ speed: Double) {
         audio.rate = Float(speed)
+        if show.speed != nil {
+            // This show keeps its own.
+            show.speed = speed
+            try? show.save(environment.common.database)
+        } else {
+            var settings = ListenSettings.load(environment.common.database)
+            settings.speed = speed
+            try? settings.save(environment.common.database)
+        }
+    }
+
+    /// The next speed up or down the menu's list ([ and ] on a keyboard).
+    func stepSpeed(_ step: Int) {
+        let speeds = ListenSettings.speeds
+        let current = speeds.enumerated().min { abs($0.element - Double(audio.rate)) < abs($1.element - Double(audio.rate)) }?.offset ?? 2
+        setSpeed(speeds[min(max(current + step, 0), speeds.count - 1)])
+    }
+
+    /// The line playing again from its start (R on a keyboard).
+    func replayLine() {
+        guard let currentIndex, sentences.indices.contains(currentIndex) else { return }
+        audio.seek(to: sentences[currentIndex].start)
+        if !audio.isPlaying { audio.play() }
+    }
+
+    /// Whether this show (or book) keeps its own speed, apart from everything else.
+    var usesShowSpeed: Bool { show.speed != nil }
+
+    func setUsesShowSpeed(_ own: Bool) {
+        show.speed = own ? Double(audio.rate) : nil
+        try? show.save(environment.common.database)
+        if !own { audio.rate = Float(ListenSettings.load(environment.common.database).speed) }
+    }
+
+    // MARK: Lines: size, pausing, repeating
+
+    /// The transcript's text size (Settings keeps it).
+    private(set) var transcriptScale: Double = 1
+    /// Stop at the end of every line until play is pressed (kept), or play the line over and
+    /// over (until switched off or another line is chosen).
+    private(set) var pausesAfterLines = false
+    var repeatsLine = false
+    /// The line last paused after, so play doesn't pause on it again.
+    @ObservationIgnored private var handledLine: Int?
+    @ObservationIgnored private var endedEarly = false
+    /// This show's own speed and skips.
+    @ObservationIgnored private var show: ShowListenSetting
+
+    func setTranscriptScale(_ scale: Double) {
+        transcriptScale = scale
         var settings = ListenSettings.load(environment.common.database)
-        settings.speed = speed
+        settings.transcriptScale = scale
+        try? settings.save(environment.common.database)
+    }
+
+    func setPausesAfterLines(_ on: Bool) {
+        pausesAfterLines = on
+        handledLine = nil
+        if on { repeatsLine = false }
+        var settings = ListenSettings.load(environment.common.database)
+        settings.pausesAfterLines = on
         try? settings.save(environment.common.database)
     }
 
@@ -461,6 +525,25 @@ final class PlaybackModel: Identifiable, LineLookupHost {
 
     private func tick(_ time: Double) {
         let index = TranscriptFollow.index(at: time, in: sentences)
+        // Repeat Line, then Pause After Each Line, as the line playing ends.
+        if audio.isPlaying, repeatsLine || pausesAfterLines,
+           let ended = TranscriptFollow.lineJustEnded(at: time, previous: currentIndex, in: sentences) {
+            if repeatsLine {
+                audio.seek(to: sentences[ended].start)
+                return
+            } else if handledLine != ended {
+                handledLine = ended
+                audio.pause()
+            }
+        }
+        if let handledLine, sentences.indices.contains(handledLine), time < sentences[handledLine].start { self.handledLine = nil }
+        // The show's sign-off: finished here, as if it had played out.
+        if show.skipEnd > 0, !endedEarly, audio.isPlaying, audio.duration > show.skipEnd + 30, time >= audio.duration - show.skipEnd {
+            endedEarly = true
+            audio.pause()
+            finished()
+            return
+        }
         if index != currentIndex { currentIndex = index }
         if audio.isPlaying, let lastTick {
             let step = time - lastTick
