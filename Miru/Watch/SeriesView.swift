@@ -282,10 +282,14 @@ struct SeriesView: View {
             Text("Each is the original file, often 1–2 GB. They wait for Wi-Fi unless cellular downloads are on in Settings.")
             #endif
         }
-        .refreshable { await loadEpisodes() }
+        .refreshable {
+            // The seasons too, if they never arrived (or every season's episodes come as one list).
+            if seasons.isEmpty { await loadSeasons() } else { await loadEpisodes() }
+        }
         .task { await loadSeasons() }
         .task { await loadDetails() }
-        .onChange(of: seasonId) { Task { await loadEpisodes() } }
+        // Cancelled when another season is picked, so a slow answer can't land under the wrong one.
+        .task(id: seasonId) { if seasonId != nil { await loadEpisodes() } }
         .onReceive(NotificationCenter.default.publisher(for: .playbackDidClose)) { _ in
             Task {
                 await loadEpisodes()
@@ -403,8 +407,11 @@ struct SeriesView: View {
         guard series.type == "Series", let client = environment.jellyfinClient() else { return }
         isLoading = true
         defer { isLoading = false }
+        let season = seasonId
         do {
-            episodes = try await client.episodes(seriesId: series.id, seasonId: seasonId)
+            let loaded = try await client.episodes(seriesId: series.id, seasonId: season)
+            guard season == seasonId else { return }
+            episodes = loaded
             error = nil
         } catch {
             guard !error.isCancellation else { return }

@@ -871,7 +871,7 @@ struct PlaybackView: View {
     /// The last episode (or a movie) ended: similar series to try next.
     private var endCard: some View {
         VStack(spacing: 14) {
-            Text("That\u{2019}s the last episode").font(.headline)
+            Text(model.endsSeries ? "That\u{2019}s the last episode" : "The End").font(.headline)
             if !model.suggestions.isEmpty {
                 Text("You might like").font(.subheadline).foregroundStyle(.secondary)
                 HStack(alignment: .top, spacing: 14) {

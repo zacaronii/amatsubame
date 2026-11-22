@@ -112,6 +112,8 @@ public final class MPVController {
         mpv_set_option_string(mpv, "start", String(format: "%.3f", max(start, 0)))
         reachedEnd = false
         hasStarted = false
+        // One video's failure isn't the next one's.
+        lastError = nil
         isBuffering = false
         bufferPercent = nil
         setLoop(start: nil, end: nil)

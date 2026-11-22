@@ -64,6 +64,8 @@ final class PlaybackModel {
     @ObservationIgnored private var upNextCancelled = false
     @ObservationIgnored private var countdownTask: Task<Void, Never>?
     @ObservationIgnored private var hasNoNext = false
+    /// The end card follows a show's last episode (not a movie).
+    private(set) var endsSeries = true
     @ObservationIgnored private var askedForSuggestions = false
     static let upNextSeconds: Double = 10
     #if DEBUG
@@ -174,6 +176,8 @@ final class PlaybackModel {
     @ObservationIgnored private var lastSaved = Date.distantPast
     /// The play session as Jellyfin last heard of it: started (not stopped yet), when and where.
     @ObservationIgnored private var sessionStarted = false
+    /// Where this video was asked to start (its resume point), until it's playing.
+    @ObservationIgnored private var startPosition: Double = 0
     @ObservationIgnored private var lastReported = Date.distantPast
     /// The item's streams, to report which audio and subtitle tracks are playing.
     @ObservationIgnored private var mediaStreams: [JellyfinMediaStream] = []
@@ -258,8 +262,11 @@ final class PlaybackModel {
             error = "Sign in to Jellyfin in Settings."
             return
         }
+        // Another episode may be asked for while this one is still being fetched (Next pressed
+        // twice): what comes back late belongs to nothing on screen.
+        let opening = session.itemId
         isOpening = true
-        defer { isOpening = false }
+        defer { if session.itemId == opening { isOpening = false } }
         var item: JellyfinItem
         var source: JellyfinMediaSource?
         do {
@@ -277,6 +284,7 @@ final class PlaybackModel {
             item = saved.item
             playSessionId = nil
         }
+        guard session.itemId == opening else { return }
         guard let sourceId = source?.id ?? saved?.mediaSourceId else {
             error = "Jellyfin has no playable file for this item."
             return
@@ -306,6 +314,7 @@ final class PlaybackModel {
                      headers: client.playbackHeaders, start: start)
         }
         session.startAt = nil
+        startPosition = start
         mpv.setPaused(false)
         lastSaved = Date()
         lastTime = nil
@@ -345,7 +354,9 @@ final class PlaybackModel {
         } else {
             loadSavedSubtitles(itemId: item.id)
         }
-        segments = await segmentsTask.value
+        let loaded = await segmentsTask.value
+        guard self.item?.id == item.id else { return }
+        segments = loaded
         updateSegment()
         await resolveUpNext(client: client, item: item)
     }
@@ -375,6 +386,7 @@ final class PlaybackModel {
             upNext = next.map(UpNext.init) ?? UpNext(itemId: nextId, title: "Next episode")
         }
         hasNoNext = session.following.isEmpty
+        endsSeries = item.isEpisode
         updateUpNext()
     }
 
@@ -532,6 +544,9 @@ final class PlaybackModel {
         item = nil
         error = nil
         subtitles = nil
+        // …and the timing keys' copy of them, or they'd bring the last episode's lines back.
+        unshiftedSubtitles = nil
+        subtitleOffset = 0
         subtitleState = .loading
         lines.close()
         await open()
@@ -548,6 +563,8 @@ final class PlaybackModel {
         subtitleState = .loading
         do {
             let text = try await client.subtitleText(itemId: item.id, mediaSourceId: sourceId, index: stream.index)
+            // The next episode was started meanwhile: these lines aren't its.
+            guard self.item?.id == item.id else { return }
             let track = SubtitleTrack(srt: text)
             subtitles = track
             unshiftedSubtitles = track
@@ -561,6 +578,7 @@ final class PlaybackModel {
                     lines: TranscriptLines.mergingBuildUps(track.cues.map { ($0.start, $0.end, $0.text) }))
             }
         } catch {
+            guard self.item?.id == item.id else { return }
             // Offline: fall back to a saved copy.
             loadSavedSubtitles(itemId: item.id, failure: error.localizedDescription)
         }
@@ -1312,6 +1330,13 @@ final class PlaybackModel {
     private func saveProgress(_ event: JellyfinProgressPayload.Event) {
         guard let item else { return }
         lastSaved = Date()
+        // Nothing has played yet (still loading, or the stream failed): mpv's time reads 0, or the
+        // last episode's. Saving it would wipe the resume point, or put the next episode near
+        // its end. Only close the session, where it started.
+        guard mpv.hasStarted else {
+            if event == .stopped, sessionStarted { report(.stopped, position: startPosition) }
+            return
+        }
         let duration = mpv.duration > 0 ? mpv.duration : item.duration ?? 0
         let position = mpv.reachedEnd ? duration : mpv.timePosition
         try? environment.watchProgress.save(LocalWatchProgress(
