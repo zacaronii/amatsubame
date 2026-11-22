@@ -673,6 +673,15 @@ public final class BookReaderModel {
         readingSpeed.flatMap { ActivityLog.timeLeft(characters: totalCharacters - charactersRead, speed: $0) }
     }
 
+    /// "~12 min" to the end of the chapter (the contents entry) being read, at the same speed;
+    /// nil when the book has no chapters, or the chapter's end is the book's.
+    public var chapterTimeLeft: String? {
+        guard let speed = readingSpeed, let package,
+              let left = textIndex.charactersLeftInChapter(read: charactersRead, section: spineIndex, chapterStarts: package.toc.map(\.spineIndex)),
+              left < totalCharacters - charactersRead else { return nil }
+        return ActivityLog.timeLeft(characters: left, speed: speed)?.replacingOccurrences(of: " left", with: " in chapter")
+    }
+
     private func updateReadingSpeed() {
         readingSpeed = (try? activity?.readingSpeed(seriesKey: String(chapter.seriesId))) ?? nil
     }

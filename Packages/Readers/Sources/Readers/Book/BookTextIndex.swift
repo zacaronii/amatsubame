@@ -14,6 +14,16 @@ public struct BookTextIndex: Codable, Equatable, Sendable {
         sections.prefix(max(0, min(index, sections.count))).reduce(0, +)
     }
 
+    /// Characters from `read` to the end of the chapter being read: the contents entry the
+    /// section on screen belongs to, up to where the next entry starts (`chapterStarts`: each
+    /// entry's section). Nil when the book has no chapters to tell apart.
+    public func charactersLeftInChapter(read: Int, section: Int, chapterStarts: [Int]) -> Int? {
+        let starts = Set(chapterStarts).sorted()
+        guard starts.count > 1 else { return nil }
+        let end = starts.first { $0 > section }.map { start(of: $0) } ?? total
+        return max(end - read, 0)
+    }
+
     static let filename = ".characters-v3.json"
 
     /// Characters read when Kavita says `pagesRead` of `pages`: everything before the

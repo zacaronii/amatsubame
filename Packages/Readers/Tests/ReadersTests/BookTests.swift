@@ -319,4 +319,15 @@ enum TestEpub {
         model.flushProgress()
         #expect(try outbox.summary().pending == 1)
     }
+
+    /// Time left in the chapter counts to where the next contents entry starts.
+    @Test func charactersLeftInTheChapter() {
+        // Sections of 100 characters; chapters start at sections 0, 2 and 5.
+        let index = BookTextIndex(sections: Array(repeating: 100, count: 6))
+        #expect(index.charactersLeftInChapter(read: 130, section: 1, chapterStarts: [0, 2, 5]) == 70)
+        #expect(index.charactersLeftInChapter(read: 250, section: 2, chapterStarts: [0, 2, 2, 5]) == 250, "to section 5")
+        #expect(index.charactersLeftInChapter(read: 560, section: 5, chapterStarts: [0, 2, 5]) == 40, "the last chapter ends with the book")
+        #expect(index.charactersLeftInChapter(read: 130, section: 1, chapterStarts: [0]) == nil, "one chapter: nothing to tell apart")
+        #expect(index.charactersLeftInChapter(read: 130, section: 1, chapterStarts: []) == nil)
+    }
 }

@@ -181,12 +181,12 @@ public struct BookReaderView: View {
         }
     }
 
-    /// Hoshi-style progress: percentage, characters read of the whole book, and time left at
-    /// this reader's speed ("0.5% · 433 / 93,540 字 · ~6 h left").
+    /// Hoshi-style progress: percentage, characters read of the whole book, and time left in the
+    /// chapter and the book at this reader's speed ("0.5% · 433 / 93,540 字 · ~12 min in chapter · ~6 h left").
     private var progressLine: some View {
         // Rounded down, like the series page.
         let percent = model.progressFraction.formatted(.percent.precision(.fractionLength(model.progressFraction < 0.1 ? 1 : 0)).rounded(rule: .down))
-        let parts = [percent, "\(model.charactersRead.formatted()) / \(model.totalCharacters.formatted()) 字", model.timeLeft]
+        let parts = [percent, "\(model.charactersRead.formatted()) / \(model.totalCharacters.formatted()) 字", model.chapterTimeLeft, model.timeLeft]
         return Text(parts.compactMap(\.self).joined(separator: " · "))
             .font(.caption2)
             .monospacedDigit()

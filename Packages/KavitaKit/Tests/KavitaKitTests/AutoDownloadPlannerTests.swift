@@ -61,4 +61,18 @@ import Testing
         #expect(contents.readingFurther([:]) == contents)
         #expect(contents.readingFurther([11: 500]).volumes[1].chapters[0].pagesRead == 100, "never past the end")
     }
+
+    /// Mark as Read / Unread shows at once, and this device's newer place wins outright.
+    @Test func markingReadOrUnreadShowsAtOnce() {
+        let contents = Self.series(2, read: [100, 50])
+        let marked = contents.settingPagesRead([10: 0, 11: 100])
+        #expect(marked.volumes.map { $0.chapters[0].pagesRead } == [0, 100])
+        #expect(marked.volumes.map(\.pagesRead) == [0, 100])
+        // Kavita still says read (dated earlier); this device marked it unread since.
+        var dated = contents
+        dated.volumes[0].chapters[0].lastReadingProgressUtc = Date(timeIntervalSince1970: 1000)
+        #expect(dated.readingFurther([10: 0], updated: [10: Date(timeIntervalSince1970: 2000)]).volumes[0].chapters[0].pagesRead == 0)
+        #expect(dated.readingFurther([10: 0], updated: [10: Date(timeIntervalSince1970: 500)]).volumes[0].chapters[0].pagesRead == 100,
+                "Kavita's is newer: read elsewhere since")
+    }
 }

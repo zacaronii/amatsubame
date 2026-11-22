@@ -366,6 +366,7 @@ struct SeriesDetailView: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
+            readMenu(volume.chapters)
             if let single {
                 let title = single.displayTitle(in: volume)
                 if let record = environment.downloader.records[single.id] {
@@ -403,6 +404,31 @@ struct SeriesDetailView: View {
         HStack(spacing: 8) {
             chapterButton(chapter, title: title)
             ChapterDownloadButton(chapter: chapter, series: series, title: title)
+        }
+        .contextMenu { readMenu([chapter]) }
+    }
+
+    /// Mark as Read / Mark as Unread for a volume's chapters (or one chapter): for something read
+    /// in print or elsewhere, or to start one over.
+    @ViewBuilder private func readMenu(_ chapters: [KavitaChapter]) -> some View {
+        if !chapters.isEmpty {
+            if chapters.contains(where: { !$0.isRead }) {
+                Button("Mark as Read", systemImage: "checkmark.circle") { setRead(chapters, true) }
+            }
+            if chapters.contains(where: { $0.pagesRead > 0 }) {
+                Button("Mark as Unread", systemImage: "circle") { setRead(chapters, false) }
+            }
+        }
+    }
+
+    private func setRead(_ chapters: [KavitaChapter], _ read: Bool) {
+        environment.setRead(chapters, series: series, read)
+        // On the page at once (Kavita follows through the outbox).
+        contents = contents?.settingPagesRead(Dictionary(chapters.map { ($0.id, read ? $0.pages : 0) }, uniquingKeysWith: max))
+        for chapter in chapters { localProgress[chapter.id] = try? environment.readingProgress.progress(chapterId: chapter.id) }
+        if let contents {
+            series.pagesRead = contents.readingOrder.reduce(0) { $0 + min($1.pagesRead, $1.pages) }
+                + contents.specials.reduce(0) { $0 + min($1.pagesRead, $1.pages) }
         }
     }
 
@@ -508,16 +534,16 @@ struct SeriesDetailView: View {
         let repository = environment.kavitaLibrary
         // What was read on this device counts too (manga read offline, or not sent yet), so the
         // rings, "Page x of y", Finished marks and Continue follow it at once.
-        let local = Dictionary(((try? environment.readingProgress.progress(seriesId: series.id)) ?? []).map {
-            ($0.chapterId, ProgressSyncPolicy.pageNum(forPage: $0.page, pages: $0.pages))
-        }, uniquingKeysWith: max)
+        let saved = (try? environment.readingProgress.progress(seriesId: series.id)) ?? []
+        let local = Dictionary(saved.map { ($0.chapterId, ProgressSyncPolicy.pageNum(forPage: $0.page, pages: $0.pages)) }, uniquingKeysWith: max)
+        let updated = Dictionary(saved.map { ($0.chapterId, $0.updatedAt) }, uniquingKeysWith: max)
         if let cached = try? repository.cachedVolumes(seriesId: series.id), !cached.isEmpty {
-            contents = KavitaSeriesContents(volumes: cached).readingFurther(local)
+            contents = KavitaSeriesContents(volumes: cached).readingFurther(local, updated: updated)
         }
         guard let client = environment.kavitaClient() else { return }
         do {
             contents = KavitaSeriesContents(volumes: try await repository.refreshVolumes(seriesId: series.id, using: client))
-                .readingFurther(local)
+                .readingFurther(local, updated: updated)
             if let refreshed = contents {
                 let read = refreshed.readingOrder.reduce(0) { $0 + min($1.pagesRead, $1.pages) }
                     + refreshed.specials.reduce(0) { $0 + min($1.pagesRead, $1.pages) }
