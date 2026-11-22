@@ -11,6 +11,18 @@ import Testing
         #expect(!LookupOverlayPlacement.usesBottomPanel(window.size))
     }
 
+    /// The bottom panel's handle: the finger's direction decides, speed only helps a short flick.
+    @Test func aPullDownIsNeverAFlickUp() {
+        #expect(LookupOverlayPlacement.panelDrag(translation: 120, predicted: 300) == .shorter)
+        #expect(LookupOverlayPlacement.panelDrag(translation: 20, predicted: 160) == .shorter, "a short flick down")
+        #expect(LookupOverlayPlacement.panelDrag(translation: 90, predicted: -200) == .shorter, "pulled down, a wobble up at the end")
+        #expect(LookupOverlayPlacement.panelDrag(translation: -60, predicted: -200) == .taller)
+        #expect(LookupOverlayPlacement.panelDrag(translation: -15, predicted: -90) == .taller, "a short flick up")
+        #expect(LookupOverlayPlacement.panelDrag(translation: -70, predicted: 150) == .taller, "pulled up, a wobble down at the end")
+        #expect(LookupOverlayPlacement.panelDrag(translation: 5, predicted: 400) == .stay, "barely moved")
+        #expect(LookupOverlayPlacement.panelDrag(translation: 20, predicted: 30) == .stay)
+    }
+
     @Test func belowTheWordWhenItFits() {
         let word = CGRect(x: 300, y: 100, width: 40, height: 30)
         let card = LookupOverlayPlacement.cardFrame(anchor: word, in: window)
