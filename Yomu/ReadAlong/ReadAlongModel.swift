@@ -84,9 +84,13 @@ final class ReadAlongModel: BookReadAlongHost {
             }
         }
         guard let source else {
-            problem = "Sign in to Audiobookshelf in Settings, or download the audio, to read along."
+            // Signed in but no answer: the server, not the sign-in.
+            problem = client == nil ? "Sign in to Audiobookshelf in Settings, or download the audio, to read along."
+                : "Couldn\u{2019}t reach Audiobookshelf. Turn read-along off and on to try again, or download the audio."
             return
         }
+        // Switched off while the audio was being found: nothing starts (and the next time loads afresh).
+        guard isOn else { return }
         let local = try? environment.listenProgress.progress(itemId: key)
         let server = try? await client?.progress(itemId: pair.itemId, episodeId: "")
         let listened = LocalWatchProgress.resumePosition(local: local, server: server?.currentTime, serverDate: server?.updatedAt)

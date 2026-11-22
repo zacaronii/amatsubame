@@ -155,6 +155,11 @@ struct LibraryView: View {
         }
         .task(id: environment.serverAccounts[.kavita]?.baseURL) { await model.load(environment) }
         .onAppear { model.loadToday(environment) }
+        .onReceive(NotificationCenter.default.publisher(for: .refreshLibrary)) { _ in Task { await model.load(environment) } }
+        // The network came back: no longer "Offline: showing downloaded series" until a manual refresh.
+        .onChange(of: environment.common.reachability.isOnline) { _, online in
+            if online { Task { await model.load(environment) } }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .readerDidClose)) { _ in
             model.loadToday(environment)
             // Continue Reading and the shelves' progress too, once the outbox has sent what was read

@@ -22,6 +22,8 @@ extension FocusedValues {
 extension Notification.Name {
     /// Posted when a reader closes so series screens can refresh progress.
     static let readerDidClose = Notification.Name("readerDidClose")
+    /// View ▸ Refresh (⌘R) on the Mac, which has no pull to refresh: the library screens load again.
+    static let refreshLibrary = Notification.Name("refreshLibrary")
 }
 
 /// Hosts the manga or book reader and swaps chapters in place when "Read next" is tapped.
