@@ -66,4 +66,21 @@ import Testing
         #expect(!FileManager.default.fileExists(atPath: downloader.directory.appending(path: meta.file).path()))
         #expect(try environment.common.downloads.download(kind: .jellyfinItem, itemKey: "E1") == nil)
     }
+
+    /// Offline, Up Next comes from the downloads: the same show's later episodes, in order.
+    @Test func theNextDownloadedEpisodesOfTheShow() throws {
+        func episode(_ id: String, series: String?, _ season: Int?, _ number: Int?) throws -> DownloadedEpisode {
+            var fields = [#""itemId": "\#(id)""#, #""name": "\#(id)""#, #""type": "Episode""#, #""mediaSourceId": "m""#, #""file": "\#(id).mkv""#]
+            if let series { fields.append(#""seriesId": "\#(series)""#) }
+            if let season { fields.append(#""season": \#(season)"#) }
+            if let number { fields.append(#""episode": \#(number)"#) }
+            return try JSONDecoder().decode(DownloadedEpisode.self, from: Data("{\(fields.joined(separator: ", "))}".utf8))
+        }
+        let current = try episode("s1e2", series: "show", 1, 2)
+        let downloads = [try episode("s2e1", series: "show", 2, 1), try episode("s1e1", series: "show", 1, 1), current,
+                         try episode("s1e4", series: "show", 1, 4), try episode("other", series: "other", 1, 3),
+                         try episode("movie", series: nil, nil, nil)]
+        #expect(EpisodeDownloader.episodes(after: current, in: downloads).map(\.itemId) == ["s1e4", "s2e1"])
+        #expect(EpisodeDownloader.episodes(after: try episode("movie", series: nil, nil, nil), in: downloads).isEmpty)
+    }
 }

@@ -9,7 +9,12 @@ extension MediaSegmentStore {
                       itemId: itemId)
             return fresh
         }
-        return ((try? segments(itemId: itemId)) ?? []).compactMap { saved in
+        return saved(itemId: itemId)
+    }
+
+    /// The ones saved the last time Jellyfin answered (or with the download).
+    func saved(itemId: String) -> [JellyfinMediaSegment] {
+        ((try? segments(itemId: itemId)) ?? []).compactMap { saved in
             JellyfinMediaSegment.Kind(rawValue: saved.kind).map { JellyfinMediaSegment(kind: $0, start: saved.start, end: saved.end) }
         }
     }

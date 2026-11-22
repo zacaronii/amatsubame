@@ -59,7 +59,9 @@ struct JapaneseAudioOnlySection: View {
     var body: some View {
         Section {
             if libraries.isEmpty {
-                Text(environment.jellyfinClient() == nil ? "Sign in to Jellyfin to choose libraries." : "Loading libraries…")
+                Text(environment.jellyfinClient() == nil ? "Sign in to Jellyfin to choose libraries."
+                     : state == .loading ? "Loading libraries…"
+                     : state == .failed ? "Couldn\u{2019}t reach Jellyfin." : "No libraries are shown in Miru.")
                     .foregroundStyle(.secondary)
             }
             ForEach(libraries) { library in
@@ -77,7 +79,15 @@ struct JapaneseAudioOnlySection: View {
         }
         .task {
             guard let client = environment.jellyfinClient() else { return }
-            libraries = ((try? await client.views()) ?? []).filter { !environment.hiddenLibraries.contains($0.id) }
+            guard let views = try? await client.views() else {
+                state = .failed
+                return
+            }
+            libraries = views.filter { !environment.hiddenLibraries.contains($0.id) }
+            state = .loaded
         }
     }
+
+    private enum LoadState { case loading, loaded, failed }
+    @State private var state = LoadState.loading
 }

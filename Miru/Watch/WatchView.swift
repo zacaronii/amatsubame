@@ -199,8 +199,8 @@ struct WatchView: View {
                         nextUpRows(nextUp)
                     }
                 }
-                if error != nil, !onDevice.isEmpty {
-                    // Jellyfin is unreachable: what can still be watched.
+                if error != nil || (isLoading && libraries.isEmpty), !onDevice.isEmpty {
+                    // Jellyfin is unreachable, or hasn't answered yet: what can be watched meanwhile.
                     section("On This Device") {
                         VStack(alignment: .leading, spacing: 12) {
                             ForEach(onDevice) { record in
@@ -222,7 +222,7 @@ struct WatchView: View {
             .padding()
         }
         .overlay {
-            if libraries.isEmpty && isLoading { ProgressView() }
+            if libraries.isEmpty && isLoading && onDevice.isEmpty { ProgressView() }
         }
         .refreshable {
             CoverLoader.recheck()
