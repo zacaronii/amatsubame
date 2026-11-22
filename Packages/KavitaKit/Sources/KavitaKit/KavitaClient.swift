@@ -118,6 +118,16 @@ public struct KavitaClient: Sendable {
         try await http.decode(KavitaSeries.self, from: request("api/Series/\(id)"), decoder: KavitaJSON.decoder)
     }
 
+    /// One series by id with Kavita's own bytes (what the library cache keeps).
+    public func seriesWithRaw(id: Int) async throws(ConnectionError) -> (KavitaSeries, raw: Data) {
+        let response = try await http.send(request("api/Series/\(id)"))
+        do {
+            return (try KavitaJSON.decoder.decode(KavitaSeries.self, from: response.data), raw: response.data)
+        } catch {
+            throw .unexpectedResponse(String(describing: error))
+        }
+    }
+
     /// The summary, genres and writers Kavita has for a series.
     public func seriesMetadata(seriesId: Int) async throws(ConnectionError) -> KavitaSeriesMetadata {
         try await http.decode(KavitaSeriesMetadata.self, from: request("api/Series/metadata", query: [

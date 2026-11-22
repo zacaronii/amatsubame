@@ -17,6 +17,8 @@ public enum OutboxJobKind: String, Codable, CaseIterable, Sendable, DatabaseValu
     case kavitaWantToRead
     /// A Kavita collection made or deleted, or a series added to or taken out of one (`CollectionJob`).
     case kavitaCollection
+    /// A Kavita reading list made or deleted, an item added or taken out, or a move (`ReadingListJob`).
+    case kavitaReadingList
 }
 
 public enum OutboxJobState: String, Codable, Sendable, DatabaseValueConvertible {
@@ -410,6 +412,19 @@ public struct OutboxStore: Sendable {
             .filter(Column("kind") == kind)
             .filter([OutboxJobState.pending.rawValue, OutboxJobState.inFlight.rawValue, OutboxJobState.failed.rawValue].contains(Column("state"))))
         return Set(keys.compactMap(\.self))
+    }
+
+    /// The coalesce keys of a kind's jobs still to be sent: waiting or being sent (not failed).
+    static func sendingKeys(_ db: Database, kind: OutboxJobKind) throws -> Set<String> {
+        Set(try String?.fetchAll(db, OutboxJob.select(Column("coalesceKey"))
+            .filter(Column("kind") == kind && [OutboxJobState.pending.rawValue, OutboxJobState.inFlight.rawValue].contains(Column("state"))))
+            .compactMap(\.self))
+    }
+
+    /// The coalesce keys of a kind's jobs waiting (not yet being sent).
+    static func pendingKeys(_ db: Database, kind: OutboxJobKind) throws -> Set<String> {
+        Set(try String?.fetchAll(db, OutboxJob.select(Column("coalesceKey"))
+            .filter(Column("kind") == kind && Column("state") == OutboxJobState.pending)).compactMap(\.self))
     }
 
     /// Deletes the unsent jobs with these coalesce keys, inside a write (a jobs' row removed with

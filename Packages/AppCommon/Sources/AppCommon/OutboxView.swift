@@ -299,6 +299,7 @@ extension OutboxJobKind {
         case .kavitaReaderMark: "Bookmarks and Highlights for Kavita"
         case .kavitaWantToRead: "Want to Read for Kavita"
         case .kavitaCollection: "Collections for Kavita"
+        case .kavitaReadingList: "Reading Lists for Kavita"
         }
     }
 
@@ -317,6 +318,7 @@ extension OutboxJobKind {
         case .kavitaReaderMark: ("bookmark or highlight", "bookmarks and highlights")
         case .kavitaWantToRead: ("Want to Read change", "Want to Read changes")
         case .kavitaCollection: ("collection change", "collection changes")
+        case .kavitaReadingList: ("reading list change", "reading list changes")
         }
         return "\(count) \(count == 1 ? one : many)"
     }
@@ -330,6 +332,8 @@ extension OutboxJobKind {
             "They won't reach the server, and at the next refresh this device shows Kavita's Want to Read again."
         case .kavitaCollection:
             "They won't reach the server, and at the next refresh this device shows Kavita's collections again: series added or removed here and collections made here that weren't sent go back to how Kavita has them."
+        case .kavitaReadingList:
+            "They won't reach the server, and at the next refresh this device shows Kavita's reading lists again: items added, taken out or moved here and lists made here that weren't sent go back to how Kavita has them."
         default:
             "They won't reach the server. The server keeps whatever it last had."
         }
@@ -349,6 +353,7 @@ extension OutboxJobKind {
         case .kavitaReaderMark: "Kavita bookmark or highlight"
         case .kavitaWantToRead: "Kavita Want to Read"
         case .kavitaCollection: "Kavita collection"
+        case .kavitaReadingList: "Kavita reading list"
         }
     }
 }

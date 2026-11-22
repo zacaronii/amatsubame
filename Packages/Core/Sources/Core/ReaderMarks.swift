@@ -107,6 +107,7 @@ public enum KavitaFeature: String, Codable, Sendable, DatabaseValueConvertible {
     case wantToRead
     /// Collections as Kavita 0.8.0 has them (own and promoted).
     case collections
+    case readingLists
 }
 
 struct KavitaFeatureRecord: Codable, FetchableRecord, PersistableRecord {

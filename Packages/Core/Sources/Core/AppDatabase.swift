@@ -971,6 +971,53 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v59_reading_lists") { db in
+            // Kavita's reading lists per account, their items, and moves not sent yet.
+            try db.create(table: "kavitaReadingList") { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("account", .text).notNull()
+                t.column("serverId", .integer)
+                t.column("title", .text).notNull()
+                t.column("isOwn", .boolean).notNull()
+                t.column("owner", .text)
+                t.column("promoted", .boolean).notNull()
+                t.column("isSynced", .boolean).notNull()
+                t.column("kavitaItemCount", .integer)
+                t.column("position", .integer).notNull()
+                t.column("state", .text).notNull()
+                t.column("createAttempts", .integer).notNull()
+                t.column("itemsReadAt", .datetime)
+                t.column("itemsStale", .boolean).notNull()
+                t.column("revision", .integer).notNull()
+                t.column("updatedAt", .datetime).notNull()
+            }
+            try db.create(index: "kavitaReadingList_account", on: "kavitaReadingList", columns: ["account"])
+            try db.create(table: "kavitaReadingListItem") { t in
+                t.column("listId", .integer).notNull().references("kavitaReadingList", onDelete: .cascade)
+                t.column("chapterId", .integer).notNull()
+                t.column("serverItemId", .integer)
+                t.column("seriesId", .integer).notNull()
+                t.column("volumeId", .integer).notNull()
+                t.column("libraryId", .integer).notNull()
+                t.column("format", .integer).notNull()
+                t.column("seriesName", .text).notNull()
+                t.column("title", .text).notNull()
+                t.column("kavitaOrder", .integer).notNull()
+                t.column("state", .text).notNull()
+                t.column("inKavita", .boolean).notNull()
+                t.column("revision", .integer).notNull()
+                t.column("updatedAt", .datetime).notNull()
+                t.primaryKey(["listId", "chapterId"])
+            }
+            try db.create(table: "kavitaReadingListMove") { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("listId", .integer).notNull().references("kavitaReadingList", onDelete: .cascade)
+                t.column("chapterId", .integer).notNull()
+                t.column("anchors", .text).notNull()
+                t.column("createdAt", .datetime).notNull()
+            }
+        }
+
         return migrator
     }
 }

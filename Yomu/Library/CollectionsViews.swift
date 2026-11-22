@@ -162,6 +162,11 @@ struct CollectionsSheet: View {
     /// Taking out a series that is, or may be, the last: asked first.
     @State private var removingLast: (collection: CollectionRow, sure: Bool)?
 
+    static func readOnlyReason(_ list: ReadingListRow) -> String? {
+        if !list.isOwn { return "Promoted by \(list.owner ?? "another user"): read-only." }
+        return list.isSynced ? "Synced from outside Kavita: change it there." : nil
+    }
+
     static func readOnlyReason(_ collection: CollectionRow) -> String? {
         if !collection.isOwn { return "Promoted by \(collection.owner ?? "another user"): read-only." }
         guard collection.source != 0 else { return nil }

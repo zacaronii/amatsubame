@@ -25,6 +25,8 @@ final class AppEnvironment {
     let wantToRead: WantToReadStore
     /// Kavita's collections, per account.
     let collections: CollectionStore
+    /// Kavita's reading lists, per account.
+    let readingLists: ReadingListStore
     let readingProgress: ReadingProgressStore
     let readerSettings: MangaReaderSettingsStore
     let ocrModels: OCRModelStore
@@ -125,6 +127,7 @@ final class AppEnvironment {
         let marks = ReaderMarkStore(database: database)
         let wants = WantToReadStore(database: database)
         let collectionStore = CollectionStore(database: database)
+        let readingListStore = ReadingListStore(database: database)
         let http = HTTPClient()
         let tokens = AudiobookshelfTokens(secrets: secrets)
         audiobookshelfTokens = tokens
@@ -141,6 +144,7 @@ final class AppEnvironment {
                     KavitaReaderMarkHandler(store: marks, account: signedIn, makeClient: makeKavita),
                     KavitaWantToReadHandler(store: wants, features: marks, account: signedIn, makeClient: makeKavita),
                     KavitaCollectionHandler(store: collectionStore, features: marks, outbox: OutboxStore(database: database), account: signedIn, makeClient: makeKavita),
+                    KavitaReadingListHandler(store: readingListStore, features: marks, outbox: OutboxStore(database: database), account: signedIn, makeClient: makeKavita),
                 ] : []
                 guard sendsProgress else { return markHandlers }
                 let audiobookshelf = AudioServers.audiobookshelfClientFactory(accounts: context.accounts, tokens: tokens, http: context.http)
@@ -161,6 +165,7 @@ final class AppEnvironment {
         readerMarks = marks
         wantToRead = wants
         collections = collectionStore
+        readingLists = readingListStore
         readAlongPairs = ReadAlongStore(database: database)
         bookLengths = BookLengths(database: database)
         listenProgress = WatchProgressStore(database: database)
@@ -488,6 +493,45 @@ final class AppEnvironment {
         try await collectionSync()?.membership(of: seriesId)
     }
 
+    // MARK: Reading lists
+
+    private func readingListSync() -> KavitaReadingListSync? {
+        guard let account = readerMarkAccount(), let client = kavitaClient() else { return nil }
+        let username = (try? accounts.account(.kavita)).flatMap { $0 }?.username
+        return KavitaReadingListSync(client: client, store: readingLists, features: readerMarks, account: account, username: username)
+    }
+
+    func refreshReadingLists() async throws {
+        try await readingListSync()?.refresh()
+    }
+
+    /// A list's items (when it's opened). False when Kavita no longer has it.
+    @discardableResult
+    func refreshItems(of list: ReadingListRow) async throws -> Bool {
+        try await readingListSync()?.items(of: list) ?? true
+    }
+
+    /// A reader session for a chapter of any series (a reading list's item): from the cache, or
+    /// fetched first. Throws why it can't open.
+    func session(chapterId: Int, seriesId: Int) async throws -> ReaderSession {
+        if let cached = session(chapterId: chapterId) { return cached }
+        guard let client = kavitaClient() else { throw ReaderOpenError.message("Kavita isn't set up.") }
+        do {
+            if try kavitaLibrary.cachedSeries(id: seriesId) == nil, try await !kavitaLibrary.rememberSeries(id: seriesId, using: client) {
+                throw ReaderOpenError.message("Its library isn't on this device yet: pull to refresh the Library, then try again.")
+            }
+            try await kavitaLibrary.refreshVolumes(seriesId: seriesId, using: client)
+        } catch let error as ReaderOpenError {
+            throw error
+        } catch {
+            throw ReaderOpenError.message("Couldn't reach Kavita, and it isn't on this device: \(error.localizedDescription)")
+        }
+        guard let session = session(chapterId: chapterId) else {
+            throw ReaderOpenError.message("Kavita no longer has it.")
+        }
+        return session
+    }
+
     /// Adds the series to Want to Read or removes it (sent to Kavita by the outbox).
     func setWantToRead(_ wanted: Bool, seriesId: Int) {
         guard let account = readerMarkAccount() else { return }
@@ -579,4 +623,10 @@ extension AppEnvironment {
         let contents = KavitaSeriesContents(volumes: volumes)
         return ReaderSession(chapter: contents.readerChapter(chapter, series: series), series: series, contents: contents)
     }
+}
+
+/// Why a reading list's item can't be opened.
+enum ReaderOpenError: LocalizedError {
+    case message(String)
+    var errorDescription: String? { switch self { case .message(let text): text } }
 }

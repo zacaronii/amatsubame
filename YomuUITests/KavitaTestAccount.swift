@@ -98,6 +98,31 @@ struct KavitaTestAccount {
         return result
     }
 
+    /// The test account's own reading lists, each with its items' chapters in order.
+    func readingLists() throws -> [Int: [Int]] {
+        var result: [Int: [Int]] = [:]
+        for list in try list(try call("POST", "api/ReadingList/lists", query: ["includePromoted": "false"], body: "{}"), "reading lists") {
+            guard let id = list["id"] as? Int else { throw UnexpectedAnswer(what: "a reading list's id") }
+            let items = try self.list(try call("GET", "api/ReadingList/items", query: ["readingListId": String(id)]), "a reading list's items")
+            result[id] = items.compactMap { $0["chapterId"] as? Int }
+        }
+        return result
+    }
+
+    func readingListTitles() throws -> [Int: String] {
+        var titles: [Int: String] = [:]
+        for list in try list(try call("POST", "api/ReadingList/lists", query: ["includePromoted": "false"], body: "{}"), "reading lists") {
+            guard let id = list["id"] as? Int, let title = list["title"] as? String else { throw UnexpectedAnswer(what: "a reading list") }
+            titles[id] = title
+        }
+        return titles
+    }
+
+    /// The pages read in a chapter (Kavita's progress), to check a test changed none.
+    func progress(chapterId: Int) throws -> Int {
+        try XCTUnwrap((try call("GET", "api/Reader/get-progress", query: ["chapterId": String(chapterId)]) as? [String: Any])?["pageNum"] as? Int)
+    }
+
     /// A series' id, found by its name.
     func seriesId(named name: String) throws -> Int {
         let found = try XCTUnwrap(try call("GET", "api/Search/search", query: ["queryString": name]) as? [String: Any], "the search")
@@ -140,7 +165,7 @@ struct KavitaTestAccount {
         Snapshot(account: self, bookSeries: bookSeries, annotations: Set(try annotations().compactMap { $0["id"] as? Int }),
                  pageBookmarks: Set(try pageBookmarks().compactMap { $0["id"] as? Int }),
                  bookBookmarks: Set(try bookSeries.map { try bookBookmarks(series: $0) } ?? []),
-                 wantToRead: try wantToRead(), collections: try collections())
+                 wantToRead: try wantToRead(), collections: try collections(), readingLists: try readingLists())
     }
 
     struct Snapshot {
@@ -151,6 +176,7 @@ struct KavitaTestAccount {
         let bookBookmarks: Set<BookBookmark>
         let wantToRead: Set<Int>
         let collections: [Int: Set<Int>]
+        let readingLists: [Int: [Int]]
 
         /// Removes the marks made since the snapshot. Returns what's still left over.
         @discardableResult
@@ -184,6 +210,13 @@ struct KavitaTestAccount {
             let made = try account.collectionTitles().filter { collections[$0.key] == nil && $0.value == KavitaTestAccount.testCollectionTitle }.map(\.key)
             if !made.isEmpty {
                 try account.call("POST", "api/Collection/delete-multiple", body: #"{"collectionIds":\#(made)}"#)
+            }
+            // Reading lists the same way.
+            let madeLists = try account.readingListTitles().filter { readingLists[$0.key] == nil && $0.value == KavitaTestAccount.testCollectionTitle }.map(\.key)
+            for id in madeLists { try account.call("DELETE", "api/ReadingList", query: ["readingListId": String(id)]) }
+            let listsNow = try account.readingLists()
+            if listsNow != readingLists {
+                return "reading lists differ from before the test: had \(readingLists.count) (items \(readingLists.values.map(\.count))), now \(listsNow.count) (items \(listsNow.values.map(\.count)))"
             }
             let now = try account.collections()
             if now != collections {
