@@ -302,8 +302,17 @@ public struct ReaderMarkStore: Sendable {
     public func merge(_ server: [ReaderMark], account: String, kinds: Set<ReaderMark.Kind>,
                       scope: (ReaderMark) -> Bool, outbox: OutboxStore) throws -> [ReaderMark] {
         let requeue: [ReaderMark] = try database.writer.write { db in
+            // A change whose job was cleared in Waiting to Sync ("they won't reach the server")
+            // no longer outranks the server's list: it's taken as what the server last had.
+            let queued = try OutboxStore.queuedKeys(db, kind: .kavitaReaderMark)
             let local = try ReaderMark.filter(Column("account") == account).fetchAll(db)
                 .filter { kinds.contains($0.kind) && scope($0) }
+                .map { mark in
+                    guard mark.state != .synced, let id = mark.id, !queued.contains(ReaderMarkJob(markId: id).coalesceKey) else { return mark }
+                    var settled = mark
+                    settled.state = .synced
+                    return settled
+                }
             let plan = ReaderMarkMerge.plan(local: local, server: server.filter { kinds.contains($0.kind) })
             for id in plan.delete { try ReaderMark.deleteOne(db, key: id) }
             for var mark in plan.save {

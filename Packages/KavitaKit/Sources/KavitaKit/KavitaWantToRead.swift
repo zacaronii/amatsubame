@@ -8,16 +8,21 @@ import Foundation
 // 0.7.5 already); older servers answer it 404.
 
 extension KavitaClient {
+    /// One page of the Want to Read list.
+    public func wantToReadPage(_ page: Int, pageSize: Int) async throws(ConnectionError) -> KavitaPage<(KavitaSeries, raw: Data)> {
+        let request = try jsonRequest("POST", "api/want-to-read/v2", query: [
+            URLQueryItem(name: "pageNumber", value: String(page)),
+            URLQueryItem(name: "pageSize", value: String(pageSize)),
+        ], body: SeriesFilter())
+        return try await paged(request)
+    }
+
     /// The whole Want to Read list, page by page, in Kavita's order.
     public func wantToRead(pageSize: Int = 100) async throws(ConnectionError) -> [(KavitaSeries, raw: Data)] {
         var all: [(KavitaSeries, raw: Data)] = []
         var page = 1
         while true {
-            let request = try jsonRequest("POST", "api/want-to-read/v2", query: [
-                URLQueryItem(name: "pageNumber", value: String(page)),
-                URLQueryItem(name: "pageSize", value: String(pageSize)),
-            ], body: SeriesFilter())
-            let result: KavitaPage<(KavitaSeries, raw: Data)> = try await paged(request)
+            let result = try await wantToReadPage(page, pageSize: pageSize)
             all += result.items
             // Without the Pagination header, a short page is the last.
             guard result.pagination.map({ $0.currentPage < $0.totalPages }) ?? (result.items.count == pageSize), page < 200 else { return all }
@@ -72,7 +77,7 @@ public struct KavitaWantToReadHandler: OutboxHandler {
             case .server(status: 404):
                 // Before Kavita 0.7.5 there's no Want to Read; only its list's own 404 decides it.
                 do {
-                    _ = try await client.wantToRead(pageSize: 1)
+                    _ = try await client.wantToReadPage(1, pageSize: 1)
                 } catch .server(status: 404) {
                     try features.setAvailable(false, .wantToRead, account: row.account)
                     try store.dropUnsent(account: row.account)
@@ -108,6 +113,8 @@ public struct KavitaWantToReadSync: Sendable {
     @discardableResult
     public func refresh() async throws -> [(KavitaSeries, raw: Data)]? {
         let listed: [(KavitaSeries, raw: Data)]
+        // Toggles Kavita takes while the list is on its way stay as they are.
+        let listedAt = Date()
         do {
             listed = try await client.wantToRead()
         } catch ConnectionError.server(status: 404) {
@@ -116,12 +123,13 @@ public struct KavitaWantToReadSync: Sendable {
             return nil
         }
         try features.setAvailable(true, .wantToRead, account: account)
-        try store.merge(listed.map(\.0.id), account: account)
+        try store.merge(listed.map(\.0.id), account: account, listedAt: listedAt)
         return listed
     }
 
     /// One series (the series page, when it opens).
     public func check(seriesId: Int) async throws {
-        try store.note(try await client.isWantToRead(seriesId: seriesId), seriesId: seriesId, account: account)
+        let askedAt = Date()
+        try store.note(try await client.isWantToRead(seriesId: seriesId), seriesId: seriesId, account: account, askedAt: askedAt)
     }
 }

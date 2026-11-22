@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 @testable import Core
 import Testing
 
@@ -40,7 +41,8 @@ import Testing
         try store.set(true, seriesId: 5, account: account, outbox: outbox)
         try store.didSend(try #require(try store.row(account: account, seriesId: 1)))
         try store.didSend(try #require(try store.row(account: account, seriesId: 5)))
-        #expect(try store.row(account: account, seriesId: 1) == nil)
+        #expect(try store.row(account: account, seriesId: 1)?.state == .removed, "kept as removed until a later list")
+        #expect(try store.wanted(account: account) == [5])
         #expect(try store.row(account: account, seriesId: 5)?.state == .synced)
     }
 
@@ -71,5 +73,64 @@ import Testing
         try store.dropUnsent(account: account)
         #expect(try store.wanted(account: account).isEmpty)
         #expect(try store.wanted(account: "https://other.example#someone") == [2])
+    }
+}
+
+/// Toggles whose job is gone (cleared in Waiting to Sync), and lists that were on their way
+/// while a toggle reached Kavita.
+@Suite struct WantToReadSettlingTests {
+    let account = "https://kavita.example#reader"
+
+    @Test func clearedTogglesFollowKavitaAgainBothWays() throws {
+        let database = try AppDatabase.inMemory()
+        let store = WantToReadStore(database: database), outbox = OutboxStore(database: database)
+        try store.merge([1, 2], account: account)
+        try store.set(false, seriesId: 1, account: account, outbox: outbox)
+        try store.set(true, seriesId: 3, account: account, outbox: outbox)
+        try store.merge([1, 2], account: account)
+        #expect(try store.wanted(account: account) == [3, 2], "while their jobs wait, the toggles stand")
+        _ = try outbox.cancelAll(kind: .kavitaWantToRead)
+        try store.merge([1, 2], account: account)
+        #expect(try store.wanted(account: account) == [1, 2], "cleared: Kavita's list again, both directions")
+        // The series page's check too.
+        try store.set(true, seriesId: 4, account: account, outbox: outbox)
+        _ = try outbox.cancelAll(kind: .kavitaWantToRead)
+        try store.note(false, seriesId: 4, account: account)
+        #expect(try !store.isWanted(account: account, seriesId: 4))
+    }
+
+    @Test func aFailedToggleStillListedStands() throws {
+        let database = try AppDatabase.inMemory()
+        let store = WantToReadStore(database: database), outbox = OutboxStore(database: database)
+        try store.set(true, seriesId: 3, account: account, outbox: outbox)
+        let job = try #require(try outbox.claimDueJobs(kinds: [.kavitaWantToRead], limit: 1).first?.job.id)
+        try outbox.markFailed(job, error: "refused")
+        try store.merge([], account: account)
+        #expect(try store.wanted(account: account) == [3])
+    }
+
+    @Test func aListFetchedBeforeATogglesSendDoesntUndoIt() throws {
+        let database = try AppDatabase.inMemory()
+        let clock = Mutex(Date(timeIntervalSince1970: 1_000))
+        let store = WantToReadStore(database: database, now: { clock.withLock { $0 } })
+        let outbox = OutboxStore(database: database)
+        try store.merge([5], account: account)
+        // The list is fetched (still with 5) ...
+        let listedAt = clock.withLock { $0 }
+        clock.withLock { $0 = $0.addingTimeInterval(1) }
+        // ... while 5's removal and 6's addition reach Kavita ...
+        try store.set(false, seriesId: 5, account: account, outbox: outbox)
+        try store.set(true, seriesId: 6, account: account, outbox: outbox)
+        try store.didSend(try #require(try store.row(account: account, seriesId: 5)))
+        try store.didSend(try #require(try store.row(account: account, seriesId: 6)))
+        _ = try outbox.cancelAll(kind: .kavitaWantToRead)
+        // ... and the older list arrives.
+        try store.merge([5], account: account, listedAt: listedAt)
+        #expect(try store.wanted(account: account) == [6], "neither undone")
+        // A list fetched afterwards settles them.
+        clock.withLock { $0 = $0.addingTimeInterval(1) }
+        try store.merge([6], account: account, listedAt: clock.withLock { $0 })
+        #expect(try store.wanted(account: account) == [6])
+        #expect(try store.row(account: account, seriesId: 5) == nil, "the removal's record goes")
     }
 }

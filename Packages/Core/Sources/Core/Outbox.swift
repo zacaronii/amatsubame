@@ -392,6 +392,15 @@ public struct OutboxStore: Sendable {
     /// Deletes every unsent job of a progress kind (Advanced ▸ Waiting to Sync ▸ Clear).
     /// Cards go through `MiningService.cancel`, which also removes their media.
     @discardableResult
+    /// The coalesce keys of a kind's jobs still to be sent (waiting, sending or failed and listed).
+    static func queuedKeys(_ db: Database, kind: OutboxJobKind) throws -> Set<String> {
+        let keys = try String?.fetchAll(db, OutboxJob
+            .select(Column("coalesceKey"))
+            .filter(Column("kind") == kind)
+            .filter([OutboxJobState.pending.rawValue, OutboxJobState.inFlight.rawValue, OutboxJobState.failed.rawValue].contains(Column("state"))))
+        return Set(keys.compactMap(\.self))
+    }
+
     public func cancelAll(kind: OutboxJobKind) throws -> Int {
         precondition(kind != .ankiNote, "cards are cancelled one by one with their media")
         return try database.writer.write { db in

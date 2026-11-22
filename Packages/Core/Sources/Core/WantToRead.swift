@@ -10,8 +10,11 @@ public struct WantToReadRow: Codable, Equatable, Sendable, FetchableRecord, Pers
         case synced
         /// Added here, not on Kavita yet.
         case pendingAdd
-        /// Removed here; the row goes once Kavita has removed it too.
+        /// Removed here, not on Kavita yet.
         case pendingRemove
+        /// Removed on Kavita by this device: kept until a list fetched after that no longer has it,
+        /// so an older list doesn't bring it back.
+        case removed
     }
 
     /// `ReaderMarkStore.accountKey` of the Kavita account.
@@ -22,9 +25,10 @@ public struct WantToReadRow: Codable, Equatable, Sendable, FetchableRecord, Pers
     public var position: Int
     /// Goes up with every toggle here, so a send that raced another toggle can tell.
     public var revision: Int
+    /// When it last changed here (a toggle, or Kavita taking one).
     public var updatedAt: Date
 
-    public var isWanted: Bool { state != .pendingRemove }
+    public var isWanted: Bool { state == .synced || state == .pendingAdd }
 }
 
 /// The outbox job that brings one series' Want to Read on Kavita up to date with its row.
@@ -60,7 +64,7 @@ public struct WantToReadStore: Sendable {
     }
 
     static func wanted(_ db: Database, account: String) throws -> [Int] {
-        let rows = try WantToReadRow.filter(Column("account") == account && Column("state") != WantToReadRow.State.pendingRemove).fetchAll(db)
+        let rows = try WantToReadRow.filter(Column("account") == account).fetchAll(db).filter(\.isWanted)
         let added = rows.filter { $0.state == .pendingAdd }.sorted { $0.updatedAt > $1.updatedAt }
         let listed = rows.filter { $0.state == .synced }.sorted { $0.position < $1.position }
         return (added + listed).map(\.seriesId)
@@ -79,7 +83,7 @@ public struct WantToReadStore: Sendable {
     public func set(_ wanted: Bool, seriesId: Int, account: String, outbox: OutboxStore) throws {
         let changed: Bool = try database.writer.write { db in
             var row = try WantToReadRow.fetchOne(db, key: ["account": account, "seriesId": seriesId])
-                ?? WantToReadRow(account: account, seriesId: seriesId, state: .pendingRemove, position: 0, revision: 0, updatedAt: now())
+                ?? WantToReadRow(account: account, seriesId: seriesId, state: .removed, position: 0, revision: 0, updatedAt: now())
             guard row.isWanted != wanted else { return false }
             row.state = wanted ? .pendingAdd : .pendingRemove
             row.revision += 1
@@ -92,30 +96,44 @@ public struct WantToReadStore: Sendable {
         try outbox.enqueue(job, kind: .kavitaWantToRead, coalesceKey: job.coalesceKey)
     }
 
-    /// After Kavita took the toggle. A toggle made meanwhile keeps its own state (its job follows).
+    /// After Kavita took the toggle. A toggle made meanwhile keeps its own state (its job
+    /// follows). Stamped, so a list fetched before this doesn't undo it.
     public func didSend(_ sent: WantToReadRow) throws {
         try database.writer.write { db in
-            guard let row = try WantToReadRow.fetchOne(db, key: ["account": sent.account, "seriesId": sent.seriesId]),
+            guard var row = try WantToReadRow.fetchOne(db, key: ["account": sent.account, "seriesId": sent.seriesId]),
                   row.revision == sent.revision else { return }
-            if row.state == .pendingRemove {
-                try row.delete(db)
-            } else {
-                var row = row
-                row.state = .synced
-                try row.update(db)
-            }
+            row.state = row.state == .pendingRemove ? .removed : .synced
+            row.updatedAt = now()
+            try row.update(db)
         }
     }
 
-    /// Kavita's whole list for the account, in its order. Unsent toggles stay as they are.
-    public func merge(_ seriesIds: [Int], account: String) throws {
+    /// Rows whose toggle still has a job waiting for it (`WantToReadJob.coalesceKey`: waiting,
+    /// sending, or failed and listed). A pending row without one (its job cleared in Waiting to
+    /// Sync) no longer outranks Kavita.
+    static func waiting(_ db: Database, _ rows: [WantToReadRow]) throws -> Set<Int> {
+        let pending = rows.filter { $0.state == .pendingAdd || $0.state == .pendingRemove }
+        guard !pending.isEmpty else { return [] }
+        let keys = try OutboxStore.queuedKeys(db, kind: .kavitaWantToRead)
+        return Set(pending.filter { keys.contains(WantToReadJob(account: $0.account, seriesId: $0.seriesId).coalesceKey) }.map(\.seriesId))
+    }
+
+    /// Kavita's whole list for the account, in its order, fetched at `listedAt`. Toggles still
+    /// waiting to be sent stay as they are, and so does a toggle Kavita took after the list was
+    /// fetched; everything else follows the list.
+    public func merge(_ seriesIds: [Int], account: String, listedAt: Date? = nil) throws {
         try database.writer.write { db in
-            let rows = try WantToReadRow.filter(Column("account") == account).fetchAll(db)
+            let rows = Dictionary(try WantToReadRow.filter(Column("account") == account).fetchAll(db).map { ($0.seriesId, $0) },
+                                  uniquingKeysWith: { first, _ in first })
             let listed = Dictionary(seriesIds.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
-            for row in rows where row.state == .synced && listed[row.seriesId] == nil { try row.delete(db) }
-            let pending = Set(rows.filter { $0.state != .synced }.map(\.seriesId))
-            for (seriesId, position) in listed where !pending.contains(seriesId) {
-                var row = rows.first { $0.seriesId == seriesId }
+            let waiting = try Self.waiting(db, Array(rows.values))
+            func kept(_ row: WantToReadRow) -> Bool {
+                waiting.contains(row.seriesId) || (row.state != .pendingAdd && row.state != .pendingRemove && listedAt.map { row.updatedAt > $0 } == true)
+            }
+            for row in rows.values where !kept(row) && listed[row.seriesId] == nil { try row.delete(db) }
+            for (seriesId, position) in listed {
+                if let row = rows[seriesId], kept(row) { continue }
+                var row = rows[seriesId]
                     ?? WantToReadRow(account: account, seriesId: seriesId, state: .synced, position: position, revision: 0, updatedAt: now())
                 row.position = position
                 row.state = .synced
@@ -124,15 +142,20 @@ public struct WantToReadStore: Sendable {
         }
     }
 
-    /// What Kavita says about one series (the series page asks when it opens), unless a toggle
-    /// of it is still to be sent.
-    public func note(_ wanted: Bool, seriesId: Int, account: String) throws {
+    /// What Kavita says about one series, asked at `askedAt` (the series page, when it opens),
+    /// unless a toggle of it is still waiting or was taken by Kavita since.
+    public func note(_ wanted: Bool, seriesId: Int, account: String, askedAt: Date? = nil) throws {
         try database.writer.write { db in
             let row = try WantToReadRow.fetchOne(db, key: ["account": account, "seriesId": seriesId])
-            guard row?.state ?? .synced == .synced else { return }
-            if wanted, row == nil {
-                try WantToReadRow(account: account, seriesId: seriesId, state: .synced, position: -1, revision: 0, updatedAt: now()).insert(db)
-            } else if !wanted, let row {
+            if let row {
+                if try !Self.waiting(db, [row]).isEmpty { return }
+                if row.state == .synced || row.state == .removed, let askedAt, row.updatedAt > askedAt { return }
+            }
+            if wanted {
+                var row = row ?? WantToReadRow(account: account, seriesId: seriesId, state: .synced, position: -1, revision: 0, updatedAt: now())
+                row.state = .synced
+                try row.save(db)
+            } else if let row {
                 try row.delete(db)
             }
         }

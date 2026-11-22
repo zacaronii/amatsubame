@@ -40,6 +40,8 @@ import Testing
         let series = try await client(transport).wantToRead(pageSize: 3)
         #expect(series.map(\.0.id) == [9, 11, 10])
         #expect(transport.requests.count == 2, "a full page asks for the next")
+        _ = try await client(transport).wantToReadPage(1, pageSize: 1)
+        #expect(transport.requests.count == 3, "a single page is one request")
         #expect(try transport.requests[0].jsonBody()["statements"] as? [Any] != nil)
     }
 
@@ -55,7 +57,8 @@ import Testing
         try setup.store.set(false, seriesId: 7, account: account, outbox: setup.outbox)
         try await send(7, setup, transport)
         #expect(transport.requests.last?.url?.path() == "/api/want-to-read/remove-series")
-        #expect(try setup.store.row(account: account, seriesId: 7) == nil)
+        #expect(try setup.store.isWanted(account: account, seriesId: 7) == false)
+        #expect(try setup.store.row(account: account, seriesId: 7)?.state == .removed)
     }
 
     @Test func anotherAccountsToggleWaits() async throws {
