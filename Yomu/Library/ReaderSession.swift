@@ -1,3 +1,4 @@
+import AppCommon
 import KavitaKit
 import Readers
 import SwiftUI
@@ -65,7 +66,22 @@ struct ReaderContainer: View {
         }
         .id("\(session.chapter.chapterId)-\(opened)")
         .onAppear { environment.readerIsOpen = true }
-        .onDisappear { environment.readerIsOpen = false }
+        .onDisappear {
+            environment.readerIsOpen = false
+            ScreenAwake.set(false, reason: "reading")
+        }
+        .task {
+            // The screen stays on while you read (a page of Japanese can take minutes), and may
+            // sleep again once nothing has moved for a while: a book left open isn't being read.
+            let opened = Date()
+            ScreenAwake.set(true, reason: "reading")
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(60))
+                guard !Task.isCancelled else { return }
+                let moved = (try? environment.readingProgress.progress(chapterId: session.chapter.chapterId))??.updatedAt ?? opened
+                ScreenAwake.set(ReaderContainer.staysAwake(lastMoved: max(moved, opened), now: Date()), reason: "reading")
+            }
+        }
         .onChange(of: environment.requestedReader) { _, requested in
             // A link while reading (Read in Yomu): the reader in front switches to it.
             guard let requested else { return }
@@ -81,6 +97,11 @@ struct ReaderContainer: View {
         #if os(macOS)
         .navigationTitle("\(session.chapter.seriesTitle) – \(session.chapter.title)")
         #endif
+    }
+
+    /// Awake for 15 minutes after the last page turn (or the reader opening).
+    static func staysAwake(lastMoved: Date, now: Date) -> Bool {
+        now.timeIntervalSince(lastMoved) < 15 * 60
     }
 
     private func closeReader() {

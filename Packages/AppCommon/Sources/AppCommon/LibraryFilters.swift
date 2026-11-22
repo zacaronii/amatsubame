@@ -116,3 +116,30 @@ public extension View {
     }
 }
 #endif
+
+#if os(iOS)
+public extension View {
+    /// iPhone and iPad: the same filter and sort as the Mac's toolbar, in one menu (there's no
+    /// room for a segmented control beside the title). The icon fills while a filter is on.
+    func libraryMenu(
+        filter: Binding<LibraryFilter>, sort: Binding<LibrarySort>, words: LibraryWords,
+        filters: [LibraryFilter] = LibraryFilter.allCases
+    ) -> some View {
+        toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Picker("Show", selection: filter) {
+                        ForEach(filters) { Text(words.title($0)).tag($0) }
+                    }
+                    Picker("Sort By", selection: sort) {
+                        ForEach(LibrarySort.allCases) { Text(words.title($0)).tag($0) }
+                    }
+                } label: {
+                    Label("Filter and Sort", systemImage: filter.wrappedValue == .all ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                }
+                .accessibilityIdentifier("library.filterMenu")
+            }
+        }
+    }
+}
+#endif
