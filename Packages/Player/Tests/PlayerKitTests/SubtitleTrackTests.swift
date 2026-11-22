@@ -60,4 +60,16 @@ import Testing
         #expect(track.lineBefore(2)?.id == 0)
         #expect(track.lineBefore(0.2) == nil)
     }
+
+    /// Pause After Each Line: just before a line ends, once per line, not under a line that carries on.
+    @Test func theLineAboutToEnd() {
+        let track = SubtitleTrack(cues: [SubtitleCue(id: 1, start: 1, end: 3, text: "一"), SubtitleCue(id: 2, start: 2.5, end: 5, text: "二"),
+                                         SubtitleCue(id: 3, start: 8, end: 9, text: "三")])
+        #expect(track.lineEnding(at: 2.0, within: 0.12, lastPaused: nil) == nil, "not near an end")
+        #expect(track.lineEnding(at: 2.95, within: 0.12, lastPaused: nil) == nil, "the second line carries on")
+        #expect(track.lineEnding(at: 4.9, within: 0.12, lastPaused: nil)?.text == "二")
+        #expect(track.lineEnding(at: 4.95, within: 0.12, lastPaused: 1) == nil, "already paused for it (ids run from 0)")
+        #expect(track.lineEnding(at: 6, within: 0.12, lastPaused: nil) == nil, "between lines")
+        #expect(track.lineEnding(at: 8.8, within: 0.24, lastPaused: 1)?.text == "三", "a wider window at higher speed")
+    }
 }

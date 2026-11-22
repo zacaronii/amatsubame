@@ -171,6 +171,10 @@ public struct PlayerSettings: Codable, Equatable, Sendable, FetchableRecord, Per
     public var autoSkipsIntros = false
     /// What a mined card's picture is: a still frame or the line as an animated GIF.
     public var cardPicture = CardPicture.screenshot
+    /// The playback speed last chosen (1 = normal), kept from one video to the next.
+    public var speed = 1.0
+    /// Pause at the end of every Japanese line (intensive listening), until play is pressed.
+    public var pausesAfterLines = false
 
     public enum CardPicture: String, Codable, CaseIterable, Sendable {
         case screenshot, animated

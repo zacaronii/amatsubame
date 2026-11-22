@@ -79,6 +79,14 @@ public struct SubtitleTrack: Equatable, Sendable {
     }
 
     /// The line to act on at `time`: the one showing, else the last one that ended.
+    /// Pause After Each Line: the line about to end at `time` (within `window` seconds of its
+    /// end), unless it's the one already paused for or another line carries on past it.
+    public func lineEnding(at time: Double, within window: Double, lastPaused: Int?) -> SubtitleCue? {
+        let showing = cues.filter { $0.start <= time && time < $0.end }
+        guard let last = showing.max(by: { $0.end < $1.end }), last.end - time <= window, last.id != lastPaused else { return nil }
+        return last
+    }
+
     public func currentOrPrevious(at time: Double) -> SubtitleCue? {
         cues(at: time).last ?? lastStarted(at: time).map { cues[$0] }
     }

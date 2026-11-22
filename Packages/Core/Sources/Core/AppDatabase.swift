@@ -816,6 +816,14 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v49_player_speed_and_line_pause") { db in
+            // Miru: the speed chosen in the player is kept, and Pause After Each Line (off by default).
+            try db.alter(table: "playerSettings") { t in
+                t.add(column: "speed", .double).notNull().defaults(to: 1)
+                t.add(column: "pausesAfterLines", .boolean).notNull().defaults(to: false)
+            }
+        }
+
         return migrator
     }
 }

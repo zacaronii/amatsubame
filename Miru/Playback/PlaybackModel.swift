@@ -211,6 +211,40 @@ final class PlaybackModel {
         self.session = session
         self.environment = environment
         lines = LineLookup(service: environment.common.lookup)
+        let settings = PlayerSettings.load(environment.common.database)
+        pausesAfterLines = settings.pausesAfterLines
+        // The speed last chosen carries over (mpv keeps it from then on).
+        if settings.speed != 1 { mpv.setSpeed(settings.speed) }
+    }
+
+    // MARK: The player's menu (speed, audio, English, pausing after lines)
+
+    /// The speeds the menu offers; the keys still step freely.
+    static let speeds: [Double] = [0.5, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 2]
+
+    /// Pause at the end of every Japanese line, until play is pressed (Settings keeps it).
+    private(set) var pausesAfterLines = false
+    /// The line last paused for, so pressing play doesn't pause on it again.
+    @ObservationIgnored private var pausedAfterCue: Int?
+
+    func setPausesAfterLines(_ on: Bool) {
+        pausesAfterLines = on
+        pausedAfterCue = nil
+        var settings = PlayerSettings.load(environment.common.database)
+        settings.pausesAfterLines = on
+        try? settings.save(environment.common.database)
+        showOSD(on ? "Pausing after each line" : "Not pausing after lines")
+    }
+
+    func chooseSpeed(_ value: Double) {
+        setSpeed(value)
+    }
+
+    var audioTracks: [MPVController.Track] { mpv.tracks.filter { $0.type == "audio" } }
+
+    func chooseAudio(_ track: MPVController.Track) {
+        mpv.selectAudio(track.id)
+        showOSD("Audio: " + Self.describe(language: track.language, title: track.title))
     }
 
     var title: String { session.title }
@@ -499,6 +533,13 @@ final class PlaybackModel {
         updateUpNext()
         let time = mpv.timePosition
         let jumped = lastTime.map { abs(time - $0) > 2 } ?? false
+        // Pause After Each Line: just before the line ends, so it stays on screen to read.
+        if let lastTime, time < lastTime { pausedAfterCue = nil }
+        if pausesAfterLines, !mpv.isPaused, !jumped, popup == nil,
+           let cue = subtitles?.lineEnding(at: time, within: 0.12 * max(mpv.speed, 1), lastPaused: pausedAfterCue) {
+            pausedAfterCue = cue.id
+            mpv.setPaused(true)
+        }
         // Stats: time that played forward, not seeks or pauses.
         if let lastTime, !jumped, !mpv.isPaused, time > lastTime {
             unloggedSeconds += time - lastTime
@@ -1079,6 +1120,7 @@ final class PlaybackModel {
         case .nextLine: nextLine()
         case .replayLine: replayLine()
         case .lineBefore: playLineBefore()
+        case .pauseAfterLines: setPausesAfterLines(!pausesAfterLines)
         case .lookUpLine:
             if let cue = subtitles?.currentOrPrevious(at: mpv.timePosition) { lookUp(cue, characterIndex: 0) }
         case .search:
@@ -1126,6 +1168,12 @@ final class PlaybackModel {
     private func setSpeed(_ value: Double) {
         mpv.setSpeed(value)
         showOSD(String(format: "Speed %.2f×", mpv.speed))
+        // Kept for the next video (and the next launch).
+        var settings = PlayerSettings.load(environment.common.database)
+        if settings.speed != mpv.speed {
+            settings.speed = mpv.speed
+            try? settings.save(environment.common.database)
+        }
     }
 
     /// mpv's A–B loop: the first press marks the start, the second the end, the third clears it.
