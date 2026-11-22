@@ -50,4 +50,11 @@ import Testing
         #expect(series == BookProgress(read: 400 + 0 + 100, total: 400 + 500 + 200, isEstimate: true))
         #expect(BookCharacters.series([chapter(1, read: 4), chapter(4)], lengths: lengths, local: [:]) == nil)
     }
+
+    /// The reader keeps the screen on for a quarter of an hour after the last page turn.
+    @Test func theScreenSleepsOnceABookIsLeftOpen() {
+        let turned = Date(timeIntervalSince1970: 1000)
+        #expect(ReaderContainer.staysAwake(lastMoved: turned, now: turned + 14 * 60))
+        #expect(!ReaderContainer.staysAwake(lastMoved: turned, now: turned + 16 * 60))
+    }
 }
