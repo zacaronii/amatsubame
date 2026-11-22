@@ -36,6 +36,9 @@ struct SeriesDetailView: View {
     /// The chapter picked in a volume's sheet, opened once the sheet has gone.
     @State private var pickedChapter: KavitaChapter?
     @State private var confirmsRemoveDownloads = false
+    /// In Kavita's Want to Read (the device's copy), and whether this server has it.
+    @State private var wanted = false
+    @State private var canWantToRead = false
 
     /// Volumes as covers (default) or the rows with reading and download status.
     enum VolumeLayout: String, CaseIterable {
@@ -82,6 +85,12 @@ struct SeriesDetailView: View {
             if contents != nil {
                 ToolbarItem(placement: .primaryAction) {
                     Menu("More", systemImage: "ellipsis") {
+                        if canWantToRead {
+                            Button(wanted ? "Remove from Want to Read" : "Add to Want to Read", systemImage: wanted ? "star.slash" : "star") {
+                                environment.setWantToRead(!wanted, seriesId: series.id)
+                            }
+                            .accessibilityIdentifier("series.wantToRead")
+                        }
                         Button("Download \(notDownloaded.count) Volumes", systemImage: "arrow.down.circle") {
                             confirmsDownloadAll = true
                         }
@@ -151,6 +160,17 @@ struct SeriesDetailView: View {
             await countCharacters()
         }
         .task { await loadMetadata() }
+        .task(id: environment.readerMarkAccount()) {
+            guard let account = environment.readerMarkAccount() else { return }
+            canWantToRead = (try? environment.readerMarks.isAvailable(.wantToRead, account: account)) ?? true
+            Task { try? await environment.checkWantToRead(seriesId: series.id) }
+            do {
+                for try await ids in environment.wantToRead.observe(account: account) {
+                    wanted = ids.contains(series.id)
+                    canWantToRead = (try? environment.readerMarks.isAvailable(.wantToRead, account: account)) ?? true
+                }
+            } catch {}
+        }
         .onReceive(NotificationCenter.default.publisher(for: .refreshRequested)) { _ in Task { await load() } }
         .readerPresentation($session)
         .onReceive(NotificationCenter.default.publisher(for: .readerDidClose)) { _ in

@@ -66,6 +66,19 @@ struct KavitaTestAccount {
         try list(try call("POST", "api/Reader/all-bookmarks", body: #"{"statements":[],"combination":1,"limitTo":0}"#), "page bookmarks")
     }
 
+    /// The series in the test account's Want to Read.
+    func wantToRead() throws -> Set<Int> {
+        Set(try list(try call("POST", "api/want-to-read/v2", query: ["pageNumber": "1", "pageSize": "200"],
+                              body: #"{"statements":[],"combination":1,"limitTo":0}"#), "Want to Read").compactMap { $0["id"] as? Int })
+    }
+
+    /// A series' id, found by its name.
+    func seriesId(named name: String) throws -> Int {
+        let found = try XCTUnwrap(try call("GET", "api/Search/search", query: ["queryString": name]) as? [String: Any], "the search")
+        let series = try list(found["series"], "the search's series").first { $0["name"] as? String == name }
+        return try XCTUnwrap(series?["seriesId"] as? Int, "the series")
+    }
+
     /// A series' chapters, found by its name.
     func chapters(series name: String) throws -> [Int] {
         let found = try XCTUnwrap(try call("GET", "api/Search/search", query: ["queryString": name]) as? [String: Any], "the search")
@@ -100,7 +113,8 @@ struct KavitaTestAccount {
     func snapshot(bookSeries: String? = nil) throws -> Snapshot {
         Snapshot(account: self, bookSeries: bookSeries, annotations: Set(try annotations().compactMap { $0["id"] as? Int }),
                  pageBookmarks: Set(try pageBookmarks().compactMap { $0["id"] as? Int }),
-                 bookBookmarks: Set(try bookSeries.map { try bookBookmarks(series: $0) } ?? []))
+                 bookBookmarks: Set(try bookSeries.map { try bookBookmarks(series: $0) } ?? []),
+                 wantToRead: try wantToRead())
     }
 
     struct Snapshot {
@@ -109,6 +123,7 @@ struct KavitaTestAccount {
         let annotations: Set<Int>
         let pageBookmarks: Set<Int>
         let bookBookmarks: Set<BookBookmark>
+        let wantToRead: Set<Int>
 
         /// Removes the marks made since the snapshot. Returns what's still left over.
         @discardableResult
@@ -127,6 +142,16 @@ struct KavitaTestAccount {
                     try account.call("DELETE", "api/Reader/ptoc", query: ["chapterId": String(entry.chapter), "pageNum": String(entry.page), "title": entry.title])
                 }
             }
+            // Want to Read both ways: added ones out, removed ones back.
+            let wantedNow = try account.wantToRead()
+            let added = wantedNow.subtracting(wantToRead), removed = wantToRead.subtracting(wantedNow)
+            if !added.isEmpty {
+                try account.call("POST", "api/want-to-read/remove-series", body: #"{"seriesIds":\#(Array(added))}"#)
+            }
+            if !removed.isEmpty {
+                try account.call("POST", "api/want-to-read/add-series", body: #"{"seriesIds":\#(Array(removed))}"#)
+            }
+            if try account.wantToRead() != wantToRead { return "Want to Read differs from before the test" }
             let left = (try account.annotations().count - annotations.count, try account.pageBookmarks().count - pageBookmarks.count,
                         try bookSeries.map { try account.bookBookmarks(series: $0).count - bookBookmarks.count } ?? 0)
             return left == (0, 0, 0) ? nil : "left over on Kavita: \(left.0) annotations, \(left.1) page bookmarks, \(left.2) book bookmarks"

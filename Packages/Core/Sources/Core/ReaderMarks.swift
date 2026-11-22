@@ -103,6 +103,8 @@ public enum KavitaFeature: String, Codable, Sendable, DatabaseValueConvertible {
     case annotations
     /// Page bookmarks (the account needs Kavita's Bookmark role).
     case pageBookmarks
+    /// Want to Read's list (Kavita 0.7.8 and later).
+    case wantToRead
 }
 
 struct KavitaFeatureRecord: Codable, FetchableRecord, PersistableRecord {

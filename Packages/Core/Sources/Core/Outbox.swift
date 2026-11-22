@@ -13,6 +13,8 @@ public enum OutboxJobKind: String, Codable, CaseIterable, Sendable, DatabaseValu
     case hachidoriWordStatus
     /// A Yomu bookmark or highlight to bring up to date on Kavita (`ReaderMarkJob`).
     case kavitaReaderMark
+    /// A series added to or removed from Kavita's Want to Read (`WantToReadJob`).
+    case kavitaWantToRead
 }
 
 public enum OutboxJobState: String, Codable, Sendable, DatabaseValueConvertible {

@@ -26,7 +26,7 @@ import Testing
             "mediaSegment", "playerSettings",
             "localSubtitle",
             "autoDownloadSetting", "showListenSetting", "statsSyncFile",
-            "activitySession", "lookupEvent", "statsState", "lookupCount", "popupSettings", "readerMark", "kavitaFeature", "hachidoriSettings",
+            "activitySession", "lookupEvent", "statsState", "lookupCount", "popupSettings", "readerMark", "kavitaFeature", "wantToRead", "hachidoriSettings",
             "japaneseOnlyJellyfinLibrary", "jellyfinAudioCheck", "pinnedItem", "wordStatus",
             "audioTranscript", "audioSentence", "audioSentenceSearch", "listenSettings", "audiobookshelfCache", "audioMark", "readAlongPair",
             "bookLength", "kechimochiCache", "audioAutoDownloadSetting", "audioDownloadDeclined", "kikuWatchItem", "kikuWatchListening", "kikuWatchRules", "kikuWatchDeclined",

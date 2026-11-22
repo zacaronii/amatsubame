@@ -925,6 +925,19 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v57_want_to_read") { db in
+            // Kavita's Want to Read per account: its list, and the toggles not sent yet.
+            try db.create(table: "wantToRead") { t in
+                t.column("account", .text).notNull()
+                t.column("seriesId", .integer).notNull()
+                t.column("state", .text).notNull()
+                t.column("position", .integer).notNull().defaults(to: 0)
+                t.column("revision", .integer).notNull().defaults(to: 0)
+                t.column("updatedAt", .datetime).notNull()
+                t.primaryKey(["account", "seriesId"])
+            }
+        }
+
         return migrator
     }
 }
