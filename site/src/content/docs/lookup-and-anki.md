@@ -24,8 +24,8 @@ what's behind shows through it, blurred (see **Background opacity** below). With
 open, tap another word to look it up straight away, or tap somewhere with nothing to look up (a
 margin, a space, punctuation) or press Esc to close it.
 
-On the Mac you don't have to click in Miru's subtitles or Kiku's transcript: hold **Shift** and point
-at a word. **Settings → Popup → Look Up on Hover** changes the key (Option, Control or Command), turns
+On the Mac you don't have to click in a book in Yomu, Miru's subtitles or Kiku's transcript: hold
+**Shift** and point at a word (manga pages still need a click). **Settings → Popup → Look Up on Hover** changes the key (Option, Control or Command), turns
 it off, or drops the key so that resting the pointer on a word is enough.
 
 The lookup finds the longest word that starts where you tapped, including conjugated forms, so

@@ -40,7 +40,7 @@ public struct PopupSettings: Codable, Equatable, Sendable, FetchableRecord, Pers
     /// Hachidori's Background opacity: how much of what's behind the popup shows through
     /// (0–100 %, 85 by default). Text stays opaque.
     public var backgroundOpacityPercent: Int
-    /// On the Mac: looking a word up by pointing at it in a line (Miru's subtitles, Kiku's
+    /// On the Mac: looking a word up by pointing at it (Yomu's books, Miru's subtitles, Kiku's
     /// transcript) while this key is held, without a click. Not one of Hachidori's options.
     public var hoverLookup: HoverLookup
 
