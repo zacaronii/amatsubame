@@ -453,6 +453,8 @@ struct BookSettingsSheet: View {
                         Text("Vertical").tag(BookReaderSettings.WritingMode.vertical)
                         Text("Horizontal").tag(BookReaderSettings.WritingMode.horizontal)
                     }
+                    TapZonesPicker(selection: $model.settings.tapZones)
+                    RotationLockToggle()
                 }
                 Section {
                     if let mining = model.lookup?.mining {

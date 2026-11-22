@@ -51,6 +51,48 @@ final class ReaderUITests: XCTestCase {
         snapshot("reader-after-turns")
     }
 
+    /// Settings ▸ Tap to Turn Pages: the sides swapped, and off (swipes still turn).
+    func testTapZonesSwappedAndOff() throws {
+        app.launchEnvironment["UITEST_READER_TAPS"] = "inverted"
+        app.launch()
+        openReader()
+        let start = try pageCounter()
+        reader.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertEqual(try pageCounter(), start + 1, "swapped: the right side moves forward")
+        reader.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap()
+        XCTAssertEqual(try pageCounter(), start, "and the left side back")
+
+        app.terminate()
+        app.launchEnvironment["UITEST_READER_TAPS"] = "off"
+        app.launch()
+        openReader()
+        let begin = try pageCounter()
+        reader.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap()
+        XCTAssertEqual(try pageCounter(), begin, "off: a tap doesn't turn the page")
+        // (That tap showed the controls; another hides them.)
+        reader.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        reader.swipeRight()
+        XCTAssertEqual(try pageCounter(), begin + 1, "a swipe still does")
+    }
+
+    /// Double-Tap to Zoom: a double tap zooms (a swipe then pans, not pages), another zooms
+    /// back out, and a single tap still turns the page.
+    func testDoubleTapZoomsAndSingleTapStillTurns() throws {
+        app.launchEnvironment["UITEST_READER_TAPS"] = "doubletap"
+        app.launch()
+        openReader()
+        let start = try pageCounter()
+        reader.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4)).doubleTap()
+        sleep(1)
+        snapshot("reader-double-tap-zoomed")
+        reader.swipeRight()
+        XCTAssertEqual(try pageCounter(), start, "zoomed in: the swipe pans the page")
+        reader.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4)).doubleTap()
+        sleep(1)
+        reader.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap()
+        XCTAssertEqual(try pageCounter(), start + 1, "zoomed out again: a single tap turns the page")
+    }
+
     /// turning back and forth in many patterns must always end on a whole
     /// page. Debug builds report "aligned" or "part-way" in the reader's value. Brief part-way
     /// readings are counted (and recorded with the screen recording, see CLAUDE.md); one that

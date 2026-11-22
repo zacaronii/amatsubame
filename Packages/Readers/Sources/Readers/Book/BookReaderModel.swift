@@ -468,10 +468,14 @@ public final class BookReaderModel {
         let zone = x / max(viewSize.width, 1)
         // Facing pages: only the outer edges turn, so the middle of either page shows the controls.
         let edge = spread ? 0.12 : 0.25
-        if zone < edge {
-            readsRightToLeft ? nextPage() : previousPage()
+        // Settings: the sides swapped, or taps that never turn pages.
+        let leftGoesOn = readsRightToLeft != (settings.tapZones == .inverted)
+        if settings.tapZones == .off {
+            showsChrome.toggle()
+        } else if zone < edge {
+            leftGoesOn ? nextPage() : previousPage()
         } else if zone > 1 - edge {
-            readsRightToLeft ? previousPage() : nextPage()
+            leftGoesOn ? previousPage() : nextPage()
         } else {
             showsChrome.toggle()
         }

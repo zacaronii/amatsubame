@@ -82,6 +82,11 @@ struct ReaderSettingsSheet: View {
                         Text("Left to right").tag(MangaReaderSettings.Direction.leftToRight)
                     }
                     .disabled(model.settings.mode == .longStrip)
+                    if model.settings.mode == .paged {
+                        TapZonesPicker(selection: $model.settings.tapZones)
+                        Toggle("Double-Tap to Zoom", isOn: $model.settings.doubleTapZooms)
+                    }
+                    RotationLockToggle()
                 }
                 if model.settings.mode == .paged {
                     Section("Two-Page Spreads") {
@@ -133,6 +138,35 @@ struct ReaderSettingsSheet: View {
         #else
         .presentationDetents([.medium, .large])
         .frame(minWidth: 380, minHeight: 460)
+        #endif
+    }
+}
+
+/// Tap to Turn Pages: the usual sides, swapped, or off (both readers' settings).
+struct TapZonesPicker: View {
+    @Binding var selection: ReaderTapZones
+
+    var body: some View {
+        Picker("Tap to Turn Pages", selection: $selection) {
+            Text("On").tag(ReaderTapZones.standard)
+            Text("Sides Swapped").tag(ReaderTapZones.inverted)
+            Text("Off").tag(ReaderTapZones.off)
+        }
+        .accessibilityIdentifier("reader.tapZones")
+    }
+}
+
+/// Lock Rotation (iPhone and iPad), in both readers' settings.
+struct RotationLockToggle: View {
+    #if os(iOS)
+    @State private var isOn = OrientationLock.isOn
+    #endif
+
+    var body: some View {
+        #if os(iOS)
+        Toggle("Lock Rotation", isOn: $isOn)
+            .onChange(of: isOn) { _, on in OrientationLock.isOn = on }
+            .accessibilityIdentifier("reader.lockRotation")
         #endif
     }
 }

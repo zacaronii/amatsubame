@@ -27,11 +27,12 @@ public struct BookReaderSettings: Codable, Equatable, Sendable {
     /// A thin line along the bottom of the screen showing how far through the book you are.
     public var showsProgressBar = true
     public var furigana: Furigana = .book
+    public var tapZones: ReaderTapZones = .standard
 
     public init() {}
 
     enum CodingKeys: String, CodingKey {
-        case layout, writingMode, fontSize, lineHeight, margin, theme, font, progressText, showsProgressBar, furigana
+        case layout, writingMode, fontSize, lineHeight, margin, theme, font, progressText, showsProgressBar, furigana, tapZones
         /// Replaced by `progressText` (true meant always).
         case showsProgress
     }
@@ -48,6 +49,7 @@ public struct BookReaderSettings: Codable, Equatable, Sendable {
         try container.encode(progressText, forKey: .progressText)
         try container.encode(showsProgressBar, forKey: .showsProgressBar)
         try container.encode(furigana, forKey: .furigana)
+        try container.encode(tapZones, forKey: .tapZones)
     }
 
     /// Missing keys (settings saved by an older version) keep their defaults.
@@ -58,6 +60,7 @@ public struct BookReaderSettings: Codable, Equatable, Sendable {
         fontSize = try container.decodeIfPresent(Double.self, forKey: .fontSize) ?? fontSize
         lineHeight = try container.decodeIfPresent(Double.self, forKey: .lineHeight) ?? lineHeight
         margin = try container.decodeIfPresent(Double.self, forKey: .margin) ?? margin
+        tapZones = try container.decodeIfPresent(ReaderTapZones.self, forKey: .tapZones) ?? tapZones
         theme = try container.decodeIfPresent(Theme.self, forKey: .theme) ?? theme
         font = try container.decodeIfPresent(Font.self, forKey: .font) ?? font
         if let text = try container.decodeIfPresent(ProgressText.self, forKey: .progressText) {
