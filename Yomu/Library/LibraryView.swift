@@ -109,6 +109,8 @@ final class LibraryModel {
 struct LibraryView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.scenePhase) private var scenePhase
+    /// When coming back to the foreground last reloaded the home screen.
+    @State private var lastActiveLoad = Date()
     @State private var model = LibraryModel()
     @State private var path = NavigationPath()
 
@@ -153,9 +155,24 @@ struct LibraryView: View {
         }
         .task(id: environment.serverAccounts[.kavita]?.baseURL) { await model.load(environment) }
         .onAppear { model.loadToday(environment) }
-        .onReceive(NotificationCenter.default.publisher(for: .readerDidClose)) { _ in model.loadToday(environment) }
+        .onReceive(NotificationCenter.default.publisher(for: .readerDidClose)) { _ in
+            model.loadToday(environment)
+            // Continue Reading and the shelves' progress too, once the outbox has sent what was read
+            // (the series page waits the same second).
+            Task {
+                try? await Task.sleep(for: .seconds(1))
+                await model.load(environment)
+            }
+        }
         // Back from the background (another day, or reading elsewhere).
-        .onChange(of: scenePhase) { _, phase in if phase == .active { model.loadToday(environment) } }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            model.loadToday(environment)
+            // Not on every glance away and back (the Mac's window loses focus often).
+            guard Date().timeIntervalSince(lastActiveLoad) > 120 else { return }
+            lastActiveLoad = Date()
+            Task { await model.load(environment) }
+        }
     }
 
     private var content: some View {

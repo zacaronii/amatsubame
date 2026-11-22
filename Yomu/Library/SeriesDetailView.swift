@@ -33,6 +33,9 @@ struct SeriesDetailView: View {
     @State private var tint: Color?
     @State private var layout = VolumeLayout.grid
     @State private var chaptersOf: KavitaVolume?
+    /// The chapter picked in a volume's sheet, opened once the sheet has gone.
+    @State private var pickedChapter: KavitaChapter?
+    @State private var confirmsRemoveDownloads = false
 
     /// Volumes as covers (default) or the rows with reading and download status.
     enum VolumeLayout: String, CaseIterable {
@@ -83,15 +86,23 @@ struct SeriesDetailView: View {
                             confirmsDownloadAll = true
                         }
                         .disabled(notDownloaded.isEmpty)
-                        Button("Remove Downloads", systemImage: "trash", role: .destructive) {
-                            let records = allChapters.compactMap { environment.downloader.records[$0.id] }
-                            Task { for record in records { await environment.downloader.delete(record) } }
+                        Button("Remove Downloads…", systemImage: "trash", role: .destructive) {
+                            confirmsRemoveDownloads = true
                         }
                         .disabled(!allChapters.contains { environment.downloader.records[$0.id] != nil })
                     }
                     .accessibilityIdentifier("series.downloads")
                 }
             }
+        }
+        // Every volume at once: asked first, as Settings ▸ Storage does.
+        .confirmationDialog("Remove the downloads of \(series.displayName)?", isPresented: $confirmsRemoveDownloads, titleVisibility: .visible) {
+            Button("Remove Downloads", role: .destructive) {
+                let records = allChapters.compactMap { environment.downloader.records[$0.id] }
+                Task { for record in records { await environment.downloader.delete(record) } }
+            }
+        } message: {
+            Text("Your place in each volume is kept. You can download them again.")
         }
         .confirmationDialog("Download \(notDownloaded.count) volumes of \(series.displayName)?",
                             isPresented: $confirmsDownloadAll, titleVisibility: .visible) {
@@ -107,7 +118,13 @@ struct SeriesDetailView: View {
             Text("They stay on this device until you remove them. Downloads wait for Wi-Fi unless cellular downloads are on in Settings.")
             #endif
         }
-        .sheet(item: $chaptersOf) { volume in
+        .sheet(item: $chaptersOf, onDismiss: {
+            // The reader can't come up over the sheet (iOS waited for Done; the Mac opened it behind).
+            if let chapter = pickedChapter {
+                pickedChapter = nil
+                open(chapter)
+            }
+        }) { volume in
             NavigationStack {
                 List(volume.chapters) { chapter in
                     chapterRow(chapter, title: chapter.displayTitle(in: volume))
@@ -351,6 +368,11 @@ struct SeriesDetailView: View {
             if let single {
                 let title = single.displayTitle(in: volume)
                 if let record = environment.downloader.records[single.id] {
+                    if record.state == .failed || record.state == .paused {
+                        Button(record.state == .failed ? "Try Download Again" : "Resume Download", systemImage: "arrow.clockwise") {
+                            environment.downloader.resume(record)
+                        }
+                    }
                     Button("Delete Download", systemImage: "trash", role: .destructive) {
                         Task { await environment.downloader.delete(record) }
                     }
@@ -473,6 +495,11 @@ struct SeriesDetailView: View {
 
     private func open(_ chapter: KavitaChapter) {
         guard let contents else { return }
+        if chaptersOf != nil {
+            pickedChapter = chapter
+            chaptersOf = nil
+            return
+        }
         session = ReaderSession(chapter: contents.readerChapter(chapter, series: series), series: series, contents: contents)
     }
 
@@ -512,7 +539,10 @@ private struct VolumeDownloadBadge: View {
             Image(systemName: "arrow.down.circle.fill")
                 .font(.title3)
                 .foregroundStyle(.white, .black.opacity(0.55))
-        case .queued?, .paused?, .failed?:
+        case .failed?:
+            // Not the clock: a failed download isn't waiting for anything.
+            Image(systemName: "exclamationmark.circle.fill").font(.title3).foregroundStyle(.white, .orange)
+        case .queued?, .paused?:
             Image(systemName: "clock.fill").font(.title3).foregroundStyle(.white, .black.opacity(0.55))
         case nil:
             EmptyView()
