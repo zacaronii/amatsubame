@@ -578,6 +578,88 @@ final class ReaderUITests: XCTestCase {
         XCTAssertFalse(app.buttons["collection.\(title)"].firstMatch.waitForExistence(timeout: 5), "and from the Library home")
     }
 
+    /// A reading list made from a volume's menu reaches the test account's Kavita, gets a second
+    /// volume, opens from the Library home, is reordered (Kavita follows), emptied (the list stays,
+    /// as on Kavita) and deleted. No reading progress changes. Teardown deletes any list the test
+    /// made and fails if one that was there changed.
+    func testReadingListReachesKavitaAndIsReorderedAndDeleted() throws {
+        let kavita = try KavitaTestAccount()
+        let marksBefore = try kavita.snapshot()
+        addTeardownBlock { XCTAssertNil(try marksBefore.restore(), "the test account's reading lists were put back") }
+        let title = KavitaTestAccount.testCollectionTitle
+        app.launchEnvironment["UITEST_SENDS_MARKS"] = "1"
+        app.launch()
+
+        let libraryRow = app.buttons[library].firstMatch
+        XCTAssertTrue(libraryRow.waitForExistence(timeout: 20))
+        for _ in 0..<6 where !libraryRow.isHittable { app.swipeUp() }
+        libraryRow.tap()
+        let tile = app.buttons["series.\(series)"].firstMatch
+        XCTAssertTrue(tile.waitForExistence(timeout: 20))
+        tile.tap()
+        let tiles = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'volume.'"))
+        let first = tiles.element(boundBy: 0), second = tiles.element(boundBy: 1)
+        XCTAssertTrue(first.waitForExistence(timeout: 20))
+        let chapters = try kavita.chapters(series: series)
+        let progressBefore = try chapters.map { try kavita.progress(chapterId: $0) }
+        func items() -> [Int]? { (try? kavita.readingLists())?.values.first }
+
+        // 1. A new list with the first volume.
+        first.press(forDuration: 1.2)
+        app.buttons["chapter.addToReadingList"].firstMatch.tap()
+        app.buttons["readingLists.new"].firstMatch.tap()
+        let field = app.alerts.textFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.typeText(title)
+        app.alerts.buttons["Make"].firstMatch.tap()
+        XCTAssertTrue(waitFor { items()?.count == 1 }, "made on Kavita with one volume")
+
+        // 2. The second volume into it, after the first.
+        second.press(forDuration: 1.2)
+        app.buttons["chapter.addToReadingList"].firstMatch.tap()
+        let row = app.buttons["readingLists.row.\(title)"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.tap()
+        XCTAssertTrue(waitFor { items()?.count == 2 }, "the second volume added")
+        let added = try XCTUnwrap(items())
+
+        // 3. From the Library home; the second dragged first, and Kavita follows.
+        app.navigationBars.buttons.firstMatch.tap()
+        app.navigationBars.buttons.firstMatch.tap()
+        app.swipeDown()
+        let listed = app.buttons["readingList.\(title)"].firstMatch
+        XCTAssertTrue(listed.waitForExistence(timeout: 20))
+        for _ in 0..<10 where !listed.isHittable { app.swipeUp() }
+        listed.tap()
+        XCTAssertTrue(app.buttons["readingList.item.\(added[1])"].firstMatch.waitForExistence(timeout: 20))
+        app.buttons["readingList.edit"].firstMatch.tap()
+        let handles = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Reorder'"))
+        XCTAssertTrue(handles.element(boundBy: 1).waitForExistence(timeout: 5), "reorder handles")
+        handles.element(boundBy: 1).press(forDuration: 0.6, thenDragTo: handles.element(boundBy: 0))
+        XCTAssertTrue(waitFor { items() == [added[1], added[0]] }, "Kavita's order follows")
+
+        // 5. Both taken out (the last one says the list stays): Kavita keeps the list, empty.
+        app.buttons["readingList.edit"].firstMatch.tap()
+        for chapter in [added[1], added[0]] {
+            let item = app.buttons["readingList.item.\(chapter)"].firstMatch
+            XCTAssertTrue(item.waitForExistence(timeout: 10))
+            item.swipeLeft()
+            let delete = app.buttons["Delete"].firstMatch
+            XCTAssertTrue(delete.waitForExistence(timeout: 5), "swipe to take out")
+            delete.tap()
+            if app.alerts.buttons["Take Out"].waitForExistence(timeout: 3) { app.alerts.buttons["Take Out"].tap() }
+            XCTAssertTrue(item.waitForNonExistence(timeout: 5))
+        }
+        XCTAssertTrue(waitFor { items() == [] }, "emptied on Kavita, the list kept")
+
+        // 6. Deleted.
+        app.buttons["readingList.more"].firstMatch.tap()
+        app.buttons["readingList.delete"].firstMatch.tap()
+        app.buttons["Delete Reading List"].firstMatch.tap()
+        XCTAssertTrue(waitFor { (try? kavita.readingLists())?.isEmpty == true }, "deleted on Kavita")
+        XCTAssertEqual(try chapters.map { try kavita.progress(chapterId: $0) }, progressBefore, "no reading progress changed")
+    }
+
     private func openCollectionsSheet() {
         let more = app.buttons["series.downloads"].firstMatch
         XCTAssertTrue(more.waitForExistence(timeout: 20))

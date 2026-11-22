@@ -25,6 +25,8 @@ final class AppEnvironment {
     let wantToRead: WantToReadStore
     /// Kavita's collections, per account.
     let collections: CollectionStore
+    /// Kavita's reading lists, per account.
+    let readingLists: ReadingListStore
     let readingProgress: ReadingProgressStore
     let readerSettings: MangaReaderSettingsStore
     let ocrModels: OCRModelStore
@@ -125,6 +127,7 @@ final class AppEnvironment {
         let marks = ReaderMarkStore(database: database)
         let wants = WantToReadStore(database: database)
         let collectionStore = CollectionStore(database: database)
+        let readingListStore = ReadingListStore(database: database)
         let http = HTTPClient()
         let tokens = AudiobookshelfTokens(secrets: secrets)
         audiobookshelfTokens = tokens
@@ -141,6 +144,7 @@ final class AppEnvironment {
                     KavitaReaderMarkHandler(store: marks, account: signedIn, makeClient: makeKavita),
                     KavitaWantToReadHandler(store: wants, features: marks, account: signedIn, makeClient: makeKavita),
                     KavitaCollectionHandler(store: collectionStore, features: marks, outbox: OutboxStore(database: database), account: signedIn, makeClient: makeKavita),
+                    KavitaReadingListHandler(store: readingListStore, features: marks, outbox: OutboxStore(database: database), account: signedIn, makeClient: makeKavita),
                 ] : []
                 guard sendsProgress else { return markHandlers }
                 let audiobookshelf = AudioServers.audiobookshelfClientFactory(accounts: context.accounts, tokens: tokens, http: context.http)
@@ -161,6 +165,7 @@ final class AppEnvironment {
         readerMarks = marks
         wantToRead = wants
         collections = collectionStore
+        readingLists = readingListStore
         readAlongPairs = ReadAlongStore(database: database)
         bookLengths = BookLengths(database: database)
         listenProgress = WatchProgressStore(database: database)
@@ -486,6 +491,36 @@ final class AppEnvironment {
     /// The own collections a series is in (the Collections sheet asks when it opens).
     func refreshMembership(of seriesId: Int) async throws {
         try await collectionSync()?.membership(of: seriesId)
+    }
+
+    // MARK: Reading lists
+
+    private func readingListSync() -> KavitaReadingListSync? {
+        guard let account = readerMarkAccount(), let client = kavitaClient() else { return nil }
+        let username = (try? accounts.account(.kavita)).flatMap { $0 }?.username
+        return KavitaReadingListSync(client: client, store: readingLists, features: readerMarks, account: account, username: username)
+    }
+
+    func refreshReadingLists() async throws {
+        try await readingListSync()?.refresh()
+    }
+
+    /// A list's items (when it's opened). False when Kavita no longer has it.
+    @discardableResult
+    func refreshItems(of list: ReadingListRow) async throws -> Bool {
+        try await readingListSync()?.items(of: list) ?? true
+    }
+
+    /// A reader session for a chapter of any series (a reading list's item): from the cache, or
+    /// fetched first.
+    func session(chapterId: Int, seriesId: Int) async -> ReaderSession? {
+        if let cached = session(chapterId: chapterId) { return cached }
+        guard let client = kavitaClient() else { return nil }
+        if (try? kavitaLibrary.cachedSeries(id: seriesId)) == nil, let series = try? await client.series(id: seriesId) {
+            try? kavitaLibrary.remember([(series, raw: (try? JSONEncoder().encode(series)) ?? Data())])
+        }
+        _ = try? await kavitaLibrary.refreshVolumes(seriesId: seriesId, using: client)
+        return session(chapterId: chapterId)
     }
 
     /// Adds the series to Want to Read or removes it (sent to Kavita by the outbox).

@@ -40,6 +40,8 @@ struct SeriesDetailView: View {
     @State private var wanted = false
     @State private var canWantToRead = false
     @State private var showsCollections = false
+    /// The chapter whose Add to Reading List… is open.
+    @State private var addingToList: KavitaChapter?
 
     /// Volumes as covers (default) or the rows with reading and download status.
     enum VolumeLayout: String, CaseIterable {
@@ -166,6 +168,7 @@ struct SeriesDetailView: View {
         }
         .task { await loadMetadata() }
         .sheet(isPresented: $showsCollections) { CollectionsSheet(seriesId: series.id) }
+        .sheet(item: $addingToList) { chapter in ReadingListsSheet(chapter: readingListChapter(chapter)) }
         .task(id: environment.readerMarkAccount()) {
             guard let account = environment.readerMarkAccount() else { return }
             canWantToRead = (try? environment.readerMarks.isAvailable(.wantToRead, account: account)) ?? true
@@ -437,7 +440,18 @@ struct SeriesDetailView: View {
 
     /// Mark as Read / Mark as Unread for a volume's chapters (or one chapter): for something read
     /// in print or elsewhere, or to start one over.
+    /// A chapter as a reading list item.
+    private func readingListChapter(_ chapter: KavitaChapter) -> ReadingListChapter {
+        let volume = contents?.volumes.first { $0.chapters.contains { $0.id == chapter.id } }
+        return ReadingListChapter(chapterId: chapter.id, seriesId: series.id, volumeId: chapter.volumeId, libraryId: series.libraryId,
+                                  format: series.format, seriesName: series.displayName, title: chapter.displayTitle(in: volume))
+    }
+
     @ViewBuilder private func readMenu(_ chapters: [KavitaChapter]) -> some View {
+        if chapters.count == 1, let chapter = chapters.first, environment.readerMarkAccount() != nil {
+            Button("Add to Reading List…", systemImage: "text.badge.plus") { addingToList = chapter }
+                .accessibilityIdentifier("chapter.addToReadingList")
+        }
         if !chapters.isEmpty {
             if chapters.contains(where: { !$0.isRead }) {
                 Button("Mark as Read", systemImage: "checkmark.circle") { setRead(chapters, true) }
