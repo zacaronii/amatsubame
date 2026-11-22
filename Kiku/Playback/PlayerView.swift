@@ -12,13 +12,32 @@ struct PlayerView: View {
     /// "Marked 13:21", briefly, after a mark (from here or the shortcut).
     @State private var markToast: String?
     @State private var showsChapters = false
+    /// The pull down that puts the player away (iPhone and iPad): how far, and whether the drag
+    /// under way is one (nil until it's clear which way it's going).
+    @GestureState(resetTransaction: Transaction(animation: .spring(duration: 0.3))) private var pull: (distance: CGFloat, down: Bool?) = (0, nil)
     /// The artwork's colour, for the background while the transcript is off.
     @State private var tint: Color?
     /// The transcript's height, to tell a short screen (the iPhone Duo's) from a tall one.
     @State private var transcriptHeight: CGFloat = 0
 
     var body: some View {
-        player.yomuMissingAlert(environment, inPlayer: true)
+        player
+            #if os(iOS)
+            // Follows the finger, with the app showing behind (the cover itself is clear, so the
+            // player brings its own backing: to the screen's edges, rounded at the top while pulled).
+            .background {
+                UnevenRoundedRectangle(topLeadingRadius: pull.distance > 0 ? 28 : 0, topTrailingRadius: pull.distance > 0 ? 28 : 0)
+                    .fill(.background)
+                    .shadow(color: .black.opacity(pull.distance > 0 ? 0.25 : 0), radius: 16)
+                    // Up over the status bar by hand: once moved, a view no longer reaches into
+                    // the top safe area by itself, and the edge would jump down by its height.
+                    .padding(.top, -Self.topInset)
+                    .ignoresSafeArea(edges: [.bottom, .horizontal])
+            }
+            .offset(y: pull.distance)
+            .presentationBackground(.clear)
+            #endif
+            .yomuMissingAlert(environment, inPlayer: true)
             .confirmationDialog("Where to continue?", isPresented: Binding(get: { model.resumeChoice != nil }, set: { _ in }),
                                 titleVisibility: .visible, presenting: model.resumeChoice) { choice in
                 Button("\(choice.newer.clockText) · \(choice.newerFrom)") { model.resume(at: choice.newer) }
@@ -38,10 +57,14 @@ struct PlayerView: View {
                         topBar(showsEpisode: false)
                             .padding(.horizontal)
                             .padding(.top, 8)
+                            .overlay(alignment: .top) { grabber }
+                            .pullDownToClose(pullDown)
                         artwork(showsLine: false)
+                            .pullDownToClose(pullDown)
                         controls
                             .padding(.horizontal, 20)
                             .padding(.bottom, 12)
+                            .pullDownToClose(pullDown)
                     }
                     .frame(width: panes.left)
                     .background { tintBackground.ignoresSafeArea() }
@@ -55,10 +78,15 @@ struct PlayerView: View {
                     topBar(showsEpisode: showsTranscriptView)
                         .padding(.horizontal)
                         .padding(.top, 8)
-                    content
+                        .overlay(alignment: .top) { grabber }
+                        .pullDownToClose(pullDown)
+                    // The artwork too; the transcript keeps its own scrolling.
+                    if showsTranscriptView { content } else { content.pullDownToClose(pullDown) }
+                    // Within the thumb's reach: no stretch to the arrow in the top corner.
                     controls
                         .padding(.horizontal, 20)
                         .padding(.bottom, 12)
+                        .pullDownToClose(pullDown)
                 }
                 .background {
                     if !showsTranscriptView { tintBackground.ignoresSafeArea() }
@@ -96,6 +124,46 @@ struct PlayerView: View {
             try? await Task.sleep(for: .seconds(2))
             withAnimation { markToast = nil }
         }
+    }
+
+    /// Pull the player down to put it away, from the top bar, the artwork or the controls: it
+    /// follows the finger, and goes once pulled far enough or flicked. A drag that starts
+    /// sideways (the scrubber) is left alone.
+    private var pullDown: some Gesture {
+        DragGesture(minimumDistance: 12, coordinateSpace: .global)
+            // Gesture state, so a drag the system cancels (a call, an edge swipe) lets go by itself.
+            .updating($pull) { value, pull, _ in
+                if pull.down == nil {
+                    pull.down = value.translation.height > 0 && value.translation.height > abs(value.translation.width) * 1.5
+                }
+                if pull.down == true { pull.distance = max(0, value.translation.height) }
+            }
+            .onEnded { value in
+                // Judged again from the whole drag: it began downwards and went far or fast enough.
+                let down = value.translation.height > 0 && value.translation.height > abs(value.translation.width) * 1.5
+                if down, PlayerView.pullCloses(translation: value.translation.height, predicted: value.predictedEndTranslation.height) {
+                    environment.showsPlayer = false
+                }
+            }
+    }
+
+    #if os(iOS)
+    /// The window's top safe area (the status bar, the Dynamic Island).
+    static var topInset: CGFloat {
+        UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }.first?.safeAreaInsets.top ?? 0
+    }
+    #endif
+
+    /// Far enough, or a shorter flick.
+    static func pullCloses(translation: CGFloat, predicted: CGFloat) -> Bool {
+        translation > 110 || (translation > 30 && predicted > 280)
+    }
+
+    /// The little bar that says the player can be pulled down.
+    @ViewBuilder private var grabber: some View {
+        #if os(iOS)
+        Capsule().fill(.secondary.opacity(0.45)).frame(width: 36, height: 5).accessibilityHidden(true)
+        #endif
     }
 
     // MARK: Top bar
@@ -615,7 +683,23 @@ struct MiniPlayer: View {
         .padding(.horizontal, 12)
         .contentShape(.rect)
         .onTapGesture { environment.showsPlayer = true }
+        // A swipe up opens it too.
+        .simultaneousGesture(DragGesture(minimumDistance: 12).onEnded { value in
+            if value.translation.height < -20, abs(value.translation.height) > abs(value.translation.width) { environment.showsPlayer = true }
+        })
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("mini.player")
+    }
+}
+
+private extension View {
+    /// Adds the player's pull-down gesture on iPhone and iPad (alongside the buttons there);
+    /// the Mac's player isn't a sheet to pull.
+    @ViewBuilder func pullDownToClose(_ gesture: some Gesture) -> some View {
+        #if os(iOS)
+        contentShape(.rect).simultaneousGesture(gesture)
+        #else
+        self
+        #endif
     }
 }

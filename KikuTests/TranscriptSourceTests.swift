@@ -32,4 +32,13 @@ import Testing
         #expect(text.hasPrefix("large-v3 · Kaku 1.6.0 · "))
         #expect(text.contains("2026"))
     }
+
+    /// Pulling the player down: far enough, or a shorter flick; a nudge springs back.
+    @Test func pullingThePlayerDownClosesItWhenMeant() {
+        #expect(PlayerView.pullCloses(translation: 200, predicted: 220))
+        #expect(PlayerView.pullCloses(translation: 60, predicted: 500), "a flick")
+        #expect(PlayerView.pullCloses(translation: 120, predicted: 130), "pulled far, slowly")
+        #expect(!PlayerView.pullCloses(translation: 60, predicted: 90), "a nudge")
+        #expect(!PlayerView.pullCloses(translation: 10, predicted: 900), "barely moved")
+    }
 }

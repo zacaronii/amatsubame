@@ -136,6 +136,80 @@ final class KikuPlayerUITests: XCTestCase {
     }
 }
 
+/// Putting the player away without reaching for the arrow in the top corner.
+final class KikuPlayerPullUITests: XCTestCase {
+    func testPullingThePlayerDownClosesIt() {
+        let app = XCUIApplication()
+        app.launchEnvironment = ["UITEST_KIKU": "1", "UITEST_KIKU_PLAYER": "1"]
+        app.launch()
+        let close = app.buttons["player.close"]
+        let mini = app.descendants(matching: .any)["mini.player"].firstMatch
+        XCTAssertTrue(close.waitForExistence(timeout: 10))
+
+        // A nudge on the top bar springs back.
+        let top = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.09))
+        top.press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.13)),
+                  withVelocity: .slow, thenHoldForDuration: 0.3)
+        XCTAssertTrue(close.waitForExistence(timeout: 2), "a nudge doesn't close it")
+
+        // Pulled down from the top bar: closed, with the mini player in its place.
+        top.press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55)))
+        XCTAssertTrue(mini.waitForExistence(timeout: 5), "pulled down from the top bar")
+        XCTAssertTrue(close.waitForNonExistence(timeout: 5))
+
+        // A swipe up on the mini player opens it again.
+        mini.swipeUp()
+        XCTAssertTrue(close.waitForExistence(timeout: 5), "a swipe up on the mini player opens it")
+
+        // And from the controls, within the thumb's reach (between the scrubber and the buttons).
+        let controls = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.855))
+        controls.press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.999)),
+                       withVelocity: .fast, thenHoldForDuration: 0)
+        XCTAssertTrue(close.waitForNonExistence(timeout: 5), "flicked down from the controls")
+
+        // The scrubber still scrubs: a sideways drag on it leaves the player open.
+        mini.tap()
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        let scrubber = app.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.805))
+        scrubber.press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.82)))
+        XCTAssertTrue(close.waitForExistence(timeout: 2), "scrubbing doesn't close the player")
+    }
+}
+
+/// The lookup's bottom panel: a slow pull on its handle shrinks it and lets go closed, never
+/// up to the full height (it used to rubber-band and could end as a flick up).
+final class KikuLookupPanelUITests: XCTestCase {
+    func testPullingTheHandleDownSlowlyClosesThePanel() {
+        let app = XCUIApplication()
+        app.launchEnvironment = ["UITEST_KIKU": "1", "UITEST_KIKU_PLAYER": "1"]
+        app.launch()
+        XCTAssertTrue(app.buttons["player.playPause"].waitForExistence(timeout: 10))
+        app.buttons["player.nextLine"].tap()
+        let line = app.descendants(matching: .any)["player.currentLine"].descendants(matching: .any)["subtitle.line"].firstMatch
+        XCTAssertTrue(line.waitForExistence(timeout: 5))
+        let handle = app.descendants(matching: .any)["lookup.handle"].firstMatch
+
+        for (name, velocity) in [("slow", XCUIGestureVelocity.slow), ("default", .default)] {
+            line.tap()
+            XCTAssertTrue(handle.waitForExistence(timeout: 5), "\(name): the panel opens")
+            XCTAssertEqual(handle.value as? String, "Half")
+            let start = handle.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            start.press(forDuration: 0.15, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 160)), withVelocity: velocity, thenHoldForDuration: 0.2)
+            XCTAssertTrue(handle.waitForNonExistence(timeout: 3), "\(name): pulled down, it closes (\(handle.exists ? handle.value as? String ?? "" : "closed"))")
+        }
+
+        // Up still makes it full, and down from there half.
+        line.tap()
+        XCTAssertTrue(handle.waitForExistence(timeout: 5))
+        let start = handle.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        start.press(forDuration: 0.15, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -160)), withVelocity: .slow, thenHoldForDuration: 0.2)
+        XCTAssertEqual(handle.value as? String, "Full")
+        let top = handle.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        top.press(forDuration: 0.15, thenDragTo: top.withOffset(CGVector(dx: 0, dy: 160)), withVelocity: .slow, thenHoldForDuration: 0.2)
+        XCTAssertEqual(handle.value as? String, "Half")
+    }
+}
+
 final class KikuBookUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false

@@ -17,6 +17,24 @@ public enum LookupOverlayPlacement {
     static let gap: CGFloat = 8
     static let margin: CGFloat = 12
 
+    /// What a drag on the bottom panel's handle asks for when it ends.
+    public enum PanelDrag: Equatable, Sendable {
+        /// Up: the full height.
+        case taller
+        /// Down: back to half, or closed from half.
+        case shorter
+        case stay
+    }
+
+    /// The way the finger actually went decides; how fast it was going (`predicted`, where the
+    /// drag would coast to) only lets a short flick count. A drag down that ends with a wobble
+    /// upwards is never an upward flick.
+    public static func panelDrag(translation: CGFloat, predicted: CGFloat) -> PanelDrag {
+        if translation > 8, max(translation, predicted) > 50 { return .shorter }
+        if translation < -8, min(translation, predicted) < -40 { return .taller }
+        return .stay
+    }
+
     public static func usesBottomPanel(_ size: CGSize) -> Bool {
         size.width < bottomPanelWidth
     }
@@ -195,16 +213,20 @@ struct LookupOverlayHost<Panel: View>: View {
     /// Drag the bottom panel's top: up for the full height, down for half, down again to close.
     /// A short flick is enough, so closing never needs a swipe down to the screen's edge.
     private var resize: some Gesture {
-        DragGesture(minimumDistance: 4)
+        // Measured on the screen, not in the handle: the handle moves with the panel as it
+        // resizes, so its own coordinates slid under the finger. The drag then read as jitter,
+        // the panel rubber-banded, and a pull down could end as a flick up to the full height.
+        DragGesture(minimumDistance: 4, coordinateSpace: .global)
             .onChanged { drag = $0.translation.height }
             .onEnded { value in
-                let moved = value.predictedEndTranslation.height
+                let outcome = LookupOverlayPlacement.panelDrag(translation: value.translation.height,
+                                                               predicted: value.predictedEndTranslation.height)
                 withAnimation(.spring(duration: 0.3)) {
                     drag = 0
-                    if moved < -40 {
-                        tall = true
-                    } else if moved > 50 {
-                        if tall { tall = false } else { onClose() }
+                    switch outcome {
+                    case .taller: tall = true
+                    case .shorter: if tall { tall = false } else { onClose() }
+                    case .stay: break
                     }
                 }
             }
