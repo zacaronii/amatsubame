@@ -236,6 +236,35 @@ final class KikuBookUITests: XCTestCase {
         wait(for: [back], timeout: 5)
     }
 
+    /// A book's sleep timer can stop at the end of the chapter, and a held line can be copied.
+    func testEndOfChapterTimerAndCopyLine() {
+        let app = XCUIApplication()
+        app.launchEnvironment = ["UITEST_KIKU": "1", "UITEST_KIKU_BOOK": "1"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["player.subtitle"].waitForExistence(timeout: 10))
+        app.buttons["More"].tap()
+        app.buttons["Sleep Timer"].firstMatch.tap()
+        let endOfChapter = app.buttons["End of Chapter"].firstMatch
+        XCTAssertTrue(endOfChapter.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["End of Book"].exists, "a book's own wording")
+        endOfChapter.tap()
+        app.buttons["More"].tap()
+        XCTAssertTrue(app.buttons["Sleep Timer · End of Chapter"].firstMatch.waitForExistence(timeout: 5), "the timer is set")
+        app.buttons["Sleep Timer · End of Chapter"].firstMatch.tap()
+        app.buttons["Turn Off"].firstMatch.tap()
+
+        // Hold a line: Copy Line and Play from Here (the clipboard itself isn't read here: the
+        // test runner asking for it hangs on the simulator).
+        let line = app.descendants(matching: .any).matching(identifier: "player.line").firstMatch
+        XCTAssertTrue(line.waitForExistence(timeout: 5))
+        line.press(forDuration: 1.0)
+        let copy = app.buttons["Copy Line"].firstMatch
+        XCTAssertTrue(copy.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Play from Here"].exists)
+        copy.tap()
+        XCTAssertTrue(copy.waitForNonExistence(timeout: 5))
+    }
+
     /// More ▸ Transcript says what made the transcript and offers Transcribe Again (#149).
     func testTranscriptMenuSaysWhatMadeIt() {
         let app = XCUIApplication()

@@ -293,6 +293,22 @@ final class KikuEnvironment {
     }
 
     /// Stops and forgets the episode (the mini player goes away).
+    /// Marks an episode or book played, or not started (its row's menu): here at once, then on
+    /// Audiobookshelf through the outbox, like listening does.
+    func setPlayed(_ entry: EpisodeEntry, _ played: Bool) {
+        let duration = entry.duration
+        let time = played ? duration : 0
+        let now = Date.now
+        try? listenProgress.save(LocalWatchProgress(itemId: entry.id, seriesId: entry.itemId, position: time, duration: duration, updatedAt: now))
+        let payload = AudiobookshelfProgressPayload(itemId: entry.itemId, episodeId: entry.episode.id, currentTime: time,
+                                                    duration: duration, isFinished: played, reportedAt: now)
+        try? common.outbox.enqueue(payload, kind: .audiobookshelfProgress, coalesceKey: payload.coalesceKey)
+        common.syncNow(retryWaiting: false)
+        library.update(progress: AudiobookshelfProgress(
+            libraryItemId: entry.itemId, episodeId: entry.isBook ? nil : entry.episode.id, duration: duration, progress: played ? 1 : 0,
+            currentTime: time, isFinished: played, lastUpdate: now.timeIntervalSince1970 * 1000))
+    }
+
     func stopPlayback() {
         playback?.close()
         playback = nil

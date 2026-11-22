@@ -230,7 +230,10 @@ struct PlayerView: View {
                 ForEach([15, 30, 45, 60], id: \.self) { minutes in
                     Button("\(minutes) Minutes") { model.setSleepTimer(minutes: minutes) }
                 }
-                Button("End of Episode") { model.sleepAtEndOfEpisode() }
+                if model.currentChapter != nil {
+                    Button("End of Chapter") { model.sleepAtEndOfChapter() }
+                }
+                Button(model.entry.isBook ? "End of Book" : "End of Episode") { model.sleepAtEndOfEpisode() }
                 if model.sleepTimer != nil {
                     Divider()
                     Button("Turn Off", role: .destructive) { model.setSleepTimer(minutes: nil) }
@@ -274,7 +277,8 @@ struct PlayerView: View {
     private var sleepTitle: String {
         switch model.sleepTimer {
         case .minutes(_, let ends)?: "Sleep Timer · \(ends.formatted(date: .omitted, time: .shortened))"
-        case .endOfEpisode?: "Sleep Timer · End of Episode"
+        case .endOfEpisode?: model.entry.isBook ? "Sleep Timer · End of Book" : "Sleep Timer · End of Episode"
+        case .endOfChapter?: "Sleep Timer · End of Chapter"
         case nil: "Sleep Timer"
         }
     }
@@ -534,6 +538,11 @@ private struct SentenceRow: View {
         .padding(.vertical, 10)
         .background(isCurrent ? AnyShapeStyle(.tint.opacity(0.18)) : AnyShapeStyle(.clear), in: .rect(cornerRadius: 18))
         .animation(.easeInOut(duration: 0.2), value: isCurrent)
+        // Hold a line: copy it (for a note, a tutor, a translator), or play from it.
+        .contextMenu {
+            Button("Copy Line", systemImage: "doc.on.doc") { Clipboard.copy(TappableLine.sentence(sentence.text)) }
+            Button("Play from Here", systemImage: "play", action: onTime)
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(isCurrent ? "player.currentLine" : "player.line")
     }
