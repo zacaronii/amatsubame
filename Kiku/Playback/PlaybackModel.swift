@@ -62,6 +62,12 @@ final class PlaybackModel: Identifiable, LineLookupHost {
     /// Download Once Started was asked about this episode (once, on its first real listening).
     @ObservationIgnored private var offeredDownload = false
     @ObservationIgnored private var transcriptTask: Task<Void, Never>?
+    @ObservationIgnored private var againTask: Task<Void, Never>?
+    /// What made the transcript showing and when (the More menu); nil until one is saved.
+    private(set) var transcriptSource: AudioTranscriptInfo?
+    /// Kaku was asked to transcribe this again; its new transcript replaces the one showing.
+    private(set) var isTranscribingAgain = false
+    private(set) var transcribeAgainProblem: String?
     @ObservationIgnored private var sleepTask: Task<Void, Never>?
     @ObservationIgnored private var lastRecovery: Date?
     /// Where the audio comes from (the download or the stream), clips and card media.
@@ -160,7 +166,9 @@ final class PlaybackModel: Identifiable, LineLookupHost {
                 // Kaku may have split its lines again since (kaku.resplit): take the new ones, quietly.
                 guard let kaku = environment.kakuClient(),
                       case .ready(let document)? = try? await kaku.transcript(itemId: entry.itemId, episodeId: entry.episode.id),
-                      !Task.isCancelled, document.sentences.map(\.text) != saved.map(\.text),
+                      !Task.isCancelled,
+                      // …or made it again, or this copy is from before its source was kept.
+                      document.sentences.map(\.text) != saved.map(\.text) || Self.isNewer(document, than: transcriptSource),
                       let fresh = try? environment.saveTranscript(document, entry: entry, played: true) else { return }
                 show(fresh)
                 return
@@ -233,8 +241,62 @@ final class PlaybackModel: Identifiable, LineLookupHost {
         }
     }
 
+    /// Whether Kaku's transcript is another one than the saved copy (made at another time).
+    static func isNewer(_ document: KakuTranscript, than saved: AudioTranscriptInfo?) -> Bool {
+        guard let created = document.source.created else { return false }
+        guard let known = saved?.transcribedAt else { return true }
+        return abs(created.timeIntervalSince(known)) > 1
+    }
+
+    /// "large-v3 · Kaku 1.5.0 · 5 Nov 2026": what made the transcript, for the More menu.
+    static func sourceText(_ info: AudioTranscriptInfo) -> String {
+        let parts = [info.model, info.kakuVersion.map { "Kaku \($0)" },
+                     (info.transcribedAt ?? info.savedAt).formatted(date: .abbreviated, time: .omitted)]
+        let text = parts.compactMap(\.self).joined(separator: " · ")
+        // A copy from before the model was kept has only its date.
+        return info.model == nil && info.kakuVersion == nil ? "Saved \(text)" : text
+    }
+
+    /// Asks Kaku to transcribe this episode again (Kaku 1.6), first in its queue, and shows the
+    /// new transcript when it's made. The one showing stays until then.
+    func transcribeAgain() {
+        guard !isTranscribingAgain else { return }
+        guard let kaku = environment.kakuClient() else {
+            transcribeAgainProblem = "Set up Kaku in Settings first."
+            return
+        }
+        let before = transcriptSource
+        let asked = Date.now
+        isTranscribingAgain = true
+        transcribeAgainProblem = nil
+        againTask = Task { [weak self] in
+            guard let self else { return }
+            defer { isTranscribingAgain = false }
+            do {
+                guard try await kaku.requestJob(itemId: entry.itemId, episodeId: entry.episode.id, force: true) != nil else {
+                    // An older Kaku ignores `force` and answers that the transcript is current.
+                    transcribeAgainProblem = "Kaku needs to be 1.6 or newer to transcribe again."
+                    return
+                }
+            } catch {
+                if !error.isCancellation { transcribeAgainProblem = "Couldn't reach Kaku. \(error.localizedDescription)" }
+                return
+            }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(15))
+                guard !Task.isCancelled, case .ready(let document)? = try? await kaku.transcript(itemId: entry.itemId, episodeId: entry.episode.id),
+                      before?.transcribedAt != nil ? Self.isNewer(document, than: before)
+                        : (document.source.created ?? .distantPast) > asked.addingTimeInterval(-120),
+                      let fresh = try? environment.saveTranscript(document, entry: entry, played: true) else { continue }
+                show(fresh)
+                return
+            }
+        }
+    }
+
     private func show(_ sentences: [AudioSentence]) {
         self.sentences = sentences
+        transcriptSource = try? environment.transcripts.transcript(key: key)
         currentIndex = TranscriptFollow.index(at: audio.currentTime, in: sentences)
         // From a little before the line playing, so the lines on screen are marked first.
         let lines = sentences.map { TappableLine.sentence($0.text) }
@@ -336,6 +398,7 @@ final class PlaybackModel: Identifiable, LineLookupHost {
         flushListening()
         environment.sessions.send()
         transcriptTask?.cancel()
+        againTask?.cancel()
         sleepTask?.cancel()
         clip.stop()
         audio.stop()

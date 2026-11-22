@@ -235,6 +235,9 @@ func fixture(_ name: String) throws -> Data { try Fixture.data(name, in: .module
         guard case .ready(let transcript) = try await client.transcript(itemId: "show", episodeId: "ep1") else { Issue.record("not ready"); return }
         #expect(transcript.sentences.map(\.text) == ["それでは、本編をどうぞ。", "よろしくお願いします。"])
         #expect(transcript.sentences[0].words[1].start == 26.5 && transcript.source.fingerprint == "11:22:33.0")
+        // What made it and when, for the player's Transcript menu.
+        #expect(transcript.source.model == "large-v3" && transcript.source.kaku == "1.1.0")
+        #expect(transcript.source.created == Date(timeIntervalSince1970: 1_793_867_403))
         guard case .pending(let job) = try await client.transcript(itemId: "show", episodeId: "ep2") else { Issue.record("not pending"); return }
         #expect(job.state == .queued && job.position == 1)
         #expect(try await client.transcript(itemId: "show", episodeId: "ep3") == .missing)
@@ -252,9 +255,13 @@ func fixture(_ name: String) throws -> Data { try Fixture.data(name, in: .module
         let client = client(transport)
         #expect(try await client.requestJob(itemId: "show", episodeId: "ep2")?.state == .queued)
         #expect(try transport.requests[0].jsonBody()["episodeId"] as? String == "ep2")
+        #expect(try transport.requests[0].jsonBody()["force"] == nil, "an ordinary request doesn't force")
+        // Transcribe Again (Kaku 1.6).
+        try await client.requestJob(itemId: "show", episodeId: "ep2", force: true)
+        #expect(try transport.requests[1].jsonBody()["force"] as? Bool == true)
         let statuses = try await client.status([("show", "ep1"), ("show", "ep2"), ("show", "ep3")])
         #expect(statuses == ["show/ep1": .done, "show/ep2": .queued, "show/ep3": .missing])
-        let sent = try transport.requests[1].jsonBody()["episodes"] as? [[String: String]]
+        let sent = try transport.requests[2].jsonBody()["episodes"] as? [[String: String]]
         #expect(sent?.count == 3 && sent?.first?["itemId"] == "show")
     }
 

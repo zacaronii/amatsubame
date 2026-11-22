@@ -88,6 +88,28 @@ def test_post_jobs_jumps_the_queue(service):
     assert api.post('/jobs', headers=AUTH, json={'itemId': 'item-1', 'episodeId': 'missing'}).status_code == 404
 
 
+def test_force_transcribes_again_and_the_old_one_serves_meanwhile(service):
+    api = client(service)
+    api.put('/libraries', headers=AUTH, json={'enabled': ['lib-1']})
+    service.poller.poll_once(now=NOW)
+    while service.worker.run_once():
+        pass
+    body = {'itemId': 'item-1', 'episodeId': 'episode-1'}
+    assert api.post('/jobs', headers=AUTH, json=body).json()['state'] == 'done'
+    first = api.get('/transcripts/item-1/episode-1', headers=AUTH).json()
+    forced = api.post('/jobs', headers=AUTH, json=body | {'force': True})
+    assert forced.status_code == 202 and forced.json()['priority'] == 'now'
+    # Asked twice: still one job.
+    api.post('/jobs', headers=AUTH, json=body | {'force': True})
+    assert api.get('/jobs', headers=AUTH).json()['counts']['queued'] == 1
+    assert api.get('/transcripts/item-1/episode-1', headers=AUTH).json() == first
+    # The poller doesn't undo it, and it runs once.
+    service.poller.poll_once(now=NOW + 60)
+    assert service.worker.run_once() and not service.worker.run_once()
+    assert api.get('/transcripts/item-1/episode-1', headers=AUTH).status_code == 200
+    assert api.post('/jobs', headers=AUTH, json=body).json()['state'] == 'done'
+
+
 def test_status_for_many_episodes(service):
     api = client(service)
     api.put('/libraries', headers=AUTH, json={'enabled': ['lib-1']})

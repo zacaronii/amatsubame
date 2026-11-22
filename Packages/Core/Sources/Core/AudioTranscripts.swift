@@ -18,9 +18,14 @@ public struct AudioTranscriptInfo: Codable, Equatable, Hashable, Sendable, Fetch
     public var savedAt: Date
     /// Set when the episode is played; Marks search covers played episodes.
     public var lastPlayedAt: Date?
+    /// What made it and when (Kaku's `source`): the model, Kaku's version, and the time it finished.
+    public var model: String?
+    public var kakuVersion: String?
+    public var transcribedAt: Date?
 
     public init(itemId: String, episodeId: String, showTitle: String, episodeTitle: String, fingerprint: String?,
-                duration: Double?, savedAt: Date, lastPlayedAt: Date? = nil) {
+                duration: Double?, savedAt: Date, lastPlayedAt: Date? = nil, model: String? = nil, kakuVersion: String? = nil,
+                transcribedAt: Date? = nil) {
         key = Self.key(itemId: itemId, episodeId: episodeId)
         self.itemId = itemId
         self.episodeId = episodeId
@@ -30,6 +35,9 @@ public struct AudioTranscriptInfo: Codable, Equatable, Hashable, Sendable, Fetch
         self.duration = duration
         self.savedAt = savedAt
         self.lastPlayedAt = lastPlayedAt
+        self.model = model
+        self.kakuVersion = kakuVersion
+        self.transcribedAt = transcribedAt
     }
 
     /// "<item>/<episode>", or the item alone for a book (its episode id is empty).

@@ -335,7 +335,9 @@ final class KikuEnvironment {
                         played: Bool) throws -> [AudioSentence] {
         let info = AudioTranscriptInfo(itemId: itemId, episodeId: episodeId, showTitle: showTitle,
                                        episodeTitle: episodeTitle, fingerprint: document.source.fingerprint,
-                                       duration: document.source.duration, savedAt: .now, lastPlayedAt: played ? .now : nil)
+                                       duration: document.source.duration, savedAt: .now, lastPlayedAt: played ? .now : nil,
+                                       model: document.source.model, kakuVersion: document.source.kaku,
+                                       transcribedAt: document.source.created)
         let sentences = document.sentences.enumerated().map { index, sentence in
             AudioSentence(key: info.key, position: index, start: sentence.start, end: sentence.end, text: sentence.text,
                           words: sentence.words.map { AudioSentence.Word(text: $0.text, start: $0.start, end: $0.end) })

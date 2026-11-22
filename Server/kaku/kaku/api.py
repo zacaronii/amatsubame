@@ -22,6 +22,8 @@ class JobRequest(BaseModel):
     itemId: str
     # Empty (or left out) for a book.
     episodeId: str = ''
+    # Transcribe it again even though its transcript is current (1.6).
+    force: bool = False
 
 
 class LibrariesRequest(BaseModel):
@@ -128,9 +130,11 @@ def create_app(service):
         episode = service.audiobookshelf.episode(request.itemId, request.episodeId)
         if episode is None:
             raise HTTPException(404, f'Audiobookshelf has no such {"book" if not request.episodeId else "episode"}.')
-        if saved and saved['fingerprint'] == episode.fingerprint and saved['model'] == model_key(service.transcriber.name):
+        current = saved and saved['fingerprint'] == episode.fingerprint and saved['model'] == model_key(service.transcriber.name)
+        if current and not request.force:
             return JSONResponse({'itemId': request.itemId, 'episodeId': request.episodeId, 'state': 'done'})
-        db.offer(episode, NOW, model_key(service.transcriber.name))
+        # Forced: the old transcript keeps serving until the new one replaces it.
+        db.offer(episode, NOW, model_key(service.transcriber.name), force=request.force)
         service.worker.wake.set()
         return JSONResponse(waiting(request.itemId, request.episodeId), status_code=202)
 
