@@ -15,8 +15,8 @@ enum MiruSetup {
         let kechimochi = ((try? common.activity.kechimochiURL()) ?? nil) != nil
         return [
             SetupChecklistItem.server("Jellyfin", account: common.serverAccounts[.jellyfin], settings: "Settings → Watching"),
-            SetupChecklistItem("Jimaku subtitles", detail: jimaku ? "Key set" : "In Settings → Watching → Subtitles", isDone: jimaku),
-            SetupChecklistItem("Kaku subtitles", detail: common.serverAccounts[.kaku] != nil ? "Connected" : "In Settings → Watching → Subtitles",
+            SetupChecklistItem("Jimaku subtitles", detail: jimaku ? "Key set" : "In Settings → Watching → Kaku", isDone: jimaku),
+            SetupChecklistItem("Kaku subtitles", detail: common.serverAccounts[.kaku] != nil ? "Connected" : "In Settings → Watching → Kaku",
                                isDone: common.serverAccounts[.kaku] != nil),
             SetupChecklistItem("kechimochi", detail: kechimochi ? "Linked from Stats" : "Optional · In Settings → Stats", isDone: kechimochi),
         ]
@@ -152,7 +152,7 @@ struct MiruSetupExtras: View {
         Divider().padding(.leading, 16)
         SetupExtraRow("Kaku", detail: "Makes subtitles from the Japanese audio when Jimaku has none", recommended: true,
                       isDone: common.serverAccounts[.kaku] != nil) {
-            KakuSettingsView(environment: common)
+            KakuConnectionView(environment: common)
         }
         Divider().padding(.leading, 16)
         SetupExtraRow("kechimochi", detail: "Your immersion log, linked from Stats",

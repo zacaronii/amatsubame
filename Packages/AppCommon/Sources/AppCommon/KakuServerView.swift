@@ -5,8 +5,8 @@ import Observation
 import SwiftUI
 
 /// What Kaku is doing, read from its API every few seconds while Settings ▸ Kaku is open (#149):
-/// the server, the job running, the queue, failures (with Try Again) and each library, with
-/// switches for which ones it transcribes.
+/// the job running, the queue, failures (with Try Again), each library (with switches for which
+/// ones it transcribes) and the server.
 @MainActor @Observable
 final class KakuServerModel {
     private(set) var health: KakuHealth?
@@ -23,6 +23,11 @@ final class KakuServerModel {
     }
 
     private var client: KakuClient? { AudioServers.kakuClient(common) }
+
+    /// Forgets what a server that's been removed said.
+    func clear() {
+        (health, queue, libraries, error) = (nil, nil, nil, nil)
+    }
 
     /// Every 5 seconds until the screen goes.
     func follow() async {
@@ -76,46 +81,38 @@ final class KakuServerModel {
     }
 }
 
-/// The sections under Kaku's address and token once it's set up.
+/// What Kaku is doing, as the sections of the Kaku screen: what's running, the queue, failures,
+/// each library, then the server itself. `KakuSettingsView` runs the model.
 struct KakuServerSections: View {
-    @State private var model: KakuServerModel
-
-    init(common: CommonEnvironment) {
-        _model = State(initialValue: KakuServerModel(common: common))
-    }
+    let model: KakuServerModel
 
     var body: some View {
-        Group {
-            if let error = model.error {
-                Section {
-                    Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+        if let error = model.error {
+            Section {
+                Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+            }
+        }
+        if let queue = model.queue {
+            running(queue)
+            waiting(queue)
+            if !queue.failed.isEmpty { problems(queue.failed) }
+        } else if model.error == nil {
+            Section {
+                HStack(spacing: 10) {
+                    ProgressView()
+                    Text("Asking Kaku…").foregroundStyle(.secondary)
                 }
             }
-            server(model.health)
-            if let queue = model.queue {
-                running(queue)
-                waiting(queue)
-                if !queue.failed.isEmpty { problems(queue.failed) }
-            }
-            if let libraries = model.libraries { librarySection(libraries) }
         }
+        if let libraries = model.libraries { librarySection(libraries) }
+        if let health = model.health { server(health) }
     }
 
     // MARK: Sections
 
-    private func server(_ health: KakuHealth?) -> some View {
+    private func server(_ health: KakuHealth) -> some View {
         Section("Server") {
-            // One row that's always there carries the polling: modifiers on a Group or Section in a
-            // Form go to its rows, so with nothing loaded yet there would be none to run it.
-            LabeledContent("Version") {
-                if let health { Text(health.version) } else { ProgressView() }
-            }
-            .task { await model.follow() }
-            if let health { serverRows(health) }
-        }
-    }
-
-    @ViewBuilder private func serverRows(_ health: KakuHealth) -> some View {
+            LabeledContent("Version", value: health.version)
             if let name = health.model {
                 LabeledContent("Model") {
                     Text(health.modelLoaded == true ? "\(name) · loaded" : "\(name) · not loaded")
@@ -130,6 +127,7 @@ struct KakuServerSections: View {
             if let error = health.lastPollError {
                 Label(error, systemImage: "exclamationmark.triangle").font(.footnote).foregroundStyle(.orange)
             }
+        }
     }
 
     private func running(_ queue: KakuQueue) -> some View {
@@ -262,5 +260,50 @@ struct KakuServerSections: View {
 
     static func ago(_ seconds: Double) -> String {
         Date(timeIntervalSince1970: seconds).formatted(.relative(presentation: .named))
+    }
+}
+
+/// Kaku's row in each app's Settings: its name, and in a few words what it's doing ("Idle · 155
+/// transcribed"), asked once when the list shows.
+public struct KakuSettingsRow: View {
+    @Environment(CommonEnvironment.self) private var common
+    @State private var health: KakuHealth?
+    @State private var unreachable = false
+    let purpose: String
+
+    /// `purpose`: what Kaku is for in this app, shown until it's set up ("Transcripts").
+    public init(purpose: String) {
+        self.purpose = purpose
+    }
+
+    public var body: some View {
+        let account = common.serverAccounts[.kaku]
+        SettingsRowLabel("Kaku", subtitle: Self.summary(purpose: purpose, host: account?.baseURL.host(), health: health, unreachable: unreachable),
+                         systemImage: "text.quote", color: .teal, dot: account == nil ? nil : unreachable ? .red : account?.dotColor)
+            .task(id: account?.baseURL) {
+                (health, unreachable) = (nil, false)
+                guard let client = AudioServers.kakuClient(common) else { return }
+                do {
+                    health = try await client.health()
+                } catch {
+                    unreachable = !error.isCancellation
+                }
+            }
+    }
+
+    static func summary(purpose: String, host: String?, health: KakuHealth?, unreachable: Bool) -> String {
+        guard let host else { return "\(purpose) · not set up" }
+        if unreachable { return "Can't reach \(host)" }
+        guard let jobs = health?.jobs else { return host }
+        let waiting = jobs["queued"] ?? 0
+        let failed = jobs["failed"] ?? 0
+        var parts: [String] = []
+        if (jobs["running"] ?? 0) > 0 || waiting > 0 {
+            parts.append(waiting > 0 ? "Transcribing · \(waiting) waiting" : "Transcribing")
+        } else {
+            parts.append("Idle · \(jobs["done"] ?? 0) transcribed")
+        }
+        if failed > 0 { parts.append("\(failed) failed") }
+        return parts.joined(separator: " · ")
     }
 }
