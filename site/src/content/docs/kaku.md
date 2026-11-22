@@ -115,28 +115,23 @@ The list you send replaces the old one: libraries left out are switched off.
 
 ## Connecting the apps
 
-Each app signs in to Kaku on its own, with Kaku's address and the token (`KAKU_API_TOKEN`):
+Each app signs in to Kaku on its own, with Kaku's address and the token (`KAKU_API_TOKEN`),
+in **Settings ▸ Kaku** in Kiku, Yomu and Miru. Kiku and Miru also offer it in the Extras step of
+their first-launch setup.
 
-| App | Where |
-| --- | --- |
-| Kiku | Settings ▸ Listening ▸ Transcripts |
-| Yomu | Settings ▸ Reading ▸ Read-Along ▸ Kaku |
-| Miru | Settings ▸ Watching ▸ Subtitles ▸ Kaku |
+Once connected, the Kaku row in Settings says in a few words what Kaku is doing ("Idle · 155
+transcribed", "Transcribing · 9 waiting"), and the screen it opens shows the rest, refreshed every
+few seconds:
 
-Kiku and Miru also offer it in the Extras step of their first-launch setup.
-
-Once connected, each app's Kaku screen (where you entered the address: Kiku's Settings ▸ Transcripts,
-Yomu's Settings ▸ Read-Along ▸ Kaku, Miru's Settings ▸ Subtitles ▸ Kaku) shows what Kaku is doing,
-refreshed every few seconds:
-
-- **Server:** its version, the model and whether it's loaded, GPU memory, and when it last checked
-  Audiobookshelf (with the error, if that failed).
 - **Now Transcribing:** the episode or book running, with its progress.
 - **Queue:** what's waiting, in order (asked for, then new this week, then the rest), with a rough
   time to the end.
 - **Problems:** what failed and why, with **Try Again**.
 - **Libraries:** each library's switch, and how far along it is ("120 of 131 episodes transcribed ·
   10 waiting · updated 2 hours ago"), plus the Jellyfin episodes asked for in Miru.
+- **Server:** its version, the model and whether it's loaded, GPU memory, and when it last checked
+  Audiobookshelf (with the error, if that failed).
+- **Connection:** the address and token, with Test Connection and Remove Server.
 
 Then:
 

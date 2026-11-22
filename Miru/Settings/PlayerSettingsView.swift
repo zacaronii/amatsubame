@@ -48,6 +48,10 @@ struct PlayerSettingsView: View {
                         SettingsRowLabel("Subtitles", subtitle: subtitlesSummary, systemImage: "captions.bubble.fill", color: .indigo)
                     }
                     .accessibilityIdentifier("settings.subtitles")
+                    NavigationLink(value: ServerKind.kaku) {
+                        KakuSettingsRow(purpose: "Subtitles when Jimaku has none")
+                    }
+                    .accessibilityIdentifier("settings.kaku")
                     NavigationLink {
                         PlaybackSettingsView()
                     } label: {
@@ -180,6 +184,7 @@ struct MacSettingsView: View {
                 MacSettingsPage("jellyfin", title: "Jellyfin", systemImage: "server.rack") { JellyfinSettingsView(environment: environment.common) },
                 MacSettingsPage("libraries", title: "Libraries", systemImage: "books.vertical") { JellyfinLibrariesSettingsView() },
                 MacSettingsPage("subtitles", title: "Subtitles", systemImage: "captions.bubble") { SubtitlesSettingsView() },
+                MacSettingsPage("kaku", title: "Kaku", systemImage: "text.quote") { KakuSettingsView(environment: environment.common) },
                 MacSettingsPage("playback", title: "Playback", systemImage: "play.rectangle") { PlaybackSettingsView() },
                 MacSettingsPage("downloads", title: "Downloads", systemImage: "arrow.down.circle") { PlayerSettingsView.downloads },
                 MacSettingsPage("shortcuts", title: "Keyboard Shortcuts", systemImage: "keyboard") { PlayerShortcutsView() },

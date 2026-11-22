@@ -14,7 +14,7 @@ enum KikuSetup {
         let kechimochi = ((try? common.activity.kechimochiURL()) ?? nil) != nil
         return [
             SetupChecklistItem.server("Audiobookshelf", account: shelf, settings: "Settings → Listening"),
-            SetupChecklistItem("Kaku transcripts", detail: common.serverAccounts[.kaku] != nil ? "Connected" : "In Settings → Listening → Transcripts",
+            SetupChecklistItem("Kaku transcripts", detail: common.serverAccounts[.kaku] != nil ? "Connected" : "In Settings → Listening → Kaku",
                                isDone: common.serverAccounts[.kaku] != nil),
             SetupChecklistItem("kechimochi", detail: kechimochi ? "Linked from Stats" : "Optional · In Settings → Stats", isDone: kechimochi),
         ]
@@ -135,7 +135,7 @@ struct KikuSetupExtras: View {
         let common = environment.common
         SetupExtraRow("Kaku", detail: "Needed for transcripts: without it episodes play without their text", recommended: true,
                       isDone: common.serverAccounts[.kaku] != nil) {
-            KakuSettingsView(environment: common)
+            KakuConnectionView(environment: common)
         }
         Divider().padding(.leading, 16)
         SetupExtraRow("kechimochi", detail: "Your immersion log, linked from Stats",

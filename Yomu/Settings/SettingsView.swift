@@ -46,6 +46,10 @@ struct SettingsView: View {
                                          dot: environment.serverAccounts[.audiobookshelf]?.dotColor)
                     }
                     .accessibilityIdentifier("settings.readAlong")
+                    NavigationLink(value: ServerKind.kaku) {
+                        KakuSettingsRow(purpose: "Read-along transcripts")
+                    }
+                    .accessibilityIdentifier("settings.kaku")
                 } header: {
                     Text("Reading")
                 } footer: {
@@ -164,6 +168,7 @@ struct MacSettingsView: View {
                 MacSettingsPage("downloads", title: "Downloads", systemImage: "arrow.down.circle") { ReadingDownloadsView() },
                 MacSettingsPage("ocr", title: "Manga Text Recognition", systemImage: "text.viewfinder") { OCRSettingsView() },
                 MacSettingsPage("readAlong", title: "Read-Along", systemImage: "headphones") { ReadAlongSettingsView() },
+                MacSettingsPage("kaku", title: "Kaku", systemImage: "text.quote") { KakuSettingsView(environment: environment.common) },
             ]),
         ] + MacSettingsGroup.shared {
             SettingsView.anki(environment)

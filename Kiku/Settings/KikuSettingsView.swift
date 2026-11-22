@@ -26,10 +26,9 @@ struct KikuSettingsView: View {
                     }
                     .accessibilityIdentifier("settings.libraries")
                     NavigationLink(value: ServerKind.kaku) {
-                        SettingsRowLabel("Transcripts", subtitle: accounts[.kaku].map { "Kaku · \($0.hostAndAccount)" } ?? "Kaku · not set up",
-                                         systemImage: "text.quote", color: .teal, dot: accounts[.kaku]?.dotColor)
+                        KakuSettingsRow(purpose: "Transcripts")
                     }
-                    .accessibilityIdentifier("settings.transcripts")
+                    .accessibilityIdentifier("settings.kaku")
                     NavigationLink {
                         Self.playback
                     } label: {
@@ -166,7 +165,7 @@ struct MacSettingsView: View {
                     KikuSettingsView.serverPage(.audiobookshelf, environment: environment)
                 },
                 MacSettingsPage("libraries", title: "Libraries", systemImage: "books.vertical") { KikuLibrariesSettingsView() },
-                MacSettingsPage("transcripts", title: "Transcripts", systemImage: "text.quote") { KakuSettingsView(environment: environment.common) },
+                MacSettingsPage("kaku", title: "Kaku", systemImage: "text.quote") { KakuSettingsView(environment: environment.common) },
                 MacSettingsPage("playback", title: "Playback", systemImage: "play.circle") { KikuSettingsView.playback },
                 MacSettingsPage("downloads", title: "Downloads", systemImage: "arrow.down.circle") { KikuDownloadSettingsView() },
             ]),
