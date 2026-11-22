@@ -824,6 +824,13 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v50_kiku_plays_next") { db in
+            // Kiku: Play the Next Episode (Settings ▸ Playback), on by default.
+            try db.alter(table: "listenSettings") { t in
+                t.add(column: "playsNextEpisode", .boolean).notNull().defaults(to: true)
+            }
+        }
+
         return migrator
     }
 }

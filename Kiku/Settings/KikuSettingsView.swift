@@ -32,7 +32,7 @@ struct KikuSettingsView: View {
                     NavigationLink {
                         Self.playback
                     } label: {
-                        SettingsRowLabel("Playback", subtitle: "Lock Screen skip intervals", systemImage: "play.circle.fill", color: .red)
+                        SettingsRowLabel("Playback", subtitle: "Skip intervals, playing the next episode", systemImage: "play.circle.fill", color: .red)
                     }
                     .accessibilityIdentifier("settings.playback")
                     NavigationLink {
@@ -87,12 +87,35 @@ struct KikuSettingsView: View {
                 Text("For the Lock Screen, AirPods and CarPlay. The player's own buttons jump by lines.")
                 #endif
             }
+            PlaysNextSection()
             #if os(iOS)
             WatchLiveTextSection()
             #endif
         }
         .formStyle(.grouped)
         .navigationTitle("Playback")
+    }
+
+    /// When an episode ends, the show's next one starts (on by default).
+    private struct PlaysNextSection: View {
+        @Environment(KikuEnvironment.self) private var environment
+        @State private var isOn = true
+
+        var body: some View {
+            Section {
+                Toggle("Play the Next Episode", isOn: $isOn)
+                    .accessibilityIdentifier("settings.playsNext")
+            } footer: {
+                Text("When a podcast episode ends, the show's next one starts by itself: the next by date that you haven't finished. The sleep timer's End of Episode still stops there.")
+            }
+            .onAppear { isOn = ListenSettings.load(environment.common.database).playsNextEpisode }
+            .onChange(of: isOn) { _, on in
+                var settings = ListenSettings.load(environment.common.database)
+                guard settings.playsNextEpisode != on else { return }
+                settings.playsNextEpisode = on
+                try? settings.save(environment.common.database)
+            }
+        }
     }
 
     #if os(iOS)

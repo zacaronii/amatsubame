@@ -293,6 +293,22 @@ final class KikuEnvironment {
     }
 
     /// Stops and forgets the episode (the mini player goes away).
+    /// An episode ended: the show's next one starts by itself, when Settings ▸ Playback says so
+    /// (podcasts only; a book has nothing after it). The player stays as it was, open or small.
+    func playNext(after entry: EpisodeEntry) {
+        guard !entry.isBook, ListenSettings.load(common.database).playsNextEpisode else { return }
+        Task {
+            if library.showEpisodes[entry.itemId] == nil { await library.loadShow(entry.itemId) }
+            let episodes = library.showEpisodes[entry.itemId] ?? downloadedEntries.filter { $0.itemId == entry.itemId }.map(\.episode)
+            // Still the one that ended (nothing else was started meanwhile).
+            guard playback?.key == entry.id,
+                  let next = PodcastLibrary.episode(after: entry.episode, in: episodes, finished: { library.progress[$0.key]?.isFinished == true }) else { return }
+            let shows = showsPlayer
+            play(library.entry(next, showTitle: entry.showTitle))
+            showsPlayer = shows
+        }
+    }
+
     /// Marks an episode or book played, or not started (its row's menu): here at once, then on
     /// Audiobookshelf through the outbox, like listening does.
     func setPlayed(_ entry: EpisodeEntry, _ played: Bool) {

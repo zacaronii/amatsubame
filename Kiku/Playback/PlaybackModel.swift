@@ -65,6 +65,10 @@ final class PlaybackModel: Identifiable, LineLookupHost {
     @ObservationIgnored private var offeredDownload = false
     @ObservationIgnored private var transcriptTask: Task<Void, Never>?
     @ObservationIgnored private var againTask: Task<Void, Never>?
+    /// The audio reached its end in this player.
+    @ObservationIgnored private var playedToEnd = false
+    /// When playback was last paused (for picking up from the line's start).
+    @ObservationIgnored private var pausedAt: Date?
     /// `close()` has run: nothing still on its way may start the audio or a transcript loop.
     @ObservationIgnored private var closed = false
     /// What made the transcript showing and when (the More menu); nil until one is saved.
@@ -476,11 +480,18 @@ final class PlaybackModel: Identifiable, LineLookupHost {
 
     private func playStateChanged(_ playing: Bool) {
         if playing {
+            // From the start of the line the pause cut off.
+            if let pausedAt, let target = TranscriptFollow.resumeTarget(at: audio.currentTime, in: sentences,
+                                                                        pausedFor: Date.now.timeIntervalSince(pausedAt)) {
+                audio.seek(to: target)
+            }
+            pausedAt = nil
             // Pressing play yourself while the popup is open: don't resume again when it closes.
             resumesAfterLookup = false
             // Started some other way (AirPods, the Lock Screen): the place loaded is the answer.
             resumeChoice = nil
         } else {
+            pausedAt = .now
             saveProgress(force: true)
             flushListening()
             environment.sessions.send()
@@ -489,12 +500,16 @@ final class PlaybackModel: Identifiable, LineLookupHost {
     }
 
     private func finished() {
-        if sleepTimer == .endOfEpisode { sleepTimer = nil }
+        // The sleep timer's End of Episode means stop here.
+        let stopsHere = sleepTimer == .endOfEpisode
+        if stopsHere { sleepTimer = nil }
+        pausedAt = nil
         saveProgress(force: true, finished: true)
         flushListening()
         environment.sessions.send()
         // Download ahead moves on past a finished episode.
         environment.autoDownloads.schedule()
+        if !stopsHere { environment.playNext(after: entry) }
     }
 
     private func flushListening() {
@@ -517,7 +532,10 @@ final class PlaybackModel: Identifiable, LineLookupHost {
         guard duration > 0, force || abs(time - lastSaved) >= 15 else { return }
         lastSaved = time
         let now = Date.now
-        let isFinished = finished || (entry.isFinished && time >= duration - 5)
+        if finished { playedToEnd = true }
+        // Still finished when the place is saved again at the end (closing the player, the next
+        // episode starting): it used to go back to unfinished at 100%.
+        let isFinished = finished || ((playedToEnd || entry.isFinished) && time >= duration - 5)
         try? environment.listenProgress.save(LocalWatchProgress(itemId: key, seriesId: entry.itemId, position: time, duration: duration, updatedAt: now))
         let payload = AudiobookshelfProgressPayload(itemId: entry.itemId, episodeId: entry.episode.id, currentTime: time,
                                                     duration: duration, isFinished: isFinished, reportedAt: now)
