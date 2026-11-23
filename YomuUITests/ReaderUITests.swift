@@ -772,6 +772,53 @@ final class ReaderUITests: XCTestCase {
         XCTAssertEqual(try chapters.map { try kavita.progress(chapterId: $0) }, progressBefore, "no reading progress changed")
     }
 
+    /// Mark as Read on a volume and Mark Series as Read / Unread reach the test account's Kavita
+    /// through its mark endpoints, and add nothing to its reading history. Runs only on a series
+    /// with nothing read; teardown marks unread whatever it marked and checks the pages read.
+    func testMarkingReadReachesKavitaAndIsNotReading() throws {
+        let kavita = try KavitaTestAccount()
+        let seriesId = try kavita.seriesId(named: series)
+        let before = try kavita.pagesRead(seriesId: seriesId)
+        guard before.values.allSatisfy({ $0.read == 0 }) else { throw XCTSkip("Needs a series with nothing read on the test account.") }
+        let marksBefore = try kavita.snapshot(progressOf: seriesId)
+        addTeardownBlock { XCTAssertNil(try marksBefore.restore(), "the test account's progress was put back") }
+        let historyBefore = try kavita.readingHistoryCount(seriesId: seriesId)
+        func read() -> [Int: (read: Int, pages: Int)] { (try? kavita.pagesRead(seriesId: seriesId)) ?? [:] }
+        app.launchEnvironment["UITEST_SENDS_MARKS"] = "1"
+        app.launch()
+
+        let libraryRow = app.buttons[library].firstMatch
+        XCTAssertTrue(libraryRow.waitForExistence(timeout: 20))
+        for _ in 0..<6 where !libraryRow.isHittable { app.swipeUp() }
+        libraryRow.tap()
+        let tile = app.buttons["series.\(series)"].firstMatch
+        XCTAssertTrue(tile.waitForExistence(timeout: 20))
+        tile.tap()
+        let volume = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'volume.'")).element(boundBy: 0)
+        XCTAssertTrue(volume.waitForExistence(timeout: 20))
+
+        // A volume.
+        volume.press(forDuration: 1.2)
+        app.buttons["Mark as Read"].firstMatch.tap()
+        XCTAssertTrue(waitFor { read().values.filter { $0.read == $0.pages }.count == 1 }, "one volume read on Kavita")
+
+        // The whole series, asked first.
+        let more = app.buttons["series.downloads"].firstMatch
+        more.tap()
+        app.buttons["series.markRead"].firstMatch.tap()
+        let confirm = app.buttons["series.markConfirm"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "asked first")
+        confirm.tap()
+        XCTAssertTrue(waitFor { read().values.allSatisfy { $0.read == $0.pages } }, "every volume read on Kavita")
+        more.tap()
+        app.buttons["series.markUnread"].firstMatch.tap()
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        confirm.tap()
+        XCTAssertTrue(waitFor { read().values.allSatisfy { $0.read == 0 } }, "every volume unread on Kavita")
+        sleep(5)   // Kavita records reading sessions in a background job
+        XCTAssertEqual(try kavita.readingHistoryCount(seriesId: seriesId), historyBefore, "not recorded as reading")
+    }
+
     /// Adds a series' first volume to the test's reading list (made with the first), then goes
     /// back to the Library home.
     private func addFirstVolume(library: String, series: String, new: Bool) {
