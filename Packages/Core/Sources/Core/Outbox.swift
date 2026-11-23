@@ -389,6 +389,16 @@ public struct OutboxStore: Sendable {
 
     /// Deletes sent progress jobs older than the retention window. Sent cards are kept as history.
     @discardableResult
+    /// The last job with this coalesce key that was sent (kept `sentProgressRetention`), other
+    /// than `job`.
+    public func lastSent(coalesceKey: String, kind: OutboxJobKind, before job: Int64?) throws -> OutboxJob? {
+        try database.reader.read { db in
+            try OutboxJob.filter(Column("kind") == kind && Column("coalesceKey") == coalesceKey && Column("state") == OutboxJobState.sent)
+                .filter(Column("id") != (job ?? -1))
+                .order(Column("updatedAt").desc, Column("id").desc).fetchOne(db)
+        }
+    }
+
     public func pruneSentProgress() throws -> Int {
         let cutoff = now().addingTimeInterval(-Self.sentProgressRetention)
         return try database.writer.write { db in

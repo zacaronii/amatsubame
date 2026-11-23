@@ -170,14 +170,18 @@ public struct KavitaProgressPayload: Codable, Equatable, Sendable {
     public var seriesId: Int
     public var libraryId: Int
     public var bookScrollId: String?
+    /// When the page was turned (kept in the job, never sent): judged against Kavita by this,
+    /// not by when the job is sent. Jobs queued before it existed have none.
+    public var madeAt: Date?
 
-    public init(volumeId: Int, chapterId: Int, pageNum: Int, seriesId: Int, libraryId: Int, bookScrollId: String? = nil) {
+    public init(volumeId: Int, chapterId: Int, pageNum: Int, seriesId: Int, libraryId: Int, bookScrollId: String? = nil, madeAt: Date? = nil) {
         self.volumeId = volumeId
         self.chapterId = chapterId
         self.pageNum = pageNum
         self.seriesId = seriesId
         self.libraryId = libraryId
         self.bookScrollId = bookScrollId
+        self.madeAt = madeAt
     }
 
     // Kavita expects an explicit null, so encode it rather than omitting the key.
@@ -189,6 +193,7 @@ public struct KavitaProgressPayload: Codable, Equatable, Sendable {
         try container.encode(seriesId, forKey: .seriesId)
         try container.encode(libraryId, forKey: .libraryId)
         try container.encode(bookScrollId, forKey: .bookScrollId)
+        try container.encodeIfPresent(madeAt, forKey: .madeAt)
     }
 }
 

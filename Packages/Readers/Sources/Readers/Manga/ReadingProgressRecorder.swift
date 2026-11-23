@@ -12,7 +12,8 @@ public final class ReadingProgressRecorder {
     private let syncNow: @MainActor () -> Void
     private let debounce: Duration
     private let now: () -> Date
-    private var pending: (page: Int, scrollId: String?)?
+    /// The page waiting to be queued, and when it was turned (the job's `madeAt`).
+    private var pending: (page: Int, scrollId: String?, at: Date)?
     private var lastRecorded: (page: Int, scrollId: String?, characters: Int?)?
     private var debounceTask: Task<Void, Never>?
 
@@ -44,12 +45,13 @@ public final class ReadingProgressRecorder {
         // characters still move on.
         guard lastRecorded?.page != page || lastRecorded?.scrollId != scrollId || lastRecorded?.characters != characters else { return }
         lastRecorded = (page, scrollId, characters)
+        let turned = now()
         try? progressStore.save(LocalReadingProgress(
             chapterId: chapter.chapterId, seriesId: chapter.seriesId, volumeId: chapter.volumeId,
-            libraryId: chapter.libraryId, page: page, pages: chapter.pages, updatedAt: now(), scrollId: scrollId,
+            libraryId: chapter.libraryId, page: page, pages: chapter.pages, updatedAt: turned, scrollId: scrollId,
             characters: characters
         ))
-        pending = (page, scrollId)
+        pending = (page, scrollId, turned)
         debounceTask?.cancel()
         debounceTask = Task { [weak self, debounce] in
             try? await Task.sleep(for: debounce)
@@ -67,7 +69,7 @@ public final class ReadingProgressRecorder {
         let payload = KavitaProgressPayload(
             volumeId: chapter.volumeId, chapterId: chapter.chapterId,
             pageNum: ProgressSyncPolicy.pageNum(forPage: position.page, pages: chapter.pages),
-            seriesId: chapter.seriesId, libraryId: chapter.libraryId, bookScrollId: position.scrollId
+            seriesId: chapter.seriesId, libraryId: chapter.libraryId, bookScrollId: position.scrollId, madeAt: position.at
         )
         do {
             try outbox.enqueue(payload, kind: .kavitaProgress, coalesceKey: "kavita.chapter.\(chapter.chapterId)")

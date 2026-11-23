@@ -107,7 +107,14 @@ import UniformTypeIdentifiers
         #expect(try queuedPayloads().isEmpty)
 
         recorder.flush()
-        #expect(try queuedPayloads() == [KavitaProgressPayload(volumeId: 206, chapterId: 206, pageNum: 4, seriesId: 4, libraryId: 1)])
+        // Stamped with when the page was turned (the device's row), not when it was queued.
+        let turned = try #require(try progress.progress(chapterId: 206)?.updatedAt)
+        let queued = try queuedPayloads()
+        #expect(queued.count == 1)
+        #expect(queued.first.map { $0.madeAt.map { abs($0.timeIntervalSince(turned)) < 0.01 } } == true)
+        var plain = try #require(queued.first)
+        plain.madeAt = nil
+        #expect(plain == KavitaProgressPayload(volumeId: 206, chapterId: 206, pageNum: 4, seriesId: 4, libraryId: 1))
         #expect(syncs == 1)
 
         recorder.flush()
