@@ -67,6 +67,8 @@ final class PlayerGestureUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
+        // An English file for mpv to draw, to look at where it lands (optional).
+        app.launchEnvironment["UITEST_PLAYER_ENGLISH"] = ProcessInfo.processInfo.environment["UITEST_PLAYER_ENGLISH"]
         app.launch()
 
         let player = app.descendants(matching: .any)["player.video"].firstMatch
@@ -90,6 +92,13 @@ final class PlayerGestureUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["player.osd"].exists && app.staticTexts["player.osd"].label == "Zoomed to Fill")
         sleep(2)
         shot("filled")
+
+        // A one-finger drag right after the pinch scrubs (half the width of a 60 s clip: ~7.5 s).
+        let beforeDrag = time()
+        player.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.5))
+            .press(forDuration: 0.05, thenDragTo: player.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.5)))
+        sleep(1)
+        XCTAssertGreaterThan(time(), beforeDrag + 4.5, "the first drag after a pinch scrubs")
 
         XCUIDevice.shared.orientation = .portrait
         sleep(2)

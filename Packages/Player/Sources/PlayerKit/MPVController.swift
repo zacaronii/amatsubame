@@ -135,19 +135,23 @@ public final class MPVController {
         isLoaded = true
     }
 
-    /// mpv's secondary subtitles sit this far below the top (scaled pixels: 720 to the height).
+    /// mpv's secondary subtitles sit this far below the top, and at least this far in from the
+    /// sides (scaled pixels: 720 to the height; 25 is mpv's own side margin).
     static let subtitleMargin = 60
+    static let subtitleSideMargin = 25
 
-    /// The share of the picture's height cut off at the top when the view fills the screen:
-    /// mpv's subtitles move down by as much, so they stay on screen.
-    public func setTopCrop(_ fraction: Double) {
-        let margin = Self.subtitleMargin + Int((max(fraction, 0) * 720).rounded())
-        guard margin != subtitleMarginApplied else { return }
-        subtitleMarginApplied = margin
-        setString("sub-margin-y", String(margin))
+    /// How much of the picture the view cuts off when it fills the screen, at the top and at
+    /// each side, as shares of the picture's height: mpv's subtitles move in by as much, so
+    /// they stay on screen.
+    public func setCrop(top: Double, side: Double) {
+        let margins = (y: Self.subtitleMargin + Int((max(top, 0) * 720).rounded()),
+                       x: Self.subtitleSideMargin + Int((max(side, 0) * 720).rounded()))
+        if margins.y != subtitleMarginsApplied.y { setString("sub-margin-y", String(margins.y)) }
+        if margins.x != subtitleMarginsApplied.x { setString("sub-margin-x", String(margins.x)) }
+        subtitleMarginsApplied = margins
     }
 
-    @ObservationIgnored private var subtitleMarginApplied = MPVController.subtitleMargin
+    @ObservationIgnored private var subtitleMarginsApplied = (y: MPVController.subtitleMargin, x: MPVController.subtitleSideMargin)
 
     public func setPaused(_ paused: Bool) {
         setFlag("pause", paused)

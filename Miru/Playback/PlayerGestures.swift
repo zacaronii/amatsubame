@@ -83,8 +83,9 @@ private struct PlayerGestures: ViewModifier {
                 including: enabled && canFill ? .all : .subviews
             )
             .onChange(of: pinching) { _, pinching in
-                // A drag that began with the first finger is dropped, not seeked.
-                guard pinching else { return }
+                // A drag that began with the first finger is dropped, not seeked (its end resets
+                // the mode); with none under way, the next drag starts afresh.
+                guard pinching, dragMode != nil else { return }
                 scrub = nil
                 dragMode = .ignored
                 level = nil

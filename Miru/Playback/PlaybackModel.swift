@@ -1448,7 +1448,8 @@ final class PlaybackModel {
         return text.isEmpty ? "Untitled" : text
     }
 
-    /// Pinched out to fill the screen (cropped), for this video; only where the layout allows it.
+    /// Pinched out to fill the screen (cropped); only where the layout allows it. It lasts while
+    /// the player stays open, so the next episodes (Up Next) play filled too.
     private(set) var fillsScreen = false
 
     func setFillsScreen(_ fills: Bool) {

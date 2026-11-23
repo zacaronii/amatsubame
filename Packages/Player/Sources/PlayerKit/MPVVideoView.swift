@@ -23,8 +23,9 @@ public final class MPVHostView: UIView {
     let videoLayer: MPVMetalLayer
     /// Called after the view settles at a new size (rotation, window resize).
     var onResize: (() -> Void)?
-    /// The share of the layer cut off at the top (filling), after each layout.
-    var onTopCrop: ((Double) -> Void)?
+    /// How much of the layer is cut off at the top and at each side (filling), as shares of
+    /// its height, after each layout.
+    var onCrop: ((_ top: Double, _ side: Double) -> Void)?
     private var lastSize: CGSize = .zero
     /// The video's shape; the layer is sized to fit it (see `videoFrame`).
     var videoAspect: Double? {
@@ -58,7 +59,7 @@ public final class MPVHostView: UIView {
         videoLayer.frame = frame
         videoLayer.drawableSize = CGSize(width: frame.width * videoLayer.contentsScale, height: frame.height * videoLayer.contentsScale)
         CATransaction.commit()
-        onTopCrop?(frame.height > 0 ? max(-frame.minY, 0) / frame.height : 0)
+        if frame.height > 0 { onCrop?(max(-frame.minY, 0) / frame.height, max(-frame.minX, 0) / frame.height) }
         notifyIfResized()
     }
 }
@@ -79,7 +80,7 @@ extension MPVVideoView: UIViewRepresentable {
     public func makeUIView(context: Context) -> MPVHostView {
         let view = MPVHostView(layer: controller.layer)
         view.onResize = { [controller] in controller.viewResized() }
-        view.onTopCrop = { [controller] in controller.setTopCrop($0) }
+        view.onCrop = { [controller] in controller.setCrop(top: $0, side: $1) }
         return view
     }
     public func updateUIView(_ view: MPVHostView, context: Context) {
@@ -93,7 +94,7 @@ public final class MPVHostView: NSView {
     /// Called after the view settles at a new size (window resize, full screen).
     var onResize: (() -> Void)?
     /// See the UIKit version.
-    var onTopCrop: ((Double) -> Void)?
+    var onCrop: ((_ top: Double, _ side: Double) -> Void)?
     private var lastSize: CGSize = .zero
     /// The video's shape; the layer is sized to fit it (see `videoFrame`).
     var videoAspect: Double? {
@@ -126,7 +127,7 @@ public final class MPVHostView: NSView {
         videoLayer.frame = frame
         videoLayer.drawableSize = CGSize(width: frame.width * scale, height: frame.height * scale)
         CATransaction.commit()
-        onTopCrop?(frame.height > 0 ? max(-frame.minY, 0) / frame.height : 0)
+        if frame.height > 0 { onCrop?(max(-frame.minY, 0) / frame.height, max(-frame.minX, 0) / frame.height) }
         notifyIfResized()
     }
 }
@@ -146,7 +147,7 @@ extension MPVVideoView: NSViewRepresentable {
     public func makeNSView(context: Context) -> MPVHostView {
         let view = MPVHostView(layer: controller.layer)
         view.onResize = { [controller] in controller.viewResized() }
-        view.onTopCrop = { [controller] in controller.setTopCrop($0) }
+        view.onCrop = { [controller] in controller.setCrop(top: $0, side: $1) }
         return view
     }
     public func updateNSView(_ view: MPVHostView, context: Context) {
