@@ -431,6 +431,46 @@ final class KikuMarksAndStatsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Marks you make while listening show up here."].waitForExistence(timeout: 5))
     }
 
+    /// A note on a mark: from the toast's Add Note right after marking, shown on the mark in
+    /// Marks, found by the search, edited from the mark, gone with the mark.
+    func testMarkNoteFromTheToastShowsAndIsFound() {
+        let app = XCUIApplication()
+        app.launchEnvironment = ["UITEST_KIKU": "1", "UITEST_KIKU_PLAYER": "1"]
+        app.launch()
+        XCTAssertTrue(app.buttons["player.playPause"].waitForExistence(timeout: 10))
+        app.buttons["player.mark"].tap()
+        let addNote = app.buttons["player.addNote"]
+        XCTAssertTrue(addNote.waitForExistence(timeout: 3))
+        addNote.tap()
+        let text = app.textViews["markNote.text"]
+        XCTAssertTrue(text.waitForExistence(timeout: 5))
+        text.typeText("駅の場面")
+        app.buttons["markNote.done"].tap()
+        XCTAssertTrue(text.waitForNonExistence(timeout: 5))
+        app.buttons["player.close"].tap()
+        app.tabBars.buttons["Marks"].tap()
+
+        let note = app.buttons["mark.note"]
+        XCTAssertTrue(note.waitForExistence(timeout: 5))
+        XCTAssertTrue(note.label.contains("駅の場面"), note.label)
+        // Edited from the mark: the note is kept as written.
+        app.buttons["mark.editNote"].tap()
+        XCTAssertTrue(text.waitForExistence(timeout: 5))
+        text.typeText("、後で")
+        app.buttons["markNote.done"].tap()
+        XCTAssertTrue(note.waitForExistence(timeout: 5))
+        XCTAssertTrue(note.label.contains("駅の場面、後で"), note.label)
+        // The search finds the mark by its note.
+        let field = app.searchFields.firstMatch
+        field.tap()
+        field.typeText("駅の場面")
+        let found = app.staticTexts["In your marks · 1"]
+        XCTAssertTrue(found.waitForExistence(timeout: 5))
+        // Cleared from the results: the mark and its note are gone.
+        app.buttons["mark.clear"].firstMatch.tap()
+        XCTAssertTrue(found.waitForNonExistence(timeout: 5))
+    }
+
     func testStatsShowsTimeListened() {
         let app = XCUIApplication()
         app.launchEnvironment = ["UITEST_KIKU": "1", "UITEST_STATS": "1"]

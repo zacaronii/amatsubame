@@ -11,6 +11,9 @@ struct PlayerView: View {
     @Bindable var model: PlaybackModel
     /// "Marked 13:21", briefly, after a mark (from here or the shortcut).
     @State private var markToast: String?
+    /// The mark the toast is about (it offers Add Note), and the one whose note is being written.
+    @State private var toastMark: AudioMark?
+    @State private var noteMark: AudioMark?
     @State private var showsChapters = false
     /// Find in Transcript: the bar is up, what's typed, the lines holding it and the one shown.
     @State private var finding = false
@@ -114,14 +117,28 @@ struct PlayerView: View {
         }
         .overlay(alignment: .top) {
             if let markToast {
-                Label(markToast, systemImage: "bookmark.fill")
-                    .font(.subheadline.weight(.semibold))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .glassEffect(.regular, in: .capsule)
-                    .padding(.top, 72)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .accessibilityIdentifier("player.markToast")
+                HStack(spacing: 10) {
+                    // Only the button takes taps: the controls under the toast keep theirs.
+                    Label(markToast, systemImage: "bookmark.fill")
+                        .allowsHitTesting(false)
+                        .accessibilityIdentifier("player.markToast")
+                    if let mark = toastMark {
+                        Button("Add Note") {
+                            noteMark = mark
+                            withAnimation { self.markToast = nil; toastMark = nil }
+                        }
+                        .buttonStyle(.borderless)
+                        .frame(minHeight: 44)
+                        .contentShape(.rect)
+                        .accessibilityIdentifier("player.addNote")
+                    }
+                }
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 16)
+                .padding(.vertical, toastMark == nil ? 10 : 0)
+                .glassEffect(.regular, in: .capsule)
+                .padding(.top, 72)
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
         // With a keyboard: [ and ] step the speed (← → the lines, M marks, T the transcript, Space plays).
@@ -146,9 +163,23 @@ struct PlayerView: View {
         .sensoryFeedback(.success, trigger: environment.lastMark?.id)
         .task(id: environment.lastMark?.id) {
             guard let mark = environment.lastMark, mark.key == model.key, Date.now.timeIntervalSince(mark.createdAt) < 2 else { return }
-            withAnimation { markToast = "Marked \(mark.time.clockText)" }
-            try? await Task.sleep(for: .seconds(2))
-            withAnimation { markToast = nil }
+            withAnimation {
+                markToast = "Marked \(mark.time.clockText)"
+                toastMark = mark
+            }
+            // Long enough to reach Add Note.
+            try? await Task.sleep(for: .seconds(4))
+            withAnimation { markToast = nil; toastMark = nil }
+        }
+        // Touching the player anywhere else puts the toast away at once.
+        .simultaneousGesture(TapGesture().onEnded {
+            guard toastMark != nil else { return }
+            withAnimation { markToast = nil; toastMark = nil }
+        })
+        .sheet(item: $noteMark) { mark in
+            MarkNoteSheet(mark: mark) { text in
+                if let id = mark.id { try? environment.marks.setNote(id, text) }
+            }
         }
     }
 

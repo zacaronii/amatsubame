@@ -91,3 +91,13 @@ import Testing
         #expect(TranscriptFind.firstHit([], from: 1) == nil)
     }
 }
+
+@MainActor @Suite struct MarkNoteSearchTests {
+    @Test func notesAreFoundLikeLines() {
+        #expect(MarksModel.noteMatches("駅の場面、後で調べる", "場面"))
+        #expect(MarksModel.noteMatches("Look up LATER", "later"), "any case")
+        #expect(!MarksModel.noteMatches("駅の場面", "電車"))
+        #expect(!MarksModel.noteMatches(nil, "場面"))
+        #expect(!MarksModel.noteMatches("駅の場面", "  "))
+    }
+}

@@ -29,6 +29,17 @@ public struct AudioMark: Codable, Equatable, Hashable, Sendable, Identifiable, F
     public var minedAt: Date?
     public var minedWord: String?
     public var minedJobId: Int64?
+    /// What the listener wrote about it (nil: none). Kept on this device, like the mark.
+    public var note: String?
+
+    /// The longest note kept, in characters (a few paragraphs; the list stays quick).
+    public static let noteLimit = 4000
+
+    /// A note as saved: trimmed, cut to `noteLimit`, nil when nothing's left.
+    public static func cleanNote(_ text: String?) -> String? {
+        guard let text = text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
+        return String(text.prefix(noteLimit))
+    }
 
     public init(itemId: String, episodeId: String, showTitle: String, episodeTitle: String, time: Double,
                 createdAt: Date, source: Source) {
@@ -86,6 +97,14 @@ public struct AudioMarkStore: Sendable {
     /// Clear: dismisses a mark without mining it.
     public func remove(_ id: Int64) throws {
         _ = try database.writer.write { try AudioMark.deleteOne($0, key: id) }
+    }
+
+    /// Sets or clears a mark's note.
+    public func setNote(_ id: Int64, _ text: String?) throws {
+        let note = AudioMark.cleanNote(text)
+        try database.writer.write { db in
+            try db.execute(sql: "UPDATE audioMark SET note = ? WHERE id = ?", arguments: [note, id])
+        }
     }
 
     public func setMined(_ id: Int64, word: String, jobId: Int64?) throws {
