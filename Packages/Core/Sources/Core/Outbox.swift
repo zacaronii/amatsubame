@@ -19,6 +19,9 @@ public enum OutboxJobKind: String, Codable, CaseIterable, Sendable, DatabaseValu
     case kavitaCollection
     /// A Kavita reading list made or deleted, an item added or taken out, or a move (`ReadingListJob`).
     case kavitaReadingList
+    /// Kiku's Up Next for a podcast library, as a whole list to make Audiobookshelf's "Up Next"
+    /// playlist match (`AudiobookshelfUpNextPayload`).
+    case audiobookshelfUpNext
 }
 
 public enum OutboxJobState: String, Codable, Sendable, DatabaseValueConvertible {

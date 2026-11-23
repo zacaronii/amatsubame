@@ -218,6 +218,7 @@ final class PodcastLibrary {
             await loadStatuses(newEpisodes.map(\.episode) + continueListening.map(\.episode))
             save()
             environment.autoDownloads.schedule()
+            await environment.refreshUpNext()
         } catch let failure {
             if !failure.isCancellation { error = failure.localizedDescription }
             isOffline = Self.isOffline(failure)

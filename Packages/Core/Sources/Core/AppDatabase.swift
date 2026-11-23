@@ -1085,6 +1085,24 @@ public final class AppDatabase: Sendable {
             try db.create(index: "audioMark_uuid", on: "audioMark", columns: ["uuid"], unique: true)
         }
 
+        migrator.registerMigration("v67_up_next") { db in
+            // Kiku's Up Next, per podcast library, as Audiobookshelf's "Up Next" playlist has it
+            // (or will once the outbox sends it), and that playlist's id.
+            try db.create(table: "upNextItem") { t in
+                t.column("libraryId", .text).notNull()
+                t.column("position", .integer).notNull()
+                t.column("itemId", .text).notNull()
+                t.column("episodeId", .text).notNull()
+                t.column("title", .text).notNull()
+                t.column("showTitle", .text).notNull()
+                t.primaryKey(["libraryId", "position"])
+            }
+            try db.create(table: "upNextPlaylist") { t in
+                t.primaryKey("libraryId", .text)
+                t.column("playlistId", .text)
+            }
+        }
+
         return migrator
     }
 }

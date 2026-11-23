@@ -192,6 +192,54 @@ public struct AudiobookshelfClient: Sendable {
         _ = try await send(request)
     }
 
+    // MARK: Playlists (Kiku's Up Next)
+
+    /// The user's playlists in a library (`{results, total, …}`).
+    public func playlists(libraryId: String) async throws(ConnectionError) -> [AudiobookshelfPlaylist] {
+        struct Page: Decodable { var results: [AudiobookshelfPlaylist] }
+        return try await get(Page.self, "api/libraries/\(libraryId)/playlists").results
+    }
+
+    /// A playlist, or nil when it's gone (deleted elsewhere, or emptied: Audiobookshelf deletes
+    /// a playlist when its last item is removed).
+    public func playlist(id: String) async throws(ConnectionError) -> AudiobookshelfPlaylist? {
+        do {
+            return try await get(AudiobookshelfPlaylist.self, "api/playlists/\(id)")
+        } catch .server(404) {
+            return nil
+        }
+    }
+
+    public func createPlaylist(libraryId: String, name: String, items: [AudiobookshelfPlaylist.Item]) async throws(ConnectionError) -> AudiobookshelfPlaylist {
+        struct Body: Encodable { var libraryId: String; var name: String; var items: [AudiobookshelfPlaylist.Item] }
+        return try await sendDecoding(AudiobookshelfPlaylist.self, try json("POST", "api/playlists", Body(libraryId: libraryId, name: name, items: items)))
+    }
+
+    public func addToPlaylist(id: String, items: [AudiobookshelfPlaylist.Item]) async throws(ConnectionError) {
+        struct Body: Encodable { var items: [AudiobookshelfPlaylist.Item] }
+        _ = try await send(try json("POST", "api/playlists/\(id)/batch/add", Body(items: items)))
+    }
+
+    /// Removing every item deletes the playlist on the server.
+    public func removeFromPlaylist(id: String, items: [AudiobookshelfPlaylist.Item]) async throws(ConnectionError) {
+        struct Body: Encodable { var items: [AudiobookshelfPlaylist.Item] }
+        _ = try await send(try json("POST", "api/playlists/\(id)/batch/remove", Body(items: items)))
+    }
+
+    /// Puts the playlist's items in this order (the same items: another set is refused).
+    public func reorderPlaylist(id: String, items: [AudiobookshelfPlaylist.Item]) async throws(ConnectionError) {
+        struct Body: Encodable { var items: [AudiobookshelfPlaylist.Item] }
+        _ = try await send(try json("PATCH", "api/playlists/\(id)", Body(items: items)))
+    }
+
+    private func json(_ method: String, _ path: String, _ body: some Encodable) throws(ConnectionError) -> URLRequest {
+        do {
+            return try .json(method, url(path), body: body)
+        } catch {
+            throw .message(error.localizedDescription)
+        }
+    }
+
     // MARK: Access for Kiku on Apple Watch
 
     /// A token that lasts at least the next five minutes (renewed first if it doesn't): an

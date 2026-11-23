@@ -297,6 +297,7 @@ extension OutboxJobKind {
         case .kavitaWantToRead: "Want to Read for Kavita"
         case .kavitaCollection: "Collections for Kavita"
         case .kavitaReadingList: "Reading Lists for Kavita"
+        case .audiobookshelfUpNext: "Up Next for Audiobookshelf"
         }
     }
 
@@ -316,6 +317,7 @@ extension OutboxJobKind {
         case .kavitaWantToRead: ("Want to Read change", "Want to Read changes")
         case .kavitaCollection: ("collection change", "collection changes")
         case .kavitaReadingList: ("reading list change", "reading list changes")
+        case .audiobookshelfUpNext: ("Up Next change", "Up Next changes")
         }
         return "\(count) \(count == 1 ? one : many)"
     }
@@ -331,6 +333,8 @@ extension OutboxJobKind {
             "They won't reach the server, and at the next refresh this device shows Kavita's collections again: series added or removed here and collections made here that weren't sent go back to how Kavita has them."
         case .kavitaReadingList:
             "They won't reach the server, and at the next refresh this device shows Kavita's reading lists again: items added, taken out or moved here and lists made here that weren't sent go back to how Kavita has them."
+        case .audiobookshelfUpNext:
+            "They won't reach the server, and at the next refresh this device shows Audiobookshelf's Up Next again."
         default:
             "They won't reach the server. The server keeps whatever it last had."
         }
@@ -351,6 +355,7 @@ extension OutboxJobKind {
         case .kavitaWantToRead: "Kavita Want to Read"
         case .kavitaCollection: "Kavita collection"
         case .kavitaReadingList: "Kavita reading list"
+        case .audiobookshelfUpNext: "Audiobookshelf Up Next"
         }
     }
 }
