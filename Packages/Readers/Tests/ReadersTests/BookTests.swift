@@ -334,6 +334,49 @@ enum TestEpub {
         #expect(try outbox.summary().pending == 1)
     }
 
+    /// A search jump is a look: the jump and Back record nothing; the place moves on only when
+    /// reading continues from the jumped-to page (a page turn).
+    @MainActor @Test func searchJumpsAndBackRecordNothingUntilReadingOn() throws {
+        let database = try AppDatabase.inMemory()
+        let outbox = OutboxStore(database: database)
+        let chapter = ReaderChapter(chapterId: 359, volumeId: 359, seriesId: 34, libraryId: 4, pages: 46, title: "1", seriesTitle: "そら")
+        let model = BookReaderModel(
+            chapter: chapter, nextChapter: nil,
+            repository: BookRepository(directory: FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)) { _ in Data() },
+            settingsStore: BookReaderSettingsStore(database: database), progressStore: ReadingProgressStore(database: database),
+            outbox: outbox, lookup: nil, serverProgress: { _ in throw URLError(.notConnectedToInternet) }, syncNow: {}
+        )
+        func position(_ xpath: String, moved: Bool) -> BookWebEvent {
+            .position(page: 0, pages: 3, xpath: xpath, vertical: true, characters: 0, sectionCharacters: 10, moved: moved)
+        }
+        func queuedPlace() throws -> String? {
+            try outbox.jobs(states: [.pending]).compactMap { try $0.decodePayload(KavitaProgressPayload.self).bookScrollId }.last
+        }
+        model.handle(position("//body/p[3]", moved: true))
+        model.flushProgress()
+        #expect(try queuedPlace() == "//body/p[3]")
+
+        let hit = BookSearch.Hit(section: 0, run: 9, offset: 4, length: 2, before: "", match: "猫", after: "")
+        model.jump(to: hit)
+        model.handle(position("//body/p[40]", moved: false))
+        model.flushProgress()
+        #expect(try queuedPlace() == "//body/p[3]", "the jump recorded nothing")
+        #expect(model.searchBack != nil)
+
+        model.goBackFromSearch()
+        model.handle(position("//body/p[3]", moved: false))
+        model.flushProgress()
+        #expect(try queuedPlace() == "//body/p[3]", "Back recorded nothing")
+
+        model.jump(to: hit)
+        model.handle(position("//body/p[40]", moved: false))
+        model.nextPage()
+        #expect(model.searchBack == nil, "reading on: Back goes")
+        model.handle(position("//body/p[41]", moved: false))
+        model.flushProgress()
+        #expect(try queuedPlace() == "//body/p[41]", "reading on from there moves the place")
+    }
+
     /// Time left in the chapter counts to where the next contents entry starts.
     @Test func charactersLeftInTheChapter() {
         // Sections of 100 characters; chapters start at sections 0, 2 and 5.

@@ -11,6 +11,7 @@ public struct BookReaderView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var showsSettings = false
     @State private var showsContents = false
+    @State private var showsSearch = false
     @State private var pageWidth: CGFloat = 0
     /// The hinge of a foldable iPhone (the Duo): closed is when the folded page is measured.
     @State private var hinge = Fold.Hinge.unknown
@@ -201,6 +202,7 @@ public struct BookReaderView: View {
         }
         .sheet(isPresented: $showsSettings) { BookSettingsSheet(model: model) }
         .sheet(isPresented: $showsContents) { contents }
+        .modifier(BookSearchSupport(model: model, showsSearch: $showsSearch))
         .sheet(item: $model.editingNote) { mark in
             NoteEditor(mark: mark) { note in model.marks?.edit(mark, note: note, slot: mark.slot) }
         }
@@ -366,6 +368,11 @@ public struct BookReaderView: View {
                     Text(model.currentSectionTitle ?? model.chapter.title).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
                 .frame(maxWidth: .infinity)
+                Button("Search", systemImage: "magnifyingglass") { showsSearch = true }
+                    .labelStyle(.iconOnly)
+                    .buttonBorderShape(.circle)
+                    .disabled(model.state != .ready)
+                    .accessibilityIdentifier("reader.search")
                 Button("Contents", systemImage: "list.bullet") { showsContents = true }
                     .labelStyle(.iconOnly)
                     .buttonBorderShape(.circle)

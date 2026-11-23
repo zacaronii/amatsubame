@@ -285,12 +285,14 @@ public final class BookReaderModel {
     // MARK: Navigation
 
     public func nextPage() {
+        leaveSearchPlace()
         hasMoved = true
         readAlong?.userTurnedPage()
         web?.run("window.bookReader?.next()")
     }
 
     public func previousPage() {
+        leaveSearchPlace()
         hasMoved = true
         readAlong?.userTurnedPage()
         web?.run("window.bookReader?.previous()")
@@ -452,6 +454,7 @@ public final class BookReaderModel {
             guard settings.layout == .paged, popup == nil else { return }
             right == readsRightToLeft ? nextPage() : previousPage()
         case .userScrolled:
+            leaveSearchPlace()
             readAlong?.userTurnedPage()
             autoScroll.handScrolled()
         case .input:
@@ -466,6 +469,11 @@ public final class BookReaderModel {
             showMarks()
             // A new section loaded while auto-scrolling (it reached the last one's end): on.
             if autoScroll.isMoving { Task { await applyAutoScroll() } }
+            // A search result: turn to it and mark it (quietly: a look, not reading).
+            if let found = pendingFound, found.section == spineIndex {
+                pendingFound = nil
+                web?.run("window.bookReader?.found.show(\(found.run), \(found.offset), \(found.length))")
+            }
             // Read-along: the cue waiting for this section, or the current one shown again.
             if let pending = pendingReadAlong, pending.cue.section == spineIndex {
                 pendingReadAlong = nil
@@ -647,6 +655,73 @@ public final class BookReaderModel {
     private var readAlongSplit: (cue: ReadAlongCue, fraction: Double)?
 
     /// Highlights the spoken sentence; with `follow`, turns (or opens its section) to keep it in view.
+    // MARK: Search in the book
+
+    public enum SearchState: Equatable, Sendable {
+        case idle
+        /// Reading the book's text the way the reader shows it, the first time (then cached).
+        case preparing(Double)
+        case ready
+        case failed(String)
+    }
+
+    public private(set) var searchState = SearchState.idle
+    /// Kept while the reader is open, so the sheet opens on the last search.
+    public var searchQuery = ""
+    public private(set) var searchHits: [BookSearch.Hit] = []
+    @ObservationIgnored private var searchRuns: [BookTextRun]?
+    /// Where the reader was before a search jump (Back returns there); gone at the next turn.
+    public private(set) var searchBack: (section: Int, xpath: String?)?
+    @ObservationIgnored private var pendingFound: BookSearch.Hit?
+
+    /// Prepares the text (only when the search is opened) and searches it.
+    public func search() async {
+        if searchRuns == nil {
+            searchState = .preparing(0)
+            do {
+                searchRuns = try await BookTextCollector.runs(chapterId: chapter.chapterId, repository: repository) { [weak self] fraction in
+                    self?.searchState = .preparing(fraction)
+                }
+            } catch {
+                searchState = .failed(error.localizedDescription)
+                return
+            }
+        }
+        searchState = .ready
+        searchHits = BookSearch.hits(searchQuery, in: searchRuns ?? [])
+    }
+
+    /// The chapter a section belongs to, as the contents name it.
+    public func sectionTitle(_ section: Int) -> String {
+        package?.toc.last { $0.spineIndex <= section }?.title ?? "Section \(section + 1)"
+    }
+
+    /// Goes to a result and marks it: a look, not reading, so nothing is recorded (the place
+    /// moves on only when reading continues from there, with a page turn). Contents, by contrast,
+    /// records at once: choosing a chapter is a move to read there.
+    public func jump(to hit: BookSearch.Hit) {
+        if searchBack == nil { searchBack = (spineIndex, currentXPath) }
+        hasMoved = false
+        pendingFound = hit
+        open(section: hit.section, at: .start)
+    }
+
+    /// Back to where the reader was before the search jump; records nothing either.
+    public func goBackFromSearch() {
+        guard let back = searchBack else { return }
+        searchBack = nil
+        hasMoved = false
+        pendingFound = nil
+        open(section: back.section, at: back.xpath.map { .xpath($0) } ?? .start)
+    }
+
+    /// Reading on from a jumped-to place: Back goes, and the found mark with it.
+    private func leaveSearchPlace() {
+        guard searchBack != nil else { return }
+        searchBack = nil
+        if readAlongCue == nil { web?.run("window.bookReader?.found.clear()") }
+    }
+
     // MARK: Auto-scroll
 
     /// Tells the page to scroll at the chosen reading speed, or to stop.

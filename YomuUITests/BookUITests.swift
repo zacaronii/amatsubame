@@ -244,6 +244,38 @@ final class BookUITests: XCTestCase {
         XCTAssertTrue((page.value as? String)?.contains(laterPage) == true, "no section with a second page: \(page.value ?? "")")
     }
 
+    /// Search in the book: results for a common particle (no text of the book is in the test),
+    /// a result further on opens there with Back to Where You Were, and Back returns.
+    func testSearchInTheBookJumpsAndComesBack() throws {
+        openBook()
+        openPageOfBodyText()
+        let start = position()
+        page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.985)).tap()
+        let search = app.buttons["reader.search"].firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        search.tap()
+        let field = app.searchFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap()
+        field.typeText("の")
+        XCTAssertTrue(app.staticTexts["bookSearch.count"].waitForExistence(timeout: 120), "results (the first search prepares the book)")
+        let results = app.buttons.matching(identifier: "bookSearch.result")
+        XCTAssertGreaterThan(results.count, 3)
+        // One further on (the list scrolls to it).
+        let target = results.element(boundBy: min(results.count - 1, 40))
+        for _ in 0..<12 where !target.isHittable { app.swipeUp() }
+        target.tap()
+        let back = app.buttons["bookSearch.back"]
+        XCTAssertTrue(back.waitForExistence(timeout: 10), "Back to Where You Were")
+        sleep(2)
+        XCTAssertNotEqual(position(), start, "moved to the result")
+        snapshot("book-search-result")
+        back.tap()
+        XCTAssertTrue(back.waitForNonExistence(timeout: 5))
+        sleep(2)
+        XCTAssertEqual(position().split(separator: ",").first, start.split(separator: ",").first, "back in the section it started in")
+    }
+
     func testTappingTextOpensLookup() throws {
         guard ProcessInfo.processInfo.environment["UITEST_DICTIONARY_ZIPS"] != nil else { throw XCTSkip("Needs UITEST_DICTIONARY_ZIPS.") }
         openBook()
