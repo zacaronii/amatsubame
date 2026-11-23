@@ -825,7 +825,9 @@ struct PlaybackView: View {
                     Image(systemName: model.mpv.isPaused ? "play.fill" : "pause.fill")
                         .font(.system(size: 34))
                         .frame(width: 76, height: 76)
-                        .contentShape(.circle)
+                        // The whole square takes the tap: one that just misses the circle still
+                        // pauses, rather than hiding the controls the viewer was aiming at.
+                        .contentShape(.rect)
                 }
                 .glassEffect(in: .circle)
                 .accessibilityLabel(model.mpv.isPaused ? "Play" : "Pause")
