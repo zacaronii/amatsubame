@@ -84,6 +84,7 @@ struct ReaderMenus: Commands {
     let environment: AppEnvironment
     @FocusedValue(\.readerPaging) private var paging
     @FocusedValue(\.readerClose) private var close
+    @FocusedValue(\.bookSearch) private var bookSearch
 
     /// ⌘1… for each tab; on the Mac, Settings is ⌘, instead.
     static var shortcutTabs: [AppTab] {
@@ -106,11 +107,16 @@ struct ReaderMenus: Commands {
             Button("Back to Library") { close?() }
                 .keyboardShortcut("[", modifiers: .command)
                 .disabled(close == nil)
+            // While a book is open, ⌘F searches it and Search Dictionary moves to ⇧⌘F.
+            if let bookSearch {
+                Button("Search the Book") { bookSearch() }
+                    .keyboardShortcut("f", modifiers: .command)
+            }
             Button("Search Dictionary") {
                 close?()
                 environment.selectedTab = .dictionary
             }
-            .keyboardShortcut("f", modifiers: .command)
+            .keyboardShortcut("f", modifiers: bookSearch == nil ? .command : [.command, .shift])
         }
         CommandGroup(after: .sidebar) {
             RefreshCommand()

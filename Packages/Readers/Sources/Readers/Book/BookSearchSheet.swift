@@ -90,8 +90,8 @@ struct BookSearchSheet: View {
     }
 }
 
-/// The reader's side of search: the sheet, ⇧⌘F, and after a jump the way back to where you were
-/// (until you read on from there).
+/// The reader's side of search: the sheet, the Reader menu's ⌘F (through `bookSearch`), and
+/// after a jump the way back to where you were (until you read on from there).
 struct BookSearchSupport: ViewModifier {
     let model: BookReaderModel
     @Binding var showsSearch: Bool
@@ -111,13 +111,6 @@ struct BookSearchSupport: ViewModifier {
                         .accessibilityIdentifier("bookSearch.back")
                 }
             }
-            .background {
-                // ⇧⌘F: ⌘F is Search Dictionary in Yomu's Reader menu (the Mac's menu would take it).
-                Button("Search the Book") { showsSearch = true }
-                    .keyboardShortcut("f", modifiers: [.command, .shift])
-                    .opacity(0)
-                    .accessibilityHidden(true)
-                    .disabled(model.state != .ready)
-            }
+            .focusedSceneValue(\.bookSearch, model.state == .ready ? { showsSearch = true } : nil)
     }
 }
