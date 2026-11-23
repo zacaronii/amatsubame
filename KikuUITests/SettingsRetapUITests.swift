@@ -57,3 +57,28 @@ final class SettingsRetapUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Now Transcribing"].waitForExistence(timeout: 10), "the next tap opens Kaku")
     }
 }
+
+/// Listen's stack is driven by a path of its own (`ListenView.reset`): two screens deep (Library
+/// ▸ a show), tapping Listen again shows its top, and the next tap opens Library. Needs Kiku
+/// signed in to Audiobookshelf on the simulator (`DevSetup`); skipped otherwise.
+final class ListenRetapUITests: XCTestCase {
+    @MainActor
+    func testListenTabReturnsToTheTopFromTwoScreensDeep() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launch()
+        XCUIDevice.shared.orientation = .portrait
+        let library = app.buttons["listen.library"].firstMatch
+        guard library.waitForExistence(timeout: 20) else { throw XCTSkip("Sign Kiku in to Audiobookshelf on the simulator (DevSetup).") }
+        library.tap()
+        let show = app.buttons["library.show"].firstMatch
+        XCTAssertTrue(show.waitForExistence(timeout: 20), "the library's shows")
+        show.tap()
+        XCTAssertTrue(show.waitForNonExistence(timeout: 10), "a show, two screens deep")
+        sleep(1)
+        app.tabBars.buttons["Listen"].tap()
+        XCTAssertTrue(library.waitForExistence(timeout: 5) && library.isHittable, "the top of Listen")
+        library.tap()
+        XCTAssertTrue(show.waitForExistence(timeout: 20), "the next tap opens Library")
+    }
+}

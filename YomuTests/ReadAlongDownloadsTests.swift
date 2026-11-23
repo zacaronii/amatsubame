@@ -116,4 +116,10 @@ final class SlowAudioProtocol: URLProtocol, @unchecked Sendable {
                 == "Couldn\u{2019}t download the audio: offline", "a failure isn't hidden by an older message")
         #expect(ReadAlongDownloads.caption(running: false, result: nil, rowMessage: "Set up Kaku") == "Set up Kaku")
     }
+
+    @Test func unpairAsksOnlyWhenItWouldDeleteDownloadedAudio() {
+        #expect(ReadAlongDownloads.asksBeforeUnpairing(1, hasAudio: true, pairs: [1]))
+        #expect(!ReadAlongDownloads.asksBeforeUnpairing(1, hasAudio: false, pairs: [1]), "nothing downloaded: no question")
+        #expect(!ReadAlongDownloads.asksBeforeUnpairing(1, hasAudio: true, pairs: [1, 2]), "another volume keeps the audio")
+    }
 }

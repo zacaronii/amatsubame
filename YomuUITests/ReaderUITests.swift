@@ -899,6 +899,29 @@ final class ReaderUITests: XCTestCase {
         checkSettingsTabRetap(app)
     }
 
+    /// The Library's stack is driven by a path of its own: two screens deep (a library ▸ a
+    /// series), tapping Library again shows its top, and the next tap opens the library.
+    @MainActor
+    func testLibraryTabReturnsToTheTopFromTwoScreensDeep() throws {
+        app.launch()
+        let tab = app.tabBars.buttons["Library"]
+        let libraryRow = app.buttons[library].firstMatch
+        XCTAssertTrue(libraryRow.waitForExistence(timeout: 20))
+        for _ in 0..<6 where !libraryRow.isHittable { app.swipeUp() }
+        libraryRow.tap()
+        let tile = app.buttons["series.\(series)"].firstMatch
+        XCTAssertTrue(tile.waitForExistence(timeout: 20))
+        tile.tap()
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'volume.'")).firstMatch.waitForExistence(timeout: 20),
+                      "the series, two screens deep")
+        sleep(1)
+        tab.tap()
+        for _ in 0..<6 where !(libraryRow.exists && libraryRow.isHittable) { app.swipeUp() }
+        XCTAssertTrue(libraryRow.exists && libraryRow.isHittable, "the top of Library")
+        libraryRow.tap()
+        XCTAssertTrue(tile.waitForExistence(timeout: 20), "the next tap opens the library")
+    }
+
     /// Adds a series' first volume to the test's reading list (made with the first), then goes
     /// back to the Library home.
     private func addFirstVolume(library: String, series: String, new: Bool) {

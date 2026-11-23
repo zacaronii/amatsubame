@@ -177,6 +177,8 @@ private struct ReadAlongRow: View {
     @State private var preparing: Double?
     @State private var message: String?
     private var downloads: ReadAlongDownloads { environment.readAlongDownloads }
+    /// Unpair asks first when it would delete a downloaded audiobook.
+    @State private var confirmsUnpair = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -214,6 +216,11 @@ private struct ReadAlongRow: View {
                 choosing = false
                 Task { await pairAndPrepare(book) }
             }
+        }
+        .confirmationDialog("Unpair and delete the downloaded audio?", isPresented: $confirmsUnpair, titleVisibility: .visible) {
+            Button("Unpair", role: .destructive) { if let pair { Task { await unpair(pair) } } }
+        } message: {
+            Text("No other volume reads along with this audiobook, so its download on this device is deleted too. You can pair and download it again.")
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("readAlong.row")
@@ -253,11 +260,9 @@ private struct ReadAlongRow: View {
                 }
                 Button("Pair with Another Book…", systemImage: "link") { choosing = true }
                 Button("Unpair", systemImage: "link.badge.plus", role: .destructive) {
-                    Task {
-                        guard (try? environment.readAlongPairs.unpair(chapterId: chapter.id)) != nil else { return }
-                        await deleteAudioIfUnpaired(pair.itemId)
-                    }
+                    if deletesDownloadedAudio(pair) { confirmsUnpair = true } else { Task { await unpair(pair) } }
                 }
+                .accessibilityIdentifier("readAlong.unpair")
             } else {
                 Button("Pair with an Audiobook…", systemImage: "link") { choosing = true }
             }
@@ -279,6 +284,17 @@ private struct ReadAlongRow: View {
         guard (try? environment.readAlongPairs.pair(new)) != nil else { return }
         if let old, old != book.id { await deleteAudioIfUnpaired(old) }
         await prepare(new)
+    }
+
+    /// Whether unpairing this volume would delete the book's downloaded audio (or a download running).
+    private func deletesDownloadedAudio(_ pair: ReadAlongPair) -> Bool {
+        ReadAlongDownloads.asksBeforeUnpairing(chapter.id, hasAudio: downloads.localFile(itemId: pair.itemId) != nil || downloads.isRunning(pair.itemId),
+                                               pairs: ((try? environment.readAlongPairs.pairs(itemId: pair.itemId)) ?? []).map(\.chapterId))
+    }
+
+    private func unpair(_ pair: ReadAlongPair) async {
+        guard (try? environment.readAlongPairs.unpair(chapterId: chapter.id)) != nil else { return }
+        await deleteAudioIfUnpaired(pair.itemId)
     }
 
     /// A book's audio goes (its download stopped first) once no volume reads along with it.

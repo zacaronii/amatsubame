@@ -60,4 +60,28 @@ final class LinesAndSettingsUITests: XCTestCase {
         app.launch()
         checkSettingsTabRetap(app)
     }
+
+    /// Lines' stack is driven by a path of its own (`LinesView.reset`): an episode open, tapping
+    /// Lines again shows its top, and the next tap opens an episode.
+    @MainActor
+    func testLinesTabReturnsToTheTop() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment["UITEST_PLAYER"] = "1"
+        app.launchEnvironment["UITEST_TRANSCRIPT"] = "1"
+        app.launch()
+        XCUIDevice.shared.orientation = .portrait
+        let tab = app.tabBars.buttons["Lines"]
+        tab.tap()
+        let episode = app.buttons["lines.episode"].firstMatch
+        XCTAssertTrue(episode.waitForExistence(timeout: 15))
+        episode.tap()
+        XCTAssertTrue(episode.waitForNonExistence(timeout: 5), "the episode open")
+        sleep(1)
+        tab.tap()
+        XCTAssertTrue(episode.waitForExistence(timeout: 5), "the top of Lines")
+        XCTAssertTrue(episode.isHittable)
+        episode.tap()
+        XCTAssertTrue(episode.waitForNonExistence(timeout: 5), "the next tap opens it")
+    }
 }
