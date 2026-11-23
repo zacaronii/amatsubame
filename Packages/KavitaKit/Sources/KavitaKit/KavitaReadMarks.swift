@@ -21,12 +21,16 @@ public struct KavitaReadMarkPayload: Codable, Equatable, Sendable {
     public var chapterId: Int?
     /// The account it was made under (`ReaderMarkStore.accountKey`): another one waits.
     public var account: String?
+    /// When it was made (the progress rows' time): judged against Kavita by this, not by when
+    /// the job is sent, so a mark sent days later never undoes reading done elsewhere meanwhile.
+    public var madeAt: Date
 
-    public init(mark: Mark, seriesId: Int, chapterId: Int?, account: String?) {
+    public init(mark: Mark, seriesId: Int, chapterId: Int?, account: String?, madeAt: Date) {
         self.mark = mark
         self.seriesId = seriesId
         self.chapterId = chapterId
         self.account = account
+        self.madeAt = madeAt
     }
 
     public var coalesceKey: String { chapterId.map { "kavita.chapter.\($0)" } ?? "kavita.series.\(seriesId)" }
@@ -48,6 +52,29 @@ extension KavitaClient {
         var seriesId: Int
         var volumeIds: [Int]
         var chapterIds: [Int]
+    }
+}
+
+/// After an unread mark reached Kavita, this device's rows it wrote are moved just past Kavita's
+/// date for the chapter, so the device's page 0 (no place in the book) stays the newer one:
+/// Kavita keeps a book's old `bookScrollId` on unread, and its newer row would otherwise bring
+/// that place back here. A row changed since the mark (a page turned) is left alone.
+public struct KavitaReadMarkSettling: Sendable {
+    let progress: ReadingProgressStore
+
+    public init(progress: ReadingProgressStore) {
+        self.progress = progress
+    }
+
+    func settle(_ mark: KavitaReadMarkPayload, kavitaDates: [Int: Date]) throws {
+        try progress.database.writer.write { db in
+            for (chapterId, date) in kavitaDates {
+                guard var row = try LocalReadingProgress.fetchOne(db, key: chapterId), row.page == 0,
+                      abs(row.updatedAt.timeIntervalSince(mark.madeAt)) < 0.01, date >= row.updatedAt else { continue }
+                row.updatedAt = date.addingTimeInterval(1)
+                try row.save(db)
+            }
+        }
     }
 }
 
@@ -78,7 +105,7 @@ public struct KavitaReadMarking: Sendable {
         try database.writer.write { db in
             for chapter in chapters {
                 try Self.progress(chapter, read, seriesId: seriesId, libraryId: libraryId, now: now).save(db)
-                let payload = KavitaReadMarkPayload(mark: read ? .read : .unread, seriesId: seriesId, chapterId: chapter.chapterId, account: account)
+                let payload = KavitaReadMarkPayload(mark: read ? .read : .unread, seriesId: seriesId, chapterId: chapter.chapterId, account: account, madeAt: now)
                 try outbox.enqueue(payload, kind: .kavitaProgress, coalesceKey: payload.coalesceKey, in: db)
             }
         }
@@ -93,7 +120,7 @@ public struct KavitaReadMarking: Sendable {
             for chapter in chapters {
                 try Self.progress(chapter, read, seriesId: seriesId, libraryId: libraryId, now: now).save(db)
             }
-            let payload = KavitaReadMarkPayload(mark: read ? .read : .unread, seriesId: seriesId, chapterId: nil, account: account)
+            let payload = KavitaReadMarkPayload(mark: read ? .read : .unread, seriesId: seriesId, chapterId: nil, account: account, madeAt: now)
             try outbox.enqueue(payload, kind: .kavitaProgress, coalesceKey: payload.coalesceKey, in: db)
         }
     }

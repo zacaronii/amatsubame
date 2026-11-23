@@ -145,11 +145,12 @@ final class AppEnvironment {
                     KavitaWantToReadHandler(store: wants, features: marks, account: signedIn, makeClient: makeKavita),
                     KavitaCollectionHandler(store: collectionStore, features: marks, outbox: OutboxStore(database: database), account: signedIn, makeClient: makeKavita),
                     KavitaReadingListHandler(store: readingListStore, features: marks, outbox: OutboxStore(database: database), account: signedIn, makeClient: makeKavita),
-                ] + (sendsProgress ? [] : [KavitaProgressHandler(account: signedIn, sendsPageTurns: false, makeClient: makeKavita)]) : []
+                ] + (sendsProgress ? [] : [KavitaProgressHandler(account: signedIn, sendsPageTurns: false, progress: ReadingProgressStore(database: database), makeClient: makeKavita)]) : []
                 guard sendsProgress else { return markHandlers }
                 let audiobookshelf = AudioServers.audiobookshelfClientFactory(accounts: context.accounts, tokens: tokens, http: context.http)
                 return [
-                    KavitaProgressHandler(account: signedIn, makeClient: Self.kavitaClientFactory(accounts: context.accounts, secrets: context.secrets, http: context.http)),
+                    KavitaProgressHandler(account: signedIn, progress: ReadingProgressStore(database: database),
+                                          makeClient: Self.kavitaClientFactory(accounts: context.accounts, secrets: context.secrets, http: context.http)),
                     // Read-along listening moves the audiobook's place too, and counts as listening.
                     AudiobookshelfProgressHandler(makeClient: audiobookshelf),
                     AudiobookshelfSessionHandler(makeClient: audiobookshelf),
