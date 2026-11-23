@@ -188,6 +188,8 @@ private struct MarkCard: View {
     @Environment(CommonEnvironment.self) private var common
     let model: MarksModel
     let mark: AudioMark
+    @State private var editsNote = false
+    @State private var showsWholeNote = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -239,6 +241,18 @@ private struct MarkCard: View {
                      ?? "The 15-second clip still plays; the lines fill in when Kaku finishes.")
                     .font(.subheadline).foregroundStyle(.secondary)
             }
+            if let note = mark.note {
+                Button { showsWholeNote.toggle() } label: {
+                    Label(note, systemImage: "note.text")
+                        .font(.subheadline)
+                        .lineLimit(showsWholeNote ? nil : 4)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Note: \(note)")
+                .accessibilityIdentifier("mark.note")
+            }
             if let word = mark.minedWord {
                 Label("Mined \(word)", systemImage: "checkmark.circle.fill").foregroundStyle(.tint)
             } else {
@@ -247,11 +261,25 @@ private struct MarkCard: View {
                         Text("Tap a word to look it up and mine it").font(.footnote).foregroundStyle(.secondary)
                     }
                     Spacer()
+                    Button(mark.note == nil ? "Note" : "Edit Note", systemImage: "square.and.pencil") { editsNote = true }
+                        .buttonStyle(.bordered).buttonBorderShape(.capsule)
+                        .accessibilityLabel(mark.note == nil ? "Add Note" : "Edit Note")
+                        .accessibilityIdentifier("mark.editNote")
                     Button("Clear") { model.clear(mark) }
                         .buttonStyle(.bordered).buttonBorderShape(.capsule)
                         .accessibilityIdentifier("mark.clear")
                 }
             }
+        }
+        .contextMenu {
+            Button(mark.note == nil ? "Add Note…" : "Edit Note…", systemImage: "square.and.pencil") { editsNote = true }
+            if mark.note != nil {
+                Button("Remove Note", systemImage: "trash") { model.setNote(mark, "") }
+            }
+            Button("Clear Mark", systemImage: "bookmark.slash", role: .destructive) { model.clear(mark) }
+        }
+        .sheet(isPresented: $editsNote) {
+            MarkNoteSheet(mark: mark) { model.setNote(mark, $0) }
         }
         .padding(16)
         .background(.background.secondary, in: .rect(cornerRadius: 22))

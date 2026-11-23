@@ -68,7 +68,16 @@ final class MarksModel: LineLookupHost {
     func matching(_ query: String) -> [AudioMark] {
         let query = query.trimmingCharacters(in: .whitespaces)
         guard !query.isEmpty else { return [] }
-        return marks.filter { mark in window(for: mark)?.lines.contains { $0.text.localizedCaseInsensitiveContains(query) } ?? false }
+        return marks.filter { mark in
+            Self.noteMatches(mark.note, query) || window(for: mark)?.lines.contains { $0.text.localizedCaseInsensitiveContains(query) } ?? false
+        }
+    }
+
+    /// A mark's note found by the Marks search (matched like its lines).
+    nonisolated static func noteMatches(_ note: String?, _ query: String) -> Bool {
+        let query = query.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty, let note else { return false }
+        return note.localizedCaseInsensitiveContains(query)
     }
 
     // MARK: Loading
@@ -188,6 +197,12 @@ final class MarksModel: LineLookupHost {
     func clear(_ mark: AudioMark) {
         guard let id = mark.id else { return }
         try? environment.marks.remove(id)
+    }
+
+    /// Saves a mark's note (blank removes it).
+    func setNote(_ mark: AudioMark, _ text: String) {
+        guard let id = mark.id else { return }
+        try? environment.marks.setNote(id, text)
     }
 
     // MARK: Lookup

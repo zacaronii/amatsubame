@@ -25,6 +25,20 @@ import Testing
         #expect(try store.marks().map(\.time) == [807])
     }
 
+    /// A note is kept trimmed and capped; an empty one clears it; a new mark has none.
+    @Test func notesAreSavedTrimmedAndCapped() throws {
+        let clock = Clock()
+        let store = AudioMarkStore(database: try AppDatabase.inMemory(), now: { clock.date })
+        let saved = try store.add(mark(801, at: clock.date))
+        #expect(try store.marks().first?.note == nil)
+        try store.setNote(saved.id!, "  いい表現。後で調べる\n")
+        #expect(try store.marks().first?.note == "いい表現。後で調べる")
+        try store.setNote(saved.id!, String(repeating: "あ", count: AudioMark.noteLimit + 50))
+        #expect(try store.marks().first?.note?.count == AudioMark.noteLimit)
+        try store.setNote(saved.id!, "   ")
+        #expect(try store.marks().first?.note == nil, "blank clears it")
+    }
+
     @Test func minedMarksStayADayAndUndoBringsThemBack() throws {
         let clock = Clock()
         let store = AudioMarkStore(database: try AppDatabase.inMemory(), now: { clock.date })

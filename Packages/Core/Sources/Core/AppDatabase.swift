@@ -1035,6 +1035,13 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v62_audio_mark_note") { db in
+            // Kiku: a note on a mark (device-only, like the mark).
+            try db.alter(table: "audioMark") { t in
+                t.add(column: "note", .text)
+            }
+        }
+
         return migrator
     }
 }
