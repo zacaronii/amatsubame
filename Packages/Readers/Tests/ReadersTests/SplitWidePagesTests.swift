@@ -75,17 +75,26 @@ import Testing
     }
 
     @Test func aHalfShowsItsBlocksMappedAndOnlyThose() {
-        let place = OCRTextLayer.Placement(layer: CGSize(width: 100, height: 300), visible: 0.5...1)
+        let place = OCRTextLayer.Placement(layer: CGSize(width: 100, height: 300), shown: CGRect(x: 0.5, y: 0, width: 0.5, height: 1))
         #expect(place.page == CGSize(width: 200, height: 300))
         let right = NormalizedRect(x: 0.6, y: 0.1, width: 0.1, height: 0.2)
         #expect(place.rect(right) == CGRect(x: 20, y: 30, width: 20, height: 60), "x′ = (x − 0.5) × page width")
-        #expect(OCRTextLayer.isShown(right, in: 0.5...1))
-        #expect(!OCRTextLayer.isShown(right, in: 0...0.5))
+        #expect(OCRTextLayer.isShown(right, in: CGRect(x: 0.5, y: 0, width: 0.5, height: 1)))
+        #expect(!OCRTextLayer.isShown(right, in: CGRect(x: 0, y: 0, width: 0.5, height: 1)))
         // Across the gutter: in the half holding its middle only, so it can't be tapped through the other.
         let gutter = NormalizedRect(x: 0.45, y: 0.1, width: 0.2, height: 0.2)   // middle at 0.55
-        #expect(OCRTextLayer.isShown(gutter, in: 0.5...1))
-        #expect(!OCRTextLayer.isShown(gutter, in: 0...0.5))
-        let whole = OCRTextLayer.Placement(layer: CGSize(width: 200, height: 300), visible: 0...1)
+        #expect(OCRTextLayer.isShown(gutter, in: CGRect(x: 0.5, y: 0, width: 0.5, height: 1)))
+        #expect(!OCRTextLayer.isShown(gutter, in: CGRect(x: 0, y: 0, width: 0.5, height: 1)))
+        let whole = OCRTextLayer.Placement(layer: CGSize(width: 200, height: 300), shown: OCRTextLayer.whole)
         #expect(whole.rect(right) == right.pixels(in: CGSize(width: 200, height: 300)), "a whole page as before")
+    }
+
+    /// Crop Borders: a cropped page's layer covers its middle, and boxes move up and left.
+    @Test func aCroppedPageMapsItsBlocks() {
+        let place = OCRTextLayer.Placement(layer: CGSize(width: 160, height: 240), shown: CGRect(x: 0.1, y: 0.1, width: 0.8, height: 0.8))
+        #expect(place.page == CGSize(width: 200, height: 300))
+        let box = NormalizedRect(x: 0.5, y: 0.5, width: 0.1, height: 0.1)
+        #expect(place.rect(box) == CGRect(x: 80, y: 120, width: 20, height: 30))
+        #expect(OCRTextLayer.isShown(box, in: CGRect(x: 0.1, y: 0.1, width: 0.8, height: 0.8)))
     }
 }

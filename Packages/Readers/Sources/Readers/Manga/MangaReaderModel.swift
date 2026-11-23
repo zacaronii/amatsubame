@@ -55,6 +55,55 @@ public final class MangaReaderModel {
 
     /// Recognized text per page, filled as pages are OCR'd (or loaded from the cache).
     public private(set) var pageText: [Int: OCRPage] = [:]
+
+    // MARK: Crop Borders
+
+    /// The part of each page to show with Crop Borders on (normalised), for pages that have
+    /// margins worth cropping; measured once a page is decoded.
+    public private(set) var crops: [Int: CGRect] = [:]
+    @ObservationIgnored private var measured: Set<Int> = []
+
+    /// A page was decoded: with Crop Borders on, find its margins (once, off the main thread).
+    func measureBorders(page: Int, image: CGImage) {
+        guard settings.cropsBorders, settings.mode == .paged, !measured.contains(page) else { return }
+        measured.insert(page)
+        #if DEBUG
+        // UI tests: UITEST_CROP=0.1 crops that much off every side (the test account's pages have no margins).
+        if let inset = ProcessInfo.processInfo.environment["UITEST_CROP"].flatMap(Double.init) {
+            crops[page] = CGRect(x: inset, y: inset, width: 1 - 2 * inset, height: 1 - 2 * inset)
+            return
+        }
+        #endif
+        Task {
+            if let crop = await Task.detached(priority: .utility, operation: { PageBorders.detect(image) }).value { crops[page] = crop }
+        }
+    }
+
+    /// The part of each of a slot's pages to show: the half of a split page, the crop with Crop
+    /// Borders on (in a spread, level with the facing page and whole at the gutter), else all.
+    func shown(_ slot: ReaderSlot) -> [CGRect] {
+        Self.shown(slot, crops: settings.cropsBorders && settings.mode == .paged ? crops : [:],
+                   rightToLeft: settings.direction == .rightToLeft)
+    }
+
+    nonisolated static func shown(_ slot: ReaderSlot, crops: [Int: CGRect], rightToLeft: Bool) -> [CGRect] {
+        let whole = CGRect(x: 0, y: 0, width: 1, height: 1)
+        if let page = slot.pages.first, slot.half != nil {
+            let visible = slot.visibleRange(rightToLeft: rightToLeft)
+            let half = CGRect(x: visible.lowerBound, y: 0, width: visible.upperBound - visible.lowerBound, height: 1)
+            guard let crop = crops[page] else { return [half] }
+            let cropped = half.intersection(crop)
+            return [cropped.isNull || cropped.width < 0.1 ? half : cropped]
+        }
+        if slot.pages.count == 2 {
+            // Drawn left to right: in a right-to-left book the first page is on the right.
+            let left = rightToLeft ? slot.pages[1] : slot.pages[0], right = rightToLeft ? slot.pages[0] : slot.pages[1]
+            guard crops[left] != nil || crops[right] != nil else { return [whole, whole] }
+            let pair = PageBorders.spread(left: crops[left], right: crops[right])
+            return rightToLeft ? [pair.right, pair.left] : [pair.left, pair.right]
+        }
+        return slot.pages.map { crops[$0] ?? whole }
+    }
     /// A page turn asked for outside the paged view (menu commands); the view owns the position.
     public struct PageRequest: Equatable, Sendable {
         public var delta: Int

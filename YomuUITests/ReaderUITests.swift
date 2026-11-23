@@ -256,9 +256,12 @@ final class ReaderUITests: XCTestCase {
             // Dialogue: a few blocks of several characters on the page.
             let japanese = app.descendants(matching: .any).matching(identifier: "ocr.block")
                 .matching(NSPredicate(format: "label MATCHES %@", ".*[ぁ-んァ-ヶ一-龠]{6,}.*"))
-            guard japanese.firstMatch.waitForExistence(timeout: 25), japanese.count >= 2 else { continue }
-            // (The pages on either side are built too: a different block each time.)
-            japanese.element(boundBy: turn % japanese.count).tap()
+            guard japanese.firstMatch.waitForExistence(timeout: 25) else { continue }
+            // (The pages on either side are built too, and fill in as they're read: only this
+            // page's blocks, taken at once, a different one each time.)
+            let onScreen = japanese.allElementsBoundByIndex.filter { $0.exists && $0.isHittable }
+            guard onScreen.count >= 2 else { continue }
+            onScreen[turn % onScreen.count].tap()
             if mark.waitForExistence(timeout: 15) {
                 shots += 1
                 snapshot("ocr-mark-vertical-\(shots)")
@@ -1012,6 +1015,44 @@ final class ReaderUITests: XCTestCase {
         app.buttons["Done"].firstMatch.tap()
         sleep(1)
         XCTAssertTrue(value().hasPrefix("Page 2 of") && !value().contains("half"), "off: the whole page, \(value())")
+    }
+
+    /// Crop Borders: off by default; on, the page shows its middle (`UITEST_CROP` crops 10% off
+    /// each side, as the test account's pages have no margins) and the text boxes stay with it;
+    /// off again, the whole page. Progress stays on the simulator.
+    func testCropBordersShowsThePagesMiddle() throws {
+        app.launchEnvironment["UITEST_CROP"] = "0.1"
+        app.launch()
+        XCUIDevice.shared.orientation = .portrait
+        openReader()
+        let cropped = app.descendants(matching: .any)["reader.page.cropped"].firstMatch
+        let page = app.descendants(matching: .any)["reader.page"].firstMatch
+        XCTAssertTrue(page.waitForExistence(timeout: 10))
+        XCTAssertFalse(cropped.exists, "off by default")
+        let wholeFrame = page.frame
+        func setCrop(_ on: Bool) {
+            let settings = app.buttons["reader.settings"].firstMatch
+            if !settings.exists { reader.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.08)).tap() }
+            XCTAssertTrue(settings.waitForExistence(timeout: 5))
+            settings.tap()
+            let toggle = app.switches["reader.cropBorders"].firstMatch
+            for _ in 0..<8 where !(toggle.exists && toggle.isHittable) { app.swipeUp() }
+            XCTAssertTrue(toggle.isHittable, "Crop Borders in the reader's settings")
+            if (toggle.value as? String == "1") != on { toggle.switches.firstMatch.tap() }
+            app.buttons["Done"].firstMatch.tap()
+        }
+        setCrop(true)
+        XCTAssertTrue(cropped.waitForExistence(timeout: 10), "the page is cropped")
+        // Fit to the same screen, the middle 80% is drawn larger than the whole page was.
+        XCTAssertGreaterThan(cropped.frame.width * cropped.frame.height, wholeFrame.width * wholeFrame.height * 0.99,
+                             "\(cropped.frame) vs \(wholeFrame)")
+        snapshot("crop-borders")
+        // The next page is measured as it's decoded, and cropped too.
+        reader.swipeRight()
+        sleep(1)
+        XCTAssertTrue(cropped.waitForExistence(timeout: 10), "the next page too")
+        setCrop(false)
+        XCTAssertTrue(cropped.waitForNonExistence(timeout: 5), "off: whole again")
     }
 
     /// Adds a series' first volume to the test's reading list (made with the first), then goes
