@@ -194,3 +194,199 @@ import Testing
         #expect(first.uuid != second.uuid && !first.uuid.isEmpty)
     }
 }
+
+/// The rest of the audit's list: hidden libraries, pairings, Jimaku timing, the kechimochi
+/// address, the popup's settings.
+@Suite struct SyncedRestTests {
+    let folder = FileManager.default.temporaryDirectory.appending(path: "SyncedRestTests-\(UUID().uuidString)")
+    let start = Date(timeIntervalSince1970: 1_795_651_200)
+
+    func device(_ id: String, _ app: String, _ collections: [any SyncedCollection]) -> SyncedSettingsTests.Device {
+        SyncedSettingsTests.Device(id: id, app: app, clock: SyncedSettingsTests.Clock(start), collections: collections)
+    }
+
+    func server(_ d: SyncedSettingsTests.Device, _ kind: String, _ url: String) throws {
+        try d.database.writer.write {
+            try $0.execute(sql: "INSERT OR REPLACE INTO serverAccount (kind, baseURL) VALUES (?, ?)", arguments: [kind, url])
+        }
+    }
+
+    func count(_ d: SyncedSettingsTests.Device, _ sql: String) throws -> Int {
+        try d.database.reader.read { try Int.fetchOne($0, sql: sql) ?? 0 }
+    }
+
+    @Test func hiddenLibrariesFollowTheirServer() throws {
+        let collections: [any SyncedCollection] = [TableCollection.hiddenLibraries]
+        let a = device("aaaa", "yomu", collections), b = device("bbbb", "yomu", collections), c = device("cccc", "yomu", collections)
+        try server(a, "kavita", "https://k.example"); try server(b, "kavita", "https://k.example"); try server(c, "kavita", "https://other.example")
+        try a.database.writer.write { try $0.execute(sql: "INSERT INTO hiddenLibrary (libraryId) VALUES (3), (5)") }
+        try a.sync(folder, at: start)
+        try b.sync(folder, at: start.addingTimeInterval(10))
+        try c.sync(folder, at: start.addingTimeInterval(10))
+        #expect(try count(b, "SELECT COUNT(*) FROM hiddenLibrary") == 2)
+        #expect(try count(c, "SELECT COUNT(*) FROM hiddenLibrary") == 0, "another server's library 3 isn't this one's")
+        // Shown again on b: shown on a.
+        try b.database.writer.write { try $0.execute(sql: "DELETE FROM hiddenLibrary WHERE libraryId = 5") }
+        try b.sync(folder, at: start.addingTimeInterval(20))
+        try c.sync(folder, at: start.addingTimeInterval(25))
+        try a.sync(folder, at: start.addingTimeInterval(30))
+        #expect(try count(a, "SELECT COUNT(*) FROM hiddenLibrary") == 1)
+    }
+
+    @Test func miruLibraryChoicesAndKikuHiddenLibraries() throws {
+        let miru: [any SyncedCollection] = [TableCollection.hiddenJellyfinLibraries, TableCollection.japaneseOnlyJellyfinLibraries]
+        let a = device("aaaa", "miru", miru), b = device("bbbb", "miru", miru)
+        try server(a, "jellyfin", "https://j.example"); try server(b, "jellyfin", "https://j.example")
+        try a.database.writer.write {
+            try $0.execute(sql: "INSERT INTO hiddenJellyfinLibrary (libraryId) VALUES ('music')")
+            try $0.execute(sql: "INSERT INTO japaneseOnlyJellyfinLibrary (libraryId) VALUES ('anime')")
+        }
+        try a.sync(folder, at: start)
+        try b.sync(folder, at: start.addingTimeInterval(10))
+        #expect(try count(b, "SELECT COUNT(*) FROM hiddenJellyfinLibrary WHERE libraryId = 'music'") == 1)
+        #expect(try count(b, "SELECT COUNT(*) FROM japaneseOnlyJellyfinLibrary WHERE libraryId = 'anime'") == 1)
+
+        let kiku: [any SyncedCollection] = [TableCollection.listenSettings, TableCollection.kikuHiddenLibraries]
+        let c = device("cccc", "kiku", kiku), d = device("dddd", "kiku", kiku)
+        try server(c, "audiobookshelf", "https://a.example"); try server(d, "audiobookshelf", "https://a.example")
+        try ListenSettings(speed: 1.2, hiddenLibraries: ["english"], watchLiveText: true).save(c.database)
+        try c.sync(folder, at: start)
+        try d.sync(folder, at: start.addingTimeInterval(10))
+        let onD = ListenSettings.load(d.database)
+        #expect(onD.hiddenLibraries == ["english"], "\(onD.hiddenLibraries)")
+        #expect(onD.speed == 1.2, "\(onD.speed)")
+        #expect(!onD.watchLiveText)
+    }
+
+    @Test func pairingsSyncTheChoiceAndDropAnOldAlignment() throws {
+        let collections: [any SyncedCollection] = [ReadAlongPairCollection()]
+        let a = device("aaaa", "yomu", collections), b = device("bbbb", "yomu", collections)
+        try server(a, "kavita", "https://k.example"); try server(b, "kavita", "https://k.example")
+        try a.database.writer.write { try ReadAlongPair(chapterId: 9, itemId: "book-1", bookTitle: "本", createdAt: start).save($0) }
+        try a.sync(folder, at: start)
+        try b.sync(folder, at: start.addingTimeInterval(10))
+        var onB = try #require(try b.database.reader.read { try ReadAlongPair.fetchOne($0, key: 9) })
+        #expect(onB.itemId == "book-1" && onB.cues == nil, "the choice, aligned again here")
+        // b aligns it; that's b's own and isn't sent.
+        onB.cues = Data([1, 2]); onB.alignedAt = start
+        try b.database.writer.write { try onB.save($0) }
+        #expect(try !b.sync(folder, at: start.addingTimeInterval(20)))
+        // Paired with another audiobook on a: b's alignment for the old one goes.
+        try a.database.writer.write { try $0.execute(sql: "UPDATE readAlongPair SET itemId = 'book-2' WHERE chapterId = 9") }
+        try a.sync(folder, at: start.addingTimeInterval(30))
+        try b.sync(folder, at: start.addingTimeInterval(40))
+        onB = try #require(try b.database.reader.read { try ReadAlongPair.fetchOne($0, key: 9) })
+        #expect(onB.itemId == "book-2" && onB.cues == nil && onB.alignedAt == nil)
+    }
+
+    @Test func subtitleTimingOnlyForTheSameFileAndNeverRemovesOne() throws {
+        let collections: [any SyncedCollection] = [SubtitleTimingCollection()]
+        let a = device("aaaa", "miru", collections), b = device("bbbb", "miru", collections), c = device("cccc", "miru", collections)
+        for d in [a, b, c] { try server(d, "jellyfin", "https://j.example") }
+        func subtitle(_ d: SyncedSettingsTests.Device, file: String, offset: Double) throws {
+            try d.database.writer.write { db in
+                try LocalSubtitle(itemId: "ep-1", source: "jimaku", fileName: file, format: "srt", data: Data("1".utf8), offset: offset, savedAt: start).save(db)
+            }
+        }
+        func offset(_ d: SyncedSettingsTests.Device) throws -> Double? {
+            try d.database.reader.read { try Double.fetchOne($0, sql: "SELECT offset FROM localSubtitle WHERE itemId = 'ep-1'") }
+        }
+        try subtitle(b, file: "ep1.srt", offset: 0)
+        try subtitle(c, file: "other.srt", offset: 0)
+        try b.sync(folder, at: start); try c.sync(folder, at: start)
+        try subtitle(a, file: "ep1.srt", offset: 1.5)
+        try a.sync(folder, at: start.addingTimeInterval(10))
+        try b.sync(folder, at: start.addingTimeInterval(20))
+        try c.sync(folder, at: start.addingTimeInterval(20))
+        #expect(try offset(b) == 1.5, "the same file: its timing")
+        #expect(try offset(c) == 0, "another file keeps its own")
+        // Removed on a: b keeps its subtitle.
+        try a.database.writer.write { try $0.execute(sql: "DELETE FROM localSubtitle") }
+        try a.sync(folder, at: start.addingTimeInterval(30))
+        try b.sync(folder, at: start.addingTimeInterval(40))
+        #expect(try offset(b) == 1.5)
+    }
+
+    /// An address never set on a new device doesn't clear the one set elsewhere; cleared on
+    /// purpose later, it is cleared everywhere.
+    @Test func kechimochiAddress() throws {
+        let collections: [any SyncedCollection] = [TableCollection.kechimochiAddress]
+        let a = device("aaaa", "yomu", collections), b = device("bbbb", "yomu", collections)
+        try ActivityLog(database: a.database).saveKechimochiURL("http://kechimochi.example:3000")
+        try a.sync(folder, at: start)
+        try b.database.writer.write { try $0.execute(sql: "INSERT INTO statsState (id) VALUES (1)") }
+        try b.sync(folder, at: start.addingTimeInterval(3600))
+        #expect(try ActivityLog(database: b.database).kechimochiURL() == "http://kechimochi.example:3000")
+        try a.sync(folder, at: start.addingTimeInterval(3700))
+        #expect(try ActivityLog(database: a.database).kechimochiURL() == "http://kechimochi.example:3000", "not cleared by b's blank")
+        try ActivityLog(database: b.database).saveKechimochiURL(nil)
+        try b.sync(folder, at: start.addingTimeInterval(3800))
+        try a.sync(folder, at: start.addingTimeInterval(3900))
+        #expect(try ActivityLog(database: a.database).kechimochiURL() == nil)
+    }
+
+    /// The popup's settings in a shared setup: written by one app on one device, read by
+    /// another app on another (they're the setup's, not an app's).
+    @Test func popupSettingsAcrossAppsAndDevices() throws {
+        let collections: [any SyncedCollection] = [TableCollection.popupSettings]
+        let yomuOnA = device("yomu-aaaa", "setup", collections), kikuOnB = device("kiku-bbbb", "setup", collections)
+        try yomuOnA.database.writer.write {
+            try $0.execute(sql: "INSERT INTO popupSettings (id, showLookupCounts, backgroundOpacityPercent) VALUES (1, 0, 60)")
+        }
+        try yomuOnA.sync(folder, at: start)
+        try kikuOnB.sync(folder, at: start.addingTimeInterval(10))
+        let row = try kikuOnB.database.reader.read { try Row.fetchOne($0, sql: "SELECT showLookupCounts, backgroundOpacityPercent FROM popupSettings WHERE id = 1") }
+        #expect((row?["showLookupCounts"] as Bool?) == false && (row?["backgroundOpacityPercent"] as Int?) == 60)
+    }
+}
+
+/// The popup's settings with Hachidori: while it's linked they're Hachidori's to sync, so
+/// neither sent nor taken here; unlinked, they sync again.
+@Suite struct SetupSyncHachidoriTests {
+    let folder = FileManager.default.temporaryDirectory.appending(path: "SetupSyncHachidoriTests-\(UUID().uuidString)")
+    let start = Date(timeIntervalSince1970: 1_795_651_200)
+
+    func popup(_ database: AppDatabase, opacity: Int) throws {
+        try database.writer.write {
+            try $0.execute(sql: "INSERT OR REPLACE INTO popupSettings (id, backgroundOpacityPercent) VALUES (1, ?)", arguments: [opacity])
+        }
+    }
+
+    func opacity(_ database: AppDatabase) throws -> Int? {
+        try database.reader.read { try Int.fetchOne($0, sql: "SELECT backgroundOpacityPercent FROM popupSettings WHERE id = 1") }
+    }
+
+    func link(_ database: AppDatabase, _ enabled: Bool) throws {
+        try database.writer.write { try HachidoriSettings(enabled: enabled, address: "ws://host.example").save($0) }
+    }
+
+    func files() -> [String] {
+        (try? FileManager.default.contentsOfDirectory(atPath: folder.appending(path: "popupSettings").path(percentEncoded: false))) ?? []
+    }
+
+    @Test func linkedNeitherSendsNorTakesThenUnlinkedSyncs() throws {
+        let a = try AppDatabase.inMemory(), b = try AppDatabase.inMemory()
+        try popup(a, opacity: 60)
+        try link(a, true)
+        #expect(try !RecordSync.syncSharedSetup(a, root: folder, app: "yomu", device: "aaaa", now: { start }))
+        #expect(files().isEmpty, "linked: nothing sent")
+
+        // Another device, not linked, sends its own; the linked one doesn't take it.
+        try popup(b, opacity: 30)
+        try RecordSync.syncSharedSetup(b, root: folder, app: "kiku", device: "bbbb", now: { start.addingTimeInterval(10) })
+        #expect(files() == ["setup-kiku-bbbb.json"])
+        #expect(try !RecordSync.syncSharedSetup(a, root: folder, app: "yomu", device: "aaaa", now: { start.addingTimeInterval(20) }))
+        #expect(try opacity(a) == 60, "linked: not taken")
+
+        // Unlinked: a's own settings go out (stamped now, newer than b's) and b takes them.
+        try link(a, false)
+        try RecordSync.syncSharedSetup(a, root: folder, app: "yomu", device: "aaaa", now: { start.addingTimeInterval(30) })
+        #expect(Set(files()) == ["setup-kiku-bbbb.json", "setup-yomu-aaaa.json"])
+        #expect(try RecordSync.syncSharedSetup(b, root: folder, app: "kiku", device: "bbbb", now: { start.addingTimeInterval(35) }))
+        #expect(try opacity(b) == 60)
+        try popup(a, opacity: 75)
+        try RecordSync.syncSharedSetup(a, root: folder, app: "yomu", device: "aaaa", now: { start.addingTimeInterval(40) })
+        try RecordSync.syncSharedSetup(b, root: folder, app: "kiku", device: "bbbb", now: { start.addingTimeInterval(50) })
+        #expect(try opacity(b) == 75, "unlinked: a's change reaches b")
+    }
+}

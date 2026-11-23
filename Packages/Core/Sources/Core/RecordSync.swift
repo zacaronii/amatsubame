@@ -10,6 +10,12 @@ public protocol SyncedCollection: Sendable {
     var name: String { get }
     func records(_ db: Database) throws -> [String: Data]
     func apply(id: String, value: Data?, _ db: Database) throws
+    /// A record that says nothing yet (every value empty): not an edit before the first sync.
+    func isBlank(_ value: Data) -> Bool
+}
+
+public extension SyncedCollection {
+    func isBlank(_ value: Data) -> Bool { false }
 }
 
 /// One device's records of one collection, as kept in the sync folder (iCloud): like Stats, a
@@ -55,20 +61,18 @@ public struct RecordSync: Sendable {
     /// was applied here.
     @discardableResult
     public func sync(root: URL, device: String) throws -> Bool {
+        // Every collection's edits first: two collections can share a row (Kiku's playback
+        // settings and its hidden libraries), and a row one creates while applying isn't an
+        // edit of the other's.
+        for collection in collections { try noteLocalEdits(collection, device: device) }
         var changed = false
         for collection in collections {
             let folder = StatsSyncFolder(url: root.appending(path: collection.name))
-            if try sync(collection, folder: folder, device: device) { changed = true }
+            let entries = try folder.entries()
+            if try applyOthers(collection, folder: folder, entries: entries, device: device) { changed = true }
+            try export(collection, folder: folder, entries: entries, device: device)
         }
         return changed
-    }
-
-    func sync(_ collection: any SyncedCollection, folder: StatsSyncFolder, device: String) throws -> Bool {
-        try noteLocalEdits(collection, device: device)
-        let entries = try folder.entries()
-        let applied = try applyOthers(collection, folder: folder, entries: entries, device: device)
-        try export(collection, folder: folder, entries: entries, device: device)
-        return applied
     }
 
     /// Compares what the collection holds with what was last synced: a new or changed record is
@@ -78,6 +82,9 @@ public struct RecordSync: Sendable {
         try database.writer.write { db in
             let current = try collection.records(db)
             let known = try SyncRecord.filter(Column("collection") == collection.name).fetchAll(db)
+            // Before the first sync, a blank record (an address never set) isn't an edit: stamped
+            // now, it would clear what another device set. Once synced, clearing one is.
+            let first = known.isEmpty
             var stamp = try Self.stamp(db, now: now())
             func next() -> Int64 { defer { stamp += 1 }; return stamp }
             var seen = Set<String>()
@@ -90,7 +97,7 @@ public struct RecordSync: Sendable {
                     try SyncRecord(collection: collection.name, id: record.id, value: nil, editedAt: next(), deleted: true, device: device).save(db)
                 }
             }
-            for (id, value) in current where !seen.contains(id) {
+            for (id, value) in current where !seen.contains(id) && !(first && collection.isBlank(value)) {
                 try SyncRecord(collection: collection.name, id: id, value: value, editedAt: next(), deleted: false, device: device).save(db)
             }
             // Old tombstones go (from here, and so from this device's file).
@@ -169,6 +176,20 @@ public struct RecordSync: Sendable {
             try db.execute(sql: "INSERT INTO statsSyncFile (name, token) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET token = excluded.token",
                            arguments: [key, hash])
         }
+    }
+}
+
+public extension RecordSync {
+    /// The shared setup's records (the popup's settings): every app sharing the setup, on every
+    /// device, reads them, and each app writes its own file ("setup-<app>-<device>"). Skipped
+    /// while Hachidori is linked: its own settings are the popup's then, synced by it.
+    @discardableResult
+    static func syncSharedSetup(_ setup: AppDatabase, root: URL, app: String, device: String,
+                                now: @escaping @Sendable () -> Date = Date.init) throws -> Bool {
+        let linked = try setup.reader.read { try HachidoriSettings.fetchOne($0)?.enabled == true }
+        guard !linked else { return false }
+        return try RecordSync(database: setup, app: "setup", collections: [TableCollection.popupSettings], now: now)
+            .sync(root: root, device: "\(app)-\(device)")
     }
 }
 

@@ -131,7 +131,7 @@ public final class CommonEnvironment {
         dictionaryUpdater = DictionaryUpdater(library: dictionaries, lookup: lookup, reachability: reachability)
         activity = ActivityLog(database: database)
         goals = DailyGoalStore(database: database)
-        statsSync = StatsCloudSync(database: database, collections: Self.syncedCollections)
+        statsSync = StatsCloudSync(database: database, collections: Self.syncedCollections, sharedSetup: sharedAccountsDatabase)
         lookup.activity = activity
         ankiSettings = AnkiSettingsStore(database: setupDatabase)
         minedWords = MinedWordStore(database: setupDatabase)
@@ -396,9 +396,12 @@ public final class CommonEnvironment {
     /// What Sync with iCloud keeps the same besides Stats, in each app.
     static var syncedCollections: [any SyncedCollection] {
         switch appName {
-        case "Yomu": [DailyGoalCollection(), TableCollection.mangaReaderSettings, TableCollection.bookReaderSettings]
-        case "Miru": [TableCollection.playerSettings]
-        case "Kiku": [TableCollection.listenSettings, TableCollection.showListenSettings, TableCollection.audioMarks]
+        case "Yomu": [DailyGoalCollection(), TableCollection.mangaReaderSettings, TableCollection.bookReaderSettings,
+                      TableCollection.hiddenLibraries, ReadAlongPairCollection(), TableCollection.kechimochiAddress]
+        case "Miru": [TableCollection.playerSettings, TableCollection.hiddenJellyfinLibraries, TableCollection.japaneseOnlyJellyfinLibraries,
+                      SubtitleTimingCollection(), TableCollection.kechimochiAddress]
+        case "Kiku": [TableCollection.listenSettings, TableCollection.showListenSettings, TableCollection.audioMarks,
+                      TableCollection.kikuHiddenLibraries, TableCollection.kechimochiAddress]
         default: []
         }
     }

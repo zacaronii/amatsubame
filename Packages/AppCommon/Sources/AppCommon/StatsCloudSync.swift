@@ -43,11 +43,15 @@ public final class StatsCloudSync {
 
     /// What's kept the same besides Stats.
     @ObservationIgnored private let collections: [any SyncedCollection]
+    /// The shared setup's database when this app shares it: the popup's settings are kept the
+    /// same there too (not while Hachidori is linked: its own settings are the popup's then).
+    @ObservationIgnored private let sharedSetup: AppDatabase?
 
     public init(database: AppDatabase, defaults: UserDefaults = .standard,
-                collections: [any SyncedCollection] = [DailyGoalCollection()]) {
+                collections: [any SyncedCollection] = [DailyGoalCollection()], sharedSetup: AppDatabase? = nil) {
         self.database = database
         self.collections = collections
+        self.sharedSetup = sharedSetup
         self.defaults = defaults
         let on = !defaults.bool(forKey: Self.key)
         isOn = on
@@ -67,9 +71,9 @@ public final class StatsCloudSync {
         running = true
         defer { running = false }
         lastRun = .now
-        let database = database, hardware = Self.hardware, app = Self.folderName, collections = collections
+        let database = database, hardware = Self.hardware, app = Self.folderName, collections = collections, sharedSetup = sharedSetup
         let result = await Task.detached(priority: .utility) {
-            Self.run(database: database, hardware: hardware, app: app, collections: collections)
+            Self.run(database: database, hardware: hardware, app: app, collections: collections, sharedSetup: sharedSetup)
         }.value
         guard isOn else { return false }
         switch result {
@@ -93,15 +97,19 @@ public final class StatsCloudSync {
 
     /// Nil without an iCloud folder. Off the main thread: finding the folder can take a while.
     private nonisolated static func run(database: AppDatabase, hardware: String?, app: String,
-                                        collections: [any SyncedCollection]) -> Result<Bool, Error>? {
+                                        collections: [any SyncedCollection], sharedSetup: AppDatabase?) -> Result<Bool, Error>? {
         guard let container = FileManager.default.url(forUbiquityContainerIdentifier: nil) else { return nil }
         let folder = StatsSyncFolder(url: container.appending(path: "Stats").appending(path: app))
         return Result {
             let stats = StatsSync(database: database)
             let changed = try stats.sync(with: folder, hardware: hardware)
+            let device = try stats.deviceID(hardware: hardware)
             let records = try RecordSync(database: database, app: app, collections: collections)
-                .sync(root: container.appending(path: "Sync"), device: stats.deviceID(hardware: hardware))
-            return changed || records
+                .sync(root: container.appending(path: "Sync"), device: device)
+            let setup = try sharedSetup.map {
+                try RecordSync.syncSharedSetup($0, root: container.appending(path: "Sync"), app: app, device: device)
+            } ?? false
+            return changed || records || setup
         }
     }
 
