@@ -61,7 +61,13 @@ import Testing
         try c.sync(folder, at: start.addingTimeInterval(60))
         #expect(try MangaReaderSettingsStore(database: c.database).settings(seriesId: 12) == all,
                 "another server's series 12 isn't this one: only Use for All arrives")
+        // c skipped series 12 (not its server): that isn't a deletion, so a and b keep it.
+        try c.sync(folder, at: start.addingTimeInterval(90))
+        try a.sync(folder, at: start.addingTimeInterval(100))
+        #expect(try MangaReaderSettingsStore(database: a.database).settings(seriesId: 12) == manga, "not deleted by the other server's device")
         // Nothing new on b: applied settings aren't its own edits.
+        try b.sync(folder, at: start.addingTimeInterval(110))
+        #expect(try MangaReaderSettingsStore(database: b.database).settings(seriesId: 12) == manga)
         #expect(try !b.sync(folder, at: start.addingTimeInterval(120)))
         let own = try b.database.reader.read { try Int.fetchOne($0, sql: "SELECT COUNT(*) FROM syncRecord WHERE device = 'bbbb'") }
         #expect(own == 0)
