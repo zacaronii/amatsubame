@@ -106,16 +106,9 @@ public final class StatsCloudSync {
             let device = try stats.deviceID(hardware: hardware)
             let records = try RecordSync(database: database, app: app, collections: collections)
                 .sync(root: container.appending(path: "Sync"), device: device)
-            // The shared setup's records: every app sharing it, on every device, reads them; each
-            // app writes its own file ("setup-<app>-<device>").
-            var setup = false
-            if let sharedSetup {
-                let linked = try sharedSetup.reader.read { try HachidoriSettings.fetchOne($0)?.enabled == true }
-                if !linked {
-                    setup = try RecordSync(database: sharedSetup, app: "setup", collections: [TableCollection.popupSettings])
-                        .sync(root: container.appending(path: "Sync"), device: "\(app)-\(device)")
-                }
-            }
+            let setup = try sharedSetup.map {
+                try RecordSync.syncSharedSetup($0, root: container.appending(path: "Sync"), app: app, device: device)
+            } ?? false
             return changed || records || setup
         }
     }

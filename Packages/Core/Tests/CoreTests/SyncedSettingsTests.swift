@@ -339,3 +339,54 @@ import Testing
         #expect((row?["showLookupCounts"] as Bool?) == false && (row?["backgroundOpacityPercent"] as Int?) == 60)
     }
 }
+
+/// The popup's settings with Hachidori: while it's linked they're Hachidori's to sync, so
+/// neither sent nor taken here; unlinked, they sync again.
+@Suite struct SetupSyncHachidoriTests {
+    let folder = FileManager.default.temporaryDirectory.appending(path: "SetupSyncHachidoriTests-\(UUID().uuidString)")
+    let start = Date(timeIntervalSince1970: 1_795_651_200)
+
+    func popup(_ database: AppDatabase, opacity: Int) throws {
+        try database.writer.write {
+            try $0.execute(sql: "INSERT OR REPLACE INTO popupSettings (id, backgroundOpacityPercent) VALUES (1, ?)", arguments: [opacity])
+        }
+    }
+
+    func opacity(_ database: AppDatabase) throws -> Int? {
+        try database.reader.read { try Int.fetchOne($0, sql: "SELECT backgroundOpacityPercent FROM popupSettings WHERE id = 1") }
+    }
+
+    func link(_ database: AppDatabase, _ enabled: Bool) throws {
+        try database.writer.write { try HachidoriSettings(enabled: enabled, address: "ws://host.example").save($0) }
+    }
+
+    func files() -> [String] {
+        (try? FileManager.default.contentsOfDirectory(atPath: folder.appending(path: "popupSettings").path(percentEncoded: false))) ?? []
+    }
+
+    @Test func linkedNeitherSendsNorTakesThenUnlinkedSyncs() throws {
+        let a = try AppDatabase.inMemory(), b = try AppDatabase.inMemory()
+        try popup(a, opacity: 60)
+        try link(a, true)
+        #expect(try !RecordSync.syncSharedSetup(a, root: folder, app: "yomu", device: "aaaa", now: { start }))
+        #expect(files().isEmpty, "linked: nothing sent")
+
+        // Another device, not linked, sends its own; the linked one doesn't take it.
+        try popup(b, opacity: 30)
+        try RecordSync.syncSharedSetup(b, root: folder, app: "kiku", device: "bbbb", now: { start.addingTimeInterval(10) })
+        #expect(files() == ["setup-kiku-bbbb.json"])
+        #expect(try !RecordSync.syncSharedSetup(a, root: folder, app: "yomu", device: "aaaa", now: { start.addingTimeInterval(20) }))
+        #expect(try opacity(a) == 60, "linked: not taken")
+
+        // Unlinked: a's own settings go out (stamped now, newer than b's) and b takes them.
+        try link(a, false)
+        try RecordSync.syncSharedSetup(a, root: folder, app: "yomu", device: "aaaa", now: { start.addingTimeInterval(30) })
+        #expect(Set(files()) == ["setup-kiku-bbbb.json", "setup-yomu-aaaa.json"])
+        #expect(try RecordSync.syncSharedSetup(b, root: folder, app: "kiku", device: "bbbb", now: { start.addingTimeInterval(35) }))
+        #expect(try opacity(b) == 60)
+        try popup(a, opacity: 75)
+        try RecordSync.syncSharedSetup(a, root: folder, app: "yomu", device: "aaaa", now: { start.addingTimeInterval(40) })
+        try RecordSync.syncSharedSetup(b, root: folder, app: "kiku", device: "bbbb", now: { start.addingTimeInterval(50) })
+        #expect(try opacity(b) == 75, "unlinked: a's change reaches b")
+    }
+}

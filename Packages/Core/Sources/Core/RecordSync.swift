@@ -179,6 +179,20 @@ public struct RecordSync: Sendable {
     }
 }
 
+public extension RecordSync {
+    /// The shared setup's records (the popup's settings): every app sharing the setup, on every
+    /// device, reads them, and each app writes its own file ("setup-<app>-<device>"). Skipped
+    /// while Hachidori is linked: its own settings are the popup's then, synced by it.
+    @discardableResult
+    static func syncSharedSetup(_ setup: AppDatabase, root: URL, app: String, device: String,
+                                now: @escaping @Sendable () -> Date = Date.init) throws -> Bool {
+        let linked = try setup.reader.read { try HachidoriSettings.fetchOne($0)?.enabled == true }
+        guard !linked else { return false }
+        return try RecordSync(database: setup, app: "setup", collections: [TableCollection.popupSettings], now: now)
+            .sync(root: root, device: "\(app)-\(device)")
+    }
+}
+
 /// A synced record as last merged here: its value, its newest edit and the device that made it.
 struct SyncRecord: Codable, Equatable, Sendable, FetchableRecord, PersistableRecord {
     static let databaseTableName = "syncRecord"
