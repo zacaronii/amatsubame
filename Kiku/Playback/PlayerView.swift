@@ -497,14 +497,19 @@ struct PlayerView: View {
 
     /// The line the search is showing (its position).
     private var findTarget: Int? {
-        guard finding, let findAt, findHits.indices.contains(findAt) else { return nil }
+        guard finding, let findAt, findHits.indices.contains(findAt), model.sentences.indices.contains(findHits[findAt].index) else { return nil }
         return model.sentences[findHits[findAt].index].position
     }
 
     /// The match to mark in a line: only in the line the search is showing.
     private func foundRange(_ position: Int) -> Range<Int>? {
-        guard finding, let findAt, findHits.indices.contains(findAt), model.sentences[findHits[findAt].index].position == position else { return nil }
+        guard findTarget == position, let findAt else { return nil }
         return findHits[findAt].range
+    }
+
+    private func refind() {
+        findHits = TranscriptFind.hits(findQuery, in: model.sentences)
+        findAt = TranscriptFind.firstHit(findHits, from: model.currentIndex)
     }
 
     private func stepFind(_ step: Int) {
@@ -548,10 +553,9 @@ struct PlayerView: View {
         // A tap anywhere on the bar stays on it (the line behind would open a lookup).
         .contentShape(.capsule)
         .onTapGesture { findFocused = true }
-        .onChange(of: findQuery) { _, query in
-            findHits = TranscriptFind.hits(query, in: model.sentences)
-            findAt = TranscriptFind.firstHit(findHits, from: model.currentIndex)
-        }
+        .onChange(of: findQuery) { refind() }
+        // The transcript replaced while finding (Kaku's lines differ, Transcribe Again).
+        .onChange(of: model.sentences) { refind() }
     }
 
     /// The line playing a third of the way down. On a short transcript (the iPhone Duo's

@@ -496,10 +496,14 @@ final class PlaybackModel: Identifiable, LineLookupHost {
     /// The timer ran out: playback stops (faded out by then) and the volume is back for next time.
     private func sleepStopped(pauses: Bool = true) {
         sleepTask?.cancel()
+        let arms = sleepTimer.map { SleepTimerRules.armsResume(stopping: $0, wasPlaying: audio.isPlaying) } ?? false
+        // The pause reports a play-state change at once, which ends any earlier grace first.
         if pauses { audio.pause() }
         audio.volume = 1
-        sleepStoppedAt = .now
         sleepTimer = nil
+        guard arms else { return }
+        sleepStoppedAt = .now
+        updateShakeWatch()
         // The grace for a shake, then the motion watch stops.
         shakeGraceTask?.cancel()
         shakeGraceTask = Task { [weak self] in
@@ -561,6 +565,7 @@ final class PlaybackModel: Identifiable, LineLookupHost {
         againTask?.cancel()
         sleepTask?.cancel()
         shakeGraceTask?.cancel()
+        audio.volume = 1
         #if os(iOS)
         shakes.stop()
         #endif
@@ -641,6 +646,12 @@ final class PlaybackModel: Identifiable, LineLookupHost {
     }
 
     private func playStateChanged(_ playing: Bool) {
+        // Played or paused by hand during the shake's grace: it's over.
+        if sleepStoppedAt != nil {
+            sleepStoppedAt = nil
+            shakeGraceTask?.cancel()
+            updateShakeWatch()
+        }
         if playing {
             // From the start of the line the pause cut off.
             if let pausedAt, let target = TranscriptFollow.resumeTarget(at: audio.currentTime, in: sentences,

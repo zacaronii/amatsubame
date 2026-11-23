@@ -30,6 +30,13 @@ enum SleepTimerRules {
         case resume(minutes: Int)
     }
 
+    /// Whether a timer stopping playback leaves a shake able to bring it back: only a timer of
+    /// minutes, and only if it was what stopped playback (not one running out after a pause by hand).
+    static func armsResume(stopping timer: PlaybackModel.SleepTimer, wasPlaying: Bool) -> Bool {
+        guard wasPlaying, case .minutes = timer else { return false }
+        return true
+    }
+
     /// What a shake does. Only a timer of minutes is extended (End of Chapter and End of Episode
     /// already say where to stop); after it stops playback, for `shakeGrace`.
     static func shake(timer: PlaybackModel.SleepTimer?, lastMinutes: Int?, stoppedAt: Date?, now: Date) -> Shake? {
