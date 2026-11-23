@@ -387,6 +387,25 @@ public struct OutboxStore: Sendable {
         }
     }
 
+    /// The coalesce keys of reading progress changes not sent yet: waiting, backing off, held or
+    /// being sent (one that failed for good no longer counts).
+    public static func unsentProgressKeys(_ db: Database) throws -> Set<String> {
+        Set(try String?.fetchAll(db, OutboxJob.select(Column("coalesceKey"))
+            .filter(Column("kind") == OutboxJobKind.kavitaProgress
+                    && [OutboxJobState.pending.rawValue, OutboxJobState.inFlight.rawValue].contains(Column("state"))))
+            .compactMap(\.self))
+    }
+
+    public func unsentProgressKeys() throws -> Set<String> {
+        try database.reader.read { try Self.unsentProgressKeys($0) }
+    }
+
+    /// Whether this chapter has a progress change not sent yet (`LocalReadingProgress.progressKeys`).
+    public func hasUnsentProgress(chapterId: Int, seriesId: Int) throws -> Bool {
+        let keys = try unsentProgressKeys()
+        return LocalReadingProgress.progressKeys(chapterId: chapterId, seriesId: seriesId).contains(where: keys.contains)
+    }
+
     /// The last job with one of these coalesce keys that was sent (kept `sentProgressRetention`),
     /// leaving out `job` itself.
     public func lastSent(coalesceKeys: [String], kind: OutboxJobKind, excluding job: Int64?) throws -> OutboxJob? {

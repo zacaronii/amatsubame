@@ -25,16 +25,17 @@ public struct KavitaSeriesContents: Codable, Equatable, Hashable, Sendable {
         return contents
     }
 
-    /// The same with this device's own reading where it's ahead of what Kavita knows:
+    /// The same with this device's reading where it wins (`LocalReadingProgress.devicesPlaceWins`):
     /// `pagesRead` by chapter id (Kavita's count of pages read), `updated` when this device's
-    /// place was saved, by `LocalReadingProgress.pagesRead(kavita:kavitaAt:local:localAt:pages:)`.
-    public func readingFurther(_ pagesRead: [Int: Int], updated: [Int: Date] = [:]) -> KavitaSeriesContents {
+    /// place was saved, `unsent` the chapters with a change not sent yet.
+    public func readingFurther(_ pagesRead: [Int: Int], updated: [Int: Date] = [:], unsent: Set<Int> = []) -> KavitaSeriesContents {
         guard !pagesRead.isEmpty else { return self }
         func further(_ chapter: KavitaChapter) -> KavitaChapter {
             var chapter = chapter
             guard let local = pagesRead[chapter.id] else { return chapter }
             chapter.pagesRead = LocalReadingProgress.pagesRead(kavita: chapter.pagesRead, kavitaAt: chapter.lastReadingProgressUtc,
-                                                               local: local, localAt: updated[chapter.id], pages: chapter.pages)
+                                                               local: local, localAt: updated[chapter.id], pages: chapter.pages,
+                                                               unsent: unsent.contains(chapter.id))
             return chapter
         }
         var contents = self

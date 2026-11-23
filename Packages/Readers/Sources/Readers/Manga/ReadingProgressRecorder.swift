@@ -60,6 +60,12 @@ public final class ReadingProgressRecorder {
         }
     }
 
+    /// Whether this chapter has a progress change queued and not sent yet: then this device's
+    /// place is where to open (`LocalReadingProgress.devicesPlaceWins`).
+    public var hasUnsentChange: Bool {
+        (try? outbox.hasUnsentProgress(chapterId: chapter.chapterId, seriesId: chapter.seriesId)) ?? false
+    }
+
     /// Queues any unsent page now (reader closing, app backgrounding).
     public func flush() {
         debounceTask?.cancel()

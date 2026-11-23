@@ -62,6 +62,17 @@ import Testing
         #expect(contents.readingFurther([11: 500]).volumes[1].chapters[0].pagesRead == 100, "never past the end")
     }
 
+    /// The series page by the one rule: an unread elsewhere (Kavita newer, fewer pages) shows
+    /// here unless this device has a change for the chapter still queued.
+    @Test func theSeriesPageFollowsTheOneRule() {
+        var contents = Self.series(1, read: [100])
+        contents.volumes[0].chapters[0].lastReadingProgressUtc = Date(timeIntervalSince1970: 2000)
+        contents.volumes[0].chapters[0].pagesRead = 10   // Kavita: back at 10, newer
+        let local = [10: 100], at = [10: Date(timeIntervalSince1970: 1000)]
+        #expect(contents.readingFurther(local, updated: at).volumes[0].chapters[0].pagesRead == 10, "Kavita's newer place")
+        #expect(contents.readingFurther(local, updated: at, unsent: [10]).volumes[0].chapters[0].pagesRead == 100, "queued here: this device's")
+    }
+
     /// Mark as Read / Unread shows at once, and this device's newer place wins outright.
     @Test func markingReadOrUnreadShowsAtOnce() {
         let contents = Self.series(2, read: [100, 50])
