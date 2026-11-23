@@ -232,6 +232,18 @@ final class BookUITests: XCTestCase {
 
     private var popup: XCUIElement { app.webViews.matching(identifier: "lookup.results").firstMatch }
 
+    /// The first chapter, then forward (a swipe right in right-to-left books) to a section's
+    /// second page or later: body text across the page.
+    private func openPageOfBodyText() {
+        openFirstChapter()
+        let laterPage = /page ([2-9]|\d\d+) of/
+        for _ in 0..<8 where (page.value as? String)?.contains(laterPage) != true {
+            page.swipeRight()
+            sleep(2)
+        }
+        XCTAssertTrue((page.value as? String)?.contains(laterPage) == true, "no section with a second page: \(page.value ?? "")")
+    }
+
     func testTappingTextOpensLookup() throws {
         guard ProcessInfo.processInfo.environment["UITEST_DICTIONARY_ZIPS"] != nil else { throw XCTSkip("Needs UITEST_DICTIONARY_ZIPS.") }
         openBook()
@@ -245,7 +257,11 @@ final class BookUITests: XCTestCase {
     func testLookupMarkGoesAfterTheAppWasInTheBackground() throws {
         guard ProcessInfo.processInfo.environment["UITEST_DICTIONARY_ZIPS"] != nil else { throw XCTSkip("Needs UITEST_DICTIONARY_ZIPS.") }
         openBook()
-        XCTAssertTrue(try lookUpInFirstChapter(), "no word found to look up")
+        // Both lookups on a page of body text (a book's opening pages are contents, titles and
+        // pictures, with text only in places).
+        openPageOfBodyText()
+        XCTAssertLessThan(try markedPixels(), markedMinimum, "a mark before any lookup")
+        XCTAssertTrue(lookUp(dy: 0.25) || lookUp(dy: 0.35), "no word found to look up")
         XCTAssertGreaterThan(try markedPixels(), markedMinimum, "the looked-up word is marked")
 
         XCUIDevice.shared.press(.home)
@@ -256,26 +272,20 @@ final class BookUITests: XCTestCase {
         closePopup()
         XCTAssertLessThan(try markedPixels(), markedMinimum, "the mark stayed after closing")
 
-        // Another word further down, then close that too.
-        XCTAssertTrue(lookUp(dy: 0.45), "no second word found to look up")
+        // Another lookup, then close that too (where the text is sure to be: a page of
+        // dialogue has short columns, and its lower half can be blank where the test taps).
+        XCTAssertTrue(lookUp(dy: 0.35) || lookUp(dy: 0.25), "no second word found to look up")
         closePopup()
         snapshot("book-marks-cleared")
         XCTAssertLessThan(try markedPixels(), markedMinimum, "a mark came back after the second lookup")
     }
 
     /// A page after a section's first: the body has moved (a page turn), and WebKit didn't repaint
-    /// a mark drawn inside it, so the looked-up word showed no mark (in 小説 君の名は。).
+    /// a mark drawn inside it, so the looked-up word showed no mark (in a vertical light novel).
     func testLookupMarkShowsAfterAPageTurn() throws {
         guard ProcessInfo.processInfo.environment["UITEST_DICTIONARY_ZIPS"] != nil else { throw XCTSkip("Needs UITEST_DICTIONARY_ZIPS.") }
         openBook()
-        openFirstChapter()
-        // Forward (a swipe right in right-to-left books) until a section's second page or later.
-        let laterPage = /page ([2-9]|\d\d+) of/
-        for _ in 0..<8 where (page.value as? String)?.contains(laterPage) != true {
-            page.swipeRight()
-            sleep(2)
-        }
-        XCTAssertTrue((page.value as? String)?.contains(laterPage) == true, "no section with a second page: \(page.value ?? "")")
+        openPageOfBodyText()
         XCTAssertLessThan(try markedPixels(), markedMinimum, "a mark before any lookup")
         XCTAssertTrue(lookUp(dy: 0.25) || lookUp(dy: 0.45), "no word found to look up")
         snapshot("book-mark-after-turn")
@@ -402,8 +412,9 @@ final class BookUITests: XCTestCase {
                 sleep(1)
                 return true
             }
-            // With the controls showing, a tap on the page only hides them.
-            if app.buttons["Contents"].exists { page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
+            // With the controls showing, a tap on the page only hides them: in the bottom margin,
+            // where no word is (the middle of a page of text would look one up).
+            if app.buttons["Contents"].exists { page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.985)).tap() }
             sleep(1)
         }
         return false
