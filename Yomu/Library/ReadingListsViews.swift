@@ -56,7 +56,9 @@ struct ReadingListView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
     let list: ReadingListRow
-    @State private var items: [ReadingListItemRow] = []
+    /// The items with how far each is read (the series page's rule).
+    @State private var entries: [ReadingListEntry] = []
+    private var items: [ReadingListItemRow] { entries.map(\.item) }
     @State private var error: String?
     @State private var confirmsDelete = false
     @State private var lastItem: ReadingListItemRow?
@@ -67,8 +69,8 @@ struct ReadingListView: View {
             if let note = CollectionsSheet.readOnlyReason(list) ?? error {
                 Text(note).font(.callout).foregroundStyle(.secondary)
             }
-            ForEach(items, id: \.chapterId) { item in
-                row(item)
+            ForEach(entries, id: \.item.chapterId) { entry in
+                row(entry)
                     .moveDisabled(!list.isEditable)
                     .deleteDisabled(!list.isEditable)
             }
@@ -121,7 +123,7 @@ struct ReadingListView: View {
                 }
             }
             do {
-                for try await rows in environment.readingLists.observeItems(listId: id) { items = rows }
+                for try await rows in environment.readingLists.observeEntries(listId: id) { entries = rows }
             } catch {}
         }
     }
@@ -134,7 +136,8 @@ struct ReadingListView: View {
         return nil
     }
 
-    private func row(_ item: ReadingListItemRow) -> some View {
+    private func row(_ entry: ReadingListEntry) -> some View {
+        let item = entry.item
         let reason = reason(item)
         return Button {
             if let reason {
@@ -153,17 +156,26 @@ struct ReadingListView: View {
                 }
             }
         } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.seriesName.isEmpty ? item.title : item.seriesName).lineLimit(1)
-                Text([item.seriesName.isEmpty ? nil : item.title, item.state == .pendingAdd ? "Not on Kavita yet" : nil, reason]
-                    .compactMap(\.self).joined(separator: " · "))
-                    .font(.caption).foregroundStyle(.secondary).lineLimit(2)
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.seriesName.isEmpty ? item.title : item.seriesName).lineLimit(1)
+                    Text([item.seriesName.isEmpty ? nil : item.title, item.state == .pendingAdd ? "Not on Kavita yet" : nil, reason]
+                        .compactMap(\.self).joined(separator: " · "))
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                }
+                Spacer(minLength: 0)
+                if entry.isRead {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.secondary).accessibilityLabel("Read")
+                } else if entry.isStarted {
+                    Image(systemName: "circle.lefthalf.filled").foregroundStyle(.tint).accessibilityLabel("Started")
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .foregroundStyle(reason == nil ? .primary : .secondary)
+        .accessibilityValue(entry.isRead ? "Read" : entry.isStarted ? "Started" : "")
         .accessibilityIdentifier("readingList.item.\(item.chapterId)")
     }
 

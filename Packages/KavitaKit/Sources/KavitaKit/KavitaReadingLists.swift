@@ -36,11 +36,16 @@ public struct KavitaReadingListItem: Decodable, Equatable, Sendable {
     public var seriesFormat: Int?
     public var seriesName: String?
     public var title: String?
+    /// The user's reading of the chapter (`lastReadingProgressUtc` of year 1 when never read).
+    public var pagesRead: Int?
+    public var pagesTotal: Int?
+    public var lastReadingProgressUtc: Date?
 
     func listed() -> ReadingListStore.ListedItem {
         ReadingListStore.ListedItem(serverItemId: id, chapter: ReadingListChapter(
             chapterId: chapterId, seriesId: seriesId, volumeId: volumeId, libraryId: libraryId, format: seriesFormat ?? 2,
-            seriesName: seriesName ?? "", title: title ?? ""))
+            seriesName: seriesName ?? "", title: title ?? ""),
+            pagesRead: pagesRead, pages: pagesTotal, readAt: lastReadingProgressUtc?.nilIfUnset)
     }
 }
 

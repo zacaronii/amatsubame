@@ -357,4 +357,17 @@ import Testing
         #expect(rows.map(\.isEditable) == [true, false])
         #expect(rows.first?.kavitaItemCount == nil, "no count before 0.8.4")
     }
+
+    @Test func aListsItemsCarryKavitasReading() async throws {
+        let setup = try setup()
+        try setup.store.merge([.init(serverId: 9, title: "Mine", isOwn: true, owner: "reader", promoted: false, isSynced: false, itemCount: 2)], account: account)
+        let list = try #require(try setup.store.lists(account: account).first)
+        let json = #"[{"id":101,"order":0,"chapterId":1,"seriesId":10,"volumeId":100,"libraryId":1,"seriesFormat":1,"seriesName":"S","title":"Vol. 1","pagesRead":20,"pagesTotal":20,"lastReadingProgressUtc":"2026-10-01T00:00:00"},{"id":102,"order":1,"chapterId":2,"seriesId":10,"volumeId":200,"libraryId":1,"seriesFormat":1,"seriesName":"S","title":"Vol. 2","pagesRead":0,"pagesTotal":18,"lastReadingProgressUtc":"0001-01-01T00:00:00"}]"#
+        let transport = StubTransport(routes: ["/api/ReadingList/items": (200, Data(json.utf8))])
+        try await KavitaReadingListSync(client: client(transport), store: setup.store, features: setup.features, account: account, username: "reader")
+            .items(of: list)
+        let entries = try setup.store.entries(listId: list.id!)
+        #expect(entries.map(\.isRead) == [true, false])
+        #expect(entries[1].item.kavitaReadAt == nil, "never read: no date")
+    }
 }

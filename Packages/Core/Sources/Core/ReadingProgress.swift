@@ -36,6 +36,29 @@ public struct LocalReadingProgress: Codable, Equatable, Sendable, FetchableRecor
     }
 }
 
+extension LocalReadingProgress {
+    /// Kavita counts pages read: the page on screen, except that reaching the last page counts
+    /// all `pages`, which is what marks the chapter read.
+    public static func pagesRead(forPage page: Int, pages: Int) -> Int {
+        guard pages > 0 else { return 0 }
+        return page >= pages - 1 ? pages : max(page, 0)
+    }
+
+    /// This row as Kavita's pages read.
+    public var pagesRead: Int { Self.pagesRead(forPage: page, pages: pages) }
+
+    /// The one rule for a chapter's pages read shown anywhere (the series page, a reading list):
+    /// Kavita's count with this device's own where it's ahead of what Kavita knows (read offline,
+    /// or not sent yet). This device's count wins outright when it was saved after Kavita's date
+    /// for the chapter (so Mark as Unread shows before Kavita has it); without dates, a chapter
+    /// only ever moves on.
+    public static func pagesRead(kavita: Int, kavitaAt: Date?, local: Int, localAt: Date?, pages: Int) -> Int {
+        let local = min(local, pages)
+        if let localAt, let kavitaAt, localAt > kavitaAt { return local }
+        return max(kavita, local)
+    }
+}
+
 public struct ReadingProgressStore: Sendable {
     public let database: AppDatabase
 

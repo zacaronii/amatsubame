@@ -56,7 +56,8 @@ public struct KavitaProgressHandler: OutboxHandler {
     /// as reading). Newer wins: if Kavita's progress for any chapter it covers changed after the
     /// mark was made (`madeAt`; read elsewhere meanwhile), it's dropped quietly and the device
     /// follows Kavita at the next refresh. An unread mark that went then has this device's rows
-    /// kept the newer (`KavitaReadMarkSettling`).
+    /// kept the newer (`KavitaReadMarkSettling`); best effort: if that read-back fails, the mark
+    /// still counts as sent (retrying it would only find its own newer date and end quietly).
     private func send(_ mark: KavitaReadMarkPayload, _ job: OutboxJob) async throws {
         if let made = mark.account, let current = account(), current != made {
             throw OutboxWait("Waiting for the Kavita account it was marked under.")
@@ -68,17 +69,16 @@ public struct KavitaProgressHandler: OutboxHandler {
             if let chapterId = mark.chapterId {
                 if let changed = try await client.progress(chapterId: chapterId).lastModifiedUtc, changed > mark.madeAt { return }
                 try await client.markRead(mark.mark == .read, seriesId: mark.seriesId, chapterIds: [chapterId])
-                if mark.mark == .unread, let settling, let date = try await client.progress(chapterId: chapterId).lastModifiedUtc {
-                    try settling.settle(mark, kavitaDates: [chapterId: date])
+                if mark.mark == .unread, let settling, let date = try? await client.progress(chapterId: chapterId).lastModifiedUtc {
+                    try? settling.settle(mark, kavitaDates: [chapterId: date])
                 }
             } else {
                 let chapters = try await client.volumes(seriesId: mark.seriesId).flatMap(\.0.chapters)
                 if chapters.contains(where: { ($0.lastReadingProgressUtc ?? .distantPast) > mark.madeAt }) { return }
                 try await client.markSeriesRead(mark.mark == .read, seriesId: mark.seriesId)
-                if mark.mark == .unread, let settling {
-                    let after = try await client.volumes(seriesId: mark.seriesId).flatMap(\.0.chapters)
-                    try settling.settle(mark, kavitaDates: Dictionary(after.compactMap { c in c.lastReadingProgressUtc.map { (c.id, $0) } },
-                                                                      uniquingKeysWith: max))
+                if mark.mark == .unread, let settling, let after = try? await client.volumes(seriesId: mark.seriesId).flatMap(\.0.chapters) {
+                    try? settling.settle(mark, kavitaDates: Dictionary(after.compactMap { c in c.lastReadingProgressUtc.map { (c.id, $0) } },
+                                                                       uniquingKeysWith: max))
                 }
             }
         } catch let error as ConnectionError {

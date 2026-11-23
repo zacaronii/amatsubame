@@ -194,6 +194,75 @@ import Testing
         #expect(try progress.progress(chapterId: 207)?.page == 2, "a page turned since is left alone")
     }
 
+    /// The series path: one read of the volumes after the mark; each row the mark wrote moved
+    /// past its own chapter's date, a chapter Kavita gives no date for left alone.
+    @Test func afterASeriesUnreadEachRowPassesItsOwnChapter() async throws {
+        let clock = Clock(made)
+        let database = try AppDatabase.inMemory()
+        let outbox = OutboxStore(database: database) { clock.now }
+        let progress = ReadingProgressStore(database: database)
+        let volumes = String(decoding: try Fixture.data("volumes.json", in: .module), as: UTF8.self)
+        let ids = try #require(try JSONSerialization.jsonObject(with: Data(volumes.utf8)) as? [[String: Any]])
+            .flatMap { ($0["chapters"] as? [[String: Any]]) ?? [] }.compactMap { $0["id"] as? Int }
+        #expect(ids.count >= 3)
+        try KavitaReadMarking(database: database, outbox: outbox)
+            .markSeries(false, ids.map { .init(chapterId: $0, volumeId: 1, pages: 10) }, seriesId: 4, libraryId: 1, account: account)
+        clock.set(made.addingTimeInterval(60))
+        // After the mark: two chapters with Kavita's new dates, the rest never read (year 1).
+        var after = volumes
+        for (n, date) in ["2026-10-31T00:05:00", "2026-10-31T00:07:00"].enumerated() {
+            let range = try #require(after.range(of: #""lastReadingProgressUtc": "0001-01-01T00:00:00""#), "chapter \(n)")
+            after.replaceSubrange(range, with: #""lastReadingProgressUtc": "\#(date)""#)
+        }
+        let reads = Mutex(0)
+        let answers = [Data(volumes.utf8), Data(after.utf8)]
+        let transport = StubTransport { request in
+            switch request.url!.path() {
+            case "/api/Series/volumes":
+                let n = reads.withLock { n in defer { n += 1 }; return n }
+                return (200, answers[min(n, 1)])
+            default: return (200, Data())
+            }
+        }
+        let handler = KavitaProgressHandler(account: { self.account }, progress: progress) {
+            KavitaClient(baseURL: base, authKey: "k", http: HTTPClient(transport: transport))
+        }
+        try await handler.send(try #require(try outbox.claimDueJobs(kinds: [.kavitaProgress]).first).job, media: [])
+        #expect(paths(transport) == ["/api/Series/volumes", "/api/Reader/mark-unread", "/api/Series/volumes"])
+        let rows = try ids.map { try #require(try progress.progress(chapterId: $0)) }
+        let formatter = ISO8601DateFormatter()
+        let settled = rows.filter { $0.updatedAt > made.addingTimeInterval(1) }.map(\.updatedAt).sorted()
+        #expect(settled == ["2026-10-31T00:05:01Z", "2026-10-31T00:07:01Z"].compactMap(formatter.date(from:)), "each past its own chapter")
+        #expect(rows.filter { abs($0.updatedAt.timeIntervalSince(made)) < 0.01 }.count == ids.count - 2, "no date: left as the mark wrote it")
+    }
+
+    /// The read-back after a sent unread is best effort: if it fails the mark still counts as
+    /// sent (no retry, which would only find its own newer date); the row isn't settled, so this
+    /// device follows Kavita's kept place for that book.
+    @Test func aFailedReadBackDoesntFailTheMark() async throws {
+        let clock = Clock(made)
+        let database = try AppDatabase.inMemory()
+        let outbox = OutboxStore(database: database) { clock.now }
+        let progress = ReadingProgressStore(database: database)
+        try KavitaReadMarking(database: database, outbox: outbox)
+            .mark(false, [.init(chapterId: 206, volumeId: 206, pages: 10)], seriesId: 4, libraryId: 1, account: account)
+        let reads = Mutex(0)
+        let transport = StubTransport { request in
+            switch request.url!.path() {
+            case "/api/Reader/get-progress":
+                let n = reads.withLock { n in defer { n += 1 }; return n }
+                return n == 0 ? (200, progressJSON("2026-10-30T00:00:00")) : (503, Data())
+            default: return (200, Data())
+            }
+        }
+        let handler = KavitaProgressHandler(account: { self.account }, progress: progress) {
+            KavitaClient(baseURL: base, authKey: "k", http: HTTPClient(transport: transport))
+        }
+        try await handler.send(try #require(try outbox.claimDueJobs(kinds: [.kavitaProgress]).first).job, media: [])
+        #expect(paths(transport) == ["/api/Reader/get-progress", "/api/Reader/mark-multiple-unread", "/api/Reader/get-progress"])
+        #expect(abs(try #require(try progress.progress(chapterId: 206)).updatedAt.timeIntervalSince(made)) < 0.01, "not settled")
+    }
+
     /// Known limit, pinned: a mark made before this device's previous change to the chapter
     /// reached Kavita is judged against that change's date and dropped (Read on a slow link,
     /// then Unread before the first arrived: unread here until the next refresh, then read).

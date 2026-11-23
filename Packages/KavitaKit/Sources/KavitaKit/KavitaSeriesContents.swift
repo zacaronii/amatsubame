@@ -1,3 +1,4 @@
+import Core
 import Foundation
 
 /// A series' volumes split the way Kavita's UI shows them, plus the order the
@@ -6,11 +7,6 @@ public struct KavitaSeriesContents: Codable, Equatable, Hashable, Sendable {
     public var volumes: [KavitaVolume]
     public var looseChapters: [KavitaChapter]
 
-    /// The same with this device's own reading where it's ahead of what Kavita knows (read
-    /// offline, or not sent yet): `pagesRead` by chapter id, Kavita's count of pages read.
-    /// `updated` says when this device's place was saved: newer than Kavita's own date for the
-    /// chapter, it wins outright (so Mark as Unread shows before Kavita has it); without dates,
-    /// a chapter only ever moves on.
     /// The same with exactly these pages read for these chapters (Mark as Read / Unread, at once).
     public func settingPagesRead(_ pagesRead: [Int: Int]) -> KavitaSeriesContents {
         func set(_ chapter: KavitaChapter) -> KavitaChapter {
@@ -29,16 +25,16 @@ public struct KavitaSeriesContents: Codable, Equatable, Hashable, Sendable {
         return contents
     }
 
+    /// The same with this device's own reading where it's ahead of what Kavita knows:
+    /// `pagesRead` by chapter id (Kavita's count of pages read), `updated` when this device's
+    /// place was saved, by `LocalReadingProgress.pagesRead(kavita:kavitaAt:local:localAt:pages:)`.
     public func readingFurther(_ pagesRead: [Int: Int], updated: [Int: Date] = [:]) -> KavitaSeriesContents {
         guard !pagesRead.isEmpty else { return self }
         func further(_ chapter: KavitaChapter) -> KavitaChapter {
             var chapter = chapter
-            guard let local = pagesRead[chapter.id].map({ min($0, chapter.pages) }) else { return chapter }
-            if let mine = updated[chapter.id], let theirs = chapter.lastReadingProgressUtc, mine > theirs {
-                chapter.pagesRead = local
-            } else {
-                chapter.pagesRead = max(chapter.pagesRead, local)
-            }
+            guard let local = pagesRead[chapter.id] else { return chapter }
+            chapter.pagesRead = LocalReadingProgress.pagesRead(kavita: chapter.pagesRead, kavitaAt: chapter.lastReadingProgressUtc,
+                                                               local: local, localAt: updated[chapter.id], pages: chapter.pages)
             return chapter
         }
         var contents = self

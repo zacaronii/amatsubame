@@ -8,8 +8,7 @@ public enum ProgressSyncPolicy {
     /// Kavita counts pages read: the on-screen index, except that reaching the
     /// last page reports `pages`, which is what marks the chapter read.
     public static func pageNum(forPage page: Int, pages: Int) -> Int {
-        guard pages > 0 else { return 0 }
-        return page >= pages - 1 ? pages : max(page, 0)
+        LocalReadingProgress.pagesRead(forPage: page, pages: pages)
     }
 
     /// Where to open a chapter: the newer of this device's and the server's
