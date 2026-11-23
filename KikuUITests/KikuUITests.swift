@@ -222,6 +222,24 @@ final class KikuLinesMenuUITests: XCTestCase {
         item("Medium").tap()
     }
 
+    /// More offers Up Next's first when the queue has one, and not otherwise (the AirPods' and
+    /// the wheel's next stay the next line and a skip).
+    func testPlayerMenuOffersUpNext() {
+        let app = XCUIApplication()
+        app.launchEnvironment = ["UITEST_KIKU": "1", "UITEST_KIKU_PLAYER": "1", "UITEST_KIKU_UP_NEXT": "1"]
+        app.launch()
+        XCTAssertTrue(app.buttons["player.playPause"].waitForExistence(timeout: 10))
+        app.buttons["More"].tap()
+        XCTAssertTrue(app.buttons["player.playUpNext"].firstMatch.waitForExistence(timeout: 5))
+        app.terminate()
+        app.launchEnvironment = ["UITEST_KIKU": "1", "UITEST_KIKU_PLAYER": "1"]
+        app.launch()
+        XCTAssertTrue(app.buttons["player.playPause"].waitForExistence(timeout: 10))
+        app.buttons["More"].tap()
+        XCTAssertTrue(app.buttons["player.find"].firstMatch.waitForExistence(timeout: 5) || app.buttons["Sleep Timer"].firstMatch.exists)
+        XCTAssertFalse(app.buttons["player.playUpNext"].firstMatch.exists, "an empty queue: not offered")
+    }
+
     /// More ▸ Find in Transcript: the lines holding what's typed, one at a time from the line
     /// playing, with the count; Done puts the bar away. The sleep timer of minutes says a shake
     /// starts it again (the shake itself needs a real phone).

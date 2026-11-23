@@ -1,4 +1,5 @@
 import AudiobookshelfKit
+import Core
 import Foundation
 @testable import Kiku
 import Testing
@@ -91,5 +92,16 @@ import Testing
         #expect(CarPlaySpeeds.next(after: 2, speeds: [0.75, 1, 1.5, 2]) == 0.75)
         // A speed between steps goes to the next one up.
         #expect(CarPlaySpeeds.next(after: 1.2, speeds: [0.75, 1, 1.5, 2]) == 1.5)
+    }
+
+    /// Now Playing's Up Next button (a podcast episode): the queue in order, each row playing it.
+    @Test func upNextListsTheQueueInOrder() {
+        let first = UpNextItem(itemId: "show", episodeId: "e1", title: "第1回", showTitle: "番組")
+        let second = UpNextItem(itemId: "other", episodeId: "e2", title: "第2回", showTitle: "別の番組")
+        let sections = CarPlaySections.upNext([(item: first, libraryId: "lib"), (item: second, libraryId: "lib")])
+        #expect(sections.count == 1 && sections[0].rows.map(\.title) == ["第1回", "第2回"])
+        #expect(sections[0].rows[1].detail == "別の番組" && sections[0].rows[1].artworkItemId == "other")
+        #expect(sections[0].rows[0].action == .playUpNext(first, libraryId: "lib"))
+        #expect(CarPlaySections.upNext([]).isEmpty)
     }
 }

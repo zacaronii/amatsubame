@@ -278,6 +278,12 @@ struct PlayerView: View {
 
     private var moreMenu: some View {
         Menu {
+            if !model.entry.isBook, let next = environment.upNextFlat.first {
+                // Up Next's first now (the AirPods and the wheel keep their own next).
+                Button("Play Next in Up Next", systemImage: "forward.end") { environment.playUpNextItem(next.item, libraryId: next.libraryId) }
+                    .accessibilityIdentifier("player.playUpNext")
+                Divider()
+            }
             if !model.entry.chapters.isEmpty {
                 Button("Chapters", systemImage: "list.bullet") { showsChapters = true }
                 Button("Previous Chapter", systemImage: "backward.end") { model.previousChapter() }

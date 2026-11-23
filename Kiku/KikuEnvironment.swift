@@ -140,6 +140,12 @@ final class KikuEnvironment {
             settings.watchLiveText = true
             try? settings.save(environment.common.database)
         }
+        if env["UITEST_KIKU_UP_NEXT"] != nil {
+            // An episode waiting in Up Next (the player's ⋯ menu offers it).
+            try? environment.upNextStore.set([UpNextItem(itemId: "uitest-show", episodeId: "uitest-next", title: "次の回", showTitle: "番組")],
+                                             libraryId: "uitest-lib")
+            environment.reloadUpNext()
+        }
         if env["UITEST_KIKU_PLAYER"] != nil { environment.openUITestEpisode() }
         if env["UITEST_KIKU_BOOK"] != nil { environment.openUITestEpisode(book: true) }
         environment.common.pendingDictionaryImports = (env["UITEST_DICTIONARY_ZIPS"] ?? "")
