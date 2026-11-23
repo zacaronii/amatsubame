@@ -47,6 +47,8 @@ private struct ClearOfBottomAccessory: ViewModifier {
 extension EnvironmentValues {
     /// The first screen of a `WideSplitStack` on a wide screen: what it opens shows beside it.
     @Entry public var isWideSplit = false
+    /// There, opens a route on the right side directly (`SplitLink`).
+    @Entry var openInWideSplit: ((AnyHashable) -> Void)? = nil
 }
 
 /// Where a wide screen splits into two columns: at the fold, with the
@@ -86,6 +88,11 @@ public struct WideSplitStack<Route: Hashable, Root: View, Destination: View, Emp
     let root: () -> Root
     let destination: (Route) -> Destination
     let empty: () -> Empty
+    #if DEBUG
+    /// UI tests: how many times the left stack set about pushing a screen of its own (it slid
+    /// away and back before the route moved to the right).
+    @State private var leftPushes = 0
+    #endif
 
     public init(path: Binding<[Route]>, showsBack: Bool = true, @ViewBuilder root: @escaping () -> Root,
                 @ViewBuilder destination: @escaping (Route) -> Destination, @ViewBuilder empty: @escaping () -> Empty) {
@@ -102,6 +109,9 @@ public struct WideSplitStack<Route: Hashable, Root: View, Destination: View, Emp
                 HStack(spacing: 0) {
                     // A link tapped here lands on the right: the left stack never moves.
                     NavigationStack(path: Binding(get: { [Route]() }, set: { opened in
+                        #if DEBUG
+                        if !opened.isEmpty { leftPushes += 1 }
+                        #endif
                         if let route = opened.last { path = [route] }
                     })) {
                         root()
@@ -111,6 +121,9 @@ public struct WideSplitStack<Route: Hashable, Root: View, Destination: View, Emp
                             .ignoresSafeArea(.container, edges: .trailing)
                             .navigationDestination(for: Route.self) { destination($0) }
                             .environment(\.isWideSplit, true)
+                            .environment(\.openInWideSplit) { route in
+                                if let route = route as? Route { path = [route] }
+                            }
                     }
                     .frame(width: columns.left)
                     Color.clear.frame(width: columns.gap)
@@ -139,6 +152,14 @@ public struct WideSplitStack<Route: Hashable, Root: View, Destination: View, Emp
                     .id(path.first)
                     .frame(width: columns.right)
                 }
+                #if DEBUG
+                .overlay(alignment: .topLeading) {
+                    Color.clear.frame(width: 1, height: 1)
+                        .accessibilityElement()
+                        .accessibilityIdentifier("split.leftPushes")
+                        .accessibilityValue("\(leftPushes)")
+                }
+                #endif
             } else {
                 NavigationStack(path: $path) {
                     root().navigationDestination(for: Route.self) { destination($0) }
@@ -155,6 +176,31 @@ public struct WideSplitStack<Route: Hashable, Root: View, Destination: View, Emp
                     }
                 }
             }
+        }
+    }
+}
+
+/// A link on a `WideSplitStack`'s first screen. Side by side it opens its route on the right
+/// at once: a `NavigationLink` there made the left stack start a push of its own, so the list
+/// slid away and back before the route moved across. Otherwise it's a `NavigationLink`.
+public struct SplitLink<Route: Hashable, Label: View>: View {
+    @Environment(\.openInWideSplit) private var open
+    let route: Route
+    let label: () -> Label
+
+    public init(value route: Route, @ViewBuilder label: @escaping () -> Label) {
+        self.route = route
+        self.label = label
+    }
+
+    public var body: some View {
+        if let open {
+            Button { open(route) } label: {
+                label().frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+        } else {
+            NavigationLink(value: route, label: label)
         }
     }
 }

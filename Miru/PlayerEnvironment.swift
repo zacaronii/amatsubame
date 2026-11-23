@@ -143,6 +143,14 @@ final class PlayerEnvironment {
                 TranscriptInfo(itemId: "uitest-1", seriesId: nil, seriesName: "UI Test Show", title: "Pilot", season: 1, episode: 1,
                                mediaSourceId: "m", streamIndex: 1, runtime: 1400, lastPlayedAt: Date(), savedAt: Date()),
                 lines: [(1, 3, "吾輩は猫である。"), (4, 6, "名前はまだ無い。"), (7, 9, "どこで生れたか\nとんと見当がつかぬ。")])
+            // UITEST_TRANSCRIPT=2: a second episode, watched before it, to pick between.
+            if env["UITEST_TRANSCRIPT"] == "2" {
+                try? environment.transcripts.save(
+                    TranscriptInfo(itemId: "uitest-2", seriesId: nil, seriesName: "Another Show", title: "Second", season: 1, episode: 2,
+                                   mediaSourceId: "m", streamIndex: 1, runtime: 1400, lastPlayedAt: Date().addingTimeInterval(-3600),
+                                   savedAt: Date()),
+                    lines: [(1, 3, "親譲りの無鉄砲で"), (4, 6, "小供の時から損ばかりしている。")])
+            }
         }
         if env["UITEST_STATS"] != nil { seedStats(environment.common.activity, kind: .watching) }
         // UITEST_PLAYER_LOOK="conceal,large,higher": the subtitles' look, set before the player opens.
