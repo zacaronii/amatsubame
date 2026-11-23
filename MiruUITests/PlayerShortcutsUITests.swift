@@ -10,6 +10,10 @@ final class PlayerShortcutsUITests: XCTestCase {
             throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file to test the shortcuts.")
         }
         continueAfterFailure = false
+        // Sideways: the overlay layout, where hiding the Japanese line leaves none on screen
+        // (upright, the Lines strip under the picture shows them too).
+        XCUIDevice.shared.orientation = .landscapeLeft
+        addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
         app = XCUIApplication()
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
