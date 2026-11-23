@@ -193,4 +193,63 @@ import Testing
         #expect(try next(store, after: 1, id) == .notInList, "the list deleted")
         #expect(try next(store, after: 1, 999) == .notInList, "or gone")
     }
+
+    // MARK: Read state
+
+    func listedRead(_ chapter: Int, read: Int, pages: Int = 20, at: Date?) -> ReadingListStore.ListedItem {
+        .init(serverItemId: 100 + chapter, chapter: self.chapter(chapter), pagesRead: read, pages: pages, readAt: at)
+    }
+
+    func entry(_ store: ReadingListStore, _ id: Int64, _ chapter: Int) throws -> ReadingListEntry {
+        try #require(try store.entries(listId: id).first { $0.item.chapterId == chapter })
+    }
+
+    @Test func readStateFollowsTheSeriesPagesRule() throws {
+        let (store, _) = try stores()
+        let id = try abcd(store)
+        let progress = ReadingProgressStore(database: store.database)
+        let earlier = Date(timeIntervalSince1970: 1_800_000_000), later = earlier.addingTimeInterval(600)
+        try store.mergeItems([listedRead(1, read: 20, at: earlier), listedRead(2, read: 0, at: nil), listedRead(3, read: 20, at: later),
+                              listedRead(4, read: 5, at: earlier)], listId: id)
+        // 1: Kavita says read, nothing here.
+        #expect(try entry(store, id, 1).isRead)
+        // 2: never read on Kavita, read to the end here: read.
+        try progress.save(LocalReadingProgress(chapterId: 2, seriesId: 20, volumeId: 200, libraryId: 1, page: 19, pages: 20, updatedAt: earlier))
+        #expect(try entry(store, id, 2).isRead)
+        // 3: marked unread here before Kavita's read was newer: Kavita's newer read wins.
+        try progress.save(LocalReadingProgress(chapterId: 3, seriesId: 30, volumeId: 300, libraryId: 1, page: 0, pages: 20, updatedAt: earlier))
+        #expect(try entry(store, id, 3).isRead)
+        // 4: Kavita at page 5 earlier, marked unread here later: this device's newer row wins (the
+        // same as the series page).
+        try progress.save(LocalReadingProgress(chapterId: 4, seriesId: 40, volumeId: 400, libraryId: 1, page: 0, pages: 20, updatedAt: later))
+        #expect(try entry(store, id, 4).pagesRead == 0)
+        // An unsent add with nothing known: no mark.
+        let (other, outbox) = try stores()
+        let list = try abcd(other)
+        try other.set(true, chapter: chapter(7), listId: list, outbox: outbox)
+        #expect(try entry(other, list, 7).pagesRead == nil)
+    }
+
+    @Test func readingHereShowsAtOnceAndAnOlderListDoesntPutAMarkBack() async throws {
+        let (store, _) = try stores()
+        let id = try abcd(store)
+        let progress = ReadingProgressStore(database: store.database)
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        try store.mergeItems((1...4).map { listedRead($0, read: 20, at: t0) }, listId: id)
+        // Marked unread here (the progress row the marking writes): the list shows it at once,
+        // through the same observation.
+        var stream = store.observeEntries(listId: id).makeAsyncIterator()
+        #expect(try await stream.next()?.first { $0.item.chapterId == 1 }?.isRead == true)
+        try progress.save(LocalReadingProgress(chapterId: 1, seriesId: 10, volumeId: 100, libraryId: 1, page: 0, pages: 20,
+                                               updatedAt: t0.addingTimeInterval(60)))
+        #expect(try await stream.next()?.first { $0.item.chapterId == 1 }?.isRead == false)
+        // A list read before that, merged after: still unread.
+        try store.mergeItems((1...4).map { listedRead($0, read: 20, at: t0) }, listId: id, listedAt: t0.addingTimeInterval(30))
+        #expect(try !entry(store, id, 1).isRead)
+        // Kavita's reading kept is never replaced by an older one.
+        try store.mergeItems([listedRead(1, read: 20, at: t0.addingTimeInterval(120))] + (2...4).map { listedRead($0, read: 20, at: t0) }, listId: id)
+        try store.mergeItems((1...4).map { listedRead($0, read: 3, at: t0) }, listId: id)
+        #expect(try entry(store, id, 1).item.kavitaReadAt == t0.addingTimeInterval(120))
+        #expect(try entry(store, id, 1).isRead, "Kavita's newer read (120 s) wins over this device's (60 s)")
+    }
 }

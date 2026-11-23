@@ -1025,6 +1025,16 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v61_reading_list_reading") { db in
+            // Kavita's reading of each reading list item as last read (no backfill: filled at
+            // the next read of the list).
+            try db.alter(table: "kavitaReadingListItem") { t in
+                t.add(column: "kavitaPagesRead", .integer)
+                t.add(column: "kavitaPages", .integer)
+                t.add(column: "kavitaReadAt", .datetime)
+            }
+        }
+
         return migrator
     }
 }

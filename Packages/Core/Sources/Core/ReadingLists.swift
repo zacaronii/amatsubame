@@ -93,6 +93,11 @@ public struct ReadingListItemRow: Codable, Equatable, Hashable, Sendable, Fetcha
     public var inKavita: Bool
     public var revision: Int
     public var updatedAt: Date
+    /// Kavita's reading of the chapter as the list was last read (pages read, its pages, and
+    /// when it was read): the fallback where this device has no progress of its own.
+    public var kavitaPagesRead: Int?
+    public var kavitaPages: Int?
+    public var kavitaReadAt: Date?
 
     public init(listId: Int64, chapterId: Int, serverItemId: Int? = nil, seriesId: Int, volumeId: Int, libraryId: Int, format: Int,
                 seriesName: String, title: String, kavitaOrder: Int = .max, state: State, inKavita: Bool, revision: Int = 0, updatedAt: Date) {
@@ -156,6 +161,31 @@ public struct ReadingListJob: Codable, Equatable, Sendable {
         if let chapterId { return base + ":item:\(chapterId)" }
         return base
     }
+}
+
+/// A list's item with how far it's read (`ReadingListStore.entries`); nil when neither this
+/// device nor Kavita has said.
+public struct ReadingListEntry: Equatable, Sendable {
+    public var item: ReadingListItemRow
+    public var pagesRead: Int?
+    public var pages: Int?
+
+    public init(item: ReadingListItemRow, local: LocalReadingProgress?) {
+        self.item = item
+        let pages = item.kavitaPages ?? local?.pages
+        self.pages = pages
+        switch (item.kavitaPagesRead, local) {
+        case let (kavita?, local?):
+            pagesRead = LocalReadingProgress.pagesRead(kavita: kavita, kavitaAt: item.kavitaReadAt, local: local.pagesRead,
+                                                       localAt: local.updatedAt, pages: pages ?? local.pages)
+        case let (nil, local?): pagesRead = local.pagesRead
+        case let (kavita?, nil): pagesRead = kavita
+        case (nil, nil): pagesRead = nil
+        }
+    }
+
+    public var isRead: Bool { (pages ?? 0) > 0 && (pagesRead ?? 0) >= (pages ?? 0) }
+    public var isStarted: Bool { (pagesRead ?? 0) > 0 && !isRead }
 }
 
 /// What comes next in a reading list (`ReadingListStore.next`). `skipped` holds the reason for
@@ -245,6 +275,25 @@ public struct ReadingListStore: Sendable {
         let order = Self.displayOrder(rows, moves: moves)
         let byChapter = Dictionary(rows.map { ($0.chapterId, $0) }, uniquingKeysWith: { first, _ in first })
         return order.compactMap { byChapter[$0] }
+    }
+
+    /// The list's items with how far each is read, by the series page's rule
+    /// (`LocalReadingProgress.pagesRead(kavita:…)`): this device's progress where it has some,
+    /// with Kavita's as last read where that's newer, else Kavita's alone. Follows the device's
+    /// progress too, so reading or marking here shows at once.
+    public func observeEntries(listId: Int64) -> AsyncThrowingStream<[ReadingListEntry], any Error> {
+        database.values { try Self.entries($0, listId: listId) }
+    }
+
+    public func entries(listId: Int64) throws -> [ReadingListEntry] {
+        try database.reader.read { try Self.entries($0, listId: listId) }
+    }
+
+    static func entries(_ db: Database, listId: Int64) throws -> [ReadingListEntry] {
+        let items = try Self.items(db, listId: listId)
+        let local = Dictionary(try LocalReadingProgress.filter(items.map(\.chapterId).contains(Column("chapterId"))).fetchAll(db)
+            .map { ($0.chapterId, $0) }, uniquingKeysWith: { first, _ in first })
+        return items.map { ReadingListEntry(item: $0, local: local[$0.chapterId]) }
     }
 
     /// Kavita's order (adds after it), then each move: the chapter taken out and put right after
@@ -644,10 +693,17 @@ public struct ReadingListStore: Sendable {
     public struct ListedItem: Equatable, Sendable {
         public var serverItemId: Int
         public var chapter: ReadingListChapter
+        /// Kavita's reading of the chapter, when the list says (pages read, pages, when).
+        public var pagesRead: Int?
+        public var pages: Int?
+        public var readAt: Date?
 
-        public init(serverItemId: Int, chapter: ReadingListChapter) {
+        public init(serverItemId: Int, chapter: ReadingListChapter, pagesRead: Int? = nil, pages: Int? = nil, readAt: Date? = nil) {
             self.serverItemId = serverItemId
             self.chapter = chapter
+            self.pagesRead = pagesRead
+            self.pages = pages
+            self.readAt = readAt
         }
     }
 
@@ -687,6 +743,11 @@ public struct ReadingListStore: Sendable {
             for (chapterId, (order, item)) in byChapter {
                 if let row = rows.first(where: { $0.chapterId == chapterId }), waiting(row) || newer(row) { continue }
                 var row = Self.itemRow(listId, item.chapter, now: now())
+                if let kept = rows.first(where: { $0.chapterId == chapterId }) {
+                    row.kavitaPagesRead = kept.kavitaPagesRead
+                    row.kavitaPages = kept.kavitaPages
+                    row.kavitaReadAt = kept.kavitaReadAt
+                }
                 row.serverItemId = item.serverItemId
                 row.kavitaOrder = order
                 row.state = .synced
@@ -697,6 +758,17 @@ public struct ReadingListStore: Sendable {
             for move in try ReadingListMoveRow.filter(Column("listId") == listId).fetchAll(db)
             where !queued.contains(ReadingListJob(account: list.account, listId: listId, moveId: move.id).coalesceKey) {
                 try move.delete(db)
+            }
+            // Kavita's reading of each chapter, whatever the item's own state: never older than
+            // what's kept (an older read of the list merged late doesn't put a mark back).
+            for (chapterId, (_, item)) in byChapter where item.pagesRead != nil {
+                guard var row = try ReadingListItemRow.fetchOne(db, key: ["listId": listId, "chapterId": chapterId]) else { continue }
+                if let kept = row.kavitaReadAt, let read = item.readAt, read < kept { continue }
+                if row.kavitaReadAt != nil, item.readAt == nil { continue }
+                row.kavitaPagesRead = item.pagesRead
+                row.kavitaPages = item.pages
+                row.kavitaReadAt = item.readAt
+                try row.update(db)
             }
             if !skipped { list.kavitaItemCount = listed.count }
             list.itemsReadAt = now()

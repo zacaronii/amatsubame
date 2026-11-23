@@ -819,6 +819,64 @@ final class ReaderUITests: XCTestCase {
         XCTAssertEqual(try kavita.readingHistoryCount(seriesId: seriesId), historyBefore, "not recorded as reading")
     }
 
+    /// A list's screen shows what's read by the series page's rule: marked read on the series
+    /// page, the item shows read at once and after the list is read again from Kavita; marked
+    /// unread, it doesn't. Teardown deletes the list and marks unread what it marked.
+    func testAListShowsWhatsRead() throws {
+        let kavita = try KavitaTestAccount()
+        let seriesId = try kavita.seriesId(named: series)
+        guard try kavita.pagesRead(seriesId: seriesId).values.allSatisfy({ $0.read == 0 }) else {
+            throw XCTSkip("Needs a series with nothing read on the test account.")
+        }
+        let marksBefore = try kavita.snapshot(progressOf: seriesId)
+        addTeardownBlock { XCTAssertNil(try marksBefore.restore(), "the test account was put back") }
+        let title = KavitaTestAccount.testCollectionTitle
+        func items() -> [Int]? { (try? kavita.readingLists())?.first { marksBefore.readingLists[$0.key] == nil }?.value }
+        app.launchEnvironment["UITEST_SENDS_MARKS"] = "1"
+        app.launch()
+
+        addFirstVolume(library: library, series: series, new: true)
+        XCTAssertTrue(waitFor { items()?.count == 1 }, "made on Kavita")
+        let chapter = try XCTUnwrap(items()?.first)
+
+        func setRead(_ read: Bool) {
+            let libraryRow = app.buttons[library].firstMatch
+            for _ in 0..<10 where !libraryRow.isHittable { app.swipeUp() }
+            libraryRow.tap()
+            let tile = app.buttons["series.\(series)"].firstMatch
+            XCTAssertTrue(tile.waitForExistence(timeout: 20))
+            tile.tap()
+            let volume = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'volume.'")).element(boundBy: 0)
+            XCTAssertTrue(volume.waitForExistence(timeout: 20))
+            volume.press(forDuration: 1.2)
+            app.buttons[read ? "Mark as Read" : "Mark as Unread"].firstMatch.tap()
+            app.tabBars.buttons["Library"].tap()
+            app.tabBars.buttons["Library"].tap()
+            app.swipeDown()
+        }
+        func listValue() -> String? {
+            let list = app.buttons["readingList.\(title)"].firstMatch
+            for _ in 0..<10 where !list.isHittable { app.swipeUp() }
+            list.tap()
+            let item = app.buttons["readingList.item.\(chapter)"].firstMatch
+            XCTAssertTrue(item.waitForExistence(timeout: 20))
+            return item.value as? String
+        }
+
+        setRead(true)
+        XCTAssertEqual(listValue(), "Read", "at once, from this device's progress")
+        XCTAssertTrue(waitFor { (try? kavita.pagesRead(seriesId: seriesId)[chapter]).map { $0.read == $0.pages } == true }, "read on Kavita")
+        // Read again from Kavita (back and in again): still read.
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertEqual(listValue(), "Read", "after the list is read again")
+        app.navigationBars.buttons.firstMatch.tap()
+        setRead(false)
+        XCTAssertEqual(listValue(), "", "unread at once")
+        XCTAssertTrue(waitFor { (try? kavita.pagesRead(seriesId: seriesId)[chapter])?.read == 0 }, "unread on Kavita")
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertEqual(listValue(), "", "and after the list is read again")
+    }
+
     /// Adds a series' first volume to the test's reading list (made with the first), then goes
     /// back to the Library home.
     private func addFirstVolume(library: String, series: String, new: Bool) {
