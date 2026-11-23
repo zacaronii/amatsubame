@@ -39,7 +39,11 @@ final class PlaybackModel: Identifiable, LineLookupHost {
     private(set) var showsTranscript = true
     /// The line looked up, for the popup's sentence bar.
     private(set) var lookupSentence: AudioSentence?
-    private(set) var sleepTimer: SleepTimer?
+    private(set) var sleepTimer: SleepTimer? {
+        didSet { updateShakeWatch() }
+    }
+    /// A shake restarted or brought back the sleep timer (for the player's note).
+    private(set) var sleepExtended = 0
     /// The newest place is more than a minute behind where this phone was (listening on the
     /// watch or another app since): the player asks which, rather than jump back silently.
     private(set) var resumeChoice: ResumeChoice?
@@ -77,6 +81,13 @@ final class PlaybackModel: Identifiable, LineLookupHost {
     private(set) var isTranscribingAgain = false
     private(set) var transcribeAgainProblem: String?
     @ObservationIgnored private var sleepTask: Task<Void, Never>?
+    /// The last timer of minutes set, and when a timer stopped playback: a shake brings it back.
+    @ObservationIgnored private var lastSleepMinutes: Int?
+    @ObservationIgnored private var sleepStoppedAt: Date?
+    @ObservationIgnored private var shakeGraceTask: Task<Void, Never>?
+    #if os(iOS)
+    @ObservationIgnored private let shakes = ShakeDetector()
+    #endif
     @ObservationIgnored private var lastRecovery: Date?
     /// Where the audio comes from (the download or the stream), clips and card media.
     @ObservationIgnored let episodeAudio: EpisodeAudio
@@ -453,19 +464,23 @@ final class PlaybackModel: Identifiable, LineLookupHost {
 
     func setSleepTimer(minutes: Int?) {
         sleepTask?.cancel()
+        sleepStoppedAt = nil
+        audio.volume = 1
         guard let minutes else { sleepTimer = nil; return }
+        lastSleepMinutes = minutes
         let ends = Date.now.addingTimeInterval(Double(minutes) * 60)
         sleepTimer = .minutes(minutes, ends: ends)
         sleepTask = Task { [weak self] in
             try? await Task.sleep(until: .now + .seconds(Double(minutes) * 60))
             guard !Task.isCancelled else { return }
-            self?.audio.pause()
-            self?.sleepTimer = nil
+            self?.sleepStopped()
         }
     }
 
     func sleepAtEndOfEpisode() {
         sleepTask?.cancel()
+        sleepStoppedAt = nil
+        audio.volume = 1
         sleepTimer = .endOfEpisode
     }
 
@@ -473,7 +488,71 @@ final class PlaybackModel: Identifiable, LineLookupHost {
     func sleepAtEndOfChapter() {
         guard let chapter = currentChapter else { return }
         sleepTask?.cancel()
+        sleepStoppedAt = nil
+        audio.volume = 1
         sleepTimer = .endOfChapter(end: chapter.end)
+    }
+
+    /// The timer ran out: playback stops (faded out by then) and the volume is back for next time.
+    private func sleepStopped(pauses: Bool = true) {
+        sleepTask?.cancel()
+        let arms = sleepTimer.map { SleepTimerRules.armsResume(stopping: $0, wasPlaying: audio.isPlaying) } ?? false
+        // The pause reports a play-state change at once, which ends any earlier grace first.
+        if pauses { audio.pause() }
+        audio.volume = 1
+        sleepTimer = nil
+        guard arms else { return }
+        sleepStoppedAt = .now
+        updateShakeWatch()
+        // The grace for a shake, then the motion watch stops.
+        shakeGraceTask?.cancel()
+        shakeGraceTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(SleepTimerRules.shakeGrace))
+            guard !Task.isCancelled else { return }
+            self?.sleepStoppedAt = nil
+            self?.updateShakeWatch()
+        }
+    }
+
+    /// The phone was shaken: a timer of minutes starts again, or one that just stopped playback
+    /// plays on with it set again.
+    func shook() {
+        switch SleepTimerRules.shake(timer: sleepTimer, lastMinutes: lastSleepMinutes, stoppedAt: sleepStoppedAt, now: .now) {
+        case .restart(let minutes)?:
+            setSleepTimer(minutes: minutes)
+        case .resume(let minutes)?:
+            setSleepTimer(minutes: minutes)
+            audio.play()
+        case nil:
+            return
+        }
+        sleepExtended += 1
+    }
+
+    /// Motion is watched only while a shake would do something.
+    private func updateShakeWatch() {
+        #if os(iOS)
+        let watching: Bool = if case .minutes? = sleepTimer { true } else { sleepTimer == nil && sleepStoppedAt != nil }
+        if watching, !closed {
+            shakes.start { [weak self] in self?.shook() }
+        } else {
+            shakes.stop()
+        }
+        #endif
+    }
+
+    /// The fade-out: the volume follows the time left on the timer.
+    private func fadeForSleep(at time: Double) {
+        let target: Float = if let sleepTimer, audio.isPlaying {
+            SleepTimerRules.volume(remaining: SleepTimerRules.remaining(sleepTimer, now: .now, time: time, stopsAt: episodeStop, rate: Double(audio.rate)))
+        } else { 1 }
+        if audio.volume != target { audio.volume = target }
+    }
+
+    /// Where the episode stops by itself: its end, or the show's sign-off skipped.
+    private var episodeStop: Double {
+        guard audio.duration > 0 else { return 0 }
+        return show.skipEnd > 0 && audio.duration > show.skipEnd + 30 ? audio.duration - show.skipEnd : audio.duration
     }
 
     /// Saves the place and stops (the player was closed for good).
@@ -485,6 +564,11 @@ final class PlaybackModel: Identifiable, LineLookupHost {
         transcriptTask?.cancel()
         againTask?.cancel()
         sleepTask?.cancel()
+        shakeGraceTask?.cancel()
+        audio.volume = 1
+        #if os(iOS)
+        shakes.stop()
+        #endif
         clip.stop()
         audio.stop()
         episodeAudio.discard()
@@ -553,15 +637,21 @@ final class PlaybackModel: Identifiable, LineLookupHost {
         lastTick = time
         if unlogged >= 10 { flushListening() }
         if abs(time - lastSaved) >= 15 { saveProgress() }
-        if case .minutes(_, let ends) = sleepTimer, ends <= .now { sleepTimer = nil }
+        if case .minutes(_, let ends) = sleepTimer, ends <= .now { sleepStopped() }
         // The chapter's last moment: stop there, at the start of the next one.
         if case .endOfChapter(let end) = sleepTimer, audio.isPlaying, time >= end - 0.3 {
-            sleepTimer = nil
-            audio.pause()
+            sleepStopped()
         }
+        fadeForSleep(at: time)
     }
 
     private func playStateChanged(_ playing: Bool) {
+        // Played or paused by hand during the shake's grace: it's over.
+        if sleepStoppedAt != nil {
+            sleepStoppedAt = nil
+            shakeGraceTask?.cancel()
+            updateShakeWatch()
+        }
         if playing {
             // From the start of the line the pause cut off.
             if let pausedAt, let target = TranscriptFollow.resumeTarget(at: audio.currentTime, in: sentences,
@@ -585,7 +675,7 @@ final class PlaybackModel: Identifiable, LineLookupHost {
     private func finished() {
         // The sleep timer's End of Episode means stop here.
         let stopsHere = sleepTimer == .endOfEpisode
-        if stopsHere { sleepTimer = nil }
+        if stopsHere { sleepStopped(pauses: false) }
         pausedAt = nil
         saveProgress(force: true, finished: true)
         flushListening()
