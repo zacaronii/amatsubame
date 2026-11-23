@@ -44,6 +44,11 @@ final class ReadAlongDownloads {
     /// The row has newer news than the last download's (getting ready again).
     func clearResult(itemId: String) { results[itemId] = nil }
 
+    /// Unpair asks first only when it would delete a downloaded (or downloading) audiobook.
+    static func asksBeforeUnpairing(_ chapterId: Int, hasAudio: Bool, pairs: [Int]) -> Bool {
+        hasAudio && deletesAudio(unpairing: chapterId, pairs: pairs)
+    }
+
     /// Unpairing a volume deletes its book's audio, unless another volume still reads along with
     /// that book (`pairs` of the book, before or after unpairing: the answer is the same).
     static func deletesAudio(unpairing chapterId: Int, pairs: [Int]) -> Bool {

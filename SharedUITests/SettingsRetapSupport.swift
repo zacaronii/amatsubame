@@ -21,6 +21,7 @@ func checkSettingsTabRetap(_ app: XCUIApplication, file: StaticString = #filePat
     tab.tap()
     XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5), "the top of Settings", file: file, line: line)
     for _ in 0..<8 where !(advanced.exists && advanced.isHittable) { app.swipeUp() }
+    XCTAssertTrue(advanced.isHittable, "Advanced again at the top", file: file, line: line)
     advanced.tap()
     XCTAssertTrue(app.navigationBars["Advanced"].waitForExistence(timeout: 5), "the next tap opens a screen", file: file, line: line)
 }
