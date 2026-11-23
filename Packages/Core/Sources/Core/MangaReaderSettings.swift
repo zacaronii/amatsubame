@@ -36,11 +36,13 @@ public struct MangaReaderSettings: Codable, Equatable, Sendable {
     public var ocrAhead: Int = 3
     /// In a portrait reader, a two-page scan (Kavita's wide page) is shown one half at a time.
     public var splitsWidePages: Bool = true
+    /// Auto-scroll's speed in the long strip, 1 (slow) to 10.
+    public var autoScrollLevel: Int = 5
 
     public init() {}
 
     enum CodingKeys: String, CodingKey {
-        case mode, direction, spreads, coverAlone, stripWidth, showsTextBoxes, ocrAhead, showsTextOverlay, tapZones, doubleTapZooms, splitsWidePages
+        case mode, direction, spreads, coverAlone, stripWidth, showsTextBoxes, ocrAhead, showsTextOverlay, tapZones, doubleTapZooms, splitsWidePages, autoScrollLevel
     }
 
     /// Missing keys (settings saved by an older version) keep their defaults.
@@ -56,6 +58,7 @@ public struct MangaReaderSettings: Codable, Equatable, Sendable {
         tapZones = try container.decodeIfPresent(ReaderTapZones.self, forKey: .tapZones) ?? tapZones
         doubleTapZooms = try container.decodeIfPresent(Bool.self, forKey: .doubleTapZooms) ?? doubleTapZooms
         splitsWidePages = try container.decodeIfPresent(Bool.self, forKey: .splitsWidePages) ?? splitsWidePages
+        autoScrollLevel = try container.decodeIfPresent(Int.self, forKey: .autoScrollLevel) ?? autoScrollLevel
         ocrAhead = try container.decodeIfPresent(Int.self, forKey: .ocrAhead) ?? ocrAhead
     }
 

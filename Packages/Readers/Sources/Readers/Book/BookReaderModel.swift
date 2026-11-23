@@ -60,7 +60,14 @@ public final class BookReaderModel {
     public var progressFraction: Double {
         totalCharacters > 0 ? min(Double(charactersRead) / Double(totalCharacters), 1) : 0
     }
-    public var showsChrome = false
+    public var showsChrome = false {
+        didSet {
+            autoScroll.set(.controls, showsChrome)
+            autoScroll.noteInput()
+        }
+    }
+    /// Auto-scroll in the Scroll layout.
+    public let autoScroll = AutoScroll()
     public var settings: BookReaderSettings {
         didSet {
             guard settings != oldValue else { return }
@@ -90,6 +97,8 @@ public final class BookReaderModel {
 
     public var popup: LookupPopupModel? {
         didSet {
+            autoScroll.set(.lookup, popup != nil)
+            if popup != nil { autoScroll.noteInput() }
             if popup == nil {
                 web?.clearHighlight()
                 companion?.clearHighlight()
@@ -382,7 +391,7 @@ public final class BookReaderModel {
             } else {
                 companion?.run("window.bookReader?.follow(\(wanted))")
             }
-        case .edge, .userScrolled, .failed:
+        case .edge, .userScrolled, .input, .failed:
             break
         }
     }
@@ -426,6 +435,8 @@ public final class BookReaderModel {
                 } else {
                     // Reading the last page marks the volume read in Kavita.
                     recorder.record(page: sectionCount - 1, scrollId: nil, characters: totalCharacters)
+                    // Auto-scroll stops at the book's end (it carries on across sections).
+                    autoScroll.stop()
                     reachedEnd = true
                     showsChrome = true
                 }
@@ -442,6 +453,9 @@ public final class BookReaderModel {
             right == readsRightToLeft ? nextPage() : previousPage()
         case .userScrolled:
             readAlong?.userTurnedPage()
+            autoScroll.handScrolled()
+        case .input:
+            autoScroll.noteInput()
         case let .link(path, fragment):
             hasMoved = true
             if let index = package?.spine.firstIndex(where: { $0.path == path }) {
@@ -450,6 +464,8 @@ public final class BookReaderModel {
         case .ready:
             Task { await markWords() }
             showMarks()
+            // A new section loaded while auto-scrolling (it reached the last one's end): on.
+            if autoScroll.isMoving { Task { await applyAutoScroll() } }
             // Read-along: the cue waiting for this section, or the current one shown again.
             if let pending = pendingReadAlong, pending.cue.section == spineIndex {
                 pendingReadAlong = nil
@@ -631,7 +647,28 @@ public final class BookReaderModel {
     private var readAlongSplit: (cue: ReadAlongCue, fraction: Double)?
 
     /// Highlights the spoken sentence; with `follow`, turns (or opens its section) to keep it in view.
+    // MARK: Auto-scroll
+
+    /// Tells the page to scroll at the chosen reading speed, or to stop.
+    public func applyAutoScroll() async {
+        guard autoScroll.isMoving, settings.layout == .scroll, let web else {
+            web?.run("window.bookReader?.autoScroll(0)")
+            return
+        }
+        let metrics = await web.evaluate("window.bookReader?.textMetrics()") as? [String: Any]
+        func value(_ key: String) -> Double { (metrics?[key] as? NSNumber)?.doubleValue ?? 0 }
+        let speed = AutoScroll.bookPointsPerSecond(charactersPerMinute: settings.autoScrollCharactersPerMinute, fontSize: value("fontSize"),
+                                                   lineAdvance: value("lineAdvance"), lineLength: value("lineLength"))
+        // A section that fits on the screen stays for the time its characters take.
+        let characters = textIndex.sections.indices.contains(spineIndex) ? textIndex.sections[spineIndex] : 0
+        let text = AutoScroll.dwellSeconds(picture: false, characters: characters, charactersPerMinute: settings.autoScrollCharactersPerMinute)
+        guard autoScroll.isMoving else { return }
+        web.run("window.bookReader?.autoScroll(\(speed), {text: \(text), picture: \(AutoScroll.pictureDwell)})")
+    }
+
     public func showReadAlong(_ cue: ReadAlongCue?, follow: Bool) {
+        // Read-along moves the page itself: auto-scroll gives way.
+        if cue != nil { autoScroll.close() }
         readAlongCue = cue
         readAlongSplit = nil
         guard let web else { return }

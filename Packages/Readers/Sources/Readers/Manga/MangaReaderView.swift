@@ -54,6 +54,16 @@ public struct MangaReaderView: View {
                         .allowsHitTesting(false)
                         .accessibilityIdentifier("reader.toast")
                 }
+                if model.autoScroll.isShown, !model.showsChrome, model.settings.mode == .longStrip, model.state == .ready {
+                    let level = model.settings.autoScrollLevel
+                    AutoScrollCapsule(autoScroll: model.autoScroll, speed: "\(level)", spokenSpeed: "\(level) of 10",
+                                      canSlowDown: level > AutoScroll.mangaLevels.lowerBound,
+                                      canSpeedUp: level < AutoScroll.mangaLevels.upperBound,
+                                      slower: { model.settings.autoScrollLevel = level - 1 },
+                                      faster: { model.settings.autoScrollLevel = level + 1 })
+                        .frame(maxHeight: .infinity, alignment: .bottom)
+                        .padding(.bottom, 24)
+                }
                 if model.showsChrome || model.state != .ready {
                     ReaderChrome(model: model, onClose: close, onSettings: { showsSettings = true })
                         .transition(.opacity)
@@ -82,13 +92,33 @@ public struct MangaReaderView: View {
             LookupPopupView(service: lookup, model: popup, drawsBackground: false)
         }
         .animation(.easeInOut(duration: 0.2), value: model.showsChrome)
-        .focusedSceneValue(\.readerPaging, ReaderPaging(next: { model.requestPage(1) }, previous: { model.requestPage(-1) }))
+        // Paging keys count as someone reading too (auto-scroll's idle limit).
+        .focusedSceneValue(\.readerPaging, ReaderPaging(next: { model.autoScroll.noteInput(); model.requestPage(1) },
+                                                       previous: { model.autoScroll.noteInput(); model.requestPage(-1) }))
         .task { await model.load() }
         .task { await model.bookmarks?.follow() }
         .onDisappear { model.flushProgress() }
         .onChange(of: scenePhase) { _, phase in
             if phase != .active { model.flushProgress() }
+            model.autoScroll.set(.background, phase != .active)
         }
+        // Pointer moves and keys count as someone reading (auto-scroll's idle limit).
+        #if os(macOS)
+        .onContinuousHover { _ in model.autoScroll.noteInput() }
+        #endif
+        .background {
+            if model.settings.mode == .longStrip, model.state == .ready {
+                Button("Auto-Scroll") {
+                    model.autoScroll.noteInput()
+                    model.autoScroll.isOn ? model.autoScroll.stop() : model.autoScroll.start()
+                }
+                .keyboardShortcut(.downArrow, modifiers: .command)
+                .opacity(0)
+                .accessibilityHidden(true)
+            }
+        }
+        // Paged again: nothing to scroll.
+        .onChange(of: model.settings.mode) { _, mode in if mode != .longStrip { model.autoScroll.close() } }
         .sheet(isPresented: $showsSettings) {
             ReaderSettingsSheet(model: model)
         }

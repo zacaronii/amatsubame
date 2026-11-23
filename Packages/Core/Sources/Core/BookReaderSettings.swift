@@ -28,11 +28,14 @@ public struct BookReaderSettings: Codable, Equatable, Sendable {
     public var showsProgressBar = true
     public var furigana: Furigana = .book
     public var tapZones: ReaderTapZones = .standard
+    /// Auto-scroll's reading speed in the Scroll layout, in characters a minute.
+    public var autoScrollCharactersPerMinute: Int = 300
 
     public init() {}
 
     enum CodingKeys: String, CodingKey {
         case layout, writingMode, fontSize, lineHeight, margin, theme, font, progressText, showsProgressBar, furigana, tapZones
+        case autoScrollCharactersPerMinute
         /// Replaced by `progressText` (true meant always).
         case showsProgress
     }
@@ -50,6 +53,7 @@ public struct BookReaderSettings: Codable, Equatable, Sendable {
         try container.encode(showsProgressBar, forKey: .showsProgressBar)
         try container.encode(furigana, forKey: .furigana)
         try container.encode(tapZones, forKey: .tapZones)
+        try container.encode(autoScrollCharactersPerMinute, forKey: .autoScrollCharactersPerMinute)
     }
 
     /// Missing keys (settings saved by an older version) keep their defaults.
@@ -70,6 +74,7 @@ public struct BookReaderSettings: Codable, Equatable, Sendable {
         }
         showsProgressBar = try container.decodeIfPresent(Bool.self, forKey: .showsProgressBar) ?? showsProgressBar
         furigana = try container.decodeIfPresent(Furigana.self, forKey: .furigana) ?? furigana
+        autoScrollCharactersPerMinute = try container.decodeIfPresent(Int.self, forKey: .autoScrollCharactersPerMinute) ?? autoScrollCharactersPerMinute
     }
 
     public static let `default` = BookReaderSettings()

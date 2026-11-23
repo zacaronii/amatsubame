@@ -70,11 +70,14 @@ struct ReaderContainer: View {
                         }
                     }
                     .onChange(of: offer, initial: true) { model.nextOffer = offer }
+                    .onChange(of: model.autoScroll.isOn) { _, on in ScreenAwake.set(on, reason: "autoScroll") }
                 }
             } else {
                 ReaderModelHost(make: { environment.makeReader(session.chapter, next: next, startPage: session.startPage) }) { model in
                     MangaReaderView(model: model, onClose: closeReader, onOpenChapter: open)
                         .onChange(of: offer, initial: true) { model.nextOffer = offer }
+                        // Auto-scroll keeps the screen on while it runs (it stops after 30 minutes untouched).
+                        .onChange(of: model.autoScroll.isOn) { _, on in ScreenAwake.set(on, reason: "autoScroll") }
                 }
             }
         }
@@ -91,6 +94,7 @@ struct ReaderContainer: View {
             OrientationLock.release()
             #endif
             ScreenAwake.set(false, reason: "reading")
+            ScreenAwake.set(false, reason: "autoScroll")
         }
         .task {
             // The screen stays on while you read (a page of Japanese can take minutes), and may
