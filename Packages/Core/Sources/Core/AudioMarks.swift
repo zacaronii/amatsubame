@@ -29,8 +29,10 @@ public struct AudioMark: Codable, Equatable, Hashable, Sendable, Identifiable, F
     public var minedAt: Date?
     public var minedWord: String?
     public var minedJobId: Int64?
-    /// What the listener wrote about it (nil: none). Kept on this device, like the mark.
+    /// What the listener wrote about it (nil: none). Synced with the mark.
     public var note: String?
+    /// The mark's id on every device (Sync with iCloud); `id` is this database's row.
+    public var uuid = UUID().uuidString.lowercased()
 
     /// The longest note kept, in characters (a few paragraphs; the list stays quick).
     public static let noteLimit = 4000

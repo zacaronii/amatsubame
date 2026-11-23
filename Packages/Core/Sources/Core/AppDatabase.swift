@@ -1076,6 +1076,15 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v66_audio_mark_uuid") { db in
+            // Kiku's marks with Sync with iCloud: an id that's the same on every device.
+            try db.alter(table: "audioMark") { t in
+                t.add(column: "uuid", .text)
+            }
+            try db.execute(sql: "UPDATE audioMark SET uuid = lower(hex(randomblob(16))) WHERE uuid IS NULL")
+            try db.create(index: "audioMark_uuid", on: "audioMark", columns: ["uuid"], unique: true)
+        }
+
         return migrator
     }
 }
