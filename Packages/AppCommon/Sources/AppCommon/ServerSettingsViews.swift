@@ -172,31 +172,6 @@ public struct ServerRow: View {
     }
 }
 
-/// The queue row for Settings: pending and failed counts, opening the queue.
-public struct QueueRow: View {
-    @Environment(CommonEnvironment.self) private var environment
-
-    public init() {}
-
-    public var body: some View {
-        NavigationLink {
-            OutboxView()
-        } label: {
-            LabeledContent("Queue") {
-                Text(description)
-            }
-        }
-    }
-
-    private var description: String {
-        let summary = environment.outboxSummary
-        if summary.pending == 0 && summary.failed == 0 { return "Up to date" }
-        var parts = ["\(summary.pending) pending"]
-        if summary.failed > 0 { parts.append("\(summary.failed) failed") }
-        return parts.joined(separator: ", ")
-    }
-}
-
 public extension ServerKind {
     var displayName: String {
         switch self {

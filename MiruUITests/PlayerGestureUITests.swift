@@ -7,6 +7,9 @@ final class PlayerGestureUITests: XCTestCase {
             throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file to test gestures.")
         }
         continueAfterFailure = false
+        // Sideways: the overlay layout, where the controls hide (upright, the play button stays under the picture).
+        XCUIDevice.shared.orientation = .landscapeLeft
+        addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
         let app = XCUIApplication()
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
@@ -179,6 +182,9 @@ final class PlayerGestureUITests: XCTestCase {
             throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file to test lookups.")
         }
         continueAfterFailure = false
+        // Sideways: the overlay layout, where the controls hide (upright, the play button stays under the picture).
+        XCUIDevice.shared.orientation = .landscapeLeft
+        addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
         let app = XCUIApplication()
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
@@ -303,6 +309,9 @@ final class PlayerGestureUITests: XCTestCase {
             throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file to test subtitle search.")
         }
         continueAfterFailure = false
+        // Upright: the Subtitles settings open as a sheet (sideways they are a panel on the right).
+        XCUIDevice.shared.orientation = .portrait
+        addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
         let app = XCUIApplication()
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
@@ -385,10 +394,12 @@ final class PlayerGestureUITests: XCTestCase {
         if !close.waitForExistence(timeout: 3) { player.tap() }
         close.tap()
         app.tabBars.buttons["Settings"].tap()
-        let queue = app.staticTexts["Queue"].firstMatch
-        for _ in 0..<8 where !queue.waitForExistence(timeout: 2) { app.swipeUp() }
-        queue.tap()
-        XCTAssertTrue(app.staticTexts["Jellyfin subtitles"].firstMatch.waitForExistence(timeout: 5), "upload queued")
-        XCTAssertEqual(app.staticTexts.matching(identifier: "Jellyfin subtitles").count, 1)
+        // Settings ▸ Advanced ▸ Waiting to Sync: one subtitle upload for Jellyfin.
+        let advanced = app.buttons["settings.advanced"].firstMatch
+        for _ in 0..<8 where !advanced.waitForExistence(timeout: 2) || !advanced.isHittable { app.swipeUp() }
+        advanced.tap()
+        let waiting = app.buttons["advanced.waiting.jellyfinSubtitle"].firstMatch
+        XCTAssertTrue(waiting.waitForExistence(timeout: 5))
+        XCTAssertTrue(waiting.label.hasSuffix("1 waiting"), "upload queued: \(waiting.label)")
     }
 }
