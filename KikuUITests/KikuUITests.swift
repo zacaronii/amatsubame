@@ -221,6 +221,53 @@ final class KikuLinesMenuUITests: XCTestCase {
         item("Text Size").tap()
         item("Medium").tap()
     }
+
+    /// More ▸ Find in Transcript: the lines holding what's typed, one at a time from the line
+    /// playing, with the count; Done puts the bar away. The sleep timer of minutes says a shake
+    /// starts it again (the shake itself needs a real phone).
+    func testFindInTranscriptAndSleepShakeHint() {
+        let app = XCUIApplication()
+        app.launchEnvironment = ["UITEST_KIKU": "1", "UITEST_KIKU_PLAYER": "1"]
+        app.launch()
+        XCTAssertTrue(app.buttons["player.playPause"].waitForExistence(timeout: 10))
+        app.buttons["More"].tap()
+        app.buttons["player.find"].firstMatch.tap()
+        let field = app.textFields["player.findField"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.typeText("番目")
+        let count = app.staticTexts["player.findCount"]
+        XCTAssertTrue(count.waitForExistence(timeout: 5))
+        XCTAssertEqual(count.label, "1 of 20")
+        app.buttons["player.findNext"].tap()
+        XCTAssertEqual(count.label, "2 of 20")
+        app.buttons["player.findPrevious"].tap()
+        app.buttons["player.findPrevious"].tap()
+        XCTAssertEqual(count.label, "20 of 20", "back past the first wraps round")
+        // Far down the transcript: scrolled to it.
+        let line = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'その20番目'")).firstMatch
+        XCTAssertTrue(line.waitForExistence(timeout: 5))
+        XCTAssertTrue(line.isHittable, "the line found is on screen")
+        XCTAssertTrue(app.buttons["player.backToNow"].exists, "following stopped while finding")
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "find in transcript"
+        shot.lifetime = .keepAlways
+        add(shot)
+        field.tap()
+        field.typeText("ないもの")
+        XCTAssertEqual(count.label, "No lines")
+        app.buttons["player.findDone"].tap()
+        XCTAssertTrue(field.waitForNonExistence(timeout: 5))
+
+        app.buttons["More"].tap()
+        app.buttons["Sleep Timer"].firstMatch.tap()
+        app.buttons["15 Minutes"].firstMatch.tap()
+        app.buttons["More"].tap()
+        let timer = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Sleep Timer ·'")).firstMatch
+        XCTAssertTrue(timer.waitForExistence(timeout: 5))
+        timer.tap()
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Shake to start it again'")).firstMatch.waitForExistence(timeout: 5))
+        app.buttons["Turn Off"].firstMatch.tap()
+    }
 }
 
 /// The lookup's bottom panel: a slow pull on its handle shrinks it and lets go closed, never

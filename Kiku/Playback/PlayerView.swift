@@ -12,6 +12,12 @@ struct PlayerView: View {
     /// "Marked 13:21", briefly, after a mark (from here or the shortcut).
     @State private var markToast: String?
     @State private var showsChapters = false
+    /// Find in Transcript: the bar is up, what's typed, the lines holding it and the one shown.
+    @State private var finding = false
+    @State private var findQuery = ""
+    @State private var findHits: [TranscriptFind.Hit] = []
+    @State private var findAt: Int?
+    @FocusState private var findFocused: Bool
     /// The pull down that puts the player away (iPhone and iPad): how far, and whether the drag
     /// under way is one (nil until it's clear which way it's going).
     @GestureState(resetTransaction: Transaction(animation: .spring(duration: 0.3))) private var pull: (distance: CGFloat, down: Bool?) = (0, nil)
@@ -127,6 +133,14 @@ struct PlayerView: View {
             }
             .opacity(0)
             .accessibilityHidden(true)
+        }
+        // A shake started the sleep timer again.
+        .sensoryFeedback(.success, trigger: model.sleepExtended)
+        .task(id: model.sleepExtended) {
+            guard model.sleepExtended > 0, case .minutes(let minutes, _)? = model.sleepTimer else { return }
+            withAnimation { markToast = "Sleep Timer · \(minutes) Minutes" }
+            try? await Task.sleep(for: .seconds(2))
+            withAnimation { markToast = nil }
         }
         // A tick in the hand when a mark is made.
         .sensoryFeedback(.success, trigger: environment.lastMark?.id)
@@ -251,8 +265,18 @@ struct PlayerView: View {
                     Divider()
                     Button("Turn Off", role: .destructive) { model.setSleepTimer(minutes: nil) }
                 }
+                #if os(iOS)
+                if case .minutes? = model.sleepTimer {
+                    Text("Shake to start it again")
+                }
+                #endif
             } label: {
                 Label(sleepTitle, systemImage: "moon.zzz")
+            }
+            if showsTranscriptView {
+                Button("Find in Transcript", systemImage: "magnifyingglass") { startFinding() }
+                    .keyboardShortcut("f")
+                    .accessibilityIdentifier("player.find")
             }
             if model.transcript == .ready, !model.sentences.isEmpty {
                 // How the lines play and read.
@@ -320,6 +344,9 @@ struct PlayerView: View {
     @ViewBuilder private var content: some View {
         if showsTranscriptView {
             transcript
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    if finding { findBar.padding(.horizontal, 12).padding(.top, 8) }
+                }
                 .overlay(alignment: .bottom) {
                     // Scrolled away by hand: back to the line playing.
                     if !model.follows {
@@ -413,9 +440,11 @@ struct PlayerView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 4) {
                     ForEach(model.sentences, id: \.position) { sentence in
+                        let found = foundRange(sentence.position)
                         SentenceRow(sentence: sentence, isCurrent: sentence.position == model.currentIndex, scale: model.transcriptScale,
                                     marks: common.wordMarks.marks(for: TappableLine.sentence(sentence.text)),
-                                    highlighted: model.lookup.highlightedRange(for: String(sentence.position)),
+                                    highlighted: model.lookup.highlightedRange(for: String(sentence.position)) ?? found,
+                                    isFound: found != nil,
                                     onTime: { model.play(from: sentence) },
                                     onTap: { model.tap(sentence, characterIndex: $0) })
                             .id(sentence.position)
@@ -433,6 +462,11 @@ struct PlayerView: View {
                 guard model.follows, let index else { return }
                 withAnimation(.easeInOut(duration: 0.3)) { scroll(proxy, to: index) }
             }
+            .onChange(of: findTarget) { _, position in
+                guard let position else { return }
+                model.follows = false
+                withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(position, anchor: UnitPoint(x: 0.5, y: 0.35)) }
+            }
             .onChange(of: model.follows) { _, follows in
                 guard follows, let index = model.currentIndex else { return }
                 withAnimation { scroll(proxy, to: index) }
@@ -444,6 +478,79 @@ struct PlayerView: View {
                 try? await Task.sleep(for: .milliseconds(150))
                 if let index = model.currentIndex { scroll(proxy, to: index) }
             }
+        }
+    }
+
+    // MARK: Find in Transcript
+
+    private func startFinding() {
+        withAnimation(.easeInOut(duration: 0.2)) { finding = true }
+        findFocused = true
+    }
+
+    private func stopFinding() {
+        withAnimation(.easeInOut(duration: 0.2)) { finding = false }
+        findQuery = ""
+        findHits = []
+        findAt = nil
+    }
+
+    /// The line the search is showing (its position).
+    private var findTarget: Int? {
+        guard finding, let findAt, findHits.indices.contains(findAt) else { return nil }
+        return model.sentences[findHits[findAt].index].position
+    }
+
+    /// The match to mark in a line: only in the line the search is showing.
+    private func foundRange(_ position: Int) -> Range<Int>? {
+        guard finding, let findAt, findHits.indices.contains(findAt), model.sentences[findHits[findAt].index].position == position else { return nil }
+        return findHits[findAt].range
+    }
+
+    private func stepFind(_ step: Int) {
+        guard !findHits.isEmpty else { return }
+        findAt = ((findAt ?? -step) + step + findHits.count) % findHits.count
+    }
+
+    private var findBar: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            TextField("Find in Transcript", text: $findQuery)
+                .focused($findFocused)
+                .submitLabel(.search)
+                .onSubmit { stepFind(1) }
+                .autocorrectionDisabled()
+                .accessibilityIdentifier("player.findField")
+            if !findQuery.trimmingCharacters(in: .whitespaces).isEmpty {
+                Text(findHits.isEmpty ? "No lines" : "\((findAt ?? 0) + 1) of \(findHits.count)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
+                    .accessibilityIdentifier("player.findCount")
+            }
+            Button { stepFind(-1) } label: { Image(systemName: "chevron.up").frame(width: 32, height: 32).contentShape(.rect) }
+                .disabled(findHits.isEmpty)
+                .accessibilityLabel("Previous")
+                .accessibilityIdentifier("player.findPrevious")
+            Button { stepFind(1) } label: { Image(systemName: "chevron.down").frame(width: 32, height: 32).contentShape(.rect) }
+                .disabled(findHits.isEmpty)
+                .accessibilityLabel("Next")
+                .accessibilityIdentifier("player.findNext")
+                .keyboardShortcut("g")
+            Button("Done") { stopFinding() }
+                .fontWeight(.semibold)
+                .accessibilityIdentifier("player.findDone")
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 4)
+        .glassEffect(.regular, in: .capsule)
+        // A tap anywhere on the bar stays on it (the line behind would open a lookup).
+        .contentShape(.capsule)
+        .onTapGesture { findFocused = true }
+        .onChange(of: findQuery) { _, query in
+            findHits = TranscriptFind.hits(query, in: model.sentences)
+            findAt = TranscriptFind.firstHit(findHits, from: model.currentIndex)
         }
     }
 
@@ -552,6 +659,8 @@ private struct SentenceRow: View {
     var scale: Double = 1
     let marks: [Int: WordMarkState]
     let highlighted: Range<Int>?
+    /// The line Find in Transcript is showing.
+    var isFound = false
     let onTime: () -> Void
     let onTap: (Int) -> Void
 
@@ -573,6 +682,7 @@ private struct SentenceRow: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(isCurrent ? AnyShapeStyle(.tint.opacity(0.18)) : AnyShapeStyle(.clear), in: .rect(cornerRadius: 18))
+        .overlay { if isFound { RoundedRectangle(cornerRadius: 18).strokeBorder(.tint, lineWidth: 2) } }
         .animation(.easeInOut(duration: 0.2), value: isCurrent)
         // Hold a line: copy it (for a note, a tutor, a translator), or play from it.
         .contextMenu {

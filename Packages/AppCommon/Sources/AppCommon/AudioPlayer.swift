@@ -27,6 +27,12 @@ public final class AudioPlayer {
         }
     }
 
+    /// The player's own volume, under the system's (the sleep timer's fade-out).
+    public var volume: Float {
+        get { player.volume }
+        set { player.volume = newValue }
+    }
+
     /// Every quarter second while loaded, with the time.
     @ObservationIgnored public var onTick: ((Double) -> Void)?
     @ObservationIgnored public var onEnd: (() -> Void)?
