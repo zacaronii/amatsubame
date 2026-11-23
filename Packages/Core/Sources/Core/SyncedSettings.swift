@@ -140,4 +140,9 @@ public extension TableCollection {
 
     /// Kiku's per-show speed and skips, by Audiobookshelf item id.
     static let showListenSettings = TableCollection(name: "showListenSettings", table: "showListenSetting", keyColumn: "itemId")
+
+    /// Kiku's marks and their notes, by their own id: a mark made, mined, noted, cleared or
+    /// gone a day after mining is the same everywhere (the last edit of a note wins). The row
+    /// number and the card job that mined it are this device's.
+    static let audioMarks = TableCollection(name: "audioMarks", table: "audioMark", keyColumn: "uuid", excluded: ["id", "minedJobId"])
 }

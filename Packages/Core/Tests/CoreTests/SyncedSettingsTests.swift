@@ -112,3 +112,79 @@ import Testing
         #expect(rows == 0)
     }
 }
+
+/// Kiku's marks and notes between two devices.
+@Suite struct SyncedMarksTests {
+    let folder = FileManager.default.temporaryDirectory.appending(path: "SyncedMarksTests-\(UUID().uuidString)")
+    let start = Date(timeIntervalSince1970: 1_795_651_200)
+
+    func device(_ id: String) -> SyncedSettingsTests.Device {
+        SyncedSettingsTests.Device(id: id, app: "kiku", clock: SyncedSettingsTests.Clock(start), collections: [TableCollection.audioMarks])
+    }
+
+    func marks(_ d: SyncedSettingsTests.Device, at date: Date) -> AudioMarkStore {
+        AudioMarkStore(database: d.database, now: { date })
+    }
+
+    @Test func marksNotesMiningAndClearReachTheOtherDevice() throws {
+        let a = device("aaaa"), b = device("bbbb")
+        let made = try marks(a, at: start).add(AudioMark(itemId: "show", episodeId: "ep", showTitle: "番組", episodeTitle: "#1", time: 42,
+                                                          createdAt: start, source: .headphones))
+        try a.sync(folder, at: start)
+        try b.sync(folder, at: start.addingTimeInterval(10))
+        var onB = try #require(try marks(b, at: start).marks().first)
+        #expect(onB.uuid == made.uuid && onB.time == 42 && onB.source == .headphones)
+        #expect(onB.id != nil, "a row of b's own")
+
+        // Notes: a writes, then b edits later; b's note wins on both.
+        try marks(a, at: start).setNote(try #require(made.id), "a's note")
+        try a.sync(folder, at: start.addingTimeInterval(20))
+        try b.sync(folder, at: start.addingTimeInterval(30))
+        onB = try #require(try marks(b, at: start).marks().first)
+        #expect(onB.note == "a's note")
+        try marks(b, at: start).setNote(try #require(onB.id), "b's later note")
+        try b.sync(folder, at: start.addingTimeInterval(40))
+        try a.sync(folder, at: start.addingTimeInterval(50))
+        #expect(try marks(a, at: start).marks().first?.note == "b's later note")
+
+        // Mined on b: a shows it mined too, without b's card job.
+        try marks(b, at: start.addingTimeInterval(60)).setMined(try #require(onB.id), word: "雑談", jobId: 7)
+        try b.sync(folder, at: start.addingTimeInterval(60))
+        try a.sync(folder, at: start.addingTimeInterval(70))
+        let onA = try #require(try marks(a, at: start.addingTimeInterval(70)).marks().first)
+        #expect(onA.minedWord == "雑談" && onA.isMined && onA.minedJobId == nil)
+
+        // Cleared on a: gone on b, and it doesn't come back.
+        try marks(a, at: start).remove(try #require(onA.id))
+        try a.sync(folder, at: start.addingTimeInterval(80))
+        try b.sync(folder, at: start.addingTimeInterval(90))
+        #expect(try marks(b, at: start.addingTimeInterval(90)).marks().isEmpty)
+        try a.sync(folder, at: start.addingTimeInterval(100))
+        #expect(try marks(a, at: start.addingTimeInterval(100)).marks().isEmpty)
+    }
+
+    /// A mined mark goes a day after mining on each device; the deletion syncs like a Clear.
+    @Test func prunedMinedMarksStayGone() throws {
+        let a = device("aaaa"), b = device("bbbb")
+        let made = try marks(a, at: start).add(AudioMark(itemId: "show", episodeId: "ep", showTitle: "番組", episodeTitle: "#1", time: 5,
+                                                          createdAt: start, source: .player))
+        try marks(a, at: start).setMined(try #require(made.id), word: "語", jobId: 1)
+        try a.sync(folder, at: start)
+        try b.sync(folder, at: start.addingTimeInterval(10))
+        let later = start.addingTimeInterval(AudioMarkStore.minedKeptFor + 60)
+        try marks(a, at: later).pruneMined()
+        try a.sync(folder, at: later)
+        try b.sync(folder, at: later.addingTimeInterval(10))
+        let rows = try b.database.reader.read { try Int.fetchOne($0, sql: "SELECT COUNT(*) FROM audioMark") }
+        #expect(rows == 0)
+    }
+
+    /// Marks made before this version get an id of their own, different for each.
+    @Test func existingMarksGetIDs() throws {
+        let database = try AppDatabase.inMemory()
+        let store = AudioMarkStore(database: database)
+        let first = try store.add(AudioMark(itemId: "s", episodeId: "e", showTitle: "t", episodeTitle: "e", time: 1, createdAt: start, source: .player))
+        let second = try store.add(AudioMark(itemId: "s", episodeId: "e", showTitle: "t", episodeTitle: "e", time: 2, createdAt: start, source: .player))
+        #expect(first.uuid != second.uuid && !first.uuid.isEmpty)
+    }
+}

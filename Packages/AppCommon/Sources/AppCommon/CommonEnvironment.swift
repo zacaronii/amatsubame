@@ -398,7 +398,7 @@ public final class CommonEnvironment {
         switch appName {
         case "Yomu": [DailyGoalCollection(), TableCollection.mangaReaderSettings, TableCollection.bookReaderSettings]
         case "Miru": [TableCollection.playerSettings]
-        case "Kiku": [TableCollection.listenSettings, TableCollection.showListenSettings]
+        case "Kiku": [TableCollection.listenSettings, TableCollection.showListenSettings, TableCollection.audioMarks]
         default: []
         }
     }
