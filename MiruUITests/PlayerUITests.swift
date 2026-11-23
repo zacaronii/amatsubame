@@ -22,7 +22,7 @@ final class PlayerUITests: XCTestCase {
         // Stats: the iCloud switch, under kechimochi (it says why it can't sync here).
         let cloud = app.switches["stats.iCloud"].firstMatch
         for _ in 0..<4 where !cloud.waitForExistence(timeout: 2) { app.swipeUp() }
-        XCTAssertTrue(cloud.exists, "Sync Stats with iCloud in Settings")
+        XCTAssertTrue(cloud.exists, "Sync with iCloud in Settings")
         XCTAssertEqual(cloud.value as? String, "1", "on by default")
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = "settings-stats-icloud"

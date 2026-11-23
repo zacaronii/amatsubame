@@ -8,9 +8,10 @@ import UIKit
 import IOKit
 #endif
 
-/// Stats on every device: this app's activity log is kept in the app's iCloud folder (one file a
+/// Sync with iCloud: this app's activity log is kept in the app's iCloud folder (one file a
 /// device a month, `StatsSync`), so the same app on another device with the same iCloud account
-/// counts it too. Runs when the app comes forward, when it's put away and when Stats opens.
+/// counts it too, and the synced collections (daily goals…) are kept the same (`RecordSync`,
+/// in `Sync/`). Runs when the app comes forward, when it's put away and when Stats opens.
 /// Without iCloud (no account, a build without the iCloud entitlement, the simulator) it does nothing.
 @Observable
 public final class StatsCloudSync {
@@ -40,8 +41,13 @@ public final class StatsCloudSync {
     @ObservationIgnored private var lastRun = Date.distantPast
     @ObservationIgnored private var running = false
 
-    public init(database: AppDatabase, defaults: UserDefaults = .standard) {
+    /// What's kept the same besides Stats.
+    @ObservationIgnored private let collections: [any SyncedCollection]
+
+    public init(database: AppDatabase, defaults: UserDefaults = .standard,
+                collections: [any SyncedCollection] = [DailyGoalCollection()]) {
         self.database = database
+        self.collections = collections
         self.defaults = defaults
         let on = !defaults.bool(forKey: Self.key)
         isOn = on
@@ -61,8 +67,10 @@ public final class StatsCloudSync {
         running = true
         defer { running = false }
         lastRun = .now
-        let database = database, hardware = Self.hardware, app = Self.folderName
-        let result = await Task.detached(priority: .utility) { Self.run(database: database, hardware: hardware, app: app) }.value
+        let database = database, hardware = Self.hardware, app = Self.folderName, collections = collections
+        let result = await Task.detached(priority: .utility) {
+            Self.run(database: database, hardware: hardware, app: app, collections: collections)
+        }.value
         guard isOn else { return false }
         switch result {
         case nil:
@@ -84,10 +92,17 @@ public final class StatsCloudSync {
     }
 
     /// Nil without an iCloud folder. Off the main thread: finding the folder can take a while.
-    private nonisolated static func run(database: AppDatabase, hardware: String?, app: String) -> Result<Bool, Error>? {
+    private nonisolated static func run(database: AppDatabase, hardware: String?, app: String,
+                                        collections: [any SyncedCollection]) -> Result<Bool, Error>? {
         guard let container = FileManager.default.url(forUbiquityContainerIdentifier: nil) else { return nil }
         let folder = StatsSyncFolder(url: container.appending(path: "Stats").appending(path: app))
-        return Result { try StatsSync(database: database).sync(with: folder, hardware: hardware) }
+        return Result {
+            let stats = StatsSync(database: database)
+            let changed = try stats.sync(with: folder, hardware: hardware)
+            let records = try RecordSync(database: database, app: app, collections: collections)
+                .sync(root: container.appending(path: "Sync"), device: stats.deviceID(hardware: hardware))
+            return changed || records
+        }
     }
 
     /// "yomu", "miru", "kiku": each app's log is its own.
