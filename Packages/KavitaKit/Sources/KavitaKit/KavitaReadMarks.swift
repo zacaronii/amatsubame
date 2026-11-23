@@ -24,13 +24,18 @@ public struct KavitaReadMarkPayload: Codable, Equatable, Sendable {
     /// When it was made (the progress rows' time): judged against Kavita by this, not by when
     /// the job is sent, so a mark sent days later never undoes reading done elsewhere meanwhile.
     public var madeAt: Date
+    /// The pages of each chapter it marks (what a read mark leaves as pages read on Kavita), so
+    /// a later change can tell Kavita holding this mark from reading elsewhere. Marks queued
+    /// before it existed have none.
+    public var chapterPages: [Int: Int]?
 
-    public init(mark: Mark, seriesId: Int, chapterId: Int?, account: String?, madeAt: Date) {
+    public init(mark: Mark, seriesId: Int, chapterId: Int?, account: String?, madeAt: Date, chapterPages: [Int: Int]? = nil) {
         self.mark = mark
         self.seriesId = seriesId
         self.chapterId = chapterId
         self.account = account
         self.madeAt = madeAt
+        self.chapterPages = chapterPages
     }
 
     public var coalesceKey: String { chapterId.map { "kavita.chapter.\($0)" } ?? "kavita.series.\(seriesId)" }
@@ -105,7 +110,8 @@ public struct KavitaReadMarking: Sendable {
         try database.writer.write { db in
             for chapter in chapters {
                 try Self.progress(chapter, read, seriesId: seriesId, libraryId: libraryId, now: now).save(db)
-                let payload = KavitaReadMarkPayload(mark: read ? .read : .unread, seriesId: seriesId, chapterId: chapter.chapterId, account: account, madeAt: now)
+                let payload = KavitaReadMarkPayload(mark: read ? .read : .unread, seriesId: seriesId, chapterId: chapter.chapterId, account: account,
+                                                    madeAt: now, chapterPages: [chapter.chapterId: chapter.pages])
                 try outbox.enqueue(payload, kind: .kavitaProgress, coalesceKey: payload.coalesceKey, in: db)
             }
         }
@@ -120,7 +126,8 @@ public struct KavitaReadMarking: Sendable {
             for chapter in chapters {
                 try Self.progress(chapter, read, seriesId: seriesId, libraryId: libraryId, now: now).save(db)
             }
-            let payload = KavitaReadMarkPayload(mark: read ? .read : .unread, seriesId: seriesId, chapterId: nil, account: account, madeAt: now)
+            let payload = KavitaReadMarkPayload(mark: read ? .read : .unread, seriesId: seriesId, chapterId: nil, account: account, madeAt: now,
+                                                chapterPages: Dictionary(chapters.map { ($0.chapterId, $0.pages) }, uniquingKeysWith: max))
             try outbox.enqueue(payload, kind: .kavitaProgress, coalesceKey: payload.coalesceKey, in: db)
         }
     }

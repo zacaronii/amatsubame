@@ -40,7 +40,8 @@ import Testing
 
     func send(_ setup: Setup, kavita answer: Data) async throws -> StubTransport {
         let transport = StubTransport(routes: ["/api/Reader/get-progress": (200, answer), "/api/Reader/progress": (200, Data()),
-                                               "/api/Reader/mark-multiple-read": (200, Data())])
+                                               "/api/Reader/mark-multiple-read": (200, Data()), "/api/Reader/mark-multiple-unread": (200, Data()),
+                                               "/api/Series/volumes": (200, Data("[]".utf8)), "/api/Reader/mark-read": (200, Data())])
         let handler = KavitaProgressHandler(outbox: setup.outbox) { KavitaClient(baseURL: base, authKey: "k", http: HTTPClient(transport: transport)) }
         let claimed = try #require(try setup.outbox.claimDueJobs(kinds: [.kavitaProgress]).first)
         try await handler.send(claimed.job, media: [])
@@ -103,5 +104,60 @@ import Testing
         try setup.outbox.enqueue(mark, kind: .kavitaProgress, coalesceKey: mark.coalesceKey)
         let transport = try await send(setup, kavita: kavita(page: 5, at: "2026-10-31T00:00:30"))
         #expect(paths(transport) == ["/api/Reader/get-progress", "/api/Reader/mark-multiple-read"])
+    }
+
+    // MARK: After a mark from this device
+
+    func mark(_ mark: KavitaReadMarkPayload.Mark, at date: Date, pages: Int? = 20, series: Bool = false) -> KavitaReadMarkPayload {
+        KavitaReadMarkPayload(mark: mark, seriesId: 4, chapterId: series ? nil : 206, account: nil, madeAt: date,
+                              chapterPages: pages.map { [206: $0] })
+    }
+
+    /// Sends a read mark of the chapter (or series) first, as this device did.
+    func sentReadMark(_ setup: Setup, pages: Int? = 20, series: Bool = false) async throws {
+        let read = mark(.read, at: t0, pages: pages, series: series)
+        try setup.outbox.enqueue(read, kind: .kavitaProgress, coalesceKey: read.coalesceKey)
+        _ = try await send(setup, kavita: kavita(page: 0, at: "2026-10-30T00:00:00"))
+    }
+
+    @Test func anUnreadMadeBeforeThisDevicesReadArrivedIsSent() async throws {
+        let setup = try setup()
+        try await sentReadMark(setup)
+        let unread = mark(.unread, at: t0.addingTimeInterval(5))
+        try setup.outbox.enqueue(unread, kind: .kavitaProgress, coalesceKey: unread.coalesceKey)
+        let transport = try await send(setup, kavita: kavita(page: 20, at: "2026-10-31T00:00:30"))
+        #expect(paths(transport) == ["/api/Reader/get-progress", "/api/Reader/mark-multiple-unread"], "Kavita holds this device's read")
+    }
+
+    @Test func aTurnMadeBeforeThisDevicesMarkArrivedIsSent() async throws {
+        let setup = try setup()
+        try await sentReadMark(setup)
+        try setup.outbox.enqueue(turn(3, at: t0.addingTimeInterval(5)), kind: .kavitaProgress, coalesceKey: "kavita.chapter.206")
+        let transport = try await send(setup, kavita: kavita(page: 20, at: "2026-10-31T00:00:30"))
+        #expect(paths(transport) == ["/api/Reader/get-progress", "/api/Reader/progress"])
+    }
+
+    @Test func aTurnMadeBeforeThisDevicesSeriesMarkArrivedIsSent() async throws {
+        let setup = try setup()
+        try await sentReadMark(setup, series: true)
+        try setup.outbox.enqueue(turn(3, at: t0.addingTimeInterval(5)), kind: .kavitaProgress, coalesceKey: "kavita.chapter.206")
+        let transport = try await send(setup, kavita: kavita(page: 20, at: "2026-10-31T00:00:30"))
+        #expect(paths(transport) == ["/api/Reader/get-progress", "/api/Reader/progress"], "the series' key is looked up too")
+    }
+
+    @Test func readingElsewhereAfterThisDevicesReadMarkStillWins() async throws {
+        let setup = try setup()
+        try await sentReadMark(setup)
+        try setup.outbox.enqueue(turn(15, at: t0.addingTimeInterval(5)), kind: .kavitaProgress, coalesceKey: "kavita.chapter.206")
+        let transport = try await send(setup, kavita: kavita(page: 3, at: "2026-10-31T01:00:00"))   // re-read elsewhere to page 3
+        #expect(paths(transport) == ["/api/Reader/get-progress"], "Kavita holds less than a read mark leaves: not this device's")
+    }
+
+    @Test func aReadMarkWithoutItsPagesNeverCountsAsOwn() async throws {
+        let setup = try setup()
+        try await sentReadMark(setup, pages: nil)
+        try setup.outbox.enqueue(turn(3, at: t0.addingTimeInterval(5)), kind: .kavitaProgress, coalesceKey: "kavita.chapter.206")
+        let transport = try await send(setup, kavita: kavita(page: 20, at: "2026-10-31T00:00:30"))
+        #expect(paths(transport) == ["/api/Reader/get-progress"], "an older build's mark: judged by dates alone")
     }
 }

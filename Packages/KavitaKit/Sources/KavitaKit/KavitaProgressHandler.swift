@@ -47,7 +47,7 @@ public struct KavitaProgressHandler: OutboxHandler {
             // Kavita holding exactly what this device last sent, and doesn't count.
             let server = try await client.progress(chapterId: payload.chapterId)
             if let serverDate = server.lastModifiedUtc, serverDate > (payload.madeAt ?? job.updatedAt),
-               try !holdsOwnLastSend(server, job) {
+               try !holdsOwnLastSend(server, chapterId: payload.chapterId, seriesId: payload.seriesId, job) {
                 return
             }
             try await client.saveProgress(payload)
@@ -76,7 +76,8 @@ public struct KavitaProgressHandler: OutboxHandler {
         do {
             if let chapterId = mark.chapterId {
                 let server = try await client.progress(chapterId: chapterId)
-                if let changed = server.lastModifiedUtc, changed > mark.madeAt, try !holdsOwnLastSend(server, job) { return }
+                if let changed = server.lastModifiedUtc, changed > mark.madeAt,
+                   try !holdsOwnLastSend(server, chapterId: chapterId, seriesId: mark.seriesId, job) { return }
                 try await client.markRead(mark.mark == .read, seriesId: mark.seriesId, chapterIds: [chapterId])
                 if mark.mark == .unread, let settling, let date = try? await client.progress(chapterId: chapterId).lastModifiedUtc {
                     try? settling.settle(mark, kavitaDates: [chapterId: date])
@@ -98,16 +99,23 @@ public struct KavitaProgressHandler: OutboxHandler {
         }
     }
 
-    /// Whether Kavita's progress for the chapter is what this device last sent for it (a page
-    /// turn, or a mark: read leaves pages read, unread leaves none).
-    private func holdsOwnLastSend(_ server: KavitaServerProgress, _ job: OutboxJob) throws -> Bool {
-        guard let outbox, let key = job.coalesceKey,
-              let last = try outbox.lastSent(coalesceKey: key, kind: .kavitaProgress, before: job.id) else { return false }
-        if let turn = try? last.decodePayload(KavitaProgressPayload.self) {
-            return turn.pageNum == server.pageNum && turn.bookScrollId == server.bookScrollId
-        }
+    /// Whether Kavita's progress for the chapter is what this device last sent for it: the last
+    /// sent page turn or mark of the chapter, or mark of its series, whichever went last. Kavita
+    /// gives back exactly what was sent (pageNum and bookScrollId, checked live 2026-11-23); a
+    /// read mark leaves the chapter's pages as pages read (the book's place kept), an unread
+    /// one none. A mark without its pages (from an older build) never counts. "Sent" includes
+    /// a job skipped for newer reading elsewhere, which never reached Kavita: harmless, as it
+    /// only counts if Kavita happens to hold that same place.
+    private func holdsOwnLastSend(_ server: KavitaServerProgress, chapterId: Int, seriesId: Int, _ job: OutboxJob) throws -> Bool {
+        guard let outbox, let last = try outbox.lastSent(coalesceKeys: ["kavita.chapter.\(chapterId)", "kavita.series.\(seriesId)"],
+                                                          kind: .kavitaProgress, excluding: job.id) else { return false }
         if let mark = try? last.decodePayload(KavitaReadMarkPayload.self) {
-            return mark.mark == .read ? server.pageNum > 0 : server.pageNum == 0
+            guard mark.chapterId == nil || mark.chapterId == chapterId else { return false }
+            if mark.mark == .unread { return server.pageNum == 0 }
+            return mark.chapterPages?[chapterId].map { $0 == server.pageNum } ?? false
+        }
+        if let turn = try? last.decodePayload(KavitaProgressPayload.self) {
+            return turn.chapterId == chapterId && turn.pageNum == server.pageNum && turn.bookScrollId == server.bookScrollId
         }
         return false
     }
