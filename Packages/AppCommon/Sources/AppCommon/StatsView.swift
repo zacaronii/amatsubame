@@ -28,6 +28,19 @@ public final class StatsModel {
     @ObservationIgnored private var ankiCards: [Date] = []
     @ObservationIgnored private var unsentCards: [Date] = []
     @ObservationIgnored private var ownCards: [MinedCardStat] = []
+    /// Reading's daily goals (their history), and what the period shows of them.
+    public private(set) var goals: DailyGoals?
+    public private(set) var goalReport: GoalReport?
+
+    /// The chart's line and the period's days met, for the goal shown.
+    public struct GoalReport: Equatable {
+        public var goal: DailyGoal
+        /// The line, in the chart's units (minutes for time), when the chart counts the goal's measure.
+        public var line: Double?
+        public var met: Int
+        public var days: Int
+        public var streak: Int
+    }
 
     public init(kind: ActivitySession.Kind, environment: CommonEnvironment) {
         self.kind = kind
@@ -92,9 +105,31 @@ public final class StatsModel {
         return title.isEmpty ? nil : title
     }
 
+    /// Sets today's goal (0 turns it off) and counts again.
+    public func setGoal(measure: StatsSummary.Measure, target: Int) {
+        try? environment.goals.set(kind: kind, measure: measure, target: target)
+        // The chart counts what the goal counts, so its line shows.
+        if target > 0, self.measure != measure { self.measure = measure } else { summarize() }
+    }
+
     private func summarize() {
+        goals = kind == .reading ? try? environment.goals.goals(kind: kind) : nil
+        goalReport = Self.report(goals: goals, sessions: sessions, period: period, measure: measure)
+
         summary = StatsSummary.make(kind: kind, period: period, measure: measure, sessions: sessions, lookups: lookups,
                                     cards: ankiCards + unsentCards, ownCards: ownCards)
+    }
+
+    static func report(goals: DailyGoals?, sessions: [ActivitySession], period: StatsSummary.Period, measure: StatsSummary.Measure,
+                       now: Date = .now) -> GoalReport? {
+        guard let goals, let goal = goals.goal(on: now), period != .allTime else { return nil }
+        let calendar = goals.calendar
+        let today = calendar.startOfDay(for: now)
+        let count = period == .week ? 7 : 30
+        let days = (0..<count).compactMap { calendar.date(byAdding: .day, value: -$0, to: today) }.filter { goals.goal(on: $0) != nil }
+        return GoalReport(goal: goal, line: goal.measure == measure ? Double(goal.target) : nil,
+                          met: days.filter { goals.met(on: $0, sessions: sessions) }.count, days: days.count,
+                          streak: goals.streak(sessions: sessions, now: now))
     }
 }
 
@@ -109,6 +144,7 @@ public struct StatsView<Cover: View>: View {
     /// This app's Stats, or kechimochi's for all immersion (never added together).
     enum Board: Hashable { case app, all }
     @State private var board = Board.app
+    @State private var editingGoal = false
     @State private var immersion: ImmersionModel
 
     public init(kind: ActivitySession.Kind, environment: CommonEnvironment, @ViewBuilder cover: @escaping (StatsSummary.Series) -> Cover) {
@@ -180,6 +216,9 @@ public struct StatsView<Cover: View>: View {
                     await model.load()
                 case .all: await immersion.load()
                 }
+            }
+            .sheet(isPresented: $editingGoal) {
+                DailyGoalSheet(current: model.goals?.goal(on: .now)) { model.setGoal(measure: $0, target: $1) }
             }
         }
     }
@@ -267,16 +306,40 @@ public struct StatsView<Cover: View>: View {
                 if summary.measure == .pages { Text(summary.total == 1 ? "page" : "pages").font(.title3).foregroundStyle(.secondary) }
             }
             .accessibilityIdentifier("stats.total")
-            Chart(summary.bars) { bar in
-                BarMark(x: .value("Day", bar.date, unit: model.period == .allTime ? .month : .day),
-                        y: .value(Self.title(summary.measure), summary.measure == .time ? bar.value / 60 : bar.value))
-                    .foregroundStyle(.tint.opacity(bar.isCurrent ? 1 : 0.6))
-                    .clipShape(.rect(cornerRadius: 6))
+            if kind == .reading {
+                HStack {
+                    if let report = model.goalReport {
+                        Text("Goal met on \(report.met) of \(report.days) days" + (report.streak > 1 ? " · \(report.streak) days in a row" : ""))
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("stats.goalMet")
+                    }
+                    Spacer()
+                    Button(model.goals?.goal(on: .now) == nil ? "Set a Daily Goal" : "Daily Goal") { editingGoal = true }
+                        .buttonStyle(.borderless)
+                        .accessibilityIdentifier("stats.dailyGoal")
+                }
+                .font(.subheadline)
+            }
+            Chart {
+                ForEach(summary.bars) { bar in
+                    BarMark(x: .value("Day", bar.date, unit: model.period == .allTime ? .month : .day),
+                            y: .value(Self.title(summary.measure), summary.measure == .time ? bar.value / 60 : bar.value))
+                        .foregroundStyle(.tint.opacity(bar.isCurrent ? 1 : 0.6))
+                        .clipShape(.rect(cornerRadius: 6))
+                }
+                // The daily goal, when the chart counts its measure.
+                if let line = model.goalReport?.line {
+                    RuleMark(y: .value("Daily goal", line))
+                        .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel("Daily goal")
+                        .accessibilityValue(DailyGoalText.amount(model.goalReport!.goal.target, model.goalReport!.goal.measure))
+                }
             }
             .chartYAxis(.hidden)
-            // A floor for the scale, so a few seconds don't fill the chart.
+            // A floor for the scale, so a few seconds don't fill the chart (and room for the goal's line).
             .chartYScale(domain: 0...max(summary.bars.map { summary.measure == .time ? $0.value / 60 : $0.value }.max() ?? 0,
-                                         summary.measure == .characters ? 500 : 10))
+                                         summary.measure == .characters ? 500 : 10, (model.goalReport?.line ?? 0) * 1.1))
             .chartXAxis {
                 switch model.period {
                 case .week:
@@ -468,6 +531,9 @@ public struct TodaySummary: Equatable, Sendable {
     public var lookups: Int
     public var cards: Int
     public var streak: Int
+    /// Today's daily goal (Yomu's reading) and how far today got in its measure.
+    public var goal: DailyGoal?
+    public var goalProgress = 0
 
     @MainActor
     /// The same once the mining deck is asked for again, so every app counts the cards mined
@@ -491,10 +557,15 @@ public struct TodaySummary: Equatable, Sendable {
             .filter { $0.kind == .ankiNote && $0.createdAt >= start }
         let unsentToday = own.filter { $0.state != .sent || $0.updatedAt > cachedUntil }.count
         let week = StatsSummary.make(kind: kind, period: .week, sessions: sessions, lookups: [], cards: [], ownCards: [], now: now)
-        return TodaySummary(characters: today.reduce(0) { $0 + $1.characters }, pages: today.reduce(0) { $0 + $1.pages },
-                            seconds: today.reduce(0) { $0 + $1.duration },
-                            lookups: ((try? activity.lookupDates(since: start)) ?? []).count, cards: ankiToday + unsentToday,
-                            streak: week.streak)
+        var summary = TodaySummary(characters: today.reduce(0) { $0 + $1.characters }, pages: today.reduce(0) { $0 + $1.pages },
+                                   seconds: today.reduce(0) { $0 + $1.duration },
+                                   lookups: ((try? activity.lookupDates(since: start)) ?? []).count, cards: ankiToday + unsentToday,
+                                   streak: week.streak)
+        if kind == .reading, let goals = try? environment.goals.goals(kind: kind), let goal = goals.goal(on: now) {
+            summary.goal = goal
+            summary.goalProgress = goals.progress(on: now, sessions: today, measure: goal.measure)
+        }
+        return summary
     }
 }
 
@@ -518,7 +589,9 @@ public struct TodayRow: View {
                     summary.lineLimit(1).minimumScaleFactor(0.7)
                 }
                 Spacer(minLength: 8)
-                if kind == .reading, today.streak > 0 {
+                if let goal = today.goal {
+                    GoalRing(goal: goal, progress: today.goalProgress)
+                } else if kind == .reading, today.streak > 0 {
                     Text("\(today.streak)-day streak").font(.subheadline).foregroundStyle(.secondary)
                 }
                 Image(systemName: "chevron.right").foregroundStyle(.tertiary)
@@ -547,6 +620,130 @@ public struct TodayRow: View {
             return read + time + Text(" min · ") + lookups + cards
         }
         return Text(minutes).bold().foregroundStyle(.tint) + Text(" min · ") + lookups + cards
+    }
+}
+
+// MARK: Daily goal
+
+/// Today's progress toward the daily goal: a small ring, full once met, with "1,240 / 3,000 字".
+struct GoalRing: View {
+    let goal: DailyGoal
+    let progress: Int
+
+    var body: some View {
+        let fraction = min(Double(progress) / Double(max(goal.target, 1)), 1)
+        HStack(spacing: 6) {
+            Text("\(progress.formatted()) / \(DailyGoalText.amount(goal.target, goal.measure))")
+                .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+            ZStack {
+                Circle().stroke(.tint.opacity(0.2), lineWidth: 4)
+                Circle().trim(from: 0, to: fraction).stroke(.tint, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                if fraction >= 1 { Image(systemName: "checkmark").font(.caption2.bold()).foregroundStyle(.tint) }
+            }
+            .frame(width: 26, height: 26)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Daily goal")
+        .accessibilityValue(DailyGoalText.spoken(goal: goal, progress: progress))
+        .accessibilityIdentifier("home.goal")
+    }
+}
+
+/// How goals read: "3,000 字", "20 pages", "30 min", and what VoiceOver says.
+public enum DailyGoalText {
+    public static func amount(_ value: Int, _ measure: StatsSummary.Measure) -> String {
+        switch measure {
+        case .characters: "\(value.formatted()) 字"
+        case .pages: value == 1 ? "1 page" : "\(value.formatted()) pages"
+        case .time: "\(value.formatted()) min"
+        }
+    }
+
+    public static func spoken(goal: DailyGoal, progress: Int) -> String {
+        let percent = min(progress * 100 / max(goal.target, 1), 100)
+        let unit = switch goal.measure {
+        case .characters: "characters"
+        case .pages: "pages"
+        case .time: "minutes"
+        }
+        return progress >= goal.target ? "Reached, \(progress.formatted()) of \(goal.target.formatted()) \(unit)"
+            : "\(percent) percent, \(progress.formatted()) of \(goal.target.formatted()) \(unit)"
+    }
+
+    /// The stepper's step and a first target for each measure.
+    public static func step(_ measure: StatsSummary.Measure) -> Int {
+        measure == .characters ? 500 : 5
+    }
+
+    public static func suggested(_ measure: StatsSummary.Measure) -> Int {
+        switch measure {
+        case .characters: 3000
+        case .pages: 20
+        case .time: 30
+        }
+    }
+}
+
+/// Stats ▸ Daily Goal (Yomu): a measure and a target, or off. Changes count from today.
+struct DailyGoalSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let current: DailyGoal?
+    let save: (StatsSummary.Measure, Int) -> Void
+    @State private var isOn: Bool
+    @State private var measure: StatsSummary.Measure
+    @State private var target: Int
+
+    init(current: DailyGoal?, save: @escaping (StatsSummary.Measure, Int) -> Void) {
+        self.current = current
+        self.save = save
+        _isOn = State(initialValue: current != nil)
+        let measure = current?.measure ?? .characters
+        _measure = State(initialValue: measure)
+        _target = State(initialValue: current?.target ?? DailyGoalText.suggested(measure))
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Toggle("Daily Goal", isOn: $isOn).accessibilityIdentifier("goal.on")
+                    if isOn {
+                        Picker("Count", selection: $measure) {
+                            Text("Characters").tag(StatsSummary.Measure.characters)
+                            Text("Pages").tag(StatsSummary.Measure.pages)
+                            Text("Minutes").tag(StatsSummary.Measure.time)
+                        }
+                        .accessibilityIdentifier("goal.measure")
+                        .onChange(of: measure) { _, new in target = DailyGoalText.suggested(new) }
+                        Stepper(value: $target, in: DailyGoalText.step(measure)...(measure == .characters ? 100_000 : 1000),
+                                step: DailyGoalText.step(measure)) {
+                            Text(DailyGoalText.amount(target, measure) + " a day").monospacedDigit()
+                        }
+                        .accessibilityIdentifier("goal.target")
+                    }
+                } footer: {
+                    Text("Characters count in books, pages in manga, minutes in both. Each day counts against the goal it had. The goal is kept on this device.")
+                }
+            }
+            .navigationTitle("Daily Goal")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        save(measure, isOn ? target : 0)
+                        dismiss()
+                    }
+                    .accessibilityIdentifier("goal.save")
+                }
+            }
+        }
+        #if os(macOS)
+        .frame(minWidth: 380, minHeight: 260)
+        #endif
     }
 }
 

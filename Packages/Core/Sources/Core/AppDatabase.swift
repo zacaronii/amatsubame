@@ -1052,6 +1052,17 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v64_daily_goals") { db in
+            // A daily goal per activity, kept as a history (each change from its day).
+            try db.create(table: "dailyGoal") { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("kind", .text).notNull()
+                t.column("measure", .text).notNull()
+                t.column("target", .integer).notNull()
+                t.column("since", .datetime).notNull()
+            }
+        }
+
         return migrator
     }
 }

@@ -210,6 +210,13 @@ public final class MangaReaderModel {
 
     /// Where reading time and pages go for the Stats tab (set by the app).
     public var activity: ActivityLog?
+    /// Daily goals: the reader says once a day when today's is reached (quietly).
+    public var goals: DailyGoalStore?
+
+    private func noteGoalReached() {
+        guard let goals, let activity, goals.reachedTodayFirstTime(kind: .reading, log: activity) else { return }
+        showMessage("Daily goal reached")
+    }
     @ObservationIgnored private var lastShown: Int?
 
     /// The page to keep on screen when the spreads change (or the pager is rebuilt).
@@ -231,6 +238,7 @@ public final class MangaReaderModel {
             let step = lastVisible - lastShown
             try? activity?.record(ActivitySubject(kind: .reading, seriesKey: String(chapter.seriesId), seriesTitle: chapter.seriesTitle,
                                                   itemKey: String(chapter.chapterId)), pages: (1...2).contains(step) ? step : 0)
+            noteGoalReached()
         }
         lastShown = lastVisible
         currentPage = min(max(first, 0), pageCount - 1)

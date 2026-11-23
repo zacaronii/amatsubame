@@ -38,6 +38,8 @@ public final class CommonEnvironment {
     public let mining: MiningService
     /// Reading, watching and lookups for the Stats tab.
     public let activity: ActivityLog
+    /// Daily goals (Yomu's reading), on this device.
+    public let goals: DailyGoalStore
     /// Stats on every device, through iCloud.
     public let statsSync: StatsCloudSync
     /// Words in subtitle and transcript lines, marked by their state in the mining deck.
@@ -128,6 +130,7 @@ public final class CommonEnvironment {
         lookup = LookupService(library: dictionaries, audio: AudioService(database: setupDatabase, http: http, secrets: routedSecrets), history: database)
         dictionaryUpdater = DictionaryUpdater(library: dictionaries, lookup: lookup, reachability: reachability)
         activity = ActivityLog(database: database)
+        goals = DailyGoalStore(database: database)
         statsSync = StatsCloudSync(database: database)
         lookup.activity = activity
         ankiSettings = AnkiSettingsStore(database: setupDatabase)

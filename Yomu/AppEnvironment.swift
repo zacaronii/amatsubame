@@ -453,6 +453,7 @@ final class AppEnvironment {
             syncNow: { [weak self] in self?.syncNow() }
         )
         model.activity = common.activity
+        model.goals = common.goals
         model.opensAt = startPage
         #if DEBUG
         // UI tests: the manga reader opens on its last page (to reach the end of a volume).
@@ -601,6 +602,7 @@ final class AppEnvironment {
             syncNow: { [weak self] in self?.syncNow() }
         )
         model.activity = common.activity
+        model.goals = common.goals
         model.lengths = bookLengths
         model.opensAt = start
         model.fonts = bookFonts

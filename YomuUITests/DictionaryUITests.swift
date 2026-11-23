@@ -119,6 +119,57 @@ final class DictionaryUITests: XCTestCase {
         add(attachment)
     }
 
+    /// A daily goal set in Stats: the chart shows it and the days met, and the home's Today row a ring.
+    func testDailyGoal() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["UITEST_STATS"] = "1"
+        // The home's Today row shows with a Kavita server (the test account; nothing is changed there).
+        let env = ProcessInfo.processInfo.environment
+        let kavita = env["UITEST_KAVITA_URL"].flatMap { url in env["UITEST_KAVITA_KEY"].map { (url, $0) } }
+        if let (url, key) = kavita {
+            app.launchEnvironment["UITEST_KAVITA_URL"] = url
+            app.launchEnvironment["UITEST_KAVITA_KEY"] = key
+        }
+        app.launch()
+        app.tabBars.buttons["Stats"].tap()
+        let goalButton = app.buttons["stats.dailyGoal"].firstMatch
+        XCTAssertTrue(goalButton.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.descendants(matching: .any)["stats.goalMet"].exists, "no goal yet")
+        goalButton.tap()
+        app.switches["goal.on"].firstMatch.switches.firstMatch.tap()
+        let stepper = app.steppers["goal.target"].firstMatch
+        XCTAssertTrue(stepper.waitForExistence(timeout: 5))
+        stepper.buttons.element(boundBy: 0).tap() // 3,000 → 2,500
+        app.buttons["goal.save"].firstMatch.tap()
+        let met = app.descendants(matching: .any)["stats.goalMet"].firstMatch
+        XCTAssertTrue(met.waitForExistence(timeout: 5), "the goal's days")
+        XCTAssertTrue(met.label.hasPrefix("Goal met on"), met.label)
+        XCTAssertTrue(app.staticTexts["字"].exists, "the chart counts the goal's characters")
+        snapshot("stats goal")
+
+        if kavita != nil {
+            checkHomeRing(app)
+        }
+
+        // Off again: nothing shows.
+        app.tabBars.buttons["Stats"].tap()
+        goalButton.tap()
+        app.switches["goal.on"].firstMatch.switches.firstMatch.tap()
+        app.buttons["goal.save"].firstMatch.tap()
+        XCTAssertTrue(met.waitForNonExistence(timeout: 5))
+        // Setting the goal switched the chart to characters (remembered): back to time for the next run.
+        app.descendants(matching: .any)["stats.measure"].firstMatch.tap()
+        app.buttons["Time read"].firstMatch.tap()
+    }
+
+    private func checkHomeRing(_ app: XCUIApplication) {
+        app.tabBars.buttons["Library"].tap()
+        let ring = app.descendants(matching: .any)["home.goal"].firstMatch
+        XCTAssertTrue(ring.waitForExistence(timeout: 10), "the Today row's ring")
+        XCTAssertTrue((ring.value as? String ?? "").contains("of 2,500 characters"), "\(ring.value ?? "")")
+        snapshot("home goal")
+    }
+
     /// The Stats tab with a few days of seeded reading (a screenshot to check by eye).
     func testStatsTab() throws {
         let app = XCUIApplication()

@@ -90,6 +90,13 @@ public final class BookReaderModel {
 
     /// Where reading time and characters go for the Stats tab (set by the app).
     public var activity: ActivityLog?
+    /// Daily goals: the reader says once a day when today's is reached (quietly).
+    public var goals: DailyGoalStore?
+
+    private func noteGoalReached() {
+        guard let goals, let activity, goals.reachedTodayFirstTime(kind: .reading, log: activity) else { return }
+        showMessage("Daily goal reached")
+    }
     /// Where each opened volume's count is kept for the library's progress (set by the app).
     public var lengths: BookLengths?
     /// More characters than a page holds in one move is a jump, not reading.
@@ -441,6 +448,7 @@ public final class BookReaderModel {
                 try? activity?.record(ActivitySubject(kind: .reading, seriesKey: String(chapter.seriesId), seriesTitle: chapter.seriesTitle,
                                                       itemKey: String(chapter.chapterId)),
                                       characters: (1...Self.pageCharacterLimit).contains(gained) ? gained : 0)
+                noteGoalReached()
             }
         case .edge(let forward):
             hasMoved = true
