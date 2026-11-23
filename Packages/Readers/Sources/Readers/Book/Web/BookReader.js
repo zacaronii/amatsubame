@@ -891,7 +891,9 @@
 
   /// Highlights `length` characters from `offset` in run `runIndex`; with `follow`, turns to
   /// its page when it isn't on screen. Returns the page it's on, or -1.
-  function showReadAlong(runIndex, offset, length, follow) {
+  /// `quiet`: a search result shown (a look, not reading): the page turns to it without
+  /// counting as a move, and nothing is split for following audio.
+  function showReadAlong(runIndex, offset, length, follow, quiet = false) {
     clearReadAlong();
     readAlongCue = {runIndex, offset, length};
     const run = textRuns()[runIndex];
@@ -923,12 +925,12 @@
     // Following the audio is reading, so the new place is kept as progress. Facing pages
     // turn once it's past the left page.
     if (follow && (state.page + step() - 1 < first || state.page > last)) {
-      state.moved = true;
+      if (!quiet) state.moved = true;
       showPage(spreadStart(first));
     } else {
       placeReadAlongMark();
     }
-    splitReadAlong();
+    if (!quiet) splitReadAlong();
     return first;
   }
 
@@ -1157,6 +1159,7 @@
     highlight, clearHighlight,
     wordRuns, markWords, unmarkWords,
     marks: {show: showUserMarks, sentenceAt, markAt, pageStart},
+    found: {show: (run, offset, length) => showReadAlong(run, offset, length, true, true), clear: clearReadAlong},
     readAlong: {show: showReadAlong, clear: clearReadAlong, split: () => readAlongSplit, advance: advanceReadAlong, lastTap: () => lastTap, xpathOfRun, firstVisiblePlace},
     pageCount: () => state.pages.length, page: () => state.page, autoScroll, textMetrics};
 })();
