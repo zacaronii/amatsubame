@@ -1,5 +1,6 @@
 import Core
 import Foundation
+import Synchronization
 import Testing
 
 struct RecordingHandler: OutboxHandler {
@@ -58,6 +59,36 @@ struct HangingHandler: OutboxHandler {
         #expect(jobs.first { $0.id == retryId }?.state == .pending)
         #expect(jobs.first { $0.id == failId }?.state == .failed)
         #expect(jobs.first { $0.id == failId }?.lastError == "duplicate")
+    }
+
+    /// A job waiting for another one: looked at again in 30 s each time, no attempt counted
+    /// (its back-off never grows), shown as waiting rather than as an error; a real failure
+    /// afterwards counts and clears the wait.
+    @Test func aWaitDoesNotCountAnAttempt() async throws {
+        let clock = TestClock()
+        let store = OutboxStore(database: try AppDatabase.inMemory()) { clock.now }
+        let id = try store.enqueue(Progress(chapterId: 1, page: 1), kind: .kavitaReadingList, coalesceKey: "w")
+        let fails = Mutex(false)
+        let handler = RecordingHandler(kind: .kavitaReadingList) { _ in
+            if fails.withLock({ $0 }) { throw ConnectionError.unreachable("offline") }
+            throw OutboxWait("Waiting for an earlier change.")
+        }
+        let worker = OutboxWorker(store: store, mediaStorage: media, handlers: [handler])
+        for round in 1...5 {
+            let report = await worker.drain()
+            #expect(report == OutboxDrainReport(waiting: 1), "round \(round)")
+            let job = try #require(try store.jobs(states: [.pending]).first { $0.id == id })
+            #expect(job.attempts == 0)
+            #expect(job.lastError == nil)
+            #expect(job.waitingFor == "Waiting for an earlier change.")
+            #expect(job.nextAttemptAt == clock.now.addingTimeInterval(30))
+            clock.advance(30)
+        }
+        fails.withLock { $0 = true }
+        #expect(await worker.drain() == OutboxDrainReport(retried: 1))
+        let job = try #require(try store.jobs(states: [.pending]).first { $0.id == id })
+        #expect(job.attempts == 1 && job.waitingFor == nil && job.lastError != nil)
+        #expect(try store.summary() == OutboxSummary(pending: 1, failed: 0), "a wait is never counted as failed")
     }
 
     @Test func kindsWithoutHandlerStayPending() async throws {

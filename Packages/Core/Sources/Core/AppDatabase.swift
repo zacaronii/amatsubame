@@ -1018,6 +1018,13 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v60_outbox_waiting") { db in
+            // A job waiting for another one (`OutboxWait`), told apart from one that failed.
+            try db.alter(table: "outboxJob") { t in
+                t.add(column: "waitingFor", .text)
+            }
+        }
+
         return migrator
     }
 }

@@ -39,6 +39,8 @@ public struct OutboxJob: Codable, Equatable, Identifiable, Sendable, FetchableRe
     public var state: OutboxJobState
     public var attempts: Int
     public var lastError: String?
+    /// Set while the job waits for another one (`OutboxWait`): not a failure, and no attempt.
+    public var waitingFor: String?
     public var nextAttemptAt: Date
     public var createdAt: Date
     public var updatedAt: Date
@@ -47,7 +49,7 @@ public struct OutboxJob: Codable, Equatable, Identifiable, Sendable, FetchableRe
 
     public init(
         id: Int64? = nil, kind: OutboxJobKind, coalesceKey: String? = nil, payload: Data, state: OutboxJobState,
-        attempts: Int = 0, lastError: String? = nil, nextAttemptAt: Date, createdAt: Date, updatedAt: Date
+        attempts: Int = 0, lastError: String? = nil, waitingFor: String? = nil, nextAttemptAt: Date, createdAt: Date, updatedAt: Date
     ) {
         self.id = id
         self.kind = kind
@@ -56,6 +58,7 @@ public struct OutboxJob: Codable, Equatable, Identifiable, Sendable, FetchableRe
         self.state = state
         self.attempts = attempts
         self.lastError = lastError
+        self.waitingFor = waitingFor
         self.nextAttemptAt = nextAttemptAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt
@@ -183,6 +186,7 @@ public struct OutboxStore: Sendable {
             existing.payload = payload
             existing.attempts = 0
             existing.lastError = nil
+            existing.waitingFor = nil
             existing.nextAttemptAt = now
             existing.updatedAt = now
             try existing.update(db)
@@ -243,6 +247,7 @@ public struct OutboxStore: Sendable {
             guard var job = try OutboxJob.fetchOne(db, key: id) else { throw OutboxError.jobNotFound }
             job.state = .sent
             job.lastError = nil
+            job.waitingFor = nil
             job.updatedAt = now
             try job.update(db)
             let media = try OutboxMedia.filter(Column("jobId") == id).fetchAll(db)
@@ -258,8 +263,23 @@ public struct OutboxStore: Sendable {
             guard var job = try OutboxJob.fetchOne(db, key: id) else { throw OutboxError.jobNotFound }
             job.attempts += 1
             job.lastError = error
+            job.waitingFor = nil
             job.updatedAt = now
             job.nextAttemptAt = now.addingTimeInterval(Self.backoff(afterAttempts: job.attempts))
+            try returnToPending(&job, db)
+        }
+    }
+
+    /// The job waits for another one to go first (`OutboxWait`): looked at again after `delay`,
+    /// with no attempt counted, so a long wait never grows its back-off and never reads as a
+    /// failure.
+    public func markWaiting(_ id: Int64, for reason: String, after delay: TimeInterval) throws {
+        let now = now()
+        try database.writer.write { db in
+            guard var job = try OutboxJob.fetchOne(db, key: id) else { throw OutboxError.jobNotFound }
+            job.waitingFor = reason
+            job.updatedAt = now
+            job.nextAttemptAt = now.addingTimeInterval(delay)
             try returnToPending(&job, db)
         }
     }
@@ -271,6 +291,7 @@ public struct OutboxStore: Sendable {
             guard var job = try OutboxJob.fetchOne(db, key: id) else { throw OutboxError.jobNotFound }
             job.attempts += 1
             job.lastError = error
+            job.waitingFor = nil
             job.state = .failed
             job.updatedAt = now
             try job.update(db)

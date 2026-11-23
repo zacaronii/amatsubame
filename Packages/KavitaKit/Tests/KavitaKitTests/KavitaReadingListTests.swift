@@ -110,7 +110,7 @@ import Testing
         try setup.store.set(true, chapter: chapter(7), listId: id, outbox: setup.outbox)
         try setup.store.move(7, after: nil, listId: id, outbox: setup.outbox)
         let transport = StubTransport { _ in (200, Data()) }
-        await #expect(throws: ConnectionError.self) { try await send(ReadingListJob(account: account, listId: id, moveId: try moveId(setup)), setup, transport) }
+        await #expect(throws: OutboxWait.self) { try await send(ReadingListJob(account: account, listId: id, moveId: try moveId(setup)), setup, transport) }
         try setup.outbox.cancelAll(kind: .kavitaReadingList)
         try await send(ReadingListJob(account: account, listId: id, moveId: try moveId(setup)), setup, transport)
         #expect(transport.requests.isEmpty)
@@ -178,7 +178,7 @@ import Testing
         let gone = StubTransport { request in
             request.url!.path() == "/api/ReadingList/items" ? (404, Data()) : (400, Data("permission".utf8))
         }
-        await #expect(throws: ConnectionError.self) { try await send(ReadingListJob(account: account, listId: emptied, chapterId: 5), setup, gone) }
+        await #expect(throws: OutboxWait.self) { try await send(ReadingListJob(account: account, listId: emptied, chapterId: 5), setup, gone) }
         #expect(try setup.store.list(emptied)?.state == .pendingCreate, "made again, with its add")
         #expect(try setup.store.item(listId: emptied, chapterId: 5)?.state == .pendingAdd)
 
@@ -199,7 +199,7 @@ import Testing
         try setup.store.move(2, after: 1, listId: id, outbox: setup.outbox)   // C D A B
         let second = try moveId(setup)
         let transport = StubTransport { _ in (200, Data()) }
-        await #expect(throws: ConnectionError.self) { try await send(ReadingListJob(account: account, listId: id, moveId: second), setup, transport) }
+        await #expect(throws: OutboxWait.self) { try await send(ReadingListJob(account: account, listId: id, moveId: second), setup, transport) }
         #expect(transport.requests.isEmpty, "nothing sent while the first is still to go")
         let firstJob = ReadingListJob(account: account, listId: id, moveId: first)
         try await send(firstJob, setup, transport)
@@ -207,6 +207,78 @@ import Testing
         try await send(ReadingListJob(account: account, listId: id, moveId: second), setup, transport)
         #expect(try transport.requests.map { try $0.jsonBody()["toPosition"] as? Int } == [3, 3])
         #expect(try setup.store.kavitaItems(listId: id).map(\.chapterId) == [3, 4, 1, 2], "Kavita ends as the device shows")
+    }
+
+    /// Two moves, the first still to go: the second waits. Each way the first can leave the
+    /// queue lets the second go at its next look (at most 30 s later, as it waits without back-off).
+    func blockedMove() throws -> (Setup, Int64, ReadingListJob, ReadingListJob) {
+        let setup = try setup()
+        let id = try abcd(setup)
+        try setup.store.move(1, after: 4, listId: id, outbox: setup.outbox)
+        let first = ReadingListJob(account: account, listId: id, moveId: try moveId(setup))
+        try setup.store.move(2, after: 1, listId: id, outbox: setup.outbox)
+        let second = ReadingListJob(account: account, listId: id, moveId: try moveId(setup))
+        return (setup, id, first, second)
+    }
+
+    func jobId(_ job: ReadingListJob, _ setup: Setup) async throws -> Int64 {
+        try #require(try await setup.store.database.reader.read { try OutboxJob.filter(Column("coalesceKey") == job.coalesceKey).fetchOne($0)?.id })
+    }
+
+    @Test func aWaitingMoveGoesAfterItsBlockerIsSent() async throws {
+        let (setup, _, first, second) = try blockedMove()
+        let transport = StubTransport { _ in (200, Data()) }
+        await #expect(throws: OutboxWait.self) { try await send(second, setup, transport) }
+        try setup.outbox.markSent(try await jobId(first, setup))
+        try await send(second, setup, transport)
+    }
+
+    @Test func aWaitingMoveGoesAfterItsBlockerFailedForGood() async throws {
+        let (setup, _, first, second) = try blockedMove()
+        let transport = StubTransport { _ in (200, Data()) }
+        await #expect(throws: OutboxWait.self) { try await send(second, setup, transport) }
+        try setup.outbox.markFailed(try await jobId(first, setup), error: "refused")
+        try await send(second, setup, transport)
+    }
+
+    @Test func aWaitingMoveGoesAfterItsBlockingAddIsTakenBack() async throws {
+        let setup = try setup()
+        let id = try abcd(setup)
+        try setup.store.set(true, chapter: chapter(7), listId: id, outbox: setup.outbox)
+        try setup.store.move(1, after: 4, listId: id, outbox: setup.outbox)
+        let move = ReadingListJob(account: account, listId: id, moveId: try moveId(setup))
+        let transport = StubTransport { _ in (200, Data()) }
+        await #expect(throws: OutboxWait.self) { try await send(move, setup, transport) }
+        try setup.store.set(false, chapter: chapter(7), listId: id, outbox: setup.outbox)   // cancels the add's job
+        try await send(move, setup, transport)
+    }
+
+    @Test func clearingWaitingToSyncLeavesNoMoveAsleep() async throws {
+        let (setup, _, _, _) = try blockedMove()
+        try setup.outbox.cancelAll(kind: .kavitaReadingList)
+        #expect(try setup.outbox.jobs(states: [.pending, .failed]).isEmpty, "the waiting move is cleared with its blocker")
+    }
+
+    @Test func deletingTheListEndsTheWaitingMove() async throws {
+        let (setup, id, first, second) = try blockedMove()
+        try setup.store.delete(id, outbox: setup.outbox)
+        let keys = try setup.outbox.jobs(states: [.pending, .failed]).compactMap(\.coalesceKey)
+        #expect(!keys.contains(first.coalesceKey) && !keys.contains(second.coalesceKey))
+        #expect(keys == [ReadingListJob(account: account, listId: id).coalesceKey], "only the delete")
+    }
+
+    /// The wait is decided before the client is made (no Keychain read, no request).
+    @Test func aWaitMakesNoClient() async throws {
+        let (setup, _, _, second) = try blockedMove()
+        let made = Mutex(0)
+        let outboxJob = OutboxJob(id: try await jobId(second, setup), kind: .kavitaReadingList, payload: try JSONEncoder().encode(second),
+                                  state: .inFlight, nextAttemptAt: .now, createdAt: .now, updatedAt: .now)
+        let handler = KavitaReadingListHandler(store: setup.store, features: setup.features, outbox: setup.outbox) {
+            made.withLock { $0 += 1 }
+            return nil
+        }
+        await #expect(throws: OutboxWait.self) { try await handler.send(outboxJob, media: []) }
+        #expect(made.withLock { $0 } == 0)
     }
 
     /// An add sent while a read was on its way: the read doesn't count as fresh, so a remove of it
@@ -241,7 +313,7 @@ import Testing
         let gone = StubTransport { request in
             request.url!.path() == "/api/ReadingList/items" ? (404, Data()) : (400, Data("permission".utf8))
         }
-        await #expect(throws: ConnectionError.self) { try await send(ReadingListJob(account: account, listId: emptied, chapterId: 5), setup, gone) }
+        await #expect(throws: OutboxWait.self) { try await send(ReadingListJob(account: account, listId: emptied, chapterId: 5), setup, gone) }
         #expect(try setup.store.list(emptied)?.state == .pendingCreate, "made again")
         #expect(try setup.store.item(listId: emptied, chapterId: 5)?.state == .pendingAdd)
         // Without an add waiting, a list Kavita no longer lists goes.
