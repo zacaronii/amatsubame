@@ -86,7 +86,7 @@ public final class MPVController {
             // The app draws Japanese subtitles itself (tappable); mpv only draws a chosen secondary track.
             ("sid", "no"),
             // …at the top, clear of the app's Japanese line at the bottom.
-            ("sub-align-y", "top"), ("sub-margin-y", "60"),
+            ("sub-align-y", "top"), ("sub-margin-y", String(Self.subtitleMargin)),
         ] + MPVOptions.noScripts + MPVOptions.audioSession {
             mpv_set_option_string(mpv, name, value)
         }
@@ -134,6 +134,20 @@ public final class MPVController {
         command(["loadfile", location, "replace"])
         isLoaded = true
     }
+
+    /// mpv's secondary subtitles sit this far below the top (scaled pixels: 720 to the height).
+    static let subtitleMargin = 60
+
+    /// The share of the picture's height cut off at the top when the view fills the screen:
+    /// mpv's subtitles move down by as much, so they stay on screen.
+    public func setTopCrop(_ fraction: Double) {
+        let margin = Self.subtitleMargin + Int((max(fraction, 0) * 720).rounded())
+        guard margin != subtitleMarginApplied else { return }
+        subtitleMarginApplied = margin
+        setString("sub-margin-y", String(margin))
+    }
+
+    @ObservationIgnored private var subtitleMarginApplied = MPVController.subtitleMargin
 
     public func setPaused(_ paused: Bool) {
         setFlag("pause", paused)

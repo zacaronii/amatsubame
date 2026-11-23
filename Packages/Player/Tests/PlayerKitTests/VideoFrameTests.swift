@@ -18,4 +18,18 @@ import Testing
         #expect(abs(landscape.width - 699) <= 1)
         #expect(abs(landscape.width / landscape.height - portrait.width / portrait.height) < 0.001)
     }
+
+    @Test func fillingCoversTheViewWithTheVideosShape() {
+        // A 16:9 picture on a phone held sideways (wider than 16:9): as wide as the screen,
+        // taller than it, centred, cropped top and bottom.
+        let bounds = CGRect(x: 0, y: 0, width: 874, height: 402)
+        let filled = videoFrame(in: bounds, aspect: 16.0 / 9, fills: true)
+        #expect(abs(filled.width - 874) < 0.5)
+        #expect(abs(filled.width / filled.height - 16.0 / 9) < 0.001, "never squashed")
+        #expect(filled.minY < 0 && abs(filled.midY - bounds.midY) < 0.5)
+        #expect(filled.contains(bounds.insetBy(dx: 0.5, dy: 0.5)))
+        // A 4:3 picture: cropped the same way. Unknown shape: the whole view, as when fitting.
+        #expect(abs(videoFrame(in: bounds, aspect: 4.0 / 3, fills: true).width - 874) < 0.5)
+        #expect(videoFrame(in: bounds, aspect: nil, fills: true) == bounds)
+    }
 }

@@ -346,6 +346,13 @@ final class PlaybackModel {
             NowPlaying.prepareAudioSession()
             mpv.load(session.itemId, start: firstOpen ? ProcessInfo.processInfo.environment["UITEST_PLAYER_START"].flatMap(Double.init) ?? 0 : 0)
             mpv.setPaused(false)
+            // UITEST_PLAYER_ENGLISH=<path>: an English subtitle file mpv draws (once the video is loaded).
+            if let english = ProcessInfo.processInfo.environment["UITEST_PLAYER_ENGLISH"] {
+                Task {
+                    for _ in 0..<50 where mpv.duration <= 0 { try? await Task.sleep(for: .milliseconds(100)) }
+                    mpv.showSubtitles(from: URL(filePath: english))
+                }
+            }
             startNowPlaying()
             return
         }
@@ -1439,6 +1446,15 @@ final class PlaybackModel {
         let name = language.flatMap { Locale.current.localizedString(forLanguageCode: $0) }
         let text = [name, title].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
         return text.isEmpty ? "Untitled" : text
+    }
+
+    /// Pinched out to fill the screen (cropped), for this video; only where the layout allows it.
+    private(set) var fillsScreen = false
+
+    func setFillsScreen(_ fills: Bool) {
+        guard fills != fillsScreen else { return }
+        fillsScreen = fills
+        showOSD(fills ? "Zoomed to Fill" : "Fit to Screen")
     }
 
     func showOSD(_ text: String) {

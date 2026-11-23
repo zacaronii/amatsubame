@@ -43,6 +43,16 @@ public enum PlayerGestureMath {
     }
 }
 
+extension PlayerGestureMath {
+    /// After a pinch: spread out past 10 % fills the screen (the picture cropped to it), pinched
+    /// in past 10 % fits it again; anything smaller leaves it as it was.
+    public static func fills(afterPinch magnification: Double, filling: Bool) -> Bool {
+        if magnification > 1.1 { return true }
+        if magnification < 0.9 { return false }
+        return filling
+    }
+}
+
 /// Double-taps on the same side within `window` seconds add up: −10, −20, −30 s…
 public struct SkipAccumulator: Equatable, Sendable {
     public static let step: Double = 10

@@ -13,9 +13,10 @@ extension View {
     /// A sideways drag sets `scrub` (the view shows the preview) and seeks on release.
     /// The two-finger tap calls `onTwoFingerTap` (the view toggles pause without showing the
     /// controls), and the one-finger tap it also sets off is ignored.
-    func playerGestures(model: PlaybackModel, size: CGSize, enabled: Bool, scrub: Binding<ScrubState?>,
+    /// A pinch out fills the screen (where `canFill`), a pinch in fits the picture again.
+    func playerGestures(model: PlaybackModel, size: CGSize, enabled: Bool, canFill: Bool = false, scrub: Binding<ScrubState?>,
                         onTwoFingerTap: @escaping () -> Void, onTap: @escaping () -> Void) -> some View {
-        modifier(PlayerGestures(model: model, size: size, enabled: enabled, scrub: scrub,
+        modifier(PlayerGestures(model: model, size: size, enabled: enabled, canFill: canFill, scrub: scrub,
                                 onTwoFingerTap: onTwoFingerTap, onTap: onTap))
     }
 }
@@ -24,6 +25,7 @@ private struct PlayerGestures: ViewModifier {
     let model: PlaybackModel
     let size: CGSize
     let enabled: Bool
+    let canFill: Bool
     @Binding var scrub: ScrubState?
     let onTwoFingerTap: () -> Void
     let onTap: () -> Void
@@ -43,6 +45,8 @@ private struct PlayerGestures: ViewModifier {
     @State private var originalBrightness: CGFloat?
     /// A finger is resting on the picture (a cancelled touch lets go by itself).
     @GestureState private var holding = false
+    /// Two fingers pinching: no scrub, brightness or volume from the finger the drag follows.
+    @GestureState private var pinching = false
 
     func body(content: Content) -> some View {
         content
@@ -70,6 +74,21 @@ private struct PlayerGestures: ViewModifier {
                 including: enabled ? .all : .subviews
             )
             .onChange(of: holding) { _, held in model.setHoldsFast(held) }
+            .simultaneousGesture(
+                MagnifyGesture(minimumScaleDelta: 0.04)
+                    .updating($pinching) { _, pinching, _ in pinching = true }
+                    .onEnded { value in
+                        model.setFillsScreen(PlayerGestureMath.fills(afterPinch: value.magnification, filling: model.fillsScreen))
+                    },
+                including: enabled && canFill ? .all : .subviews
+            )
+            .onChange(of: pinching) { _, pinching in
+                // A drag that began with the first finger is dropped, not seeked.
+                guard pinching else { return }
+                scrub = nil
+                dragMode = .ignored
+                level = nil
+            }
             .gesture(TwoFingerTap {
                 guard enabled else { return }
                 twoFingerTapAt = Date()
@@ -87,7 +106,7 @@ private struct PlayerGestures: ViewModifier {
         DragGesture(minimumDistance: 15)
             .onChanged { value in
                 // Not while the picture is held for 2×: a finger never rests quite still.
-                guard enabled, !holding else { return }
+                guard enabled, !holding, !pinching else { return }
                 let dx = value.translation.width, dy = value.translation.height
                 if dragMode == nil {
                     if abs(dx) > abs(dy) {
