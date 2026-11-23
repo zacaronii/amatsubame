@@ -30,7 +30,7 @@
     const s = state.settings;
     root.dataset.kbLayout = s.layout;
     root.dataset.kbTheme = s.theme;
-    root.dataset.kbFont = s.font;
+    root.dataset.kbFont = applyCustomFont(s) ? 'custom' : (s.font === 'custom' ? 'book' : s.font);
     root.dataset.kbWriting = s.writingMode;
     root.dataset.kbFurigana = s.furigana || 'book';
     root.style.setProperty('--kb-font-size', `${s.fontSize}px`);
@@ -45,6 +45,26 @@
     }
     state.vertical = getComputedStyle(document.body).writingMode.startsWith('vertical');
     root.dataset.kbAxis = state.vertical ? 'vertical' : 'horizontal';
+  }
+
+  /// A font the reader added: loaded from `customFontURL` (kavitabook://fonts/<id>) as
+  /// "km-custom". Paged layouts lay out again once it arrives (it changes the line breaks).
+  /// Without the URL (the font was removed), the book's own font.
+  let customFontURL = null;
+  function applyCustomFont(s) {
+    const url = s.font === 'custom' ? s.customFontURL : null;
+    if (url === customFontURL) return !!url;
+    customFontURL = url;
+    document.getElementById('km-custom-font')?.remove();
+    if (!url) return false;
+    const style = document.createElement('style');
+    style.id = 'km-custom-font';
+    style.textContent = `@font-face { font-family: "km-custom"; src: url("${url}"); font-display: block; }`;
+    (document.head || document.documentElement).appendChild(style);
+    document.fonts.load('1em "km-custom"').then(() => {
+      if (customFontURL === url && state.pages.length) relayout(state.place ?? {xpath: currentXPath(), fraction: null});
+    });
+    return true;
   }
 
   /// Space between the screen edge and the text: the margin setting on the left and right,

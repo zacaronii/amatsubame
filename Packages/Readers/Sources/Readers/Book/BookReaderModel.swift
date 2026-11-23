@@ -189,7 +189,7 @@ public final class BookReaderModel {
             try? lengths?.save(BookLength(chapterId: chapter.chapterId, seriesId: chapter.seriesId, sections: textIndex.sections,
                                           kavitaWordCount: nil, kavitaPages: chapter.pages, countedAt: .now))
             updateReadingSpeed()
-            let controller = BookWebController(folder: book.folder)
+            let controller = BookWebController(folder: book.folder, fonts: fonts)
             controller.onEvent = { [weak self] event in self?.handle(event) }
             controller.hoverLookup = { [weak self] in self?.lookup?.popupSettings.hoverLookup.rawValue ?? "off" }
             controller.setScrollEnabled(settings.layout == .scroll)
@@ -279,6 +279,8 @@ public final class BookReaderModel {
             "fontSize": settings.fontSize, "lineHeight": settings.lineHeight, "margin": settings.margin,
             "theme": theme, "font": settings.font.rawValue, "rtl": package?.pageProgressionRTL ?? false,
             "furigana": settings.furigana.rawValue,
+            // An added font, if it's still there (removed: the book's own).
+            "customFontURL": customFontURL ?? NSNull(),
         ]
     }
 
@@ -316,7 +318,7 @@ public final class BookReaderModel {
         didSet {
             guard spread != oldValue else { return }
             if spread, companion == nil, let folder {
-                let controller = BookWebController(folder: folder)
+                let controller = BookWebController(folder: folder, fonts: fonts)
                 controller.onEvent = { [weak self] event in self?.handleCompanion(event) }
                 controller.hoverLookup = { [weak self] in self?.lookup?.popupSettings.hoverLookup.rawValue ?? "off" }
                 controller.setScrollEnabled(false)
@@ -344,6 +346,17 @@ public final class BookReaderModel {
     private func updatePageSettings() {
         web?.update(settings: jsSettings)
         companion?.update(settings: companionSettings)
+        if auditsPages { auditFont() }
+    }
+
+    /// UI tests: the font the page's text is drawn in, and whether an added font has loaded.
+    private func auditFont() {
+        guard let web else { return }
+        Task {
+            try? await Task.sleep(for: .seconds(1))
+            let font = await web.evaluate("getComputedStyle(document.body).fontFamily + ' loaded=' + document.fonts.check('16px \"km-custom\"')") as? String
+            auditResults.append("font \(font ?? "?")")
+        }
     }
 
     /// Shows the page after this one on the facing page (loading the section there first).
@@ -481,6 +494,7 @@ public final class BookReaderModel {
             } else if let cue = readAlongCue, cue.section == spineIndex {
                 showReadAlong(cue, follow: false)
             }
+            if auditsPages { auditFont() }
             if auditsPages, let web {
                 let section = spineIndex
                 Task {
@@ -655,6 +669,16 @@ public final class BookReaderModel {
     private var readAlongSplit: (cue: ReadAlongCue, fraction: Double)?
 
     /// Highlights the spoken sentence; with `follow`, turns (or opens its section) to keep it in view.
+    // MARK: Added fonts
+
+    /// The reader's added fonts (Yomu sets it before the book opens).
+    @ObservationIgnored public var fonts: BookFontLibrary?
+
+    private var customFontURL: String? {
+        guard settings.font == .custom, let id = settings.customFont, fonts?.file(id: id) != nil else { return nil }
+        return BookSchemeHandler.fontURL(id: id)?.absoluteString
+    }
+
     // MARK: Search in the book
 
     public enum SearchState: Equatable, Sendable {

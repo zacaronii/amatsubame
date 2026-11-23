@@ -1042,6 +1042,16 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v63_book_fonts") { db in
+            // Yomu: fonts the reader added for books (the files are in this device's container).
+            try db.create(table: "bookFont") { t in
+                t.primaryKey("id", .text)
+                t.column("name", .text).notNull()
+                t.column("fileName", .text).notNull()
+                t.column("addedAt", .datetime).notNull()
+            }
+        }
+
         return migrator
     }
 }

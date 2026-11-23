@@ -32,6 +32,8 @@ final class AppEnvironment {
     let ocrModels: OCRModelStore
     let ocr: OCRService
     let books: BookRepository
+    /// Fonts the reader added for books (this device only).
+    let bookFonts: BookFontLibrary
     let bookSettings: BookReaderSettingsStore
     let libraryVisibility: LibraryVisibilityStore
     let downloader: VolumeDownloader
@@ -196,6 +198,7 @@ final class AppEnvironment {
             return try await client.downloadChapter(chapterId: chapterId)
         }
         bookSettings = BookReaderSettingsStore(database: database)
+        bookFonts = BookFontLibrary(folder: cacheDirectory.appending(path: "Fonts"), store: BookFontStore(database: database))
         libraryVisibility = LibraryVisibilityStore(database: database)
         downloader = VolumeDownloader(store: common.downloads, database: database, pages: pages, pageCache: pageCache,
                                       books: books, ocr: ocr, reachability: common.reachability)
@@ -296,6 +299,9 @@ final class AppEnvironment {
             settings.doubleTapZooms = taps == "doubletap"
             try? environment.readerSettings.saveAsDefault(settings)
         }
+        // UITEST_IMPORT_FONT=<path>: a font added as if from Files (the file importer can't be
+        // driven in UI tests).
+        if let font = env["UITEST_IMPORT_FONT"] { _ = try? environment.bookFonts.add(URL(filePath: font)) }
         // Read-along tests: Audiobookshelf (an API key) and Kaku. Only read from: progress isn't sent.
         if let url = env["UITEST_ABS_URL"].flatMap({ try? ServerURL.parse($0) }), let key = env["UITEST_ABS_KEY"] {
             try? environment.secrets.setSecret(key, for: .audiobookshelfToken)
@@ -597,6 +603,7 @@ final class AppEnvironment {
         model.activity = common.activity
         model.lengths = bookLengths
         model.opensAt = start
+        model.fonts = bookFonts
         if let account = readerMarkAccount() {
             model.marks = BookMarks(chapter: chapter, account: account, store: readerMarks, outbox: outbox,
                                     syncNow: { [weak self] in self?.syncNow() },
