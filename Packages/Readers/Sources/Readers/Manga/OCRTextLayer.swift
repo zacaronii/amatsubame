@@ -1,4 +1,5 @@
 import CoreGraphics
+import Lookup
 import OCR
 import SwiftUI
 
@@ -43,6 +44,18 @@ struct OCRTextLayer: View {
                                 let index = TextLayout.characterIndex(of: location, in: rect, cells: block.characterRects(boxSize: rect.size))
                                 model.lookUp(block, page: page, characterIndex: index, anchor: rect.offsetBy(dx: frame.minX, dy: frame.minY))
                             }
+                            #if os(macOS)
+                            // Look Up on Hover: the character under the pointer, as a click would take it.
+                            .onContinuousHover(coordinateSpace: .named(Self.space)) { phase in
+                                switch phase {
+                                case .active(let location):
+                                    let index = TextLayout.characterIndex(of: location, in: rect, cells: block.characterRects(boxSize: rect.size))
+                                    model.hovered(block, page: page, characterIndex: index, anchor: rect.offsetBy(dx: frame.minX, dy: frame.minY))
+                                case .ended:
+                                    model.hoverEnded(block, page: page)
+                                }
+                            }
+                            #endif
                             .accessibilityElement()
                             .accessibilityLabel(block.text)
                             .accessibilityAddTraits(.isButton)
@@ -66,6 +79,11 @@ struct OCRTextLayer: View {
                             .accessibilityIdentifier("ocr.highlight")
                     }
                 }
+                #if os(macOS)
+                // A key pressed while the pointer already rests on a word counts too.
+                Color.clear.allowsHitTesting(false)
+                    .onChange(of: HoverModifiers.shared.flags.rawValue) { model.lookUpHovered() }
+                #endif
                 if model.isSelecting {
                     Color.clear
                         .contentShape(.rect)

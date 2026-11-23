@@ -1,4 +1,5 @@
 import Core
+import Lookup
 import SwiftUI
 
 /// A subtitle line where every character can be tapped. Taps report the character's

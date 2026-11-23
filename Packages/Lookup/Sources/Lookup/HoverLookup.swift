@@ -5,12 +5,13 @@ import Observation
 
 /// The modifier keys held right now, for looking words up by pointing at them (Settings ▸
 /// Popup ▸ Look Up on Hover). Followed with a local event monitor, so a key pressed while
-/// the pointer already rests on a word counts too.
+/// the pointer already rests on a word counts too. Shared by the subtitles (`TappableLine`)
+/// and the manga reader's text.
 @MainActor @Observable
-final class HoverModifiers {
-    static let shared = HoverModifiers()
+public final class HoverModifiers {
+    public static let shared = HoverModifiers()
 
-    private(set) var flags: NSEvent.ModifierFlags
+    public private(set) var flags: NSEvent.ModifierFlags
 
     private init() {
         flags = NSEvent.modifierFlags.intersection(.deviceIndependentFlagsMask)
@@ -22,11 +23,11 @@ final class HoverModifiers {
     }
 
     /// Whether pointing at a word looks it up now.
-    func allows(_ setting: PopupSettings.HoverLookup) -> Bool {
+    public func allows(_ setting: PopupSettings.HoverLookup) -> Bool {
         Self.allows(setting, held: flags)
     }
 
-    static func allows(_ setting: PopupSettings.HoverLookup, held: NSEvent.ModifierFlags) -> Bool {
+    public static func allows(_ setting: PopupSettings.HoverLookup, held: NSEvent.ModifierFlags) -> Bool {
         switch setting {
         case .off: false
         case .always: true

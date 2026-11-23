@@ -33,7 +33,11 @@ public final class MangaReaderModel {
     /// Lowest page index on screen.
     public private(set) var currentPage = 0
     public private(set) var startPage = 0
-    public var showsChrome = false
+    public var showsChrome = false {
+        // The controls came up: a word the pointer rests on isn't looked up (a click would only
+        // hide them).
+        didSet { if showsChrome { dropHover() } }
+    }
     /// Set by the view from the available space when spreads are on `auto`.
     public var spreadsFitScreen = false
     /// Set by the view: the reader is taller than wide, so a wide page is split (when on).
@@ -203,6 +207,7 @@ public final class MangaReaderModel {
     public func halfChanged() {
         popup = nil
         popupPage = nil
+        dropHover()
     }
 
     /// Called as pages scroll into view. `lastVisible` is what counts as read.
@@ -217,6 +222,8 @@ public final class MangaReaderModel {
         lastShown = lastVisible
         currentPage = min(max(first, 0), pageCount - 1)
         if let popupPage, !(first...max(first, lastVisible)).contains(popupPage) { self.popupPage = nil }
+        // A turn by key or swipe leaves the pointer where it was, over a page no longer shown.
+        if let hovered, !Self.hoverStays(onPage: hovered.page, first: first, lastVisible: lastVisible) { dropHover() }
         recorder.record(page: min(max(lastVisible, 0), pageCount - 1))
         prefetch(around: lastVisible)
         requestText(around: currentPage, through: lastVisible)
@@ -305,6 +312,63 @@ public final class MangaReaderModel {
             lookupBlock = (page, block)
             popup = LookupPopupModel(page: result, context: miningContext(page: page))
         }
+    }
+
+    // MARK: Look Up on Hover (Mac)
+
+    /// The character the pointer rests on (Settings ▸ Popup ▸ Look Up on Hover).
+    @ObservationIgnored private var hovered: (page: Int, block: OCRBlock, index: Int, anchor: CGRect)?
+    @ObservationIgnored private var hoverTask: Task<Void, Never>?
+
+    /// The pointer moved onto a character of a block's lettering.
+    public func hovered(_ block: OCRBlock, page: Int, characterIndex: Int, anchor: CGRect) {
+        if let hovered, hovered.page == page, hovered.block == block, hovered.index == characterIndex { return }
+        hovered = (page, block, characterIndex, anchor)
+        lookUpHovered()
+    }
+
+    /// The pointer left a block's lettering.
+    public func hoverEnded(_ block: OCRBlock, page: Int) {
+        guard let hovered, hovered.page == page, hovered.block == block else { return }
+        self.hovered = nil
+        hoverTask?.cancel()
+    }
+
+    /// Looks up the word under the pointer when Look Up on Hover allows it (its key is held, or
+    /// no key is needed), as a click there would. A short rest first, so the pointer crossing a
+    /// bubble on its way elsewhere looks nothing up. Also called when a key is pressed.
+    public func lookUpHovered() {
+        hoverTask?.cancel()
+        #if os(macOS)
+        guard let hovered, let setting = lookup?.popupSettings.hoverLookup, HoverModifiers.shared.allows(setting) else { return }
+        let marked = textOverlay(page: hovered.page).flatMap { $0.block == hovered.block ? $0.highlight : nil }
+        guard Self.hoverLooksUp(hovered.block.text, at: hovered.index, marked: marked, controlsShowing: showsChrome) else { return }
+        hoverTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(setting == .always ? 180 : 60))
+            guard !Task.isCancelled, let self, let now = self.hovered,
+                  now.page == hovered.page, now.block == hovered.block, now.index == hovered.index else { return }
+            self.lookUp(hovered.block, page: hovered.page, characterIndex: hovered.index, anchor: hovered.anchor)
+        }
+        #endif
+    }
+
+    /// Forgets the character the pointer rested on (its block is no longer where it was).
+    private func dropHover() {
+        hovered = nil
+        hoverTask?.cancel()
+    }
+
+    /// Whether a rested-on character's page is still among those shown.
+    nonisolated static func hoverStays(onPage page: Int, first: Int, lastVisible: Int) -> Bool {
+        (first...max(first, lastVisible)).contains(page)
+    }
+
+    /// Whether resting on character `index` of a block's text looks it up: a character of a word
+    /// (not punctuation or a space), not one of the word already marked, and not while the
+    /// controls show (a click then only hides them).
+    nonisolated static func hoverLooksUp(_ text: String, at index: Int, marked: Range<Int>?, controlsShowing: Bool) -> Bool {
+        guard !controlsShowing, marked?.contains(index) != true, let character = text.dropFirst(index).first else { return false }
+        return !character.isWhitespace && !character.isPunctuation && !character.isSymbol
     }
 
     /// The block whose word is being looked up (the word is marked on its lettering).
