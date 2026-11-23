@@ -515,6 +515,15 @@ struct BookSettingsSheet: View {
                         Text("ゴシック").tag(BookReaderSettings.Font.gothic)
                     }
                     .pickerStyle(.segmented)
+                    if let library = model.fonts {
+                        NavigationLink {
+                            BookFontsView(model: model, library: library)
+                        } label: {
+                            LabeledContent("Added Fonts", value: model.settings.font == .custom
+                                           ? ((model.settings.customFont.flatMap { try? library.store.font(id: $0) })?.name ?? "") : "")
+                        }
+                        .accessibilityIdentifier("settings.addedFonts")
+                    }
                     RoundStepperRow("Size", value: $model.settings.fontSize, in: 12...40, step: 1) { "\(Int($0)) pt" }
                     RoundStepperRow("Line spacing", value: $model.settings.lineHeight, in: 1.2...2.6, step: 0.1) {
                         $0.formatted(.number.precision(.fractionLength(1)))

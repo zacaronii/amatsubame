@@ -8,7 +8,8 @@ public struct BookReaderSettings: Codable, Equatable, Sendable {
         case auto, vertical, horizontal
     }
     public enum Theme: String, Codable, CaseIterable, Sendable { case system, light, sepia, dark }
-    public enum Font: String, Codable, CaseIterable, Sendable { case book, mincho, gothic }
+    /// `custom`: one the reader added (`customFont` names it).
+    public enum Font: String, Codable, CaseIterable, Sendable { case book, mincho, gothic, custom }
     /// When the percentage and characters read are shown.
     public enum ProgressText: String, Codable, CaseIterable, Sendable { case always, withControls, hidden }
     /// The book's furigana (ruby), or none.
@@ -30,12 +31,14 @@ public struct BookReaderSettings: Codable, Equatable, Sendable {
     public var tapZones: ReaderTapZones = .standard
     /// Auto-scroll's reading speed in the Scroll layout, in characters a minute.
     public var autoScrollCharactersPerMinute: Int = 300
+    /// With `font == .custom`: the added font's id (`BookFont.id`).
+    public var customFont: String?
 
     public init() {}
 
     enum CodingKeys: String, CodingKey {
         case layout, writingMode, fontSize, lineHeight, margin, theme, font, progressText, showsProgressBar, furigana, tapZones
-        case autoScrollCharactersPerMinute
+        case autoScrollCharactersPerMinute, customFont
         /// Replaced by `progressText` (true meant always).
         case showsProgress
     }
@@ -54,6 +57,7 @@ public struct BookReaderSettings: Codable, Equatable, Sendable {
         try container.encode(furigana, forKey: .furigana)
         try container.encode(tapZones, forKey: .tapZones)
         try container.encode(autoScrollCharactersPerMinute, forKey: .autoScrollCharactersPerMinute)
+        try container.encodeIfPresent(customFont, forKey: .customFont)
     }
 
     /// Missing keys (settings saved by an older version) keep their defaults.
@@ -75,6 +79,7 @@ public struct BookReaderSettings: Codable, Equatable, Sendable {
         showsProgressBar = try container.decodeIfPresent(Bool.self, forKey: .showsProgressBar) ?? showsProgressBar
         furigana = try container.decodeIfPresent(Furigana.self, forKey: .furigana) ?? furigana
         autoScrollCharactersPerMinute = try container.decodeIfPresent(Int.self, forKey: .autoScrollCharactersPerMinute) ?? autoScrollCharactersPerMinute
+        customFont = try container.decodeIfPresent(String.self, forKey: .customFont)
     }
 
     public static let `default` = BookReaderSettings()

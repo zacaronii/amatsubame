@@ -18,7 +18,7 @@ import Testing
             "ocrPage",
             "ankiSettings",
             "minedWord",
-            "bookReaderSettings",
+            "bookReaderSettings", "bookFont",
             "hiddenLibrary",
             "watchProgress", "hiddenJellyfinLibrary",
             "transcript", "transcriptLine",

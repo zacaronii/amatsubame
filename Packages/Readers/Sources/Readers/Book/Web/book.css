@@ -37,6 +37,7 @@ a { color: var(--kb-link) !important; }
 
 :root[data-kb-font="mincho"] body { font-family: "Hiragino Mincho ProN", "YuMincho", serif !important; }
 :root[data-kb-font="gothic"] body { font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", sans-serif !important; }
+:root[data-kb-font="custom"] body, :root[data-kb-font="custom"] body * { font-family: "km-custom", "Hiragino Mincho ProN", serif !important; }
 
 /* Paged: exactly one screen along the line direction; the reading axis overflows and is scrolled in whole pages by script. */
 :root[data-kb-layout="paged"] { overflow: hidden !important; }

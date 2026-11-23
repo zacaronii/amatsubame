@@ -1,16 +1,26 @@
+import Core
 import Lookup
 import SwiftUI
 import UniformTypeIdentifiers
 import WebKit
 
 /// Serves `kavitabook://<chapterId>/<path>` from the unpacked book, so the book's
-/// relative links, pictures and stylesheets load as they would from a file.
+/// relative links, pictures and stylesheets load as they would from a file; and
+/// `kavitabook://fonts/<id>` from the reader's added fonts (an id the library knows, nothing else).
 final class BookSchemeHandler: NSObject, WKURLSchemeHandler {
     static let scheme = "kavitabook"
+    static let fontsHost = "fonts"
     let folder: URL
+    let fonts: BookFontLibrary?
 
-    init(folder: URL) {
+    init(folder: URL, fonts: BookFontLibrary? = nil) {
         self.folder = folder.standardizedFileURL
+        self.fonts = fonts
+    }
+
+    static func fontURL(id: String) -> URL? {
+        guard BookFont.isValidID(id) else { return nil }
+        return URL(string: "\(scheme)://\(fontsHost)/\(id)")
     }
 
     static func url(chapterId: Int, path: String) -> URL? {
@@ -21,8 +31,15 @@ final class BookSchemeHandler: NSObject, WKURLSchemeHandler {
         return components.url
     }
 
-    /// The file for a request, refusing anything outside the book's folder.
+    /// The file for a request, refusing anything outside the book's folder (and, for a font,
+    /// anything but an id the library knows).
     func file(for url: URL) -> URL? {
+        if url.host() == Self.fontsHost {
+            let components = (URLComponents(url: url, resolvingAgainstBaseURL: false)?.path ?? "").split(separator: "/", omittingEmptySubsequences: false)
+            // Exactly "/<id>": no other parts, nothing percent-encoded into a path.
+            guard components.count == 2, components[0].isEmpty, let fonts else { return nil }
+            return fonts.file(id: String(components[1]))
+        }
         let path = (URLComponents(url: url, resolvingAgainstBaseURL: false)?.path ?? "").removingPercentEncoding ?? ""
         let file = folder.appending(path: String(path.drop(while: { $0 == "/" }))).standardizedFileURL
         guard file.path(percentEncoded: false).hasPrefix(folder.path(percentEncoded: false)) else { return nil }
@@ -93,9 +110,9 @@ final class BookWebController: NSObject, WKScriptMessageHandler, WKNavigationDel
     /// A load awaited without the reader's layout (read-along reads the text this way).
     private var loading: CheckedContinuation<Bool, Never>?
 
-    init(folder: URL) {
+    init(folder: URL, fonts: BookFontLibrary? = nil) {
         let configuration = WKWebViewConfiguration()
-        configuration.setURLSchemeHandler(BookSchemeHandler(folder: folder), forURLScheme: BookSchemeHandler.scheme)
+        configuration.setURLSchemeHandler(BookSchemeHandler(folder: folder, fonts: fonts), forURLScheme: BookSchemeHandler.scheme)
         let content = configuration.userContentController
         let style = Self.resource("book", "css")
         // Books rarely set a viewport, and WebKit would then lay them out 980 px wide.

@@ -161,3 +161,38 @@ import Testing
         #expect(cache.data(for: PageCacheKey(chapterId: 1, page: 0)) == nil)
     }
 }
+
+@Suite struct BookFontStoreTests {
+    @Test func fontsAreKeptRenamedAndRemoved() throws {
+        let store = BookFontStore(database: try AppDatabase.inMemory())
+        let id = UUID().uuidString
+        try store.add(BookFont(id: id, name: "My Mincho", fileName: "\(id).otf", addedAt: Date(timeIntervalSince1970: 1_800_000_000)))
+        #expect(try store.fonts().map(\.name) == ["My Mincho"])
+        try store.rename(id, to: "  Reading Font ")
+        #expect(try store.font(id: id)?.name == "Reading Font")
+        try store.rename(id, to: "   ")
+        #expect(try store.font(id: id)?.name == "Reading Font", "a blank name is ignored")
+        try store.remove(id)
+        #expect(try store.fonts().isEmpty)
+    }
+
+    /// Only an id's own characters: nothing that could be a path.
+    @Test func idsAreOnlyLettersDigitsAndDashes() throws {
+        #expect(BookFont.isValidID(UUID().uuidString))
+        #expect(!BookFont.isValidID("../secret"))
+        #expect(!BookFont.isValidID("a/b"))
+        #expect(!BookFont.isValidID(""))
+        #expect(!BookFont.isValidID("%2e%2e"))
+        #expect(try BookFontStore(database: try AppDatabase.inMemory()).font(id: "..") == nil)
+    }
+
+    @Test func aCustomFontInSettingsAndOlderSettings() throws {
+        var settings = BookReaderSettings()
+        settings.font = .custom
+        settings.customFont = "ABC-123"
+        let decoded = try JSONDecoder().decode(BookReaderSettings.self, from: JSONEncoder().encode(settings))
+        #expect(decoded.font == .custom && decoded.customFont == "ABC-123")
+        let old = try JSONDecoder().decode(BookReaderSettings.self, from: Data(#"{"font":"mincho"}"#.utf8))
+        #expect(old.font == .mincho && old.customFont == nil)
+    }
+}

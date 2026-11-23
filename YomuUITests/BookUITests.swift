@@ -286,6 +286,48 @@ final class BookUITests: XCTestCase {
         XCTAssertTrue(page.waitForExistence(timeout: 5), "still in the book")
     }
 
+    /// An added font (a system font copied in at test time: `TEST_RUNNER_UITEST_FONT`; no font is
+    /// in the repository): chosen in Added Fonts, the page is drawn in it; removed, the page goes
+    /// back to the book's own.
+    func testAnAddedFontIsUsedAndRemoved() throws {
+        guard let font = ProcessInfo.processInfo.environment["UITEST_FONT"] else { throw XCTSkip("Set TEST_RUNNER_UITEST_FONT to a font file.") }
+        app.launchEnvironment["UITEST_IMPORT_FONT"] = font
+        app.launchEnvironment["UITEST_BOOK_AUDIT"] = "1"
+        openBook()
+        func lastFont() -> String {
+            let audit = app.staticTexts["book.audit"].firstMatch.label
+            return audit.split(separator: "\n").last { $0.hasPrefix("font ") }.map(String.init) ?? ""
+        }
+        func openAddedFonts() {
+            let settings = app.buttons["reader.settings"].firstMatch
+            if !settings.exists { page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.985)).tap() }
+            XCTAssertTrue(settings.waitForExistence(timeout: 5))
+            settings.tap()
+            let row = app.buttons["settings.addedFonts"].firstMatch
+            for _ in 0..<4 where !(row.exists && row.isHittable) { app.swipeUp() }
+            row.tap()
+        }
+        openAddedFonts()
+        let added = app.buttons["bookFonts.font"].firstMatch
+        XCTAssertTrue(added.waitForExistence(timeout: 5), "the imported font is listed")
+        added.tap()
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["Done"].firstMatch.tap()
+        let applied = expectation(for: NSPredicate { _, _ in lastFont().contains("km-custom") && lastFont().contains("loaded=true") }, evaluatedWith: nil)
+        wait(for: [applied], timeout: 15)
+        snapshot("book-added-font")
+
+        openAddedFonts()
+        XCTAssertTrue(added.waitForExistence(timeout: 5))
+        added.press(forDuration: 1)
+        app.buttons["Remove"].firstMatch.tap()
+        XCTAssertTrue(added.waitForNonExistence(timeout: 5))
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["Done"].firstMatch.tap()
+        let fellBack = expectation(for: NSPredicate { _, _ in !lastFont().isEmpty && !lastFont().contains("km-custom") }, evaluatedWith: nil)
+        wait(for: [fellBack], timeout: 15)
+    }
+
     func testTappingTextOpensLookup() throws {
         guard ProcessInfo.processInfo.environment["UITEST_DICTIONARY_ZIPS"] != nil else { throw XCTSkip("Needs UITEST_DICTIONARY_ZIPS.") }
         openBook()
