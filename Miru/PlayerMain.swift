@@ -9,6 +9,10 @@ struct MiruApp: App {
     static let outboxRefreshTask = "com.amatsubame.miru.outbox"
 
     @State private var environment = PlayerEnvironment.live()
+    #if os(iOS)
+    /// Routes a connected screen's scene to the external display's window.
+    @UIApplicationDelegateAdaptor(MiruAppDelegate.self) private var appDelegate
+    #endif
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {

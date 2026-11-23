@@ -153,6 +153,10 @@ final class PlayerEnvironment {
             }
         }
         if env["UITEST_STATS"] != nil { seedStats(environment.common.activity, kind: .watching) }
+        #if os(iOS)
+        // As if a TV were connected (the simulator can't attach one): the player shows the note.
+        if env["UITEST_EXTERNAL_DISPLAY"] != nil { ExternalDisplay.shared.simulateConnected() }
+        #endif
         // UITEST_PLAYER_LOOK="conceal,large,higher": the subtitles' look, set before the player opens.
         if let look = env["UITEST_PLAYER_LOOK"] {
             var settings = PlayerSettings.load(environment.common.database)
