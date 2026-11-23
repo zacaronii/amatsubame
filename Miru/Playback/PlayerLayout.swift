@@ -13,6 +13,10 @@ nonisolated enum PlayerLayout: Equatable {
     /// or half open like a laptop (the fold across, the picture above it).
     case split(video: CGRect, panel: CGRect)
 
+    /// Pinch to fill applies only where the picture is the whole screen (a phone held sideways):
+    /// in the bars and split layouts the space around the picture holds the controls.
+    var canFill: Bool { self == .overlay }
+
     /// Shortest bar that holds the 48 pt buttons.
     static let minimumBar: CGFloat = 52
     /// Shortest panel worth having: the scrubber, the buttons and a few lines.

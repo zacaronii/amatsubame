@@ -85,9 +85,9 @@ struct PlaybackView: View {
             // Always placed the same way (only the rect changes), so folding or rotating keeps
             // the same video view.
             placeVideo(screen.videoArea) {
-                MPVVideoView(controller: model.mpv)
+                MPVVideoView(controller: model.mpv, fills: fills(screen))
                     .contentShape(.rect)
-                    .playerGestures(model: model, size: screen.videoArea.size, enabled: model.popup == nil, scrub: $scrub) {
+                    .playerGestures(model: model, size: screen.videoArea.size, enabled: model.popup == nil, canFill: screen.layout.canFill, scrub: $scrub) {
                         // Pause or play without bringing up the controls.
                         togglesPauseQuietly = true
                         model.mpv.togglePause()
@@ -101,7 +101,12 @@ struct PlaybackView: View {
                     }
                     .accessibilityIdentifier("player.video")
                     // For UI tests (and VoiceOver): where playback is and whether it's paused.
-                    .accessibilityValue(String(format: "%.1f s, %@", model.mpv.timePosition, model.mpv.isPaused ? "paused" : "playing") + debugSessionNote)
+                    .accessibilityValue(String(format: "%.1f s, %@", model.mpv.timePosition, model.mpv.isPaused ? "paused" : "playing")
+                                        + (fills(screen) ? ", filled" : "") + debugSessionNote)
+                    // Pinch's counterpart for VoiceOver.
+                    .accessibilityAction(named: model.fillsScreen ? "Fit to Screen" : "Zoom to Fill") {
+                        if screen.layout.canFill { model.setFillsScreen(!model.fillsScreen) }
+                    }
             }
         }
         // Everything over the video is an overlay, so however tall it gets it can never
@@ -202,6 +207,12 @@ struct PlaybackView: View {
         }
         .onDisappear { model.close() }
         .focusedSceneValue(\.playback, model)
+    }
+
+    /// Pinched to fill, in a layout that allows it: turning to portrait (or opening the Duo)
+    /// fits the picture, and back sideways it fills again.
+    private func fills(_ screen: PlayerScreen) -> Bool {
+        model.fillsScreen && screen.layout.canFill
     }
 
     @ViewBuilder private func overlays(size: CGSize, screen: PlayerScreen) -> some View {

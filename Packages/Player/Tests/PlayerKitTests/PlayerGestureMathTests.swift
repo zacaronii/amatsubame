@@ -39,4 +39,12 @@ import Testing
         #expect(skip.total == 10)
         #expect(skip.register(.middle, at: start.addingTimeInterval(3.3)) == 0)
     }
+
+    @Test func aPinchFillsOrFitsPastTenPercent() {
+        #expect(PlayerGestureMath.fills(afterPinch: 1.4, filling: false))
+        #expect(!PlayerGestureMath.fills(afterPinch: 0.7, filling: true))
+        #expect(!PlayerGestureMath.fills(afterPinch: 1.05, filling: false), "a small spread changes nothing")
+        #expect(PlayerGestureMath.fills(afterPinch: 0.95, filling: true))
+        #expect(PlayerGestureMath.fills(afterPinch: 1.5, filling: true), "already filled stays filled")
+    }
 }

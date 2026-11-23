@@ -55,6 +55,62 @@ final class PlayerGestureUITests: XCTestCase {
         XCTAssertFalse(state().paused, "two-finger tap resumes")
     }
 
+    /// Sideways, a pinch out fills the screen (the picture cropped to it) and a pinch in fits it
+    /// again; portrait always fits, and turning back sideways fills again. A pinch never scrubs.
+    func testPinchFillsTheScreenSideways() throws {
+        guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file to test gestures.")
+        }
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .landscapeLeft
+        addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
+        let app = XCUIApplication()
+        app.launchEnvironment["UITEST_PLAYER"] = "1"
+        app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
+        // An English file for mpv to draw, to look at where it lands (optional).
+        app.launchEnvironment["UITEST_PLAYER_ENGLISH"] = ProcessInfo.processInfo.environment["UITEST_PLAYER_ENGLISH"]
+        app.launch()
+
+        let player = app.descendants(matching: .any)["player.video"].firstMatch
+        XCTAssertTrue(player.waitForExistence(timeout: 10))
+        func value() -> String { player.value as? String ?? "" }
+        func time() -> Double { Double(value().split(separator: " ").first ?? "") ?? -1 }
+        let playing = expectation(for: NSPredicate { _, _ in time() > 2 }, evaluatedWith: nil)
+        wait(for: [playing], timeout: 15)
+        func shot(_ name: String) {
+            let attachment = XCTAttachment(screenshot: app.screenshot())
+            attachment.name = name
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+        shot("fit")
+
+        let before = time()
+        player.pinch(withScale: 2.5, velocity: 4)
+        XCTAssertTrue(value().contains("filled"), "pinched out: filled (\(value()))")
+        XCTAssertEqual(time(), before + 1, accuracy: 3, "a pinch doesn't scrub")
+        XCTAssertTrue(app.staticTexts["player.osd"].exists && app.staticTexts["player.osd"].label == "Zoomed to Fill")
+        sleep(2)
+        shot("filled")
+
+        // A one-finger drag right after the pinch scrubs (half the width of a 60 s clip: ~7.5 s).
+        let beforeDrag = time()
+        player.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.5))
+            .press(forDuration: 0.05, thenDragTo: player.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.5)))
+        sleep(1)
+        XCTAssertGreaterThan(time(), beforeDrag + 4.5, "the first drag after a pinch scrubs")
+
+        XCUIDevice.shared.orientation = .portrait
+        sleep(2)
+        XCTAssertFalse(value().contains("filled"), "portrait fits the picture over the Lines")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        sleep(2)
+        XCTAssertTrue(value().contains("filled"), "back sideways: filled again")
+
+        player.pinch(withScale: 0.4, velocity: -4)
+        XCTAssertFalse(value().contains("filled"), "pinched in: fitted")
+    }
+
     func testSkipIntroButton() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
             throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file to test skipping.")

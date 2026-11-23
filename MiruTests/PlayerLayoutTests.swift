@@ -57,4 +57,11 @@ import Testing
     @Test func tooShortForTheLinesKeepsTheOverlay() {
         #expect(layout(500, 520) == .overlay)
     }
+
+    /// Pinch to fill only where the picture is the whole screen: never in the bars or under the Lines.
+    @Test func onlyTheOverlayLayoutFills() {
+        #expect(layout(956, 440, insets: (0, 62, 21, 62)).canFill, "a phone sideways")
+        #expect(!layout(440, 956, insets: (62, 0, 34, 0)).canFill, "portrait: the picture over the Lines")
+        #expect(!PlayerLayout.bars(video: .zero, top: .zero, bottom: .zero).canFill)
+    }
 }
