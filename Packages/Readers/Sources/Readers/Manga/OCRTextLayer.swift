@@ -10,16 +10,23 @@ struct OCRTextLayer: View {
     static let space = "ocrTextLayer"
     let model: MangaReaderModel
     let page: Int
+    /// The part of the page this layer covers, as a fraction of its width from its left edge
+    /// (half of a split wide page); the layer is that part's size.
+    var visible: ClosedRange<Double> = 0...1
 
     var body: some View {
         GeometryReader { geometry in
             let size = geometry.size
             let frame = geometry.frame(in: .global)
+            let place = Placement(layer: size, visible: visible)
             ZStack(alignment: .topLeading) {
                 Color.clear.allowsHitTesting(false)
                 if let text = model.pageText[page] {
-                    ForEach(Array(text.blocks.enumerated()), id: \.offset) { _, block in
-                        let rect = block.box.pixels(in: size)
+                    // Only the blocks whose middle is in this part: one across the gutter belongs to
+                    // the half holding most of it, and the other half's can't be tapped through this one.
+                    ForEach(Array(text.blocks.enumerated()).filter { Self.isShown($0.element.box, in: visible) },
+                            id: \.offset) { _, block in
+                        let rect = place.rect(block.box)
                         Rectangle()
                             .fill(.clear)
                             .overlay {
@@ -48,7 +55,7 @@ struct OCRTextLayer: View {
                 if let overlay = model.textOverlay(page: page), let range = overlay.highlight {
                     // The word being looked up, marked on the lettering itself: nothing is drawn
                     // but a tint over its characters, so it shows what the tap was taken for.
-                    let rect = overlay.block.box.pixels(in: size)
+                    let rect = place.rect(overlay.block.box)
                     ForEach(Array(Self.marks(overlay.block, range: range, in: rect).enumerated()), id: \.offset) { _, mark in
                         RoundedRectangle(cornerRadius: 3)
                             .fill(.tint.opacity(0.3))
@@ -68,9 +75,12 @@ struct OCRTextLayer: View {
                                     let rect = CGRect(origin: drag.startLocation, size: .zero)
                                         .union(CGRect(origin: drag.location, size: .zero))
                                         .intersection(CGRect(origin: .zero, size: size))
-                                    model.selection = (page, rect)
+                                    // Kept in the whole page's terms (a half's layer is offset into it).
+                                    model.selection = (page, rect.offsetBy(dx: place.offset, dy: 0))
                                 }
-                                .onEnded { _ in model.finishSelection(pageSize: size, anchorOrigin: frame.origin) }
+                                .onEnded { _ in
+                                    model.finishSelection(pageSize: place.page, anchorOrigin: CGPoint(x: frame.minX - place.offset, y: frame.minY))
+                                }
                         )
                 }
                 if let selection = model.selection, selection.page == page {
@@ -78,7 +88,7 @@ struct OCRTextLayer: View {
                         .stroke(.tint, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
                         .background(.tint.opacity(0.12))
                         .frame(width: selection.rect.width, height: selection.rect.height)
-                        .position(x: selection.rect.midX, y: selection.rect.midY)
+                        .position(x: selection.rect.midX - place.offset, y: selection.rect.midY)
                         .allowsHitTesting(false)
                 }
             }
@@ -90,6 +100,28 @@ struct OCRTextLayer: View {
 }
 
 extension OCRTextLayer {
+    /// A block is in the part of the page shown when its middle is.
+    static func isShown(_ box: NormalizedRect, in visible: ClosedRange<Double>) -> Bool {
+        visible.contains(box.x + box.width / 2)
+    }
+
+    /// Where the page's normalised boxes go in a layer covering `visible` of the page:
+    /// `x′ = (x − visible.lower) × page width`, the page being `layer.width / visible's span` wide.
+    struct Placement {
+        let page: CGSize
+        let offset: CGFloat
+
+        init(layer: CGSize, visible: ClosedRange<Double>) {
+            let span = max(visible.upperBound - visible.lowerBound, 0.0001)
+            page = CGSize(width: layer.width / span, height: layer.height)
+            offset = visible.lowerBound * page.width
+        }
+
+        func rect(_ box: NormalizedRect) -> CGRect {
+            box.pixels(in: page).offsetBy(dx: -offset, dy: 0)
+        }
+    }
+
     /// The rects to tint for characters `range` of a block drawn in `rect`: one per line the
     /// word runs over, a little larger than the ink.
     static func marks(_ block: OCRBlock, range: Range<Int>, in rect: CGRect) -> [CGRect] {

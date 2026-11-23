@@ -98,6 +98,15 @@ import Testing
 }
 
 @Suite struct MangaReaderSettingsDecodingTests {
+    @Test func splitWidePagesIsOnForSettingsSavedBefore() throws {
+        let old = try JSONDecoder().decode(MangaReaderSettings.self, from: Data(#"{"mode":"paged","coverAlone":false}"#.utf8))
+        #expect(old.splitsWidePages)
+        #expect(!old.coverAlone)
+        var off = MangaReaderSettings()
+        off.splitsWidePages = false
+        #expect(try JSONDecoder().decode(MangaReaderSettings.self, from: JSONEncoder().encode(off)).splitsWidePages == false)
+    }
+
     @Test func settingsFromOlderVersionsKeepNewDefaults() throws {
         let old = Data(#"{"mode":"longStrip","direction":"leftToRight","spreads":"off","coverAlone":false,"stripWidth":0.8}"#.utf8)
         let settings = try JSONDecoder().decode(MangaReaderSettings.self, from: old)

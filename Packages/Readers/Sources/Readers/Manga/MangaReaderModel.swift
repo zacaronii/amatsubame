@@ -36,6 +36,8 @@ public final class MangaReaderModel {
     public var showsChrome = false
     /// Set by the view from the available space when spreads are on `auto`.
     public var spreadsFitScreen = false
+    /// Set by the view: the reader is taller than wide, so a wide page is split (when on).
+    public var viewportIsPortrait = false
     public var settings: MangaReaderSettings {
         didSet {
             guard settings != oldValue else { return }
@@ -113,14 +115,28 @@ public final class MangaReaderModel {
         }
     }
 
-    /// What the paged reader shows per swipe.
-    public var slots: [[Int]] {
-        SpreadLayout.slots(
+    /// What the paged reader shows per swipe: a page, a spread, or half of a wide page (split
+    /// in a portrait reader, by the series' Split Wide Pages).
+    public var slots: [ReaderSlot] {
+        SpreadLayout.readerSlots(
             pageCount: pageCount,
-            widePages: Set(dimensions.filter(\.isWide).map(\.pageNumber)),
+            widePages: widePages,
             spreads: usesSpreads,
-            coverAlone: settings.coverAlone
+            coverAlone: settings.coverAlone,
+            splitsWide: settings.splitsWidePages && viewportIsPortrait
         )
+    }
+
+    /// Kavita's wide pages (two-page scans).
+    var widePages: Set<Int> {
+        var wide = Set(dimensions.filter(\.isWide).map(\.pageNumber))
+        #if DEBUG
+        // UI tests: UITEST_WIDE_PAGES=3,5 treats those pages as wide (no wide page on the test account).
+        if let listed = ProcessInfo.processInfo.environment["UITEST_WIDE_PAGES"] {
+            wide.formUnion(listed.split(separator: ",").compactMap { Int($0) })
+        }
+        #endif
+        return wide
     }
 
     public func aspectRatio(of page: Int) -> Double {
