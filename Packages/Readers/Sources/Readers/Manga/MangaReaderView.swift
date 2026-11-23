@@ -135,6 +135,7 @@ public struct MangaReaderView: View {
 
     private func updateSpreadFit(_ size: CGSize) {
         model.spreadsFitScreen = size.width > size.height && size.width >= 700
+        model.viewportIsPortrait = size.height > size.width
     }
 
     private func openNext(_ chapter: ReaderChapter) {

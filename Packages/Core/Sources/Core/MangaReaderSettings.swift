@@ -34,11 +34,13 @@ public struct MangaReaderSettings: Codable, Equatable, Sendable {
     public var doubleTapZooms: Bool = false
     /// How many pages after the current one to OCR in advance.
     public var ocrAhead: Int = 3
+    /// In a portrait reader, a two-page scan (Kavita's wide page) is shown one half at a time.
+    public var splitsWidePages: Bool = true
 
     public init() {}
 
     enum CodingKeys: String, CodingKey {
-        case mode, direction, spreads, coverAlone, stripWidth, showsTextBoxes, ocrAhead, showsTextOverlay, tapZones, doubleTapZooms
+        case mode, direction, spreads, coverAlone, stripWidth, showsTextBoxes, ocrAhead, showsTextOverlay, tapZones, doubleTapZooms, splitsWidePages
     }
 
     /// Missing keys (settings saved by an older version) keep their defaults.
@@ -53,6 +55,7 @@ public struct MangaReaderSettings: Codable, Equatable, Sendable {
         showsTextOverlay = try container.decodeIfPresent(Bool.self, forKey: .showsTextOverlay) ?? showsTextOverlay
         tapZones = try container.decodeIfPresent(ReaderTapZones.self, forKey: .tapZones) ?? tapZones
         doubleTapZooms = try container.decodeIfPresent(Bool.self, forKey: .doubleTapZooms) ?? doubleTapZooms
+        splitsWidePages = try container.decodeIfPresent(Bool.self, forKey: .splitsWidePages) ?? splitsWidePages
         ocrAhead = try container.decodeIfPresent(Int.self, forKey: .ocrAhead) ?? ocrAhead
     }
 

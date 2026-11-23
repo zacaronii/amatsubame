@@ -115,6 +115,12 @@ struct ReaderSettingsSheet: View {
                         }
                         Toggle("Show Cover Alone", isOn: $model.settings.coverAlone)
                     }
+                    Section {
+                        Toggle("Split Wide Pages", isOn: $model.settings.splitsWidePages)
+                            .accessibilityIdentifier("reader.splitWidePages")
+                    } footer: {
+                        Text("In portrait, a two-page scan is shown one half at a time.")
+                    }
                 } else {
                     Section("Page Width") {
                         RoundStepperRow("Page width", value: $model.settings.stripWidth, in: 0.6...1, step: 0.05) {

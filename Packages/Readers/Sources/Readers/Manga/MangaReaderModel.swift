@@ -36,6 +36,8 @@ public final class MangaReaderModel {
     public var showsChrome = false
     /// Set by the view from the available space when spreads are on `auto`.
     public var spreadsFitScreen = false
+    /// Set by the view: the reader is taller than wide, so a wide page is split (when on).
+    public var viewportIsPortrait = false
     public var settings: MangaReaderSettings {
         didSet {
             guard settings != oldValue else { return }
@@ -105,7 +107,9 @@ public final class MangaReaderModel {
 
     public var pageCount: Int { dimensions.isEmpty ? chapter.pages : dimensions.count }
 
-    public var usesSpreads: Bool {
+    public var usesSpreads: Bool { Self.usesSpreads(settings: settings, spreadsFitScreen: spreadsFitScreen) }
+
+    nonisolated static func usesSpreads(settings: MangaReaderSettings, spreadsFitScreen: Bool) -> Bool {
         switch settings.spreads {
         case .on: true
         case .off: false
@@ -113,14 +117,35 @@ public final class MangaReaderModel {
         }
     }
 
-    /// What the paged reader shows per swipe.
-    public var slots: [[Int]] {
-        SpreadLayout.slots(
+    /// What the paged reader shows per swipe: a page, a spread, or half of a wide page (split
+    /// in a portrait reader, by the series' Split Wide Pages).
+    public var slots: [ReaderSlot] {
+        SpreadLayout.readerSlots(
             pageCount: pageCount,
-            widePages: Set(dimensions.filter(\.isWide).map(\.pageNumber)),
+            widePages: widePages,
             spreads: usesSpreads,
-            coverAlone: settings.coverAlone
+            coverAlone: settings.coverAlone,
+            splitsWide: Self.splitsWide(settings: settings, portrait: viewportIsPortrait, spreadsFitScreen: spreadsFitScreen)
         )
+    }
+
+    /// Whether a wide page is split: the setting on, the reader taller than wide, and spreads not
+    /// in use (pages side by side at half width there, a split wide page would be twice their
+    /// scale; Automatic never uses them in portrait).
+    nonisolated static func splitsWide(settings: MangaReaderSettings, portrait: Bool, spreadsFitScreen: Bool) -> Bool {
+        settings.splitsWidePages && portrait && !usesSpreads(settings: settings, spreadsFitScreen: spreadsFitScreen)
+    }
+
+    /// Kavita's wide pages (two-page scans).
+    var widePages: Set<Int> {
+        var wide = Set(dimensions.filter(\.isWide).map(\.pageNumber))
+        #if DEBUG
+        // UI tests: UITEST_WIDE_PAGES=3,5 treats those pages as wide (no wide page on the test account).
+        if let listed = ProcessInfo.processInfo.environment["UITEST_WIDE_PAGES"] {
+            wide.formUnion(listed.split(separator: ",").compactMap { Int($0) })
+        }
+        #endif
+        return wide
     }
 
     public func aspectRatio(of page: Int) -> Double {
@@ -172,6 +197,13 @@ public final class MangaReaderModel {
 
     /// The page to keep on screen when the spreads change (or the pager is rebuilt).
     var pageToKeep: Int { popupPage ?? currentPage }
+
+    /// The other half of a split page came into view: a lookup on the half left behind closes
+    /// (the word is no longer on screen; a page move leaves the popup open and only drops its page).
+    public func halfChanged() {
+        popup = nil
+        popupPage = nil
+    }
 
     /// Called as pages scroll into view. `lastVisible` is what counts as read.
     public func pagesShown(first: Int, lastVisible: Int) {

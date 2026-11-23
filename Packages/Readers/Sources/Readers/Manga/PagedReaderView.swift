@@ -7,7 +7,7 @@ struct PagedReaderView: View {
     var sideInsets = SideInsets()
     let onOpenChapter: (ReaderChapter) -> Void
     @State private var position: Int?
-    @State private var lastSlots: [[Int]] = []
+    @State private var lastSlots: [ReaderSlot] = []
     /// A tap's page turn is animating: swiping is held off until it lands.
     @State private var turning = false
     /// The scroll offset and page width, to notice a page left part-way.
@@ -17,7 +17,7 @@ struct PagedReaderView: View {
     @State private var realigning = false
     @FocusState private var focused: Bool
 
-    private var slots: [[Int]] { model.slots }
+    private var slots: [ReaderSlot] { model.slots }
     /// Pages built on each side of the current one.
     static let builtAround = 2
     private var endIndex: Int { slots.count }
@@ -39,7 +39,7 @@ struct PagedReaderView: View {
                                     ZoomablePage(doubleTapZooms: model.settings.doubleTapZooms) { tap in
                                         // Taps are handled inside the zoomable content: the native
                                         // zoom view receives touches/clicks before outer gestures.
-                                        SpreadView(model: model, pages: slots[index], sideInsets: sideInsets)
+                                        SpreadView(model: model, slot: slots[index], sideInsets: sideInsets)
                                             .contentShape(.rect)
                                             .gesture(tap { globalX in
                                                 let frame = geometry.frame(in: .global)
@@ -75,19 +75,22 @@ struct PagedReaderView: View {
                     realign(proxy)
                 }
                 .onChange(of: slots) { _, newSlots in
-                    // Spreads toggled or rotated: stay on the same page, or the one just looked up on.
-                    position = SpreadLayout.slotIndex(containing: model.pageToKeep, in: newSlots)
+                    // Spreads toggled or rotated: stay on the same page, or the one just looked up on
+                    // (and on the same half while it's still split).
+                    position = SpreadLayout.slotIndex(keeping: shown(in: lastSlots), page: model.pageToKeep, in: newSlots)
                     lastSlots = newSlots
                     realign(proxy)
                 }
-                .onChange(of: position) { _, index in
+                .onChange(of: position) { old, index in
                     // Mid-resize the scroll view reports whatever page its old offset now falls
                     // on; that isn't a page being read.
                     guard let index, !realigning, geometry.size.width == pageWidth else { return }
+                    let before = old.flatMap { slots.indices.contains($0) ? slots[$0] : nil }
+                    if SpreadLayout.isHalfMove(from: before, to: slots.indices.contains(index) ? slots[index] : nil) { model.halfChanged() }
                     if index >= endIndex {
                         model.reachedEnd()
                     } else if slots.indices.contains(index) {
-                        model.pagesShown(first: slots[index].min() ?? 0, lastVisible: slots[index].max() ?? 0)
+                        model.pagesShown(first: slots[index].pages.min() ?? 0, lastVisible: slots[index].pages.max() ?? 0)
                     }
                 }
                 .scrollIndicators(.hidden)
@@ -99,7 +102,7 @@ struct PagedReaderView: View {
         }
         .ignoresSafeArea()
         .accessibilityIdentifier("reader.paged")
-        .accessibilityValue("Page \(model.currentPage + 1) of \(model.pageCount)" + alignmentNote)
+        .accessibilityValue("Page \(model.currentPage + 1) of \(model.pageCount)" + halfNote + alignmentNote)
         .focusable()
         .focusEffectDisabled()
         .focused($focused)
@@ -125,7 +128,7 @@ struct PagedReaderView: View {
     /// screen), and the next swipe went on from there, far from the page being read. Goes back
     /// to that page once the new size is laid out.
     private func realign(_ proxy: ScrollViewProxy) {
-        let keep = SpreadLayout.slotIndex(containing: model.pageToKeep, in: slots)
+        let keep = SpreadLayout.slotIndex(keeping: shown(in: slots), page: model.pageToKeep, in: slots)
         realigning = true
         position = keep
         Task { @MainActor in
@@ -168,6 +171,17 @@ struct PagedReaderView: View {
         withAnimation(.easeInOut(duration: 0.25)) { position = target } completion: { turning = false }
     }
 
+    /// The slot at the current position of `slots` (the half being shown of a split page).
+    private func shown(in slots: [ReaderSlot]) -> ReaderSlot? {
+        position.flatMap { slots.indices.contains($0) ? slots[$0] : nil }
+    }
+
+    /// A split page's half, for VoiceOver (the counter shows real pages).
+    private var halfNote: String {
+        guard let half = shown(in: slots)?.half else { return "" }
+        return (half == .first) == isRightToLeft ? ", right half" : ", left half"
+    }
+
     /// Debug builds: whether the pager sits on a page boundary, for the page-turn UI tests.
     private var alignmentNote: String {
         #if DEBUG
@@ -188,20 +202,24 @@ struct PagedReaderView: View {
     }
 }
 
-/// One or two pages side by side. In RTL the environment mirrors the HStack,
-/// so the lower page number sits on the right like a printed manga.
+/// One or two pages side by side, or half of a wide page. In RTL the environment mirrors the
+/// HStack, so the lower page number sits on the right like a printed manga.
 private struct SpreadView: View {
     let model: MangaReaderModel
-    let pages: [Int]
+    let slot: ReaderSlot
     let sideInsets: SideInsets
     @Environment(\.layoutDirection) private var layoutDirection
 
     var body: some View {
         HStack(spacing: 0) {
-            ForEach(pages, id: \.self) { page in
-                PageImageView(chapterId: model.chapter.chapterId, page: page,
-                              aspectRatio: model.aspectRatio(of: page), pages: model.pages)
-                    .overlay { OCRTextLayer(model: model, page: page) }
+            if let page = slot.pages.first, slot.half != nil {
+                HalfPageView(model: model, page: page, visible: slot.visibleRange(rightToLeft: model.settings.direction == .rightToLeft))
+            } else {
+                ForEach(slot.pages, id: \.self) { page in
+                    PageImageView(chapterId: model.chapter.chapterId, page: page,
+                                  aspectRatio: model.aspectRatio(of: page), pages: model.pages)
+                        .overlay { OCRTextLayer(model: model, page: page) }
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -210,6 +228,33 @@ private struct SpreadView: View {
         .padding(.trailing, layoutDirection == .rightToLeft ? sideInsets.left : sideInsets.right)
         // A little room above the progress bar along the screen's bottom edge.
         .padding(.bottom, 10)
+    }
+}
+
+/// Half of a wide page: the one decoded page drawn at twice the half's width and clipped to
+/// `visible` (both halves are the same size, so they share the decoded image). The text over it
+/// is laid out for the half alone, so the other half's blocks can't be tapped.
+private struct HalfPageView: View {
+    let model: MangaReaderModel
+    let page: Int
+    /// The part of the page shown, as a fraction of its width from its left edge.
+    let visible: ClosedRange<Double>
+
+    var body: some View {
+        let fraction = visible.upperBound - visible.lowerBound
+        GeometryReader { geometry in
+            let full = CGSize(width: geometry.size.width / fraction, height: geometry.size.height)
+            PageImageView(chapterId: model.chapter.chapterId, page: page, aspectRatio: model.aspectRatio(of: page), pages: model.pages)
+                .frame(width: full.width, height: full.height)
+                .offset(x: -visible.lowerBound * full.width)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+        .clipped()
+        .overlay { OCRTextLayer(model: model, page: page, visible: visible) }
+        .aspectRatio(model.aspectRatio(of: page) * fraction, contentMode: .fit)
+        // Offsets are physical positions on the page, even in a right-to-left reader.
+        .environment(\.layoutDirection, .leftToRight)
     }
 }
 

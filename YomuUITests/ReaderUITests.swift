@@ -922,6 +922,54 @@ final class ReaderUITests: XCTestCase {
         XCTAssertTrue(tile.waitForExistence(timeout: 20), "the next tap opens the library")
     }
 
+    /// Split Wide Pages, in portrait: page 2 marked wide (`UITEST_WIDE_PAGES`; the test account has
+    /// no wide page) is shown as its right half, then its left (a right-to-left book); going back
+    /// lands on the far half; switched off, it's one page again. Progress stays on the simulator.
+    func testAWidePageIsShownOneHalfAtATime() throws {
+        app.launchEnvironment["UITEST_WIDE_PAGES"] = "1"
+        app.launch()
+        XCUIDevice.shared.orientation = .portrait
+        openReader()
+        func value() -> String { reader.value as? String ?? "" }
+        let start = try pageCounter()
+        XCTAssertEqual(start, 1, "opens at the first page")
+        reader.swipeRight()   // forward in right to left
+        sleep(1)
+        XCTAssertTrue(value().hasPrefix("Page 2 of") && value().contains("right half"), value())
+        reader.swipeRight()
+        sleep(1)
+        XCTAssertTrue(value().hasPrefix("Page 2 of") && value().contains("left half"), value())
+        snapshot("split-second-half")
+        reader.swipeRight()
+        sleep(1)
+        XCTAssertTrue(value().hasPrefix("Page 3 of") && !value().contains("half"), value())
+        reader.swipeLeft()
+        sleep(1)
+        XCTAssertTrue(value().hasPrefix("Page 2 of") && value().contains("left half"), "back onto the far half: \(value())")
+
+        // Turned sideways the page fits and is whole; back upright, its first half.
+        XCUIDevice.shared.orientation = .landscapeLeft
+        sleep(2)
+        XCTAssertTrue(value().hasPrefix("Page 2 of") && !value().contains("half"), "landscape: whole, \(value())")
+        XCUIDevice.shared.orientation = .portrait
+        sleep(2)
+        XCTAssertTrue(value().hasPrefix("Page 2 of") && value().contains("right half"), "portrait again: the first half, \(value())")
+
+        // Off: the page is whole again (today's behaviour).
+        reader.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.08)).tap()
+        let settings = app.buttons["reader.settings"].firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        settings.tap()
+        let toggle = app.switches["reader.splitWidePages"].firstMatch
+        for _ in 0..<6 where !(toggle.exists && toggle.isHittable) { app.swipeUp() }
+        XCTAssertTrue(toggle.isHittable, "Split Wide Pages in the reader's settings")
+        XCTAssertEqual(toggle.value as? String, "1", "on by default")
+        toggle.switches.firstMatch.tap()
+        app.buttons["Done"].firstMatch.tap()
+        sleep(1)
+        XCTAssertTrue(value().hasPrefix("Page 2 of") && !value().contains("half"), "off: the whole page, \(value())")
+    }
+
     /// Adds a series' first volume to the test's reading list (made with the first), then goes
     /// back to the Library home.
     private func addFirstVolume(library: String, series: String, new: Bool) {
