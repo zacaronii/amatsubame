@@ -198,8 +198,8 @@ public final class MangaReaderModel {
     /// The page to keep on screen when the spreads change (or the pager is rebuilt).
     var pageToKeep: Int { popupPage ?? currentPage }
 
-    /// The other half of a split page came into view: a lookup on the half left behind closes,
-    /// as it does when the page changes (the word is no longer on screen).
+    /// The other half of a split page came into view: a lookup on the half left behind closes
+    /// (the word is no longer on screen; a page move leaves the popup open and only drops its page).
     public func halfChanged() {
         popup = nil
         popupPage = nil
