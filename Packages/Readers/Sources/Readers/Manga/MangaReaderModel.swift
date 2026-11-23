@@ -33,7 +33,11 @@ public final class MangaReaderModel {
     /// Lowest page index on screen.
     public private(set) var currentPage = 0
     public private(set) var startPage = 0
-    public var showsChrome = false
+    public var showsChrome = false {
+        // The controls came up: a word the pointer rests on isn't looked up (a click would only
+        // hide them).
+        didSet { if showsChrome { dropHover() } }
+    }
     /// Set by the view from the available space when spreads are on `auto`.
     public var spreadsFitScreen = false
     /// Set by the view: the reader is taller than wide, so a wide page is split (when on).
@@ -203,6 +207,7 @@ public final class MangaReaderModel {
     public func halfChanged() {
         popup = nil
         popupPage = nil
+        dropHover()
     }
 
     /// Called as pages scroll into view. `lastVisible` is what counts as read.
@@ -217,6 +222,8 @@ public final class MangaReaderModel {
         lastShown = lastVisible
         currentPage = min(max(first, 0), pageCount - 1)
         if let popupPage, !(first...max(first, lastVisible)).contains(popupPage) { self.popupPage = nil }
+        // A turn by key or swipe leaves the pointer where it was, over a page no longer shown.
+        if let hovered, !Self.hoverStays(onPage: hovered.page, first: first, lastVisible: lastVisible) { dropHover() }
         recorder.record(page: min(max(lastVisible, 0), pageCount - 1))
         prefetch(around: lastVisible)
         requestText(around: currentPage, through: lastVisible)
@@ -343,6 +350,17 @@ public final class MangaReaderModel {
             self.lookUp(hovered.block, page: hovered.page, characterIndex: hovered.index, anchor: hovered.anchor)
         }
         #endif
+    }
+
+    /// Forgets the character the pointer rested on (its block is no longer where it was).
+    private func dropHover() {
+        hovered = nil
+        hoverTask?.cancel()
+    }
+
+    /// Whether a rested-on character's page is still among those shown.
+    nonisolated static func hoverStays(onPage page: Int, first: Int, lastVisible: Int) -> Bool {
+        (first...max(first, lastVisible)).contains(page)
     }
 
     /// Whether resting on character `index` of a block's text looks it up: a character of a word

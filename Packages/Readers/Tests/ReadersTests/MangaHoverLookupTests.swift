@@ -19,6 +19,15 @@ import Testing
         #expect(MangaReaderModel.hoverLooksUp("今日はいい天気", at: 5, marked: 0..<2, controlsShowing: false), "another word")
     }
 
+    /// A page turn by key or swipe leaves the pointer over a page that's gone: its word is
+    /// forgotten (a key pressed then would look up a block no longer shown).
+    @Test func theRestedOnPageMustStillBeShown() {
+        #expect(MangaReaderModel.hoverStays(onPage: 4, first: 4, lastVisible: 4))
+        #expect(MangaReaderModel.hoverStays(onPage: 5, first: 4, lastVisible: 5), "the other page of a spread")
+        #expect(!MangaReaderModel.hoverStays(onPage: 4, first: 5, lastVisible: 6))
+        #expect(!MangaReaderModel.hoverStays(onPage: 6, first: 4, lastVisible: 4))
+    }
+
     @Test func notWhileTheControlsShow() {
         #expect(!MangaReaderModel.hoverLooksUp("今日", at: 0, marked: nil, controlsShowing: true))
     }
