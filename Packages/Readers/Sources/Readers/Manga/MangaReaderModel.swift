@@ -307,6 +307,52 @@ public final class MangaReaderModel {
         }
     }
 
+    // MARK: Look Up on Hover (Mac)
+
+    /// The character the pointer rests on (Settings ▸ Popup ▸ Look Up on Hover).
+    @ObservationIgnored private var hovered: (page: Int, block: OCRBlock, index: Int, anchor: CGRect)?
+    @ObservationIgnored private var hoverTask: Task<Void, Never>?
+
+    /// The pointer moved onto a character of a block's lettering.
+    public func hovered(_ block: OCRBlock, page: Int, characterIndex: Int, anchor: CGRect) {
+        if let hovered, hovered.page == page, hovered.block == block, hovered.index == characterIndex { return }
+        hovered = (page, block, characterIndex, anchor)
+        lookUpHovered()
+    }
+
+    /// The pointer left a block's lettering.
+    public func hoverEnded(_ block: OCRBlock, page: Int) {
+        guard let hovered, hovered.page == page, hovered.block == block else { return }
+        self.hovered = nil
+        hoverTask?.cancel()
+    }
+
+    /// Looks up the word under the pointer when Look Up on Hover allows it (its key is held, or
+    /// no key is needed), as a click there would. A short rest first, so the pointer crossing a
+    /// bubble on its way elsewhere looks nothing up. Also called when a key is pressed.
+    public func lookUpHovered() {
+        hoverTask?.cancel()
+        #if os(macOS)
+        guard let hovered, let setting = lookup?.popupSettings.hoverLookup, HoverModifiers.shared.allows(setting) else { return }
+        let marked = textOverlay(page: hovered.page).flatMap { $0.block == hovered.block ? $0.highlight : nil }
+        guard Self.hoverLooksUp(hovered.block.text, at: hovered.index, marked: marked, controlsShowing: showsChrome) else { return }
+        hoverTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(setting == .always ? 180 : 60))
+            guard !Task.isCancelled, let self, let now = self.hovered,
+                  now.page == hovered.page, now.block == hovered.block, now.index == hovered.index else { return }
+            self.lookUp(hovered.block, page: hovered.page, characterIndex: hovered.index, anchor: hovered.anchor)
+        }
+        #endif
+    }
+
+    /// Whether resting on character `index` of a block's text looks it up: a character of a word
+    /// (not punctuation or a space), not one of the word already marked, and not while the
+    /// controls show (a click then only hides them).
+    nonisolated static func hoverLooksUp(_ text: String, at index: Int, marked: Range<Int>?, controlsShowing: Bool) -> Bool {
+        guard !controlsShowing, marked?.contains(index) != true, let character = text.dropFirst(index).first else { return false }
+        return !character.isWhitespace && !character.isPunctuation && !character.isSymbol
+    }
+
     /// The block whose word is being looked up (the word is marked on its lettering).
     @ObservationIgnored private var lookupBlock: (page: Int, block: OCRBlock)?
 

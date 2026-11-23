@@ -2,7 +2,7 @@
 import AppKit
 import Core
 import Testing
-@testable import AppCommon
+@testable import Lookup
 
 /// Settings ▸ Popup ▸ Look Up on Hover: which keys let pointing at a word look it up.
 @MainActor struct HoverLookupTests {
