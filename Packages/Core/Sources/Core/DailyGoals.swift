@@ -120,3 +120,54 @@ public struct DailyGoalStore: Sendable {
         return true
     }
 }
+
+/// Daily goals with Sync with iCloud: one record per kind and day ("reading/2026-11-23"), so
+/// two devices' goals merge by day and each day keeps the goal it had. The days are calendar
+/// days where the goal was set. The once-a-day "reached" note stays per device.
+public struct DailyGoalCollection: SyncedCollection {
+    public let name = "dailyGoals"
+    let calendar: Calendar
+
+    public init(calendar: Calendar = .current) {
+        self.calendar = calendar
+    }
+
+    struct Value: Codable {
+        var kind: ActivitySession.Kind
+        var measure: StatsSummary.Measure
+        var target: Int
+        var day: String
+    }
+
+    func day(_ date: Date) -> String {
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    }
+
+    func date(_ day: String) -> Date? {
+        let parts = day.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3 else { return nil }
+        return calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
+    }
+
+    public func records(_ db: Database) throws -> [String: Data] {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        var result: [String: Data] = [:]
+        for goal in try DailyGoal.order(Column("since"), Column("id")).fetchAll(db) {
+            let value = Value(kind: goal.kind, measure: goal.measure, target: goal.target, day: day(goal.since))
+            result["\(goal.kind.rawValue)/\(value.day)"] = try encoder.encode(value)
+        }
+        return result
+    }
+
+    public func apply(id: String, value: Data?, _ db: Database) throws {
+        let parts = id.split(separator: "/", maxSplits: 1).map(String.init)
+        guard parts.count == 2, let kind = ActivitySession.Kind(rawValue: parts[0]), let start = date(parts[1]),
+              let end = calendar.date(byAdding: .day, value: 1, to: start) else { return }
+        try DailyGoal.filter(Column("kind") == kind && Column("since") >= start && Column("since") < end).deleteAll(db)
+        guard let value, let decoded = try? JSONDecoder().decode(Value.self, from: value), decoded.kind == kind else { return }
+        var goal = DailyGoal(kind: kind, measure: decoded.measure, target: decoded.target, since: start)
+        try goal.insert(db)
+    }
+}

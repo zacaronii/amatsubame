@@ -108,6 +108,7 @@ public final class StatsModel {
     /// Sets today's goal (0 turns it off) and counts again.
     public func setGoal(measure: StatsSummary.Measure, target: Int) {
         try? environment.goals.set(kind: kind, measure: measure, target: target)
+        environment.statsSync.send()
         // The chart counts what the goal counts, so its line shows.
         if target > 0, self.measure != measure { self.measure = measure } else { summarize() }
     }
@@ -723,7 +724,7 @@ struct DailyGoalSheet: View {
                         .accessibilityIdentifier("goal.target")
                     }
                 } footer: {
-                    Text("Characters count in books, pages in manga, minutes in both. Each day counts against the goal it had. The goal is kept on this device.")
+                    Text("Characters count in books, pages in manga, minutes in both. Each day counts against the goal it had. With Sync with iCloud on, your other devices have the same goal.")
                 }
             }
             .navigationTitle("Daily Goal")
@@ -818,22 +819,22 @@ public struct ChipRow<Item: Hashable, Label: View>: View {
     }
 }
 
-/// Settings ▸ Stats ▸ iCloud: this app's Stats on all your devices.
+/// Settings ▸ Stats ▸ iCloud: this app's Stats and daily goals on all your devices.
 struct StatsCloudRow: View {
     @Environment(CommonEnvironment.self) private var environment
 
     var body: some View {
         @Bindable var sync = environment.statsSync
         Toggle(isOn: $sync.isOn) {
-            SettingsRowLabel("Sync Stats with iCloud", subtitle: subtitle, systemImage: "icloud.fill", color: .blue)
+            SettingsRowLabel("Sync with iCloud", subtitle: subtitle, systemImage: "icloud.fill", color: .blue)
         }
         .accessibilityIdentifier("stats.iCloud")
     }
 
     private var subtitle: String {
         switch environment.statsSync.state {
-        case .off: "Stats stay on this device"
-        case .syncing: "The same Stats on all your devices"
+        case .off: "Stats and goals stay on this device"
+        case .syncing: "The same Stats and goals on all your devices"
         case .unavailable: "iCloud isn't available here"
         case .synced(let date): "Synced \(date.formatted(date: .omitted, time: .shortened))"
         case .failed(let message): "Couldn't sync: \(message)"

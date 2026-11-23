@@ -1063,6 +1063,19 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v65_record_sync") { db in
+            // Sync with iCloud (RecordSync): each synced record as last merged here.
+            try db.create(table: "syncRecord") { t in
+                t.column("collection", .text).notNull()
+                t.column("id", .text).notNull()
+                t.column("value", .blob)
+                t.column("editedAt", .integer).notNull()
+                t.column("deleted", .boolean).notNull().defaults(to: false)
+                t.column("device", .text).notNull()
+                t.primaryKey(["collection", "id"])
+            }
+        }
+
         return migrator
     }
 }
