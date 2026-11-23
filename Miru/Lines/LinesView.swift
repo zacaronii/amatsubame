@@ -93,7 +93,7 @@ struct LinesView: View {
     // MARK: History
 
     private func episodeLink(_ entry: LinesHistoryModel.Entry, _ history: LinesHistoryModel, wide: Bool) -> some View {
-        SplitLink(value: LinesRoute.transcript(Self.route(entry))) {
+        SplitLink(value: LinesRoute.transcript(Self.route(entry)), rowStyle: true) {
             HistoryRow(entry: entry)
         }
         .listRowBackground(isSelected(entry, history, wide: wide) ? Color.accentColor.opacity(0.18) : nil)
@@ -136,7 +136,7 @@ struct LinesView: View {
                             .accessibilityIdentifier("lines.liveUnreachable")
                     }
                     ForEach(sessions) { session in
-                        SplitLink(value: LinesRoute.live(LiveRoute(sessionId: session.id))) {
+                        SplitLink(value: LinesRoute.live(LiveRoute(sessionId: session.id)), rowStyle: true) {
                             LiveSessionRow(session: session)
                         }
                         .accessibilityIdentifier("lines.live")
@@ -188,7 +188,7 @@ struct LinesView: View {
                 Section(TranscriptView.title(group.transcript)) {
                     ForEach(group.lines, id: \.cue) { line in
                         SplitLink(value: LinesRoute.transcript(TranscriptRoute(itemId: group.transcript.itemId,
-                                                                                    title: TranscriptView.title(group.transcript), focusCue: line.cue))) {
+                                                                                    title: TranscriptView.title(group.transcript), focusCue: line.cue)), rowStyle: true) {
                             HStack(alignment: .firstTextBaseline, spacing: 10) {
                                 Text(TranscriptView.timestamp(line.start))
                                     .font(.caption.monospacedDigit())

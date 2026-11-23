@@ -81,4 +81,24 @@ final class ListenRetapUITests: XCTestCase {
         library.tap()
         XCTAssertTrue(show.waitForExistence(timeout: 20), "the next tap opens Library")
     }
+
+    /// Side by side (an iPhone sideways, the Duo open), Library opens on the right and the
+    /// Listen screen on the left stays where it is (it slid out and back). Needs DevSetup too.
+    @MainActor
+    func testWideListenStaysPutWhenOpeningLibrary() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launch()
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let library = app.buttons["listen.library"].firstMatch
+        guard library.waitForExistence(timeout: 20) else { throw XCTSkip("Sign Kiku in to Audiobookshelf on the simulator (DevSetup).") }
+        sleep(1)
+        library.tap()
+        XCTAssertTrue(app.buttons["library.show"].firstMatch.waitForExistence(timeout: 20), "Library on the right")
+        XCTAssertTrue(library.isHittable, "Listen still on the left")
+        let pushes = app.descendants(matching: .any)["split.leftPushes"].firstMatch
+        XCTAssertTrue(pushes.exists, "side by side, in a debug build")
+        XCTAssertEqual(pushes.value as? String, "0", "Listen slid out and back")
+    }
 }
