@@ -188,7 +188,9 @@ public struct KavitaClient: Sendable {
 
     /// Writes progress. Call only from the outbox handler; UI code enqueues instead.
     public func saveProgress(_ progress: KavitaProgressPayload) async throws(ConnectionError) {
-        _ = try await http.send(jsonRequest("POST", "api/Reader/progress", body: progress))
+        var body = progress
+        body.madeAt = nil   // the device's own bookkeeping
+        _ = try await http.send(jsonRequest("POST", "api/Reader/progress", body: body))
     }
 
     /// The page image request. The key travels as a query parameter because this

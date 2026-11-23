@@ -263,9 +263,8 @@ import Testing
         #expect(abs(try #require(try progress.progress(chapterId: 206)).updatedAt.timeIntervalSince(made)) < 0.01, "not settled")
     }
 
-    /// Known limit, pinned: a mark made before this device's previous change to the chapter
-    /// reached Kavita is judged against that change's date and dropped (Read on a slow link,
-    /// then Unread before the first arrived: unread here until the next refresh, then read).
+    /// Without the outbox to tell this device's own sends apart (as here), a newer date on Kavita
+    /// drops the mark; with it, see `KavitaPageTurnTests.aMarkMadeWhileThisDevicesTurnWasOnItsWayIsSent`.
     @Test func aMarkMadeBeforeThisDevicesPreviousChangeArrivedIsDropped() async throws {
         let transport = StubTransport(routes: ["/api/Reader/get-progress": (200, progressJSON("2026-10-31T00:00:05"))])
         try await handler(transport).send(try job(.init(mark: .unread, seriesId: 4, chapterId: 206, account: account, madeAt: made)), media: [])
