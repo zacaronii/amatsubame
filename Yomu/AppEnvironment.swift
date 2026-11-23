@@ -515,15 +515,18 @@ final class AppEnvironment {
         try await readingListSync()?.items(of: list) ?? true
     }
 
-    /// Why Yomu can never open a reading list's item here (nil: it can), as a `ReadingListSkip`.
-    func readingListSkipReason(_ item: ReadingListItemRow) -> String? {
-        if item.format == 4 { return ReadingListSkip.pdf }
-        if item.format == 0 { return ReadingListSkip.images }
-        if hiddenLibraries.contains(item.libraryId) { return ReadingListSkip.hiddenLibrary }
-        if let known = try? kavitaLibrary.cachedLibraries(), !known.isEmpty, !known.contains(where: { $0.id == item.libraryId }) {
-            return ReadingListSkip.unknownLibrary
+    /// Why Yomu can never open a reading list's item here (nil: it can), as a `ReadingListSkip`;
+    /// the libraries are read once per offer.
+    func readingListSkipper() -> (ReadingListItemRow) -> String? {
+        let hidden = hiddenLibraries
+        let known = Set(((try? kavitaLibrary.cachedLibraries()) ?? []).map(\.id))
+        return { item in
+            if item.format == 4 { return ReadingListSkip.pdf }
+            if item.format == 0 { return ReadingListSkip.images }
+            if hidden.contains(item.libraryId) { return ReadingListSkip.hiddenLibrary }
+            if !known.isEmpty, !known.contains(item.libraryId) { return ReadingListSkip.unknownLibrary }
+            return nil
         }
-        return nil
     }
 
     /// A reader session for a chapter of any series (a reading list's item): from the cache, or

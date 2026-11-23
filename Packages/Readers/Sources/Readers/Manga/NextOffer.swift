@@ -40,6 +40,23 @@ public struct NextOffer: Equatable, Sendable {
         self.secondary = secondary
     }
 
+    /// A choice is being fetched: the other can't be pressed meanwhile.
+    public var isOpening: Bool { primary?.isOpening == true || secondary?.isOpening == true }
+
+    /// This offer, remade (the list changed), keeping what `previous` showed for the same
+    /// chapters: the spinner of one being opened and the reason one couldn't be.
+    public func carrying(from previous: NextOffer?) -> NextOffer {
+        guard let previous else { return self }
+        var offer = self
+        let old = [previous.primary, previous.secondary].compactMap(\.self)
+        for path in [\NextOffer.primary, \NextOffer.secondary] {
+            guard let id = offer[keyPath: path]?.chapter.chapterId, let match = old.first(where: { $0.chapter.chapterId == id }) else { continue }
+            offer[keyPath: path]?.isOpening = match.isOpening
+            offer[keyPath: path]?.problem = match.problem
+        }
+        return offer
+    }
+
     /// The offer for reading in the list `listTitle`: the list's next first, the series' next as a
     /// second, smaller choice (left out when it's the same chapter).
     public static func reading(in listTitle: String, _ list: ListNext, seriesNext: ReaderChapter?) -> NextOffer {
@@ -93,7 +110,7 @@ struct NextOfferButtons: View {
                         .lineLimit(2)
                 }
             }
-            .disabled(choice.isOpening)
+            .disabled(offer.isOpening)
             if prominent { button.buttonStyle(.borderedProminent) } else { button.buttonStyle(.bordered) }
             if let problem = choice.problem {
                 Text(problem).font(.caption).foregroundStyle(.orange)

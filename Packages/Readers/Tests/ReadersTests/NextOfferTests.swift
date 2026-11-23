@@ -38,4 +38,22 @@ import Testing
         #expect(offer.primary?.label == "Next in series: Vol. 2")
         #expect(NextOffer.reading(in: "Later", .notInList, seriesNext: nil) == NextOffer())
     }
+
+    @Test func aRemadeOfferKeepsTheSpinnerAndTheReasonForTheSameChapter() {
+        var before = NextOffer.reading(in: "Later", .next(chapter(9, series: 2), label: "Other · Vol. 9", detail: nil), seriesNext: chapter(2))
+        before.primary?.isOpening = true
+        before.secondary?.problem = "Couldn't reach Kavita."
+        #expect(before.isOpening)
+        let remade = NextOffer.reading(in: "Later", .next(chapter(9, series: 2), label: "Other · Vol. 9", detail: "skipped 1 PDF"), seriesNext: chapter(2))
+            .carrying(from: before)
+        #expect(remade.primary?.isOpening == true)
+        #expect(remade.primary?.detail == "skipped 1 PDF", "the new detail")
+        #expect(remade.secondary?.problem == "Couldn't reach Kavita.")
+        #expect(remade.isOpening, "both buttons stay unpressable")
+        // Another chapter next now: nothing carried.
+        let moved = NextOffer.reading(in: "Later", .next(chapter(8, series: 3), label: "Third · Vol. 8", detail: nil), seriesNext: chapter(2))
+            .carrying(from: before)
+        #expect(moved.primary?.isOpening == false)
+        #expect(!moved.isOpening)
+    }
 }

@@ -116,12 +116,14 @@ struct ReaderContainer: View {
                 offer = nil
                 return
             }
+            // At once, so a swapped-in volume never shows the previous one's offer.
+            offer = makeOffer(listId: listId)
             do {
-                for try await _ in environment.readingLists.observeItems(listId: listId) { offer = makeOffer(listId: listId) }
+                for try await _ in environment.readingLists.observeItems(listId: listId) { offer = makeOffer(listId: listId).carrying(from: offer) }
             } catch {}
         }
         .onChange(of: environment.isLibraryOffline) {
-            if let listId = session.readingListId { offer = makeOffer(listId: listId) }
+            if let listId = session.readingListId { offer = makeOffer(listId: listId).carrying(from: offer) }
         }
         .task(id: session.chapter.chapterId) {
             // Moving on to the next volume can make automatic downloads fetch one more.
@@ -148,7 +150,8 @@ struct ReaderContainer: View {
     private func makeOffer(listId: Int64) -> NextOffer {
         let seriesNext = session.contents.nextReaderChapter(after: session.chapter, series: session.series)
         let title = (try? environment.readingLists.list(listId))??.title ?? ""
-        let found = (try? environment.readingLists.next(after: session.chapter.chapterId, listId: listId) { environment.readingListSkipReason($0) }) ?? .notInList
+        let skip = environment.readingListSkipper()
+        let found = (try? environment.readingLists.next(after: session.chapter.chapterId, listId: listId, skip: skip)) ?? .notInList
         switch found {
         case .item(let item, let skipped):
             let chapter = ReaderChapter(chapterId: item.chapterId, volumeId: item.volumeId, seriesId: item.seriesId, libraryId: item.libraryId,
@@ -168,6 +171,8 @@ struct ReaderContainer: View {
     /// series or format (a list's next), that series' reader replaces this one once it's on the
     /// device, the list kept. If it can't be opened, the offer says why and the reader stays.
     private func open(_ chapter: ReaderChapter) {
+        // One at a time: while a choice is being fetched, the other does nothing.
+        guard offer?.isOpening != true else { return }
         if chapter.seriesId == session.series.id,
            let found = session.contents.volumes.lazy.flatMap(\.chapters).first(where: { $0.id == chapter.chapterId }) {
             session.chapter = session.contents.readerChapter(found, series: session.series)
@@ -176,14 +181,29 @@ struct ReaderContainer: View {
             return
         }
         setOpening(chapter.chapterId, true, problem: nil)
+        let from = Self.Reading(chapterId: session.chapter.chapterId, listId: session.readingListId)
         Task {
             do {
                 var next = try await environment.session(chapterId: chapter.chapterId, seriesId: chapter.seriesId)
+                // Dropped if something else opened meanwhile (a link): never swap what's being read.
+                guard from.isStill(session) else { return }
                 next.readingListId = session.readingListId
                 session = next
             } catch {
+                guard from.isStill(session) else { return }
                 setOpening(chapter.chapterId, false, problem: error.localizedDescription)
             }
+        }
+    }
+
+    /// What was being read when a fetch for the next started.
+    struct Reading: Equatable {
+        var chapterId: Int
+        var listId: Int64?
+
+        /// Its result is used only if the same chapter, in the same list, is still open.
+        func isStill(_ session: ReaderSession) -> Bool {
+            session.chapter.chapterId == chapterId && session.readingListId == listId
         }
     }
 
