@@ -12,6 +12,8 @@ struct CarPlayRow: Equatable {
         case openShow(itemId: String, title: String)
         case openDownloaded
         case seek(Double)
+        /// An episode in Up Next (it leaves the queue as it starts).
+        case playUpNext(UpNextItem, libraryId: String)
         /// A note ("12 more on your iPhone"): does nothing.
         case none
     }
@@ -108,6 +110,13 @@ enum CarPlaySections {
         let rows = chapters.map { chapter in
             CarPlayRow(title: chapter.title, detail: chapter.start.clockText, action: .seek(chapter.start), isPlaying: chapter == current)
         }
+        return rows.isEmpty ? [] : [CarPlaySection(title: nil, rows: rows)]
+    }
+
+    /// Up Next, in order (Now Playing's Up Next button for a podcast episode).
+    static func upNext(_ items: [(item: UpNextItem, libraryId: String)]) -> [CarPlaySection] {
+        let rows = items.map { CarPlayRow(title: $0.item.title, detail: $0.item.showTitle, artworkItemId: $0.item.itemId,
+                                          action: .playUpNext($0.item, libraryId: $0.libraryId)) }
         return rows.isEmpty ? [] : [CarPlaySection(title: nil, rows: rows)]
     }
 
