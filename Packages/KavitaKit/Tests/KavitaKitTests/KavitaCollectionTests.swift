@@ -39,6 +39,29 @@ import Testing
 
     func paths(_ transport: StubTransport) -> [String] { transport.requests.map { $0.url!.path() } }
 
+    /// A series added to a collection not made yet waits for it: through the worker, no attempt
+    /// is counted and it shows as waiting, so a long wait never grows into a 6-hour back-off.
+    @Test func aWaitingAddDoesntCountAnAttempt() async throws {
+        let setup = try setup()
+        let made = try setup.store.create(title: "Later", with: 7, account: account, outbox: setup.outbox)
+        // The create held back (as if backing off): only the add is due, and its collection is
+        // still to be made.
+        let createKey = CollectionJob(account: account, collectionId: made.id!).coalesceKey
+        _ = try await setup.store.database.writer.write {
+            try $0.execute(sql: "UPDATE outboxJob SET nextAttemptAt = ? WHERE coalesceKey = ?", arguments: [Date.distantFuture, createKey])
+        }
+        let handler = KavitaCollectionHandler(store: setup.store, features: setup.features, outbox: setup.outbox) { client(StubTransport { _ in (500, Data()) }) }
+        let worker = OutboxWorker(store: setup.outbox, mediaStorage: OutboxMediaStorage(directory: FileManager.default.temporaryDirectory), handlers: [handler])
+        for _ in 0..<3 {
+            #expect(await worker.drain().waiting == 1)
+            _ = try await setup.store.database.writer.write { try $0.execute(sql: "UPDATE outboxJob SET nextAttemptAt = ? WHERE coalesceKey != ?", arguments: [Date.distantPast, createKey]) }
+        }
+        let add = try #require(try setup.outbox.jobs(states: [.pending]).first { $0.coalesceKey == CollectionJob(account: account, collectionId: made.id!, seriesId: 7).coalesceKey })
+        #expect(add.attempts == 0)
+        #expect(add.lastError == nil)
+        #expect(add.waitingFor?.contains("to be made") == true)
+    }
+
     @Test func aNewCollectionIsMadeEmptyThenFilled() async throws {
         let setup = try setup()
         let made = try setup.store.create(title: "Later", with: 7, account: account, outbox: setup.outbox)
@@ -93,7 +116,7 @@ import Testing
         let setup = try setup()
         let made = try setup.store.create(title: "Later", with: 7, account: account, outbox: setup.outbox)
         let transport = StubTransport { _ in (200, Data()) }
-        await #expect(throws: ConnectionError.self) { try await send(CollectionJob(account: account, collectionId: made.id!, seriesId: 7), setup, transport) }
+        await #expect(throws: OutboxWait.self) { try await send(CollectionJob(account: account, collectionId: made.id!, seriesId: 7), setup, transport) }
         #expect(transport.requests.isEmpty)
         // The create's job cleared: the add can't go anywhere, and finishes.
         try setup.outbox.cancelAll(kind: .kavitaCollection)
@@ -119,7 +142,7 @@ import Testing
         try setup.store.didCreate(made.id!, serverId: 40)
         // Kavita's cleanup took the empty collection before the add.
         let gone = StubTransport(routes: ["/api/Collection/update-for-series": (400, Data("collection-doesnt-exists".utf8)), "/api/Collection": (200, list([]))])
-        await #expect(throws: ConnectionError.self) { try await send(CollectionJob(account: account, collectionId: made.id!, seriesId: 7), setup, gone) }
+        await #expect(throws: OutboxWait.self) { try await send(CollectionJob(account: account, collectionId: made.id!, seriesId: 7), setup, gone) }
         let row = try #require(try setup.store.collection(made.id!))
         #expect(row.state == .pendingCreate && row.createAttempts == 1, "made again, its create queued")
         #expect(try setup.store.isQueued(CollectionJob(account: account, collectionId: made.id!)))

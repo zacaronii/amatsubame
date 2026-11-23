@@ -58,7 +58,7 @@ Notes that apply to more than one app.
     - `LookupAndMiningSection`, whose Anki row opens `AnkiSettingsPage`: the connection, cards and AnkiWeb on one page, with Miru's Card Picture in its extras slot.
     - `StatsSettingsLink`.
     - `SettingsFooterSection`: Storage, Advanced and About.
-  - **Advanced** (`AdvancedSettingsView`): Share Setup, Waiting to Sync by kind (`OutboxView(kind:)`, which can clear progress kinds), Run Setup Again, and Troubleshooting with Export Logs.
+  - **Advanced** (`AdvancedSettingsView`): Share Setup, Waiting to Sync by kind (`OutboxView(kind:)`, which can clear progress kinds; a job waiting for another one, a handler's `OutboxWait`, shows as "Waiting" with its reason, never as a retry or "Needs attention": it's looked at again every 30 s with no attempt counted (`OutboxStore.markWaiting`, the `waitingFor` column, v60), so a long wait never grows its back-off), Run Setup Again, and Troubleshooting with Export Logs.
   - **Logs:** `AppLog` (Core) keeps a rolling `Application Support/Logs/app.log` of server errors, sync, dictionaries and setup, blanking tokens, keys and passwords. Export Logs shares it with the debug logs.
   - **First-launch setup** (`SetupFlow`, `SetupSteps`, AppCommon):
     - **Steps:** each app supplies its server, libraries and extras steps; `SetupProgress` keeps the step per app.

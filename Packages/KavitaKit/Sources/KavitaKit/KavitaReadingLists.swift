@@ -126,17 +126,23 @@ public struct KavitaReadingListHandler: OutboxHandler {
             throw OutboxPermanentFailure("Unreadable reading list job: \(error.localizedDescription)")
         }
         guard let list = try store.list(payload.listId), let id = list.id else { return }
+        // Waits are decided from the device's rows only, before the client is made, so a job
+        // looked at again every 30 s while another backs off costs a couple of local reads.
+        if payload.moveId != nil, try store.hasEarlierChange(account: list.account, listId: id, before: job.id) {
+            throw OutboxWait("Waiting for an earlier change to \u{201C}\(list.title)\u{201D}.")
+        }
+        if payload.moveId != nil || payload.chapterId != nil, list.serverId == nil, list.state == .pendingCreate,
+           try store.isQueued(ReadingListJob(account: list.account, listId: id)) {
+            throw OutboxWait("Waiting for the reading list \u{201C}\(list.title)\u{201D} to be made.")
+        }
         guard let client = try makeClient() else { throw ConnectionError.message("Kavita isn't set up.") }
         if let current = account(), current != list.account {
             throw ConnectionError.message("This belongs to another Kavita account.")
         }
         do {
             if let moveId = payload.moveId {
-                // In order: an earlier add or move of the list backing off would otherwise be
-                // overtaken, and Kavita would end in another order than the device shows.
-                if try store.hasEarlierChange(account: list.account, listId: id, before: job.id) {
-                    throw ConnectionError.message("Waiting for an earlier change to \u{201C}\(list.title)\u{201D}.")
-                }
+                // In order (checked above): an earlier add or move of the list backing off would
+                // otherwise be overtaken, and Kavita would end in another order than the device shows.
                 try await move(moveId, in: list, client)
             } else if let chapterId = payload.chapterId {
                 try await sendItem(chapterId, of: list, client)
@@ -211,7 +217,7 @@ public struct KavitaReadingListHandler: OutboxHandler {
     private func gone(_ list: ReadingListRow) throws {
         guard let id = list.id else { return }
         if try store.recreate(id, outbox: outbox) {
-            throw ConnectionError.message("Kavita removed the empty reading list \u{201C}\(list.title)\u{201D}; making it again.")
+            throw OutboxWait("Kavita removed the empty reading list \u{201C}\(list.title)\u{201D}; making it again.")
         }
         if list.kavitaItemCount == 0 {
             try store.dropList(id)
@@ -239,7 +245,7 @@ public struct KavitaReadingListHandler: OutboxHandler {
         guard list.state != .pendingDelete else { return }
         guard let serverId = list.serverId else {
             if list.state == .pendingCreate, try store.isQueued(ReadingListJob(account: list.account, listId: id)) {
-                throw ConnectionError.message("Waiting for the reading list \u{201C}\(list.title)\u{201D} to be made.")
+                throw OutboxWait("Waiting for the reading list \u{201C}\(list.title)\u{201D} to be made.")
             }
             try store.dropItem(row)
             return
@@ -277,7 +283,7 @@ public struct KavitaReadingListHandler: OutboxHandler {
         guard let id = list.id, let move = try store.moveRow(moveId) else { return }
         guard let serverId = list.serverId else {
             if list.state == .pendingCreate, try store.isQueued(ReadingListJob(account: list.account, listId: id)) {
-                throw ConnectionError.message("Waiting for the reading list \u{201C}\(list.title)\u{201D} to be made.")
+                throw OutboxWait("Waiting for the reading list \u{201C}\(list.title)\u{201D} to be made.")
             }
             try store.dropMove(moveId)
             return

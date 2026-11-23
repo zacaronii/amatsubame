@@ -211,7 +211,7 @@ public struct KavitaCollectionHandler: OutboxHandler {
         guard let serverId = collection.serverId else {
             // Waits for its collection to be made; with no create to wait for, it can't go anywhere.
             if collection.state == .pendingCreate, try store.isQueued(CollectionJob(account: collection.account, collectionId: id)) {
-                throw ConnectionError.message("Waiting for the collection \u{201C}\(collection.title)\u{201D} to be made.")
+                throw OutboxWait("Waiting for the collection \u{201C}\(collection.title)\u{201D} to be made.")
             }
             try store.dropSeries(row)
             return
@@ -254,7 +254,7 @@ public struct KavitaCollectionHandler: OutboxHandler {
             }
             // Made here and cleaned up empty by Kavita before its first series: made again.
             if try store.recreate(id, outbox: outbox) {
-                throw ConnectionError.message("Kavita removed the empty collection \u{201C}\(collection.title)\u{201D}; making it again.")
+                throw OutboxWait("Kavita removed the empty collection \u{201C}\(collection.title)\u{201D}; making it again.")
             }
             try store.dropCollection(id)
             throw OutboxPermanentFailure("Kavita didn't keep the collection \u{201C}\(collection.title)\u{201D}.")

@@ -148,6 +148,8 @@ private struct CardRow: View {
                 }
                 if job.state == .failed, let error = job.lastError {
                     Text(error).font(.caption).foregroundStyle(.red)
+                } else if let waiting = job.waitingLine {
+                    Text(waiting).font(.caption).foregroundStyle(.secondary)
                 } else if job.state == .pending, job.attempts > 0, let error = job.lastError {
                     Text("Attempt \(job.attempts): \(error)").font(.caption).foregroundStyle(.secondary)
                 }
@@ -184,7 +186,9 @@ private struct ProgressRow: View {
                 StateBadge(job: job)
             }
             Text(job.createdAt, format: .dateTime).font(.caption).foregroundStyle(.secondary)
-            if let error = job.lastError {
+            if let waiting = job.waitingLine {
+                Text(waiting).font(.caption).foregroundStyle(.secondary)
+            } else if let error = job.lastError {
                 Text("Attempt \(job.attempts): \(error)").font(.caption).foregroundStyle(job.state == .failed ? .red : .secondary)
             }
         }
@@ -200,14 +204,7 @@ private struct StateBadge: View {
             .foregroundStyle(job.state == .failed ? .red : .secondary)
     }
 
-    private var label: String {
-        switch job.state {
-        case .pending: job.attempts > 0 ? "Waiting to retry" : "Queued"
-        case .inFlight: "Sending…"
-        case .sent: "Sent"
-        case .failed: "Needs attention"
-        }
-    }
+    private var label: String { job.stateLabel }
 }
 
 /// Edits a queued card's sentence and tags before it's sent.
@@ -356,4 +353,20 @@ extension OutboxJobKind {
         case .kavitaReadingList: "Kavita reading list"
         }
     }
+}
+
+extension OutboxJob {
+    /// What Waiting to Sync says of the job's state. A job waiting for another one is
+    /// "Waiting", never "Waiting to retry" or "Needs attention".
+    var stateLabel: String {
+        switch state {
+        case .pending: waitingFor != nil ? "Waiting" : attempts > 0 ? "Waiting to retry" : "Queued"
+        case .inFlight: "Sending…"
+        case .sent: "Sent"
+        case .failed: "Needs attention"
+        }
+    }
+
+    /// What it's waiting for, shown under it instead of an error.
+    var waitingLine: String? { state == .pending ? waitingFor : nil }
 }

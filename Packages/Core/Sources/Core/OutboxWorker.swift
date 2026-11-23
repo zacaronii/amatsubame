@@ -8,6 +8,19 @@ public struct OutboxPermanentFailure: Error, LocalizedError {
     public var errorDescription: String? { message }
 }
 
+/// Thrown by a handler when the job has to wait for another one (its list to be made, an
+/// earlier change to go first). It's looked at again after `retryAfter` with no attempt counted,
+/// and shows as waiting, not as an error.
+public struct OutboxWait: Error, LocalizedError {
+    public let message: String
+    public let retryAfter: TimeInterval
+    public init(_ message: String, retryAfter: TimeInterval = 30) {
+        self.message = message
+        self.retryAfter = retryAfter
+    }
+    public var errorDescription: String? { message }
+}
+
 /// Delivers one kind of outbox job to its server.
 public protocol OutboxHandler: Sendable {
     var kind: OutboxJobKind { get }
@@ -19,10 +32,13 @@ public struct OutboxDrainReport: Equatable, Sendable {
     public var sent = 0
     public var retried = 0
     public var failed = 0
-    public init(sent: Int = 0, retried: Int = 0, failed: Int = 0) {
+    /// Jobs waiting for another one (not failures).
+    public var waiting = 0
+    public init(sent: Int = 0, retried: Int = 0, failed: Int = 0, waiting: Int = 0) {
         self.sent = sent
         self.retried = retried
         self.failed = failed
+        self.waiting = waiting
     }
 }
 
@@ -78,6 +94,7 @@ public actor OutboxWorker {
                     report.sent += lane.sent
                     report.retried += lane.retried
                     report.failed += lane.failed
+                    report.waiting += lane.waiting
                 }
             }
         } while drainRequested
@@ -119,6 +136,9 @@ public actor OutboxWorker {
             let files = try store.markSent(id)
             mediaStorage.remove(files)
             report.sent += 1
+        } catch let wait as OutboxWait {
+            try? store.markWaiting(id, for: wait.message, after: wait.retryAfter)
+            report.waiting += 1
         } catch let failure as OutboxPermanentFailure {
             try? store.markFailed(id, error: failure.message)
             report.failed += 1
