@@ -670,6 +670,7 @@ final class PlaybackModel: Identifiable, LineLookupHost {
             environment.sessions.send()
         }
         lastTick = nil
+        environment.widgets.update()
     }
 
     private func finished() {

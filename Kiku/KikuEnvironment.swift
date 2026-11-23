@@ -44,7 +44,11 @@ final class KikuEnvironment {
     /// Read in Yomu found no Yomu to open.
     var yomuMissing = false
     /// Up Next per podcast library (`UpNext.swift`).
-    var upNext: [String: [UpNextItem]] = [:]
+    var upNext: [String: [UpNextItem]] = [:] {
+        didSet { widgets.update() }
+    }
+    /// The Home Screen and Lock Screen widgets' snapshot (`KikuWidgetPublisher`).
+    @ObservationIgnored private(set) lazy var widgets = KikuWidgetPublisher(environment: self)
     @ObservationIgnored private(set) var downloader: EpisodeDownloader!
     /// Downloaded episodes' audio, by episode key (UI tests swap in their own).
     @ObservationIgnored var localAudioFile: (_ key: String) -> URL? = { _ in nil }
@@ -300,6 +304,7 @@ final class KikuEnvironment {
         let model = PlaybackModel(entry: entry, environment: self)
         playback = model
         showsPlayer = true
+        widgets.update()
         Task { await model.start(at: time, autoplay: autoplay) }
     }
 
@@ -345,9 +350,23 @@ final class KikuEnvironment {
             currentTime: time, isFinished: played, lastUpdate: now.timeIntervalSince1970 * 1000))
     }
 
+    /// "Resume in Kiku" (Siri, the widgets, Control Center): plays what's loaded, else the
+    /// first in Continue Listening. Its title, or nil with nothing to play.
+    func resumeListening() async -> String? {
+        if let playback {
+            if !playback.audio.isPlaying { playback.audio.play() }
+            return playback.entry.episode.title
+        }
+        if library.continueListening.isEmpty { await library.refresh() }
+        guard let entry = library.continueListening.first else { return nil }
+        play(entry)
+        return entry.episode.title
+    }
+
     func stopPlayback() {
         playback?.close()
         playback = nil
+        widgets.update()
         showsPlayer = false
         autoDownloads.schedule()
     }

@@ -1,5 +1,6 @@
 import AppCommon
 import AppIntents
+import KikuIntents
 import SwiftUI
 #if os(iOS)
 import BackgroundTasks
@@ -15,8 +16,10 @@ struct KikuApp: App {
     init() {
         let environment = KikuEnvironment.live()
         _environment = State(initialValue: environment)
-        // For "Mark in Kiku" (the Action Button and Siri).
-        AppDependencyManager.shared.add(dependency: environment)
+        // For "Mark in Kiku" and "Resume in Kiku" (the Action Button, Siri, the widgets and
+        // Control Center), which run here.
+        KikuControls.shared.resume = { [weak environment] in await environment?.resumeListening() }
+        KikuControls.shared.mark = { [weak environment] in environment?.mark(.shortcut)?.time }
         // For CarPlay, which can launch the app without a phone window.
         KikuEnvironment.current = environment
         #if os(iOS)
