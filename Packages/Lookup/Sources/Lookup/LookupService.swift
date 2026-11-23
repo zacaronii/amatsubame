@@ -67,6 +67,8 @@ public final class LookupService {
         didSet {
             guard oldValue !== host else { return }
             oldValue?.stop()
+            // No host: the sort dictionary's own order again.
+            if host == nil { Task { [library] in try? await library.setHostFrequencyOrder(nil) } }
             host?.onOptions = { [weak self] options in self?.keep(options) }
             host?.onWordStatus = { [weak self] overrides in self?.adopt(overrides) }
         }
@@ -106,6 +108,9 @@ public final class LookupService {
     private func keep(_ options: HostOptions) {
         let following = Self.settings(storedPopupSettings, following: options)
         if following != storedPopupSettings { updatePopupSettings { $0 = following } }
+        // The host's frequency order, when it names one, sorts the lookups here too.
+        let order = FrequencyOrder(hostSetting: options.frequencyOrder)
+        Task { [library] in try? await library.setHostFrequencyOrder(order) }
     }
     /// Settings ▸ Popup ▸ Lookup Counts: count lookups and show "Looked up N times".
     public var showsLookupCounts: Bool { popupSettings.showLookupCounts }

@@ -1,6 +1,7 @@
 import CHoshiDicts
 import Core
 import Foundation
+import Synchronization
 import GRDB
 
 public struct DictionaryImportOutcome: Equatable, Sendable {
@@ -19,6 +20,9 @@ public struct DictionaryIndex: Decodable, Equatable, Sendable {
     public var isUpdatable: Bool?
     public var indexUrl: String?
     public var downloadUrl: String?
+    /// A frequency dictionary's numbers: "rank-based" (1 is the most common) or
+    /// "occurrence-based" (counts); unset means rank-based.
+    public var frequencyMode: String?
 
     public init(title: String? = nil, revision: String? = nil, attribution: String? = nil,
                 isUpdatable: Bool? = nil, indexUrl: String? = nil, downloadUrl: String? = nil) {
@@ -362,19 +366,37 @@ public final class DictionaryLibrary: Sendable {
         try await reloadEngine()
     }
 
+    /// Hachidori's `frequencyOrder` while linked, when it names a direction: it wins over the
+    /// dictionary's own mode (as on the host).
+    private let hostFrequencyOrder = Mutex<FrequencyOrder?>(nil)
+
+    /// Sets (nil: clears) the linked host's frequency order, and reloads when it changed.
+    public func setHostFrequencyOrder(_ order: FrequencyOrder?) async throws {
+        let changed = hostFrequencyOrder.withLock { current in
+            defer { current = order }
+            return current != order
+        }
+        if changed { try await reloadEngine() }
+    }
+
     /// Loads the enabled dictionaries, in order, into the engine.
     public func reloadEngine() async throws {
         let enabled = try dictionaries().filter(\.enabled)
         let sortTitle = try settings().frequencySortTitle.flatMap { title in
             enabled.contains { $0.title == title && $0.hasFrequencies } ? title : nil
         }
+        // The dictionary that sorts (the chosen one, else the first with frequencies), and which
+        // way its numbers run.
+        let sorter = sortTitle.flatMap { title in enabled.first { $0.title == title } } ?? enabled.first(where: \.hasFrequencies)
+        let order = hostFrequencyOrder.withLock { $0 }
+            ?? FrequencyOrder(frequencyMode: sorter.flatMap { installedIndex(of: $0) }?.frequencyMode)
         let loaded = enabled.map {
             EngineDictionary(title: $0.title, folder: folder(for: $0), hasTerms: $0.hasTerms,
                              hasFrequencies: $0.hasFrequencies, hasPitches: $0.hasPitches, hasKanji: $0.hasKanji)
         }
         // A dictionary the engine rejects is left out of word marks too.
-        let rejected = await engine.configure(loaded, frequencySortTitle: sortTitle)
+        let rejected = await engine.configure(loaded, frequencySortTitle: sorter?.title, frequencyOrder: order)
         await scanner.configure(loaded.filter { !rejected.contains($0.title) },
-                                frequencySortTitle: sortTitle.flatMap { rejected.contains($0) ? nil : $0 })
+                                frequencySortTitle: sorter.flatMap { rejected.contains($0.title) ? nil : $0.title }, frequencyOrder: order)
     }
 }
