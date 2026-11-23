@@ -46,12 +46,9 @@ extension KikuEnvironment {
         }
     }
 
-    /// An episode ended: the first in its library's Up Next (else any library's) starts.
-    /// False when Up Next is empty.
-    func playUpNext(after entry: EpisodeEntry) -> Bool {
-        let preferred = libraryId(of: entry)
-        guard let (libraryId, first) = (preferred.flatMap { id in upNext[id]?.first.map { (id, $0) } }
-            ?? upNext.lazy.compactMap { id, items in items.first.map { (id, $0) } }.first) else { return false }
+    /// An episode ended and Up Next's first is to play (`UpNextChoice`). One gone from the
+    /// server leaves the queue, and the next is tried.
+    func playQueued(_ first: UpNextItem, libraryId: String, after entry: EpisodeEntry) {
         Task {
             if library.showEpisodes[first.itemId] == nil { await library.loadShow(first.itemId) }
             guard playback?.key == entry.id else { return }
@@ -59,14 +56,15 @@ extension KikuEnvironment {
                 ?? downloadedEntries.first(where: { $0.id == first.key })?.episode else {
                 // Gone from the server: out of the queue, and on to the next.
                 removeFromUpNext(first, libraryId: libraryId)
-                _ = playUpNext(after: entry)
+                if case .queued(let item, let next) = UpNextChoice.after(libraryId: libraryId, queues: upNext, playsNextEpisode: false) {
+                    playQueued(item, libraryId: next, after: entry)
+                }
                 return
             }
             let shows = showsPlayer
             play(library.entry(episode, showTitle: first.showTitle))
             showsPlayer = shows
         }
-        return true
     }
 
     /// Every library's Up Next as one list (most have one podcast library).

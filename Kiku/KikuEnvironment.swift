@@ -303,8 +303,14 @@ final class KikuEnvironment {
     func playNext(after entry: EpisodeEntry) {
         guard !entry.isBook else { return }
         // Up Next first: its first episode, whatever the setting below.
-        if playUpNext(after: entry) { return }
-        guard ListenSettings.load(common.database).playsNextEpisode else { return }
+        switch UpNextChoice.after(libraryId: libraryId(of: entry), queues: upNext,
+                                  playsNextEpisode: ListenSettings.load(common.database).playsNextEpisode) {
+        case .queued(let item, let libraryId):
+            playQueued(item, libraryId: libraryId, after: entry)
+            return
+        case .nothing: return
+        case .showsNext: break
+        }
         Task {
             if library.showEpisodes[entry.itemId] == nil { await library.loadShow(entry.itemId) }
             let episodes = library.showEpisodes[entry.itemId] ?? downloadedEntries.filter { $0.itemId == entry.itemId }.map(\.episode)

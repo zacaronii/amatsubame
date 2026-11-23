@@ -117,3 +117,20 @@ public struct UpNextStore: Sendable {
         }
     }
 }
+
+/// What plays when a podcast episode ends: the first in its library's Up Next (else any
+/// library's, in library order), else the show's next episode when that setting is on, else
+/// nothing.
+public enum UpNextChoice: Equatable, Sendable {
+    case queued(UpNextItem, libraryId: String)
+    case showsNext
+    case nothing
+
+    public static func after(libraryId: String?, queues: [String: [UpNextItem]], playsNextEpisode: Bool) -> UpNextChoice {
+        if let libraryId, let first = queues[libraryId]?.first { return .queued(first, libraryId: libraryId) }
+        for id in queues.keys.sorted() {
+            if let first = queues[id]?.first { return .queued(first, libraryId: id) }
+        }
+        return playsNextEpisode ? .showsNext : .nothing
+    }
+}

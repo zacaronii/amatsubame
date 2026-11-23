@@ -31,4 +31,25 @@ import Testing
         try store.setPlaylistId(nil, libraryId: "lib")
         #expect(try store.playlistId(libraryId: "lib") == nil)
     }
+
+    /// An episode ends: Up Next's first (its library's, else another's), else the show's next
+    /// when that's on, else nothing. The first leaves the queue as it starts (`remove`).
+    @Test func whatPlaysWhenAnEpisodeEnds() throws {
+        let a = item("a"), b = item("b"), other = item("x")
+        #expect(UpNextChoice.after(libraryId: "lib", queues: ["lib": [a, b]], playsNextEpisode: true) == .queued(a, libraryId: "lib"))
+        #expect(UpNextChoice.after(libraryId: "lib", queues: ["lib": [a, b]], playsNextEpisode: false) == .queued(a, libraryId: "lib"),
+                "Up Next plays whatever the show setting")
+        #expect(UpNextChoice.after(libraryId: "lib", queues: ["other": [other], "lib": []], playsNextEpisode: true) == .queued(other, libraryId: "other"))
+        #expect(UpNextChoice.after(libraryId: "lib", queues: [:], playsNextEpisode: true) == .showsNext)
+        #expect(UpNextChoice.after(libraryId: "lib", queues: ["lib": []], playsNextEpisode: false) == .nothing)
+        #expect(UpNextChoice.after(libraryId: nil, queues: [:], playsNextEpisode: false) == .nothing)
+        // The first played leaves; the next end plays the second.
+        let store = UpNextStore(database: try AppDatabase.inMemory())
+        try store.set([a, b], libraryId: "lib")
+        guard case .queued(let first, let library) = UpNextChoice.after(libraryId: "lib", queues: try store.all(), playsNextEpisode: true) else {
+            Issue.record("expected a queued episode"); return
+        }
+        try store.remove(key: first.key, libraryId: library)
+        #expect(UpNextChoice.after(libraryId: "lib", queues: try store.all(), playsNextEpisode: true) == .queued(b, libraryId: "lib"))
+    }
 }
