@@ -18,6 +18,8 @@ public final class BookReaderModel {
 
     public let chapter: ReaderChapter
     public let nextChapter: ReaderChapter?
+    /// Set by the app when it offers more than the series' next (reading in a reading list).
+    public var nextOffer: NextOffer?
     public private(set) var state = LoadState.loading
     public private(set) var package: EpubPackage?
     /// The spine item on screen (Kavita's page).

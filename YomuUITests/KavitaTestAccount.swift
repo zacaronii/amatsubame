@@ -33,6 +33,12 @@ struct KavitaTestAccount {
                 return
             }
             guard let data, !data.isEmpty else { result = .success(nil); return }
+            // Some writes answer with plain text ("Reading List deleted"); reads are always JSON,
+            // and a read that isn't fails where it's checked for a list or an object.
+            if (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type")?.contains("json") == false {
+                result = .success(String(decoding: data, as: UTF8.self))
+                return
+            }
             do {
                 result = .success(try JSONSerialization.jsonObject(with: data))
             } catch {

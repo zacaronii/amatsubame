@@ -145,7 +145,9 @@ struct ReadingListView: View {
                 do {
                     // Opened from the root, as a link is (presenting it from this list's screen
                     // kept SwiftUI laying out forever on iOS 26).
-                    environment.requestedReader = try await environment.session(chapterId: item.chapterId, seriesId: item.seriesId)
+                    var opened = try await environment.session(chapterId: item.chapterId, seriesId: item.seriesId)
+                    opened.readingListId = list.id
+                    environment.requestedReader = opened
                 } catch {
                     cantOpen = error.localizedDescription
                 }

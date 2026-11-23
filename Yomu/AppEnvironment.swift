@@ -434,6 +434,10 @@ final class AppEnvironment {
         )
         model.activity = common.activity
         model.opensAt = startPage
+        #if DEBUG
+        // UI tests: the manga reader opens on its last page (to reach the end of a volume).
+        if startPage == nil, ProcessInfo.processInfo.environment["UITEST_READER_OPENS_AT_END"] != nil { model.opensAt = max(chapter.pages - 1, 0) }
+        #endif
         if let account = readerMarkAccount() {
             model.bookmarks = PageBookmarks(chapter: chapter, account: account, store: readerMarks, outbox: outbox,
                                             syncNow: { [weak self] in self?.syncNow() },
@@ -511,6 +515,20 @@ final class AppEnvironment {
         try await readingListSync()?.items(of: list) ?? true
     }
 
+    /// Why Yomu can never open a reading list's item here (nil: it can), as a `ReadingListSkip`;
+    /// the libraries are read once per offer.
+    func readingListSkipper() -> (ReadingListItemRow) -> String? {
+        let hidden = hiddenLibraries
+        let known = Set(((try? kavitaLibrary.cachedLibraries()) ?? []).map(\.id))
+        return { item in
+            if item.format == 4 { return ReadingListSkip.pdf }
+            if item.format == 0 { return ReadingListSkip.images }
+            if hidden.contains(item.libraryId) { return ReadingListSkip.hiddenLibrary }
+            if !known.isEmpty, !known.contains(item.libraryId) { return ReadingListSkip.unknownLibrary }
+            return nil
+        }
+    }
+
     /// A reader session for a chapter of any series (a reading list's item): from the cache, or
     /// fetched first. Throws why it can't open.
     func session(chapterId: Int, seriesId: Int) async throws -> ReaderSession {
@@ -575,6 +593,8 @@ final class AppEnvironment {
         }
         #if DEBUG
         model.auditsPages = ProcessInfo.processInfo.environment["UITEST_BOOK_AUDIT"] != nil
+        // UI tests: the book opens in its last section (to reach the end of a volume).
+        if start == nil, ProcessInfo.processInfo.environment["UITEST_READER_OPENS_AT_END"] != nil { model.opensAt = (max(chapter.pages - 1, 0), nil) }
         #endif
         // A paired, prepared book reads along with its audiobook.
         if let pair = try? readAlongPairs.pair(chapterId: chapter.chapterId), pair.alignmentVersion == ReadAlongCues.version,
@@ -629,4 +649,26 @@ extension AppEnvironment {
 enum ReaderOpenError: LocalizedError {
     case message(String)
     var errorDescription: String? { switch self { case .message(let text): text } }
+}
+
+/// Why a reading list's item is passed over at the end of a volume, and how the passed-over
+/// ones are summed up on the offer ("skipped 1 PDF · 2 in hidden libraries").
+enum ReadingListSkip {
+    static let pdf = "pdf", images = "images", hiddenLibrary = "hidden", unknownLibrary = "unknown"
+
+    static func summary(_ reasons: [String]) -> String? {
+        guard !reasons.isEmpty else { return nil }
+        let order = [pdf, images, hiddenLibrary, unknownLibrary]
+        let counts = Dictionary(reasons.map { ($0, 1) }, uniquingKeysWith: +)
+        let parts = order.compactMap { reason -> String? in
+            guard let n = counts[reason] else { return nil }
+            switch reason {
+            case pdf: return n == 1 ? "1 PDF" : "\(n) PDFs"
+            case images: return n == 1 ? "1 image folder" : "\(n) image folders"
+            case hiddenLibrary: return n == 1 ? "1 in a hidden library" : "\(n) in hidden libraries"
+            default: return n == 1 ? "1 in a library you can't read here" : "\(n) in libraries you can't read here"
+            }
+        }
+        return "skipped " + parts.joined(separator: " · ")
+    }
 }

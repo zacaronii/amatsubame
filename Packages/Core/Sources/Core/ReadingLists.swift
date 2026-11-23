@@ -158,6 +158,14 @@ public struct ReadingListJob: Codable, Equatable, Sendable {
     }
 }
 
+/// What comes next in a reading list (`ReadingListStore.next`). `skipped` holds the reason for
+/// each item passed over, in order.
+public enum ReadingListNext: Equatable, Sendable {
+    case item(ReadingListItemRow, skipped: [String])
+    case end(skipped: [String])
+    case notInList
+}
+
 public enum ReadingListError: Error, Equatable, LocalizedError {
     case readOnly(String)
     case emptyTitle
@@ -271,6 +279,29 @@ public struct ReadingListStore: Sendable {
                 .reduce(0) { $0 + ($1.isIn ? 1 : 0) - ($1.inKavita ? 1 : 0) }
             return max(0, count + unsent)
         }
+    }
+
+    // MARK: Reading in list order
+
+    /// What comes after `chapterId` in a list, from the device's copy (works offline): Kavita's
+    /// order with the waiting moves applied, unsent adds included, items being taken out left
+    /// out. `skip` names why Yomu can never open an item here (nil: it can); those are passed
+    /// over and counted. The item read isn't in the list (any more), or the list is gone:
+    /// `.notInList`.
+    public func next(after chapterId: Int, listId: Int64, skip: (ReadingListItemRow) -> String?) throws -> ReadingListNext {
+        let (list, items) = try database.reader.read { db in
+            (try ReadingListRow.fetchOne(db, key: listId), try Self.items(db, listId: listId))
+        }
+        guard let list, list.state != .pendingDelete, let index = items.firstIndex(where: { $0.chapterId == chapterId }) else { return .notInList }
+        var skipped: [String] = []
+        for item in items[(index + 1)...] {
+            if let reason = skip(item) {
+                skipped.append(reason)
+            } else {
+                return .item(item, skipped: skipped)
+            }
+        }
+        return .end(skipped: skipped)
     }
 
     // MARK: Changes made here (each in one write with its job)

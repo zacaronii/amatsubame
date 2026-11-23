@@ -670,6 +670,142 @@ final class ReaderUITests: XCTestCase {
         XCTAssertEqual(try chapters.map { try kavita.progress(chapterId: $0) }, progressBefore, "no reading progress changed")
     }
 
+    /// Reading in a list: a manga volume's end offers the list's next, a book in another
+    /// library, and swiping on past the end goes nowhere else; tapping it swaps to the book's
+    /// reader with the list kept. The list is made through the app; teardown deletes it and fails
+    /// if anything else on the account changed. No reading progress changes.
+    func testTheEndOfAVolumeOffersTheListsNextAcrossFormats() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let bookLibrary = env["UITEST_BOOK_LIBRARY"], let bookSeries = env["UITEST_BOOK_SERIES"] else {
+            throw XCTSkip("Set TEST_RUNNER_UITEST_BOOK_LIBRARY and TEST_RUNNER_UITEST_BOOK_SERIES for the book in the list.")
+        }
+        let kavita = try KavitaTestAccount()
+        let marksBefore = try kavita.snapshot()
+        addTeardownBlock { XCTAssertNil(try marksBefore.restore(), "the test account's reading lists were put back") }
+        let title = KavitaTestAccount.testCollectionTitle
+        let chapters = try kavita.chapters(series: series)
+        let progressBefore = try chapters.map { try kavita.progress(chapterId: $0) }
+        func items() -> [Int]? { (try? kavita.readingLists())?.first { marksBefore.readingLists[$0.key] == nil }?.value }
+        app.launchEnvironment["UITEST_SENDS_MARKS"] = "1"
+        app.launchEnvironment["UITEST_READER_OPENS_AT_END"] = "1"
+        app.launch()
+
+        // The list: the manga's first volume, then the book's first volume.
+        addFirstVolume(library: library, series: series, new: true)
+        XCTAssertTrue(waitFor { items()?.count == 1 }, "made on Kavita")
+        addFirstVolume(library: bookLibrary, series: bookSeries, new: false)
+        XCTAssertTrue(waitFor { items()?.count == 2 }, "the book added after it")
+        let listed = try XCTUnwrap(items())
+
+        // From the list, the manga volume; to its last page, then onto the end page.
+        app.swipeDown()
+        let list = app.buttons["readingList.\(title)"].firstMatch
+        XCTAssertTrue(list.waitForExistence(timeout: 20))
+        for _ in 0..<10 where !list.isHittable { app.swipeUp() }
+        list.tap()
+        let first = app.buttons["readingList.item.\(listed[0])"].firstMatch
+        XCTAssertTrue(first.waitForExistence(timeout: 20))
+        first.tap()
+        XCTAssertTrue(reader.waitForExistence(timeout: 30), "the manga reader opened from the list")
+        let value = (reader.value as? String ?? "").split(separator: " ").compactMap { Int($0.trimmingCharacters(in: .punctuationCharacters)) }
+        XCTAssertTrue(value.count == 2 && value[0] == value[1], "opened on the last page: \(reader.value ?? "")")
+        // The end page sits beside the last one (in the hierarchy before it's on screen).
+        let next = app.buttons["reader.next"].firstMatch
+        let screen = app.windows.firstMatch.frame
+        func onScreen() -> Bool { next.exists && screen.contains(CGPoint(x: next.frame.midX, y: next.frame.midY)) }
+        for _ in 0..<3 where !onScreen() { reader.swipeRight(); sleep(1) }   // forward in right-to-left
+        XCTAssertTrue(onScreen(), "the end page")
+        XCTAssertTrue(next.label.contains("\u{201C}\(title)\u{201D}"), "offers the list's next: \(next.label)")
+        // Swiping on past the end doesn't open anything (only the button does).
+        reader.swipeRight()
+        sleep(2)
+        XCTAssertTrue(onScreen() && reader.exists, "still the manga reader's end page")
+
+        // The book's reader replaces it, in the list.
+        next.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["book.page"].firstMatch.waitForExistence(timeout: 60), "the book opened from the offer")
+        XCTAssertFalse(reader.exists)
+        XCTAssertEqual(try chapters.map { try kavita.progress(chapterId: $0) }, progressBefore, "no reading progress changed")
+    }
+
+    /// The other way: a book's end offers the list's next, a manga volume, and tapping it swaps
+    /// the book's reader for the manga reader.
+    func testTheEndOfABookOffersTheListsNextManga() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let bookLibrary = env["UITEST_BOOK_LIBRARY"], let bookSeries = env["UITEST_BOOK_SERIES"] else {
+            throw XCTSkip("Set TEST_RUNNER_UITEST_BOOK_LIBRARY and TEST_RUNNER_UITEST_BOOK_SERIES for the book in the list.")
+        }
+        let kavita = try KavitaTestAccount()
+        let marksBefore = try kavita.snapshot()
+        addTeardownBlock { XCTAssertNil(try marksBefore.restore(), "the test account's reading lists were put back") }
+        let title = KavitaTestAccount.testCollectionTitle
+        let chapters = try kavita.chapters(series: series)
+        let progressBefore = try chapters.map { try kavita.progress(chapterId: $0) }
+        func items() -> [Int]? { (try? kavita.readingLists())?.first { marksBefore.readingLists[$0.key] == nil }?.value }
+        app.launchEnvironment["UITEST_SENDS_MARKS"] = "1"
+        app.launchEnvironment["UITEST_READER_OPENS_AT_END"] = "1"
+        app.launch()
+
+        addFirstVolume(library: bookLibrary, series: bookSeries, new: true)
+        XCTAssertTrue(waitFor { items()?.count == 1 }, "made on Kavita with the book")
+        addFirstVolume(library: library, series: series, new: false)
+        XCTAssertTrue(waitFor { items()?.count == 2 }, "the manga added after it")
+        let listed = try XCTUnwrap(items())
+
+        let list = app.buttons["readingList.\(title)"].firstMatch
+        for _ in 0..<10 where !list.isHittable { app.swipeUp() }
+        list.tap()
+        let first = app.buttons["readingList.item.\(listed[0])"].firstMatch
+        XCTAssertTrue(first.waitForExistence(timeout: 20))
+        first.tap()
+        let page = app.descendants(matching: .any)["book.page"].firstMatch
+        XCTAssertTrue(page.waitForExistence(timeout: 60), "the book opened from the list")
+        sleep(3)
+        // On through its last section to the end (forward is a swipe right in a vertical book).
+        let next = app.buttons["reader.next"].firstMatch
+        for _ in 0..<40 where !next.exists { page.swipeRight(); sleep(1) }
+        XCTAssertTrue(next.waitForExistence(timeout: 5), "the end of the book")
+        XCTAssertTrue(next.label.contains("\u{201C}\(title)\u{201D}"), "offers the list's next: \(next.label)")
+        next.tap()
+        XCTAssertTrue(reader.waitForExistence(timeout: 30), "the manga reader replaced the book")
+        XCTAssertFalse(page.exists)
+        XCTAssertEqual(try chapters.map { try kavita.progress(chapterId: $0) }, progressBefore, "no reading progress changed")
+    }
+
+    /// Adds a series' first volume to the test's reading list (made with the first), then goes
+    /// back to the Library home.
+    private func addFirstVolume(library: String, series: String, new: Bool) {
+        let title = KavitaTestAccount.testCollectionTitle
+        let libraryRow = app.buttons[library].firstMatch
+        // Libraries are shelves down the Library home, made as they scroll into view.
+        _ = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'home.'")).firstMatch.waitForExistence(timeout: 20)
+        for _ in 0..<10 where !libraryRow.isHittable { app.swipeUp() }
+        XCTAssertTrue(libraryRow.isHittable, "library listed")
+        libraryRow.tap()
+        let tile = app.buttons["series.\(series)"].firstMatch
+        XCTAssertTrue(tile.waitForExistence(timeout: 20), "series listed")
+        tile.tap()
+        let volume = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'volume.'")).element(boundBy: 0)
+        XCTAssertTrue(volume.waitForExistence(timeout: 20))
+        volume.press(forDuration: 1.2)
+        app.buttons["chapter.addToReadingList"].firstMatch.tap()
+        if new {
+            app.buttons["readingLists.new"].firstMatch.tap()
+            let field = app.alerts.textFields.firstMatch
+            XCTAssertTrue(field.waitForExistence(timeout: 5))
+            field.typeText(title)
+            app.alerts.buttons["Make"].firstMatch.tap()
+        } else {
+            let row = app.buttons["readingLists.row.\(title)"].firstMatch
+            XCTAssertTrue(row.waitForExistence(timeout: 10))
+            row.tap()
+        }
+        // Back to the Library home (tapping its tab again goes to the top of its stack).
+        app.tabBars.buttons["Library"].tap()
+        app.tabBars.buttons["Library"].tap()
+        app.swipeDown()
+    }
+
     private func openCollectionsSheet() {
         let more = app.buttons["series.downloads"].firstMatch
         XCTAssertTrue(more.waitForExistence(timeout: 20))

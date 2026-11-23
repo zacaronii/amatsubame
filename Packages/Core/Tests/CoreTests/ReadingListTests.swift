@@ -137,4 +137,60 @@ import Testing
         #expect(try outbox.waitingCounts()[.kavitaReadingList] == 1, "only the delete")
         #expect(try store.lists(account: account).isEmpty)
     }
+
+    // MARK: Next in list
+
+    func next(_ store: ReadingListStore, after chapter: Int, _ id: Int64, skip: (ReadingListItemRow) -> String? = { _ in nil }) throws -> ReadingListNext {
+        try store.next(after: chapter, listId: id, skip: skip)
+    }
+
+    func nextChapter(_ result: ReadingListNext) -> Int? {
+        if case .item(let row, _) = result { return row.chapterId }
+        return nil
+    }
+
+    @Test func nextFollowsTheListAcrossSeries() throws {
+        let (store, _) = try stores()
+        let id = try abcd(store)    // chapters 1–4, each its own series
+        #expect(nextChapter(try next(store, after: 1, id)) == 2)
+        #expect(try next(store, after: 4, id) == .end(skipped: []))
+    }
+
+    @Test func nextPassesOverWhatCantBeOpenedWithItsReason() throws {
+        let (store, _) = try stores()
+        let id = try abcd(store)
+        let result = try next(store, after: 1, id) { [2: "PDF", 3: "hidden library"][$0.chapterId] }
+        guard case .item(let row, let skipped) = result else { Issue.record("no next"); return }
+        #expect(row.chapterId == 4)
+        #expect(skipped == ["PDF", "hidden library"])
+        #expect(try next(store, after: 3, id) { $0.chapterId == 4 ? "PDF" : nil } == .end(skipped: ["PDF"]))
+    }
+
+    @Test func nextFollowsWaitingMovesAndUnsentAdds() throws {
+        let (store, outbox) = try stores()
+        let id = try abcd(store)
+        try store.move(4, after: 1, listId: id, outbox: outbox)            // 1 4 2 3
+        try store.set(true, chapter: chapter(7), listId: id, outbox: outbox)   // 1 4 2 3 7
+        #expect(nextChapter(try next(store, after: 1, id)) == 4, "the device's order, not Kavita's last read")
+        #expect(nextChapter(try next(store, after: 3, id)) == 7, "an unsent add is offered")
+    }
+
+    @Test func anItemBeingTakenOutIsNeverOffered() throws {
+        let (store, outbox) = try stores()
+        let id = try abcd(store)
+        try store.set(false, chapter: chapter(2), listId: id, outbox: outbox)
+        #expect(nextChapter(try next(store, after: 1, id)) == 3)
+    }
+
+    @Test func theItemReadTakenOutOrTheListGoneIsNotInList() throws {
+        let (store, outbox) = try stores()
+        let id = try abcd(store)
+        try store.set(false, chapter: chapter(2), listId: id, outbox: outbox)
+        #expect(try next(store, after: 2, id) == .notInList, "taken out here while it's read")
+        try store.mergeItems([1, 3, 4].map { .init(serverItemId: 100 + $0, chapter: chapter($0)) }, listId: id)
+        #expect(try next(store, after: 2, id) == .notInList, "or by a refresh")
+        try store.delete(id, outbox: outbox)
+        #expect(try next(store, after: 1, id) == .notInList, "the list deleted")
+        #expect(try next(store, after: 1, 999) == .notInList, "or gone")
+    }
 }

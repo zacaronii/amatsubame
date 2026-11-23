@@ -132,6 +132,9 @@ public struct OutboxStore: Sendable {
         self.now = now
     }
 
+    /// The shortest wait `markWaiting` schedules.
+    public static let minimumWait: TimeInterval = 1
+
     /// Delay before the next attempt after `attempts` failures: 30s, 60s, 120s… capped at 6h.
     public static func backoff(afterAttempts attempts: Int) -> TimeInterval {
         let exponent = Double(max(attempts - 1, 0))
@@ -270,10 +273,11 @@ public struct OutboxStore: Sendable {
         }
     }
 
-    /// The job waits for another one to go first (`OutboxWait`): looked at again after `delay`,
-    /// with no attempt counted, so a long wait never grows its back-off and never reads as a
-    /// failure.
+    /// The job waits for another one to go first (`OutboxWait`): looked at again after `delay`
+    /// (at least `minimumWait`, so a lane never claims it again at once and spins), with no
+    /// attempt counted, so a long wait never grows its back-off and never reads as a failure.
     public func markWaiting(_ id: Int64, for reason: String, after delay: TimeInterval) throws {
+        let delay = max(delay, Self.minimumWait)
         let now = now()
         try database.writer.write { db in
             guard var job = try OutboxJob.fetchOne(db, key: id) else { throw OutboxError.jobNotFound }

@@ -91,6 +91,24 @@ struct HangingHandler: OutboxHandler {
         #expect(try store.summary() == OutboxSummary(pending: 1, failed: 0), "a wait is never counted as failed")
     }
 
+    /// A wait of 0 (or less) would be claimed again at once and spin its lane: it's held to
+    /// `minimumWait`.
+    @Test func aWaitIsNeverShorterThanTheMinimum() async throws {
+        let clock = TestClock()
+        let store = OutboxStore(database: try AppDatabase.inMemory()) { clock.now }
+        let id = try store.enqueue(Progress(chapterId: 1, page: 1), kind: .kavitaReadingList, coalesceKey: "w")
+        let calls = Mutex(0)
+        let handler = RecordingHandler(kind: .kavitaReadingList) { _ in
+            calls.withLock { $0 += 1 }
+            throw OutboxWait("now", retryAfter: 0)
+        }
+        let worker = OutboxWorker(store: store, mediaStorage: media, handlers: [handler])
+        #expect(await worker.drain() == OutboxDrainReport(waiting: 1))
+        #expect(calls.withLock { $0 } == 1, "not claimed again in the same drain")
+        let job = try #require(try store.jobs(states: [.pending]).first { $0.id == id })
+        #expect(job.nextAttemptAt == clock.now.addingTimeInterval(OutboxStore.minimumWait))
+    }
+
     @Test func kindsWithoutHandlerStayPending() async throws {
         try store.enqueue(Progress(chapterId: 1, page: 1), kind: .jellyfinProgress, coalesceKey: "j")
         let worker = OutboxWorker(store: store, mediaStorage: media)
