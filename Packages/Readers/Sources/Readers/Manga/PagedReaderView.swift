@@ -235,7 +235,10 @@ struct EndOfChapterView: View {
         VStack(spacing: 16) {
             Text("End of \(model.chapter.title)")
                 .font(.title3.bold())
-            if let next = model.nextChapter {
+            if let offer = model.nextOffer {
+                NextOfferButtons(offer: offer, none: "No more chapters in this series.", open: onOpenChapter)
+                    .padding(.horizontal)
+            } else if let next = model.nextChapter {
                 Button {
                     onOpenChapter(next)
                 } label: {

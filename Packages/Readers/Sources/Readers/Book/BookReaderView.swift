@@ -355,7 +355,15 @@ public struct BookReaderView: View {
             Spacer()
 
             if model.reachedEnd {
-                if let next = model.nextChapter {
+                if let offer = model.nextOffer {
+                    NextOfferButtons(offer: offer, none: "End of book") { next in
+                        model.flushProgress()
+                        onOpenChapter(next)
+                    }
+                    .padding(12)
+                    .glassEffect(in: .rect(cornerRadius: 20))
+                    .padding(.horizontal)
+                } else if let next = model.nextChapter {
                     Button("Read \(next.title)", systemImage: "arrow.forward.circle.fill") {
                         model.flushProgress()
                         onOpenChapter(next)
