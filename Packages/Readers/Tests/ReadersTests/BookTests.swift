@@ -194,6 +194,14 @@ enum TestEpub {
         #expect(ProgressSyncPolicy.startPosition(local: local, server: nil, pages: 46) == (5, "//body/div[1]/p[9]"))
         let finished = KavitaServerProgress(chapterId: 1, pageNum: 46, bookScrollId: "//body/div[1]/p[1]", lastModifiedUtc: date.addingTimeInterval(60))
         #expect(ProgressSyncPolicy.startPosition(local: local, server: finished, pages: 46) == (0, nil))
+        // Marked unread here: Kavita sets page 0 but keeps the book's old place, with a newer
+        // date; once the mark went, the device's row is moved just past it (KavitaReadMarkSettling),
+        // so this device starts the book at the top.
+        let kavitaDate = Date(timeIntervalSince1970: 1_800_000_060)
+        let settled = LocalReadingProgress(chapterId: 1, seriesId: 1, volumeId: 1, libraryId: 1, page: 0, pages: 46,
+                                           updatedAt: kavitaDate.addingTimeInterval(1))
+        let keptPlace = KavitaServerProgress(chapterId: 1, pageNum: 0, bookScrollId: "//body/div[1]/p[9]", lastModifiedUtc: kavitaDate)
+        #expect(ProgressSyncPolicy.startPosition(local: settled, server: keptPlace, pages: 46) == (0, nil))
     }
 
     @MainActor @Test func recorderSendsBookScrollId() throws {

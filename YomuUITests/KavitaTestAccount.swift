@@ -136,6 +136,27 @@ struct KavitaTestAccount {
         return try XCTUnwrap(series?["seriesId"] as? Int, "the series")
     }
 
+    /// Pages read and pages per chapter of a series (Kavita's progress).
+    func pagesRead(seriesId: Int) throws -> [Int: (read: Int, pages: Int)] {
+        var result: [Int: (read: Int, pages: Int)] = [:]
+        for volume in try list(try call("GET", "api/Series/volumes", query: ["seriesId": String(seriesId)]), "the volumes") {
+            for chapter in try list(volume["chapters"], "a volume's chapters") {
+                guard let id = chapter["id"] as? Int, let read = chapter["pagesRead"] as? Int, let pages = chapter["pages"] as? Int else {
+                    throw UnexpectedAnswer(what: "a chapter's progress")
+                }
+                result[id] = (read, pages)
+            }
+        }
+        return result
+    }
+
+    /// How many entries the account's own reading history has for a series.
+    func readingHistoryCount(seriesId: Int) throws -> Int {
+        let items = try list(try call("GET", "api/Stats/reading-history/series/\(seriesId)",
+                                      query: ["tzId": "UTC", "pageNumber": "1", "pageSize": "200"]), "the reading history")
+        return items.count
+    }
+
     /// A series' chapters, found by its name.
     func chapters(series name: String) throws -> [Int] {
         let found = try XCTUnwrap(try call("GET", "api/Search/search", query: ["queryString": name]) as? [String: Any], "the search")
@@ -167,8 +188,13 @@ struct KavitaTestAccount {
     }
 
     /// What's there now; `restore()` removes whatever was added since.
-    func snapshot(bookSeries: String? = nil) throws -> Snapshot {
-        Snapshot(account: self, bookSeries: bookSeries, annotations: Set(try annotations().compactMap { $0["id"] as? Int }),
+    /// `progressOf`: a series whose reading progress the test may change (marks only, on chapters
+    /// unread here): restore marks them unread again. Kavita can't delete a progress row or put
+    /// back its date, so a 0-page row and a moved last-read date are left.
+    func snapshot(bookSeries: String? = nil, progressOf: Int? = nil) throws -> Snapshot {
+        Snapshot(account: self, bookSeries: bookSeries, progressSeries: progressOf,
+                 progress: try progressOf.map { try pagesRead(seriesId: $0).mapValues(\.read) } ?? [:],
+                 annotations: Set(try annotations().compactMap { $0["id"] as? Int }),
                  pageBookmarks: Set(try pageBookmarks().compactMap { $0["id"] as? Int }),
                  bookBookmarks: Set(try bookSeries.map { try bookBookmarks(series: $0) } ?? []),
                  wantToRead: try wantToRead(), collections: try collections(), readingLists: try readingLists())
@@ -177,6 +203,8 @@ struct KavitaTestAccount {
     struct Snapshot {
         let account: KavitaTestAccount
         let bookSeries: String?
+        let progressSeries: Int?
+        let progress: [Int: Int]
         let annotations: Set<Int>
         let pageBookmarks: Set<Int>
         let bookBookmarks: Set<BookBookmark>
@@ -187,6 +215,14 @@ struct KavitaTestAccount {
         /// Removes the marks made since the snapshot. Returns what's still left over.
         @discardableResult
         func restore() throws -> String? {
+            if let series = progressSeries {
+                let changed = try account.pagesRead(seriesId: series).filter { progress[$0.key] == 0 && $0.value.read != 0 }.map(\.key)
+                if !changed.isEmpty {
+                    try account.call("POST", "api/Reader/mark-multiple-unread",
+                                     body: #"{"seriesId":\#(series),"volumeIds":[],"chapterIds":\#(changed)}"#)
+                }
+                if try account.pagesRead(seriesId: series).mapValues(\.read) != progress { return "reading progress differs from before the test" }
+            }
             for annotation in try account.annotations() {
                 guard let id = annotation["id"] as? Int, !annotations.contains(id) else { continue }
                 try account.call("DELETE", "api/Annotation", query: ["annotationId": String(id)])

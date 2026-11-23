@@ -106,15 +106,15 @@ final class AppEnvironment {
     /// Marks volumes or chapters read or unread (the series page's menus): this device's place
     /// at once, then Kavita through the outbox, the same way reading reports it (all pages
     /// read, or none).
-    func setRead(_ chapters: [KavitaChapter], series: KavitaSeries, _ read: Bool) {
-        let now = Date()
-        for chapter in chapters {
-            try? readingProgress.save(LocalReadingProgress(
-                chapterId: chapter.id, seriesId: series.id, volumeId: chapter.volumeId, libraryId: series.libraryId,
-                page: read ? max(chapter.pages - 1, 0) : 0, pages: chapter.pages, updatedAt: now))
-            let payload = KavitaProgressPayload(volumeId: chapter.volumeId, chapterId: chapter.id, pageNum: read ? chapter.pages : 0,
-                                                seriesId: series.id, libraryId: series.libraryId, bookScrollId: nil)
-            try? outbox.enqueue(payload, kind: .kavitaProgress, coalesceKey: "kavita.chapter.\(chapter.id)")
+    /// Mark as Read / Unread: on the device at once, to Kavita through its mark endpoints (not
+    /// counted as reading anywhere). `wholeSeries`: every chapter given, sent as one series mark.
+    func setRead(_ chapters: [KavitaChapter], series: KavitaSeries, _ read: Bool, wholeSeries: Bool = false) {
+        let marking = KavitaReadMarking(database: database, outbox: outbox)
+        let marked = chapters.map { KavitaReadMarking.Chapter(chapterId: $0.id, volumeId: $0.volumeId, pages: $0.pages) }
+        if wholeSeries {
+            try? marking.markSeries(read, marked, seriesId: series.id, libraryId: series.libraryId, account: readerMarkAccount())
+        } else {
+            try? marking.mark(read, marked, seriesId: series.id, libraryId: series.libraryId, account: readerMarkAccount())
         }
         syncNow()
     }
@@ -145,11 +145,12 @@ final class AppEnvironment {
                     KavitaWantToReadHandler(store: wants, features: marks, account: signedIn, makeClient: makeKavita),
                     KavitaCollectionHandler(store: collectionStore, features: marks, outbox: OutboxStore(database: database), account: signedIn, makeClient: makeKavita),
                     KavitaReadingListHandler(store: readingListStore, features: marks, outbox: OutboxStore(database: database), account: signedIn, makeClient: makeKavita),
-                ] : []
+                ] + (sendsProgress ? [] : [KavitaProgressHandler(account: signedIn, sendsPageTurns: false, progress: ReadingProgressStore(database: database), makeClient: makeKavita)]) : []
                 guard sendsProgress else { return markHandlers }
                 let audiobookshelf = AudioServers.audiobookshelfClientFactory(accounts: context.accounts, tokens: tokens, http: context.http)
                 return [
-                    KavitaProgressHandler(makeClient: Self.kavitaClientFactory(accounts: context.accounts, secrets: context.secrets, http: context.http)),
+                    KavitaProgressHandler(account: signedIn, progress: ReadingProgressStore(database: database),
+                                          makeClient: Self.kavitaClientFactory(accounts: context.accounts, secrets: context.secrets, http: context.http)),
                     // Read-along listening moves the audiobook's place too, and counts as listening.
                     AudiobookshelfProgressHandler(makeClient: audiobookshelf),
                     AudiobookshelfSessionHandler(makeClient: audiobookshelf),

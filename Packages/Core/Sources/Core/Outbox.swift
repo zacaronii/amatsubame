@@ -454,7 +454,7 @@ public struct OutboxStore: Sendable {
 
     /// Deletes the unsent jobs with these coalesce keys, inside a write (a jobs' row removed with
     /// them). One being sent is left to finish; it finds its row gone.
-    static func cancel(_ db: Database, coalesceKeys keys: [String]) throws {
+    public static func cancel(_ db: Database, coalesceKeys keys: [String]) throws {
         guard !keys.isEmpty else { return }
         try OutboxJob
             .filter(keys.contains(Column("coalesceKey")))

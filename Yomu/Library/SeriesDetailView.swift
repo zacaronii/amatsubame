@@ -36,6 +36,8 @@ struct SeriesDetailView: View {
     /// The chapter picked in a volume's sheet, opened once the sheet has gone.
     @State private var pickedChapter: KavitaChapter?
     @State private var confirmsRemoveDownloads = false
+    /// Mark Series as Read (true) or Unread (false), asked first.
+    @State private var confirmsSeriesRead: Bool?
     /// In Kavita's Want to Read (the device's copy), and whether this server has it.
     @State private var wanted = false
     @State private var canWantToRead = false
@@ -98,6 +100,14 @@ struct SeriesDetailView: View {
                             Button("Collections…", systemImage: "square.stack") { showsCollections = true }
                                 .accessibilityIdentifier("series.collections")
                         }
+                        if allChapters.contains(where: { !$0.isRead }) {
+                            Button("Mark Series as Read…", systemImage: "checkmark.circle") { confirmsSeriesRead = true }
+                                .accessibilityIdentifier("series.markRead")
+                        }
+                        if allChapters.contains(where: { $0.pagesRead > 0 }) {
+                            Button("Mark Series as Unread…", systemImage: "circle") { confirmsSeriesRead = false }
+                                .accessibilityIdentifier("series.markUnread")
+                        }
                         Button("Download \(notDownloaded.count) Volumes", systemImage: "arrow.down.circle") {
                             confirmsDownloadAll = true
                         }
@@ -110,6 +120,15 @@ struct SeriesDetailView: View {
                     .accessibilityIdentifier("series.downloads")
                 }
             }
+        }
+        // Every volume at once: asked first (undone by the opposite one).
+        .confirmationDialog(confirmsSeriesRead == true ? "Mark every volume of \(series.displayName) as read?" : "Mark every volume of \(series.displayName) as unread?",
+                            isPresented: Binding { confirmsSeriesRead != nil } set: { if !$0 { confirmsSeriesRead = nil } },
+                            titleVisibility: .visible, presenting: confirmsSeriesRead) { read in
+            Button(read ? "Mark as Read" : "Mark as Unread") { setRead(allChapters, read, wholeSeries: true) }
+                .accessibilityIdentifier("series.markConfirm")
+        } message: { read in
+            Text(read ? "It isn't counted as reading time." : "Your place in each volume goes back to the start.")
         }
         // Every volume at once: asked first, as Settings ▸ Storage does.
         .confirmationDialog("Remove the downloads of \(series.displayName)?", isPresented: $confirmsRemoveDownloads, titleVisibility: .visible) {
@@ -438,8 +457,6 @@ struct SeriesDetailView: View {
         .contextMenu { readMenu([chapter]) }
     }
 
-    /// Mark as Read / Mark as Unread for a volume's chapters (or one chapter): for something read
-    /// in print or elsewhere, or to start one over.
     /// A chapter as a reading list item.
     private func readingListChapter(_ chapter: KavitaChapter) -> ReadingListChapter {
         let volume = contents?.volumes.first { $0.chapters.contains { $0.id == chapter.id } }
@@ -447,6 +464,8 @@ struct SeriesDetailView: View {
                                   format: series.format, seriesName: series.displayName, title: chapter.displayTitle(in: volume))
     }
 
+    /// Mark as Read / Mark as Unread for a volume's chapters (or one chapter): for something read
+    /// in print or elsewhere, or to start one over.
     @ViewBuilder private func readMenu(_ chapters: [KavitaChapter]) -> some View {
         if chapters.count == 1, let chapter = chapters.first, environment.readerMarkAccount() != nil {
             Button("Add to Reading List…", systemImage: "text.badge.plus") { addingToList = chapter }
@@ -462,8 +481,8 @@ struct SeriesDetailView: View {
         }
     }
 
-    private func setRead(_ chapters: [KavitaChapter], _ read: Bool) {
-        environment.setRead(chapters, series: series, read)
+    private func setRead(_ chapters: [KavitaChapter], _ read: Bool, wholeSeries: Bool = false) {
+        environment.setRead(chapters, series: series, read, wholeSeries: wholeSeries)
         // On the page at once (Kavita follows through the outbox).
         contents = contents?.settingPagesRead(Dictionary(chapters.map { ($0.id, read ? $0.pages : 0) }, uniquingKeysWith: max))
         for chapter in chapters { localProgress[chapter.id] = try? environment.readingProgress.progress(chapterId: chapter.id) }
