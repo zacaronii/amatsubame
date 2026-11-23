@@ -40,6 +40,10 @@ struct PlaybackView: View {
     @FocusState private var focused: Bool
     @Environment(CommonEnvironment.self) private var common
     @Environment(PlayerEnvironment.self) private var environment
+    #if os(iOS)
+    /// A connected screen (AirPlay mirroring, a cable) shows the video instead.
+    @State private var external = ExternalDisplay.shared
+    #endif
 
     var body: some View {
         GeometryReader { geometry in
@@ -47,6 +51,10 @@ struct PlaybackView: View {
             player(size: geometry.size, screen: screen)
                 .onGeometryChange(for: Bool.self) { $0.size.width > $0.size.height } action: { wide = $0 }
         }
+        #if os(iOS)
+        .onAppear { external.player = model.mpv }
+        .onDisappear { if external.player === model.mpv { external.player = nil } }
+        #endif
         .sheet(isPresented: Binding(get: { model.showsSearch }, set: { model.showsSearch = $0 })) {
             SearchView(miningContext: model.miningContext()) { model.showsSearch = false }
                 #if os(macOS)
@@ -85,7 +93,7 @@ struct PlaybackView: View {
             // Always placed the same way (only the rect changes), so folding or rotating keeps
             // the same video view.
             placeVideo(screen.videoArea) {
-                MPVVideoView(controller: model.mpv, fills: fills(screen))
+                videoOrElsewhere(screen)
                     .contentShape(.rect)
                     .playerGestures(model: model, size: screen.videoArea.size, enabled: model.popup == nil, canFill: screen.layout.canFill, scrub: $scrub) {
                         // Pause or play without bringing up the controls.
@@ -702,12 +710,41 @@ struct PlaybackView: View {
     // MARK: Controls
 
     /// Close, the title, and the Subtitles button.
+    /// The video, or, with it on a connected screen (`ExternalDisplay`), a note where it was:
+    /// the lines, controls and lookups stay here.
+    @ViewBuilder private func videoOrElsewhere(_ screen: PlayerScreen) -> some View {
+        #if os(iOS)
+        if external.showsVideo {
+            ZStack {
+                Color.black
+                Label("Playing on \(external.screenName)", systemImage: "tv")
+                    .font(.headline)
+                    .foregroundStyle(.white.opacity(0.7))
+            }
+            .accessibilityElement(children: .combine)
+        } else {
+            MPVVideoView(controller: model.mpv, fills: fills(screen))
+        }
+        #else
+        MPVVideoView(controller: model.mpv, fills: fills(screen))
+        #endif
+    }
+
     private var topBarRow: some View {
         HStack(spacing: 12) {
             roundButton("xmark", label: "Close", id: "player.close", action: close)
             titleBlock
             Spacer(minLength: 8)
             subtitleStatus
+            #if os(iOS)
+            // AirPlay for the sound; the picture goes to a mirrored or connected screen by itself.
+            AirPlayButton()
+                .frame(width: 30, height: 30)
+                .frame(width: 48, height: 48)
+                .glassEffect(in: .circle)
+                .accessibilityLabel("AirPlay")
+                .accessibilityIdentifier("player.airplay")
+            #endif
             optionsMenu
             roundButton("captions.bubble", label: "Subtitles", id: "player.subtitles") {
                 model.showsSubtitlesSheet = true

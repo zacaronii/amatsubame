@@ -46,6 +46,10 @@ public final class MPVHostView: UIView {
         // Until mpv redraws at a new size, scale the last frame into place (not a corner).
         videoLayer.contentsGravity = .resize
         videoLayer.backgroundColor = UIColor.black.cgColor
+        // A layer moved here from another view (the video sent to an external display, or back)
+        // keeps its old size until laid out: starting from it, the new size counts as a resize,
+        // so mpv draws at the new screen's size.
+        lastSize = videoLayer.frame.size
         layer.addSublayer(videoLayer)
     }
 
