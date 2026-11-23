@@ -924,12 +924,13 @@ struct PlaybackView: View {
         .accessibilityIdentifier("player.scrubber")
     }
 
-    /// Thin marks where each chapter after the first starts, on the slider's track (inset by
-    /// the thumb's half-width, so they line up with where dragging there would land).
+    /// Thin marks where each chapter after the first starts, where the thumb's centre sits at
+    /// that time (the control's own thumb geometry: `SliderGeometry`), so they line up with where
+    /// dragging there lands.
     private func chapterMarks(duration: Double) -> some View {
         let marks = model.chapters.marks(duration: duration)
         return GeometryReader { geometry in
-            let inset: CGFloat = 12
+            let inset = SliderGeometry.thumbInset(width: geometry.size.width, height: geometry.size.height)
             let track = max(geometry.size.width - inset * 2, 0)
             ForEach(Array(marks.enumerated()), id: \.offset) { _, fraction in
                 Capsule()
