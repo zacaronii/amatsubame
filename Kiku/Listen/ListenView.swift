@@ -194,7 +194,7 @@ struct ListenView: View {
                             EpisodeList(entries: Array(library.newEpisodes.prefix(Self.newEpisodesShown)))
                             if library.newEpisodes.count > Self.newEpisodesShown {
                                 // A route like the rest, so the Listen tab tapped again leaves it.
-                                NavigationLink(value: ListenRoute.newEpisodes) {
+                                SplitLink(value: ListenRoute.newEpisodes) {
                                     Text("See All \(library.newEpisodes.count)").frame(maxWidth: .infinity)
                                 }
                                 .buttonStyle(.bordered)
@@ -221,7 +221,7 @@ extension ListenView {
             Text(title).font(.title2.bold())
             Spacer()
             if library {
-                NavigationLink("Library", value: ListenRoute.library)
+                SplitLink("Library", value: ListenRoute.library)
                     .accessibilityIdentifier("listen.library")
             }
         }
@@ -233,7 +233,7 @@ private struct BookCard: View {
     let book: AudiobookshelfItem
 
     var body: some View {
-        NavigationLink(value: ListenRoute.book(book.id)) {
+        SplitLink(value: ListenRoute.book(book.id)) {
             VStack(alignment: .leading, spacing: 6) {
                 ShowCover(itemId: book.id, cornerRadius: 16)
                 Text(book.title).font(.subheadline).lineLimit(2).multilineTextAlignment(.leading)
@@ -310,7 +310,7 @@ private struct SearchResults: View {
             if !shows.isEmpty {
                 Section("Shows and Books") {
                     ForEach(shows) { show in
-                        NavigationLink(value: show.isBook ? ListenRoute.book(show.id) : ListenRoute.show(show.id)) {
+                        SplitLink(value: show.isBook ? ListenRoute.book(show.id) : ListenRoute.show(show.id), rowStyle: true) {
                             HStack(spacing: 12) {
                                 ShowCover(itemId: show.id).frame(width: 44, height: 44)
                                 Text(show.title)

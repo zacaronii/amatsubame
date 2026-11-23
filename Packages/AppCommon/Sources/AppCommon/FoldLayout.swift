@@ -183,25 +183,39 @@ public struct WideSplitStack<Route: Hashable, Root: View, Destination: View, Emp
 /// A link on a `WideSplitStack`'s first screen. Side by side it opens its route on the right
 /// at once: a `NavigationLink` there made the left stack start a push of its own, so the list
 /// slid away and back before the route moved across. Otherwise it's a `NavigationLink`.
+/// `rowStyle` is for a list row: side by side the whole row takes the tap, in the row's own
+/// colours. Otherwise the caller's button style applies either way (a bordered See All, a card).
 public struct SplitLink<Route: Hashable, Label: View>: View {
     @Environment(\.openInWideSplit) private var open
     let route: Route
+    let rowStyle: Bool
     let label: () -> Label
 
-    public init(value route: Route, @ViewBuilder label: @escaping () -> Label) {
+    public init(value route: Route, rowStyle: Bool = false, @ViewBuilder label: @escaping () -> Label) {
         self.route = route
+        self.rowStyle = rowStyle
         self.label = label
     }
 
     public var body: some View {
         if let open {
-            Button { open(route) } label: {
-                label().frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect)
+            if rowStyle {
+                Button { open(route) } label: {
+                    label().frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Button(action: { open(route) }, label: label)
             }
-            .buttonStyle(.plain)
         } else {
             NavigationLink(value: route, label: label)
         }
+    }
+}
+
+extension SplitLink where Label == Text {
+    public init(_ title: String, value route: Route) {
+        self.init(value: route) { Text(title) }
     }
 }
 
