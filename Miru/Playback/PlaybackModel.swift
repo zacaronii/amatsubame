@@ -78,8 +78,16 @@ final class PlaybackModel {
     }
     private(set) var subtitles: SubtitleTrack? {
         // Split the lines into words for word marks while the episode plays.
-        didSet { if let subtitles { environment.common.wordMarks.prepare(subtitles.cues.map(\.sentence)) } }
+        didSet {
+            if let subtitles { environment.common.wordMarks.prepare(subtitles.cues.map(\.sentence)) }
+            silentStretches = subtitles?.silentStretches() ?? []
+        }
     }
+    /// Condensed playback (per show): the stretches without a Japanese line are skipped.
+    /// Off without subtitles: there's nothing to tell the stretches by.
+    private(set) var condensed = false
+    /// What Condensed skips, from the Japanese subtitles as timed now (the slider dims them).
+    private(set) var silentStretches: [ClosedRange<Double>] = []
     private(set) var subtitleState = SubtitleState.loading
     /// mpv's English track, drawn by mpv at the top (nil until first shown).
     private(set) var showsEnglish = false
@@ -266,6 +274,21 @@ final class PlaybackModel {
     /// The speeds the menu offers; the keys still step freely.
     static let speeds: [Double] = [0.5, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 2]
 
+    func setCondensed(_ on: Bool) {
+        condensed = on
+        if let item { try? SeriesPlayerSetting(seriesKey: item.seriesId ?? item.id, condensed: on).save(environment.common.database) }
+        showOSD(on ? "Condensed: skipping stretches with no lines" : "Condensed off")
+        if on { skipSilence(at: mpv.timePosition) }
+    }
+
+    /// Condensed: inside a stretch with no line, on to just before the next one (playing
+    /// forward, nothing open over the video).
+    private func skipSilence(at time: Double) {
+        guard condensed, subtitles != nil, mpv.hasStarted, !mpv.isPaused, popup == nil,
+              let stretch = silentStretches.first(where: { $0.contains(time) }), stretch.upperBound - time > 0.25 else { return }
+        mpv.seek(to: stretch.upperBound)
+    }
+
     /// Pause at the end of every Japanese line, until play is pressed (Settings keeps it).
     private(set) var pausesAfterLines = false
     /// The line last paused for, so pressing play doesn't pause on it again.
@@ -425,6 +448,7 @@ final class PlaybackModel {
             guard session.itemId == opening else { return }
         }
         self.item = item
+        condensed = SeriesPlayerSetting.load(environment.common.database, seriesKey: item.seriesId ?? item.id).condensed
         mediaSourceId = sourceId
         localFile = downloaded
         thumbnails?.close()
@@ -635,6 +659,7 @@ final class PlaybackModel {
             pausedAfterCue = cue.id
             mpv.setPaused(true)
         }
+        skipSilence(at: time)
         // Stats: time that played forward, not seeks or pauses.
         if let lastTime, !jumped, !mpv.isPaused, time > lastTime {
             unloggedSeconds += time - lastTime
@@ -1216,6 +1241,7 @@ final class PlaybackModel {
         case .replayLine: replayLine()
         case .lineBefore: playLineBefore()
         case .pauseAfterLines: setPausesAfterLines(!pausesAfterLines)
+        case .condensed: if subtitles != nil { setCondensed(!condensed) }
         case .lookUpLine:
             if let cue = subtitles?.currentOrPrevious(at: mpv.timePosition) { lookUp(cue, characterIndex: 0) }
         case .search:

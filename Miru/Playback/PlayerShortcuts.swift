@@ -8,7 +8,7 @@ import AppKit
 /// (Settings → Keyboard Shortcuts, and `?` over the video), so they can't drift apart.
 enum PlayerShortcut: String, CaseIterable, Identifiable {
     case playPause, back5, forward5, back1, forward1
-    case previousLine, nextLine, replayLine, lineBefore, pauseAfterLines, lookUpLine, search
+    case previousLine, nextLine, replayLine, lineBefore, pauseAfterLines, condensed, lookUpLine, search
     case slower, faster, halfSpeed, doubleSpeed, normalSpeed, frameBack, frameForward, loop
     case volumeDown, volumeUp, mute, nextAudio
     case toggleJapanese, nextSubtitles, subtitlesEarlier, subtitlesLater, english
@@ -51,6 +51,7 @@ enum PlayerShortcut: String, CaseIterable, Identifiable {
         case .lineBefore: [Key("b", [], "B")]
         // "One line at a time" (letters ignore Shift here, so not asbplayer's Shift-P).
         case .pauseAfterLines: [Key("o", [], "O")]
+        case .condensed: [Key("c", [], "C")]
         case .lookUpLine: [Key("a", [], "A")]
         case .search: [Key("f", .command, "⌘F")]
         case .slower: [Key("[", [], "[")]
@@ -94,6 +95,7 @@ enum PlayerShortcut: String, CaseIterable, Identifiable {
         case .replayLine: "Replay Line"
         case .lineBefore: "Line Before"
         case .pauseAfterLines: "Pause After Each Line"
+        case .condensed: "Condensed"
         case .lookUpLine: "Look Up the Line"
         case .search: "Search the Dictionary…"
         case .slower: "Slower"
@@ -131,6 +133,7 @@ enum PlayerShortcut: String, CaseIterable, Identifiable {
         case .previousLine: "Within a line's first second, the line before; later, the start of this one."
         case .lineBefore: "Always the line before the one on screen (like the AirPods triple press)."
         case .pauseAfterLines: "On or off: playback stops at the end of every Japanese line until you press play."
+        case .condensed: "On or off for this show: the stretches with no Japanese line (over 3 s) are skipped."
         case .lookUpLine: "Pauses and opens the dictionary at the line's first word."
         case .slower, .faster: "10% at a time."
         case .frameBack, .frameForward: "Pauses."
@@ -147,7 +150,7 @@ enum PlayerShortcut: String, CaseIterable, Identifiable {
     var section: Section {
         switch self {
         case .playPause, .back5, .forward5, .back1, .forward1: .playback
-        case .previousLine, .nextLine, .replayLine, .lineBefore, .pauseAfterLines, .lookUpLine, .search: .lines
+        case .previousLine, .nextLine, .replayLine, .lineBefore, .pauseAfterLines, .condensed, .lookUpLine, .search: .lines
         case .slower, .faster, .halfSpeed, .doubleSpeed, .normalSpeed, .frameBack, .frameForward, .loop: .speed
         case .volumeDown, .volumeUp, .mute, .nextAudio: .sound
         case .toggleJapanese, .nextSubtitles, .subtitlesEarlier, .subtitlesLater, .english: .subtitles

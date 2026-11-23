@@ -149,3 +149,30 @@ public struct SubtitleTrack: Equatable, Sendable {
             .replacing(/[\u{200B}-\u{200F}\u{202A}-\u{202E}\u{2066}-\u{2069}\u{FEFF}]/, with: "")
     }
 }
+
+// MARK: Condensed playback
+
+public extension SubtitleTrack {
+    /// Condensed playback skips gaps between lines longer than this…
+    static let condensedGap = 3.0
+    /// …keeping this much before the next line and after the last one.
+    static let condensedLead = 0.5
+    static let condensedTail = 0.3
+
+    /// The stretches with no line to skip: between lines (from just after one ends to just
+    /// before the next) and before the first line. After the last line nothing is skipped (the
+    /// ending and the next-episode preview are the viewer's to keep or leave).
+    func silentStretches(gap: Double = condensedGap, lead: Double = condensedLead, tail: Double = condensedTail) -> [ClosedRange<Double>] {
+        var stretches: [ClosedRange<Double>] = []
+        var lastEnd = 0.0
+        var first = true
+        for cue in cues {
+            let from = first ? 0 : lastEnd + tail
+            let to = cue.start - lead
+            if cue.start - lastEnd > gap, to > from { stretches.append(from...to) }
+            lastEnd = max(lastEnd, cue.end)
+            first = false
+        }
+        return stretches
+    }
+}

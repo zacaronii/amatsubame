@@ -1103,6 +1103,14 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v68_series_player_setting") { db in
+            // Miru: a show's own player settings (Condensed), by series (or a movie's item) id.
+            try db.create(table: "seriesPlayerSetting") { t in
+                t.primaryKey("seriesKey", .text)
+                t.column("condensed", .boolean).notNull().defaults(to: false)
+            }
+        }
+
         return migrator
     }
 }

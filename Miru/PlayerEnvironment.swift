@@ -287,6 +287,9 @@ private struct UITestJimakuTransport: HTTPTransport {
             body = #"[{"id":7,"name":"UI Test Show","japanese_name":"テスト","anilist_id":100,"flags":{"anime":true}}]"#
         } else if path.hasSuffix("/files") {
             body = #"[{"name":"UI Test Show 01.srt","url":"https://jimaku.cc/entry/7/download/a.srt","size":120},{"name":"UI Test Show 01-12.rar","url":"https://jimaku.cc/entry/7/download/b.rar","size":9000}]"#
+        } else if ProcessInfo.processInfo.environment["UITEST_JIMAKU"] == "gaps" {
+            // Lines with long gaps between them (Condensed).
+            body = "1\n00:00:01,000 --> 00:00:03,000\n吾輩は猫である。\n\n2\n00:00:15,000 --> 00:00:17,000\n名前はまだ無い。\n\n3\n00:00:30,000 --> 00:00:32,000\nどこで生れたかとんと見当がつかぬ。\n"
         } else {
             body = "1\n00:00:00,500 --> 00:00:20,000\n吾輩は猫である。\n\n2\n00:00:20,500 --> 00:00:40,000\n名前はまだ無い。\n\n3\n00:00:41,000 --> 00:00:59,000\nどこで生れたかとんと見当がつかぬ。\n"
         }

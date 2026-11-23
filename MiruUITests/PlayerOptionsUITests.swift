@@ -43,6 +43,51 @@ final class PlayerOptionsUITests: XCTestCase {
         XCTAssertTrue(osd.waitForExistence(timeout: 3))
     }
 
+    /// Condensed (C, or the menu's switch): the stretch with no line between 3 s and 15 s is
+    /// skipped, landing just before the next line; off again it plays straight through.
+    func testCondensedSkipsTheStretchesWithNoLines() throws {
+        guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file.")
+        }
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment = ["UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video, "UITEST_JIMAKU": "gaps"]
+        app.launch()
+        let player = app.descendants(matching: .any)["player.video"].firstMatch
+        XCTAssertTrue(player.waitForExistence(timeout: 10))
+        let find = app.buttons["player.noSubtitles"]
+        for _ in 0..<3 where !(find.waitForExistence(timeout: 3) && find.isHittable) { player.tap() }
+        find.tap()
+        let file = app.buttons.matching(identifier: "subtitles.file").firstMatch
+        XCTAssertTrue(file.waitForExistence(timeout: 10))
+        file.tap()
+        func time() -> Double { Double((player.value as? String ?? "").split(separator: " ").first ?? "") ?? -1 }
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "subtitle.line").firstMatch.waitForExistence(timeout: 10)
+                      || time() >= 0)
+        player.typeKey("c", modifierFlags: [])
+        let osd = app.staticTexts["player.osd"]
+        XCTAssertTrue(osd.waitForExistence(timeout: 3))
+        XCTAssertTrue(osd.label.hasPrefix("Condensed: skipping"), osd.label)
+        // Back to the first line (↑ is the previous line), then on into the 3.3–14.5 s gap: it
+        // lands just before line 2, never resting inside the gap.
+        for _ in 0..<4 { player.typeKey(.upArrow, modifierFlags: []) }
+        let atFirst = NSPredicate { _, _ in time() < 3.2 }
+        XCTAssertEqual(XCTWaiter().wait(for: [expectation(for: atFirst, evaluatedWith: nil)], timeout: 5), .completed, "back at line 1: \(time())")
+        var samples: [Double] = []
+        let landed = NSPredicate { _, _ in samples.append(time()); return samples.last! >= 14.4 && samples.last! < 17 }
+        XCTAssertEqual(XCTWaiter().wait(for: [expectation(for: landed, evaluatedWith: nil)], timeout: 20), .completed, "skipped to the next line: \(samples)")
+        XCTAssertFalse(samples.dropFirst(2).contains { $0 > 4.5 && $0 < 14 }, "rested in the gap: \(samples)")
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "condensed"
+        shot.lifetime = .keepAlways
+        add(shot)
+        // Off: the next gap (17–30 s) plays through.
+        player.typeKey("c", modifierFlags: [])
+        XCTAssertTrue(osd.waitForExistence(timeout: 3))
+        let through = NSPredicate { _, _ in time() >= 19 && time() < 25 }
+        XCTAssertEqual(XCTWaiter().wait(for: [expectation(for: through, evaluatedWith: nil)], timeout: 10), .completed, "played through: \(time())")
+    }
+
     /// Holding the picture plays at 2× until it's let go.
     func testHoldingThePicturePlaysFaster() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
