@@ -1,4 +1,8 @@
 name: Amatsubame
+include:
+  # Kiku's widgets: only with KIKU_WIDGETS=YES (they need an App ID set up first).
+  - path: kiku-widgets.yml
+    enable: ${KIKU_WIDGETS}
 options:
   bundleIdPrefix: com.amatsubame
   deploymentTarget:
@@ -49,6 +53,8 @@ packages:
     path: Packages/JimakuKit
   KikuWatchLink:
     path: Packages/KikuWatchLink
+  KikuIntents:
+    path: Packages/KikuIntents
   Browser:
     path: Packages/Browser
   AudiobookshelfKit:
@@ -203,6 +209,7 @@ targets:
       - package: Dictionary
       - package: Lookup
       - package: KikuWatchLink
+      - package: KikuIntents
       # Kiku on Apple Watch rides inside the iPhone app.
       - target: KikuWatch
         destinationFilters: [iOS]

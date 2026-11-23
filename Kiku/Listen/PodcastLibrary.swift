@@ -219,6 +219,7 @@ final class PodcastLibrary {
             save()
             environment.autoDownloads.schedule()
             await environment.refreshUpNext()
+            environment.widgets.update()
         } catch let failure {
             if !failure.isCancellation { error = failure.localizedDescription }
             isOffline = Self.isOffline(failure)
