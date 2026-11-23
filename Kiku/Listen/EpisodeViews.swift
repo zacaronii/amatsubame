@@ -192,6 +192,12 @@ struct EpisodeMenu: View {
         }
         // Not the one playing: its place is the player's to save.
         .disabled(environment.playback?.key == entry.id)
+        if environment.libraryId(of: entry) != nil, environment.playback?.key != entry.id {
+            Button("Play Next", systemImage: "text.line.first.and.arrowtriangle.forward") { environment.addToUpNext(entry, next: true) }
+                .accessibilityIdentifier("episode.playNext")
+            Button("Play Last", systemImage: "text.line.last.and.arrowtriangle.forward") { environment.addToUpNext(entry, next: false) }
+                .accessibilityIdentifier("episode.playLast")
+        }
         SendToWatchButton(entry: entry)
     }
 }

@@ -10,6 +10,8 @@ enum ListenRoute: Hashable {
     case book(String)
     /// See All under New Episodes.
     case newEpisodes
+    /// Up Next, to reorder and clear.
+    case upNext
 }
 
 /// What a Listen route opens (also in the Mac's library rows).
@@ -23,6 +25,7 @@ struct ListenDestination: View {
         case .show(let id): ShowView(itemId: id)
         case .book(let id): BookView(itemId: id)
         case .newEpisodes: AllNewEpisodesView()
+        case .upNext: UpNextView()
         }
     }
 }
@@ -148,6 +151,9 @@ struct ListenView: View {
                         }
                         .shelfScrollClip()
                     }
+                }
+                if !environment.upNext.isEmpty {
+                    UpNextShelf()
                 }
                 if library.isOffline, !environment.downloadedEntries.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {

@@ -43,6 +43,8 @@ final class KikuEnvironment {
     var showsPlayer = false
     /// Read in Yomu found no Yomu to open.
     var yomuMissing = false
+    /// Up Next per podcast library (`UpNext.swift`).
+    var upNext: [String: [UpNextItem]] = [:]
     @ObservationIgnored private(set) var downloader: EpisodeDownloader!
     /// Downloaded episodes' audio, by episode key (UI tests swap in their own).
     @ObservationIgnored var localAudioFile: (_ key: String) -> URL? = { _ in nil }
@@ -63,7 +65,8 @@ final class KikuEnvironment {
             appHandlers: { context in
                 guard sendsProgress else { return [] }
                 let makeClient = AudioServers.audiobookshelfClientFactory(accounts: context.accounts, tokens: tokens, http: context.http)
-                return [AudiobookshelfProgressHandler(makeClient: makeClient), AudiobookshelfSessionHandler(makeClient: makeClient)]
+                return [AudiobookshelfProgressHandler(makeClient: makeClient), AudiobookshelfSessionHandler(makeClient: makeClient),
+                        AudiobookshelfUpNextHandler(store: UpNextStore(database: database), makeClient: makeClient)]
             }
         )
         self.common = common
@@ -278,6 +281,8 @@ final class KikuEnvironment {
 
     /// Opens the player on an episode (at `time`, or where you left off) and starts it.
     func play(_ entry: EpisodeEntry, at time: Double? = nil, autoplay: Bool = true) {
+        // Started from Up Next or anywhere else: it leaves the queue.
+        leaveUpNext(entry)
         if let playback, playback.key == entry.id {
             if let time { playback.audio.seek(to: time) }
             if !playback.audio.isPlaying { playback.audio.play() }
@@ -296,7 +301,10 @@ final class KikuEnvironment {
     /// An episode ended: the show's next one starts by itself, when Settings ▸ Playback says so
     /// (podcasts only; a book has nothing after it). The player stays as it was, open or small.
     func playNext(after entry: EpisodeEntry) {
-        guard !entry.isBook, ListenSettings.load(common.database).playsNextEpisode else { return }
+        guard !entry.isBook else { return }
+        // Up Next first: its first episode, whatever the setting below.
+        if playUpNext(after: entry) { return }
+        guard ListenSettings.load(common.database).playsNextEpisode else { return }
         Task {
             if library.showEpisodes[entry.itemId] == nil { await library.loadShow(entry.itemId) }
             let episodes = library.showEpisodes[entry.itemId] ?? downloadedEntries.filter { $0.itemId == entry.itemId }.map(\.episode)

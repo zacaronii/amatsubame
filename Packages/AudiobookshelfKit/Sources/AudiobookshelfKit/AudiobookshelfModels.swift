@@ -222,3 +222,53 @@ struct AudiobookshelfItemsInProgress: Decodable {
 struct AudiobookshelfLogin: Decodable {
     var user: AudiobookshelfUser
 }
+
+/// A user's playlist in one library (Kiku's Up Next is one named "Up Next"). Items are an
+/// episode of a show, or a book (no episode). Checked against Audiobookshelf 2.38.0.
+public struct AudiobookshelfPlaylist: Decodable, Equatable, Sendable {
+    /// An entry: which episode (or book). Equal by those alone; the titles come with the
+    /// server's answer, for showing it, and aren't sent.
+    public struct Item: Codable, Hashable, Sendable {
+        public var libraryItemId: String
+        public var episodeId: String?
+        public var title: String?
+        public var showTitle: String?
+
+        public init(libraryItemId: String, episodeId: String?) {
+            self.libraryItemId = libraryItemId
+            self.episodeId = episodeId
+        }
+
+        enum CodingKeys: String, CodingKey { case libraryItemId, episodeId, episode, libraryItem }
+        struct Titled: Decodable { var title: String? }
+        struct Show: Decodable {
+            struct Media: Decodable { var metadata: Titled? }
+            var media: Media?
+        }
+
+        public init(from decoder: any Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            libraryItemId = try container.decode(String.self, forKey: .libraryItemId)
+            episodeId = try container.decodeIfPresent(String.self, forKey: .episodeId)
+            title = try? container.decodeIfPresent(Titled.self, forKey: .episode)?.title
+            showTitle = try? container.decodeIfPresent(Show.self, forKey: .libraryItem)?.media?.metadata?.title
+        }
+
+        public func encode(to encoder: any Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(libraryItemId, forKey: .libraryItemId)
+            try container.encodeIfPresent(episodeId, forKey: .episodeId)
+        }
+
+        public static func == (a: Item, b: Item) -> Bool { a.libraryItemId == b.libraryItemId && a.episodeId == b.episodeId }
+        public func hash(into hasher: inout Hasher) {
+            hasher.combine(libraryItemId)
+            hasher.combine(episodeId)
+        }
+    }
+
+    public var id: String
+    public var name: String
+    public var libraryId: String
+    public var items: [Item]
+}
