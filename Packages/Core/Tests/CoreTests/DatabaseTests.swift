@@ -18,7 +18,7 @@ import Testing
             "ocrPage",
             "ankiSettings",
             "minedWord",
-            "bookReaderSettings", "bookFont", "dailyGoal", "syncRecord", "upNextItem", "upNextPlaylist",
+            "bookReaderSettings", "bookFont", "dailyGoal", "syncRecord", "upNextItem", "upNextPlaylist", "seriesPlayerSetting",
             "hiddenLibrary",
             "watchProgress", "hiddenJellyfinLibrary",
             "transcript", "transcriptLine",

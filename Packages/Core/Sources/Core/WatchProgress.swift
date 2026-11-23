@@ -218,3 +218,27 @@ public struct PlayerSettings: Codable, Equatable, Sendable, FetchableRecord, Per
         try database.writer.write { try self.save($0) }
     }
 }
+
+/// One show's own player settings in Miru (by series id, or a movie's item id).
+public struct SeriesPlayerSetting: Codable, Equatable, Sendable, FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "seriesPlayerSetting"
+    public var seriesKey: String
+    /// Condensed playback: the stretches without a Japanese line are skipped.
+    public var condensed = false
+
+    public init(seriesKey: String, condensed: Bool = false) {
+        self.seriesKey = seriesKey
+        self.condensed = condensed
+    }
+
+    public static func load(_ database: AppDatabase, seriesKey: String) -> SeriesPlayerSetting {
+        (try? database.reader.read { try SeriesPlayerSetting.fetchOne($0, key: seriesKey) }) ?? SeriesPlayerSetting(seriesKey: seriesKey)
+    }
+
+    /// Saved, or forgotten when it's back to the defaults.
+    public func save(_ database: AppDatabase) throws {
+        try database.writer.write { db in
+            if condensed { try self.save(db) } else { _ = try SeriesPlayerSetting.deleteOne(db, key: seriesKey) }
+        }
+    }
+}

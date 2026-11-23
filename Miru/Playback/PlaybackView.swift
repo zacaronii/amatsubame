@@ -802,6 +802,10 @@ struct PlaybackView: View {
             }
             subtitleLookMenu
             sleepMenu
+            // Skips the stretches with no Japanese line (this show's setting).
+            Toggle("Condensed", isOn: Binding(get: { model.condensed }, set: { model.setCondensed($0) }))
+                .disabled(model.subtitles == nil)
+                .accessibilityIdentifier("player.condensed")
             Toggle("Pause After Each Line", isOn: Binding(get: { model.pausesAfterLines }, set: { model.setPausesAfterLines($0) }))
                 .onAppear {
                     optionsOpen = true
@@ -919,9 +923,27 @@ struct PlaybackView: View {
             }
         }
         .tint(Color("AccentColor"))
-        // The chapters' starts, as small marks across the bar.
+        // The chapters' starts, as small marks across the bar; with Condensed, what it skips, dimmed.
         .overlay { chapterMarks(duration: duration) }
+        .overlay { if model.condensed { skippedStretches(duration: duration) } }
         .accessibilityIdentifier("player.scrubber")
+    }
+
+    /// Condensed's skipped stretches, darkened over the bar where they fall.
+    private func skippedStretches(duration: Double) -> some View {
+        GeometryReader { geometry in
+            let inset = SliderGeometry.thumbInset(width: geometry.size.width, height: geometry.size.height)
+            let track = max(geometry.size.width - inset * 2, 0)
+            ForEach(Array(model.silentStretches.enumerated()), id: \.offset) { _, stretch in
+                let from = min(stretch.lowerBound / duration, 1), to = min(stretch.upperBound / duration, 1)
+                Rectangle()
+                    .fill(.black.opacity(0.45))
+                    .frame(width: max(track * (to - from), 1), height: 4)
+                    .position(x: inset + track * (from + to) / 2, y: geometry.size.height / 2)
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     /// Thin marks where each chapter after the first starts, where the thumb's centre sits at
