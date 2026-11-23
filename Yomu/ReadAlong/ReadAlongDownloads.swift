@@ -34,6 +34,16 @@ final class ReadAlongDownloads {
 
     func isRunning(_ itemId: String) -> Bool { tasks[itemId] != nil }
 
+    /// The line under a volume's read-along row: a running download's (it needs Yomu open) wins,
+    /// then how the book's last download ended, then the row's own (getting ready, Kaku).
+    static func caption(running: Bool, result: String?, rowMessage: String?) -> String? {
+        if running { return "Downloading the audio\u{2026} Keep Yomu open." }
+        return result ?? rowMessage
+    }
+
+    /// The row has newer news than the last download's (getting ready again).
+    func clearResult(itemId: String) { results[itemId] = nil }
+
     /// Unpairing a volume deletes its book's audio, unless another volume still reads along with
     /// that book (`pairs` of the book before unpairing).
     static func deletesAudio(unpairing chapterId: Int, pairs: [Int]) -> Bool {
@@ -95,6 +105,9 @@ final class ReadAlongDownloads {
         defer { progress.cancel() }
         do {
             let (temporary, response) = try await session.download(for: request, delegate: tracker)
+            // Whatever ends this (a refusal, a late cancel), the transfer's file doesn't stay
+            // behind (after a move it's no longer there).
+            defer { try? FileManager.default.removeItem(at: temporary) }
             guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
             try Task.checkCancellation()
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)

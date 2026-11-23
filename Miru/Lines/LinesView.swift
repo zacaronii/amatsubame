@@ -209,9 +209,12 @@ struct LinesView: View {
         }
     }
 
-    /// "No Results" only once a search for what's typed has run, not while the debounce waits.
+    /// "No Results" once a search for what's typed has run, not while the debounce waits; and
+    /// it stays while typing on from a text that found nothing (the search is by containment, so
+    /// a longer text finds nothing either). Deleting back waits for the search.
     static func showsNoResults(_ empty: Bool, searched: String?, query: String) -> Bool {
-        empty && searched == query
+        guard empty, let searched = searched?.trimmingCharacters(in: .whitespacesAndNewlines), !searched.isEmpty else { return false }
+        return query.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix(searched)
     }
 
     /// The line with each occurrence of `query` in bold and tinted.

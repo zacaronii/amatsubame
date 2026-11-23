@@ -25,4 +25,11 @@ import Testing
         #expect(LinesView.showsNoResults(true, searched: "鯨", query: "鯨"))
         #expect(!LinesView.showsNoResults(false, searched: "猫", query: "猫"))
     }
+
+    @Test func typingOnFromNothingFoundStaysAndDeletingBackWaits() {
+        #expect(LinesView.showsNoResults(true, searched: "鯨", query: "鯨肉"), "extends a text that found nothing: stays")
+        #expect(LinesView.showsNoResults(true, searched: "鯨 ", query: "鯨肉"), "the store's trim")
+        #expect(!LinesView.showsNoResults(true, searched: "鯨肉", query: "鯨"), "shortened: waits for the search")
+        #expect(!LinesView.showsNoResults(true, searched: "", query: "鯨"), "the first character after the empty query waits")
+    }
 }

@@ -202,7 +202,8 @@ private struct ReadAlongRow: View {
                         .accessibilityIdentifier("readAlong.cancelDownload")
                 }
             }
-            if let text = message ?? pair.flatMap({ downloads.results[$0.itemId] }) {
+            if let text = ReadAlongDownloads.caption(running: pair.map { downloads.isRunning($0.itemId) } ?? false,
+                                                     result: pair.flatMap { downloads.results[$0.itemId] }, rowMessage: message) {
                 Text(text).font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -245,7 +246,7 @@ private struct ReadAlongRow: View {
                     }
                 } else {
                     Button("Download Audio", systemImage: "arrow.down.circle") {
-                        message = "Downloading the audio… Keep Yomu open."
+                        message = nil
                         downloads.start(itemId: pair.itemId)
                     }
                     .accessibilityIdentifier("readAlong.download")
@@ -253,10 +254,8 @@ private struct ReadAlongRow: View {
                 Button("Pair with Another Book…", systemImage: "link") { choosing = true }
                 Button("Unpair", systemImage: "link.badge.plus", role: .destructive) {
                     Task {
-                        // Its audio goes too, unless another volume reads along with the same book.
-                        let pairs = ((try? environment.readAlongPairs.pairs(itemId: pair.itemId)) ?? []).map(\.chapterId)
-                        if ReadAlongDownloads.deletesAudio(unpairing: chapter.id, pairs: pairs) { await downloads.delete(itemId: pair.itemId) }
-                        try? environment.readAlongPairs.unpair(chapterId: chapter.id)
+                        guard (try? environment.readAlongPairs.unpair(chapterId: chapter.id)) != nil else { return }
+                        await deleteAudioIfUnpaired(pair.itemId)
                     }
                 }
             } else {
@@ -275,14 +274,23 @@ private struct ReadAlongRow: View {
     }
 
     private func pairAndPrepare(_ book: AudiobookshelfItem) async {
+        let old = pair?.itemId
         let new = ReadAlongPair(chapterId: chapter.id, itemId: book.id, bookTitle: book.title, createdAt: .now)
-        try? environment.readAlongPairs.pair(new)
+        guard (try? environment.readAlongPairs.pair(new)) != nil else { return }
+        if let old, old != book.id { await deleteAudioIfUnpaired(old) }
         await prepare(new)
+    }
+
+    /// A book's audio goes (its download stopped first) once no volume reads along with it.
+    private func deleteAudioIfUnpaired(_ itemId: String) async {
+        let pairs = ((try? environment.readAlongPairs.pairs(itemId: itemId)) ?? []).map(\.chapterId)
+        if ReadAlongDownloads.deletesAudio(unpairing: chapter.id, pairs: pairs) { await downloads.delete(itemId: itemId) }
     }
 
     /// Reads the book's text, fetches Kaku's transcript and matches them (asking Kaku for the
     /// transcript first when it has none).
     private func prepare(_ pair: ReadAlongPair, again: Bool = false) async {
+        downloads.clearResult(itemId: pair.itemId)   // newer news than the last download's
         guard let kaku = environment.kakuClient() else {
             message = "Set up Kaku in Settings: it has the audiobook's transcript."
             return
