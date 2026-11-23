@@ -68,7 +68,7 @@ final class ReadAlongModel: BookReadAlongHost {
     func start() async {
         guard isOn, !isLoaded, let reader else { return }
         let client = environment.audiobookshelfClient()
-        localFile = ReadAlongAudio.localFile(itemId: pair.itemId)
+        localFile = environment.readAlongDownloads.localFile(itemId: pair.itemId)
         var source: (url: URL, headers: [String: String])?
         if let localFile {
             source = (localFile, [:])
@@ -149,6 +149,12 @@ final class ReadAlongModel: BookReadAlongHost {
             (follows, tappedIndex, currentIndex, problem) = (true, nil, nil, nil)
         }
         reader?.showMessage(on ? "Reading along" : "Read-along off")
+    }
+
+    /// Loads the audio again after it couldn't be (the server was out of reach).
+    func retry() async {
+        problem = nil
+        await start()
     }
 
     func toggle() {
@@ -318,9 +324,4 @@ final class ReadAlongModel: BookReadAlongHost {
 /// Yomu's own copies of paired audiobooks, for reading along offline.
 enum ReadAlongAudio {
     static var folder: URL { URL.applicationSupportDirectory.appending(path: "ReadAlongAudio") }
-
-    static func localFile(itemId: String) -> URL? {
-        let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
-        return files.first { $0.deletingPathExtension().lastPathComponent == itemId && $0.pathExtension != "part" }
-    }
 }

@@ -39,6 +39,18 @@ final class AppEnvironment {
     /// Read-along: Audiobookshelf sign-in (refreshed once for every client) and the pairs.
     let audiobookshelfTokens: AudiobookshelfTokens
     let readAlongPairs: ReadAlongStore
+    /// Read-along audiobook downloads (one per book), kept by the app across screens.
+    @ObservationIgnored private(set) lazy var readAlongDownloads = ReadAlongDownloads(folder: ReadAlongAudio.folder) { [weak self] itemId in
+        await self?.readAlongAudioRequest(itemId: itemId)
+    }
+
+    /// The request for a paired audiobook's single audio file, and its extension.
+    private func readAlongAudioRequest(itemId: String) async -> (request: URLRequest, fileExtension: String)? {
+        guard let client = audiobookshelfClient(), let item = try? await client.item(id: itemId),
+              let whole = AudiobookshelfEpisode.wholeBook(item), let file = whole.audioFile,
+              let request = try? await client.audioRequest(itemId: itemId, ino: file.ino) else { return nil }
+        return (request, file.fileExtension)
+    }
     /// Each EPUB volume's characters, for the library's progress (`BookLengthCounter`).
     let bookLengths: BookLengths
     @ObservationIgnored private var counter: BookLengthCounter?

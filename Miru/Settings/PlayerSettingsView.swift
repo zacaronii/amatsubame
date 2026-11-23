@@ -219,7 +219,11 @@ struct SubtitlesSettingsView: View {
                     JimakuRow()
                 }
                 .accessibilityIdentifier("subtitles.jimaku")
-                NavigationLink(value: ServerKind.kaku) {
+                // A destination push, like the screen it's on (Subtitles is pushed that way): a value
+                // push from a destination-pushed screen is the mix behind #145.
+                NavigationLink {
+                    KakuSettingsView(environment: environment.common)
+                } label: {
                     ServerRow(kind: .kaku, account: environment.common.serverAccounts[.kaku])
                 }
                 .accessibilityIdentifier("subtitles.kaku")

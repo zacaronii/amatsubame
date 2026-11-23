@@ -21,6 +21,9 @@ struct LinesView: View {
     @State private var live: LiveSessionsModel?
     @State private var query = ""
     @State private var results: [TranscriptSearchGroup] = []
+    /// The text the shown results are for: "No Results" waits until a search for what's typed
+    /// has run (it flashed on the first character while the debounce ran).
+    @State private var searched: String?
     @State private var playback: PlaybackSession?
     @State private var path: [LinesRoute] = []
     /// Bumped when the Lines tab is tapped again.
@@ -66,6 +69,7 @@ struct LinesView: View {
             try? await Task.sleep(for: .milliseconds(200))
             guard !Task.isCancelled else { return }
             results = (try? environment.transcripts.search(query)) ?? []
+            searched = query
         }
         .task(id: common.serverAccounts[.jellyfin]?.userId) {
             let model = history ?? LinesHistoryModel(environment: environment)
@@ -126,6 +130,11 @@ struct LinesView: View {
             }
             if let sessions = live?.sessions, !sessions.isEmpty {
                 Section("Watching Now") {
+                    if live?.isUnreachable == true {
+                        Label("Can\u{2019}t reach Jellyfin: showing the last list.", systemImage: "wifi.exclamationmark")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .accessibilityIdentifier("lines.liveUnreachable")
+                    }
                     ForEach(sessions) { session in
                         NavigationLink(value: LinesRoute.live(LiveRoute(sessionId: session.id))) {
                             LiveSessionRow(session: session)
@@ -193,10 +202,19 @@ struct LinesView: View {
             }
         }
         .overlay {
-            if results.isEmpty {
+            if Self.showsNoResults(results.isEmpty, searched: searched, query: query) {
                 ContentUnavailableView.search(text: query)
+                    .accessibilityIdentifier("lines.noResults")
             }
         }
+    }
+
+    /// "No Results" once a search for what's typed has run, not while the debounce waits; and
+    /// it stays while typing on from a text that found nothing (the search is by containment, so
+    /// a longer text finds nothing either). Deleting back waits for the search.
+    static func showsNoResults(_ empty: Bool, searched: String?, query: String) -> Bool {
+        guard empty, let searched = searched?.trimmingCharacters(in: .whitespacesAndNewlines), !searched.isEmpty else { return false }
+        return query.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix(searched)
     }
 
     /// The line with each occurrence of `query` in bold and tinted.

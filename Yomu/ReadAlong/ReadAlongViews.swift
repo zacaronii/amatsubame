@@ -18,6 +18,9 @@ struct ReadAlongBar: View {
         VStack(spacing: 8) {
             if let problem = model.problem {
                 Text(problem).font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                Button("Try Again") { Task { await model.retry() } }
+                    .font(.footnote)
+                    .accessibilityIdentifier("readAlong.retry")
             }
             HStack(spacing: 8) {
                 if model.tappedIndex != nil && !model.audio.isPlaying {
@@ -173,7 +176,7 @@ private struct ReadAlongRow: View {
     @State private var choosing = false
     @State private var preparing: Double?
     @State private var message: String?
-    @State private var download: Double?
+    private var downloads: ReadAlongDownloads { environment.readAlongDownloads }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -191,7 +194,18 @@ private struct ReadAlongRow: View {
                     menu
                 }
             }
-            if let message { Text(message).font(.caption).foregroundStyle(.secondary) }
+            if let pair, let fraction = downloads.running[pair.itemId] {
+                HStack {
+                    ProgressView(value: fraction ?? 0).accessibilityIdentifier("readAlong.downloadProgress")
+                    Button("Cancel", role: .cancel) { Task { await downloads.cancel(itemId: pair.itemId) } }
+                        .font(.caption)
+                        .accessibilityIdentifier("readAlong.cancelDownload")
+                }
+            }
+            if let text = ReadAlongDownloads.caption(running: pair.map { downloads.isRunning($0.itemId) } ?? false,
+                                                     result: pair.flatMap { downloads.results[$0.itemId] }, rowMessage: message) {
+                Text(text).font(.caption).foregroundStyle(.secondary)
+            }
         }
         .padding(.vertical, 10)
         .task { await observe() }
@@ -209,7 +223,7 @@ private struct ReadAlongRow: View {
         guard let pair else { return "Not paired" }
         if let matched = pair.matchedSentences, let total = pair.totalSentences, pair.cues != nil {
             let share = total > 0 ? Int((Double(matched) / Double(total) * 100).rounded()) : 0
-            let audio = ReadAlongAudio.localFile(itemId: pair.itemId) != nil ? " · audio downloaded" : ""
+            let audio = downloads.localFile(itemId: pair.itemId) != nil ? " · audio downloaded" : ""
             return "\(pair.bookTitle) · \(share)% of sentences matched\(audio)"
         }
         return "\(pair.bookTitle) · not ready yet"
@@ -223,18 +237,26 @@ private struct ReadAlongRow: View {
                 } else {
                     Button("Match Again", systemImage: "arrow.clockwise") { Task { await prepare(pair, again: true) } }
                 }
-                if let file = ReadAlongAudio.localFile(itemId: pair.itemId) {
+                if downloads.isRunning(pair.itemId) {
+                    Button("Cancel Audio Download", systemImage: "xmark.circle") { Task { await downloads.cancel(itemId: pair.itemId) } }
+                } else if downloads.localFile(itemId: pair.itemId) != nil {
                     Button("Delete Audio Download", systemImage: "trash", role: .destructive) {
-                        try? FileManager.default.removeItem(at: file)
                         message = nil
-                        self.pair = pair
+                        Task { await downloads.delete(itemId: pair.itemId) }
                     }
-                } else if download == nil {
-                    Button("Download Audio", systemImage: "arrow.down.circle") { Task { await downloadAudio(pair) } }
+                } else {
+                    Button("Download Audio", systemImage: "arrow.down.circle") {
+                        message = nil
+                        downloads.start(itemId: pair.itemId)
+                    }
+                    .accessibilityIdentifier("readAlong.download")
                 }
                 Button("Pair with Another Book…", systemImage: "link") { choosing = true }
                 Button("Unpair", systemImage: "link.badge.plus", role: .destructive) {
-                    try? environment.readAlongPairs.unpair(chapterId: chapter.id)
+                    Task {
+                        guard (try? environment.readAlongPairs.unpair(chapterId: chapter.id)) != nil else { return }
+                        await deleteAudioIfUnpaired(pair.itemId)
+                    }
                 }
             } else {
                 Button("Pair with an Audiobook…", systemImage: "link") { choosing = true }
@@ -252,14 +274,23 @@ private struct ReadAlongRow: View {
     }
 
     private func pairAndPrepare(_ book: AudiobookshelfItem) async {
+        let old = pair?.itemId
         let new = ReadAlongPair(chapterId: chapter.id, itemId: book.id, bookTitle: book.title, createdAt: .now)
-        try? environment.readAlongPairs.pair(new)
+        guard (try? environment.readAlongPairs.pair(new)) != nil else { return }
+        if let old, old != book.id { await deleteAudioIfUnpaired(old) }
         await prepare(new)
+    }
+
+    /// A book's audio goes (its download stopped first) once no volume reads along with it.
+    private func deleteAudioIfUnpaired(_ itemId: String) async {
+        let pairs = ((try? environment.readAlongPairs.pairs(itemId: itemId)) ?? []).map(\.chapterId)
+        if ReadAlongDownloads.deletesAudio(unpairing: chapter.id, pairs: pairs) { await downloads.delete(itemId: itemId) }
     }
 
     /// Reads the book's text, fetches Kaku's transcript and matches them (asking Kaku for the
     /// transcript first when it has none).
     private func prepare(_ pair: ReadAlongPair, again: Bool = false) async {
+        downloads.clearResult(itemId: pair.itemId)   // newer news than the last download's
         guard let kaku = environment.kakuClient() else {
             message = "Set up Kaku in Settings: it has the audiobook's transcript."
             return
@@ -298,34 +329,6 @@ private struct ReadAlongRow: View {
         }
     }
 
-    /// Yomu's own copy of the audiobook (Application Support/ReadAlongAudio), for offline reading along.
-    private func downloadAudio(_ pair: ReadAlongPair) async {
-        guard let client = environment.audiobookshelfClient(), let item = try? await client.item(id: pair.itemId),
-              let whole = AudiobookshelfEpisode.wholeBook(item), let file = whole.audioFile,
-              let request = try? await client.audioRequest(itemId: pair.itemId, ino: file.ino) else {
-            message = "Sign in to Audiobookshelf in Settings to download the audio."
-            return
-        }
-        download = 0
-        defer { download = nil }
-        message = "Downloading the audio… Keep Yomu open."
-        do {
-            let (temporary, response) = try await URLSession.shared.download(for: request)
-            guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
-            try FileManager.default.createDirectory(at: ReadAlongAudio.folder, withIntermediateDirectories: true)
-            var folder = ReadAlongAudio.folder
-            var values = URLResourceValues()
-            values.isExcludedFromBackup = true
-            try? folder.setResourceValues(values)
-            let destination = ReadAlongAudio.folder.appending(path: "\(pair.itemId).\(file.fileExtension)")
-            try? FileManager.default.removeItem(at: destination)
-            try FileManager.default.moveItem(at: temporary, to: destination)
-            let bytes = (try? destination.resourceValues(forKeys: [.fileSizeKey]).fileSize).map { Int64($0) } ?? 0
-            message = "Audio downloaded (\(bytes.storageText))."
-        } catch {
-            message = "Couldn't download the audio: \(error.localizedDescription)"
-        }
-    }
 }
 
 /// Choosing the audiobook for a volume: likely matches first (title and author), then every

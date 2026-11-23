@@ -39,6 +39,7 @@ final class TranscriptModel {
     }
 
     func load() async {
+        state = .loading   // again on Try Again
         let store = environment.transcripts
         if let saved = try? store.transcript(itemId: itemId), let lines = try? store.lines(itemId: itemId), !lines.isEmpty {
             info = saved
