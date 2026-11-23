@@ -108,9 +108,10 @@ public final class LookupService {
     private func keep(_ options: HostOptions) {
         let following = Self.settings(storedPopupSettings, following: options)
         if following != storedPopupSettings { updatePopupSettings { $0 = following } }
-        // The host's frequency order, when it names one, sorts the lookups here too.
+        // The host's frequency order, when it names one, sorts the lookups here too (unless the
+        // host was removed meanwhile: then the dictionary's own order stays).
         let order = FrequencyOrder(hostSetting: options.frequencyOrder)
-        Task { [library] in try? await library.setHostFrequencyOrder(order) }
+        Task { [weak self, library] in try? await library.setHostFrequencyOrder(self?.host == nil ? nil : order) }
     }
     /// Settings ▸ Popup ▸ Lookup Counts: count lookups and show "Looked up N times".
     public var showsLookupCounts: Bool { popupSettings.showLookupCounts }
