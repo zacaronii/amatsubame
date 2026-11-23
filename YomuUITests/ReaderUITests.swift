@@ -381,6 +381,50 @@ final class ReaderUITests: XCTestCase {
 
     /// OCR tests get the models and dictionaries; paging tests run without them so
     /// taps never land on detected text.
+    /// Auto-scroll in the long strip: it moves on by itself at the chosen speed, waits while the
+    /// controls show, carries on when they go, and closes from its capsule.
+    func testAutoScrollInTheLongStrip() throws {
+        app.launch()
+        openReader()
+        // The long strip, from the reader's settings.
+        reader.tap()
+        let settings = app.buttons["reader.settings"].firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        settings.tap()
+        app.buttons["Long strip"].firstMatch.tap()
+        app.buttons["Done"].firstMatch.tap()
+        let strip = app.scrollViews["reader.strip"].firstMatch
+        XCTAssertTrue(strip.waitForExistence(timeout: 10))
+        func page() -> Int { Int((strip.value as? String ?? "").split(separator: " ").dropFirst().first ?? "") ?? -1 }
+        let start = app.buttons["reader.autoScroll"].firstMatch
+        if !start.exists { strip.tap() }
+        XCTAssertTrue(start.waitForExistence(timeout: 5))
+        start.tap()
+        let playPause = app.buttons["autoScroll.playPause"].firstMatch
+        XCTAssertTrue(playPause.waitForExistence(timeout: 5))
+        XCTAssertEqual(playPause.label, "Pause Auto-Scroll")
+        // The fastest level, to see it move in a few seconds.
+        for _ in 0..<5 { app.buttons["autoScroll.faster"].firstMatch.tap() }
+        XCTAssertEqual(app.staticTexts["autoScroll.speed"].firstMatch.value as? String, "10 of 10")
+        let before = page()
+        let moved = expectation(for: NSPredicate { _, _ in page() > before }, evaluatedWith: nil)
+        wait(for: [moved], timeout: 30)
+        snapshot("auto-scroll-strip")
+
+        // A tap brings up the controls, and it waits.
+        strip.tap()
+        XCTAssertTrue(app.buttons["reader.close"].waitForExistence(timeout: 5))
+        let held = page()
+        sleep(6)
+        XCTAssertEqual(page(), held, "waits while the controls show")
+        // They go: it carries on.
+        strip.tap()
+        let again = expectation(for: NSPredicate { _, _ in page() > held }, evaluatedWith: nil)
+        wait(for: [again], timeout: 30)
+        app.buttons["autoScroll.close"].firstMatch.tap()
+        XCTAssertTrue(playPause.waitForNonExistence(timeout: 5))
+    }
+
     private func enableOCR() throws {
         let env = ProcessInfo.processInfo.environment
         guard let models = env["UITEST_OCR_MODELS"], let dictionaries = env["UITEST_DICTIONARY_ZIPS"] else {

@@ -121,6 +121,20 @@ import UniformTypeIdentifiers
         #expect(syncs == 1, "nothing new to send")
     }
 
+    /// Auto-scroll reports a book's place every few seconds: each report is recorded and
+    /// flushed, and the chapter still has one progress job waiting, the newest.
+    @Test func reportsWhileAutoScrollingKeepOneJobPerChapter() throws {
+        let recorder = recorder()
+        recorder.start(at: 0)
+        for step in 1...12 {
+            recorder.record(page: 2, scrollId: "/html/body/p[\(step)]", characters: step * 100)
+            recorder.flush()
+        }
+        let queued = try queuedPayloads()
+        #expect(queued.count == 1)
+        #expect(queued.first?.bookScrollId == "/html/body/p[12]")
+    }
+
     /// Where the reader opens follows the sender: a queued turn it will drop (Kavita newer, not
     /// this device's) doesn't hold this device's place; one it will send does.
     @Test func theStartFollowsWhatTheSenderWillDo() throws {

@@ -72,6 +72,8 @@ enum BookWebEvent: Equatable {
     case swipe(right: Bool)
     /// The scrolling layout was scrolled by hand (a finger, wheel or key), not by the reader.
     case userScrolled
+    /// A touch, key or pointer move on the page (at most every few seconds): someone is reading.
+    case input
     /// A link to another part of the book (table of contents pages, notes).
     case link(path: String, fragment: String?)
     case ready
@@ -254,6 +256,8 @@ final class BookWebController: NSObject, WKScriptMessageHandler, WKNavigationDel
             onEvent(.miss(CGPoint(x: number("x"), y: number("y"))))
         case "userScroll":
             onEvent(.userScrolled)
+        case "input":
+            onEvent(.input)
         case "ready":
             onEvent(.ready)
         default:

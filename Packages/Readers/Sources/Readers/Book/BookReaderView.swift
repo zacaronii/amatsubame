@@ -115,6 +115,16 @@ public struct BookReaderView: View {
                 if model.spread, let frames, let popup = model.popup {
                     lookupPanel(popup, over: model.popupOnCompanion ? frames.first : frames.second)
                 }
+                if model.autoScroll.isShown, !model.showsChrome, model.settings.layout == .scroll, model.state == .ready {
+                    let speed = model.settings.autoScrollCharactersPerMinute
+                    let speeds = AutoScroll.bookSpeeds
+                    AutoScrollCapsule(autoScroll: model.autoScroll, speed: "\(speed) 字/分", spokenSpeed: "\(speed) characters a minute",
+                                      canSlowDown: speed > speeds.first!, canSpeedUp: speed < speeds.last!,
+                                      slower: { model.settings.autoScrollCharactersPerMinute = speeds.last { $0 < speed } ?? speed },
+                                      faster: { model.settings.autoScrollCharactersPerMinute = speeds.first { $0 > speed } ?? speed })
+                        .frame(maxHeight: .infinity, alignment: .bottom)
+                        .padding(.bottom, 28)
+                }
                 if model.showsChrome || model.state != .ready {
                     // Facing pages: the controls stay inside the first page.
                     chrome.inFirstPage(model.spread ? frames : nil).transition(.opacity)
@@ -163,6 +173,31 @@ public struct BookReaderView: View {
         .onDisappear { model.flushProgress() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { model.repaint() } else { model.flushProgress() }
+            model.autoScroll.set(.background, phase != .active)
+        }
+        // Auto-scroll: the page moves while it does (again at a new speed), and it stops after
+        // 30 minutes without a touch, key or pointer move.
+        .task(id: AutoScrollKey(moving: model.autoScroll.isMoving, speed: model.settings.autoScrollCharactersPerMinute)) {
+            await model.applyAutoScroll()
+            while model.autoScroll.isMoving, !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                model.autoScroll.checkIdle()
+            }
+        }
+        .onChange(of: model.settings.layout) { _, layout in if layout != .scroll { model.autoScroll.close() } }
+        #if os(macOS)
+        .onContinuousHover { _ in model.autoScroll.noteInput() }
+        #endif
+        .background {
+            if model.settings.layout == .scroll, model.state == .ready, model.readAlongCue == nil {
+                Button("Auto-Scroll") {
+                    model.autoScroll.noteInput()
+                    model.autoScroll.isOn ? model.autoScroll.stop() : model.autoScroll.start()
+                }
+                .keyboardShortcut(.downArrow, modifiers: .command)
+                .opacity(0)
+                .accessibilityHidden(true)
+            }
         }
         .sheet(isPresented: $showsSettings) { BookSettingsSheet(model: model) }
         .sheet(isPresented: $showsContents) { contents }
@@ -214,7 +249,9 @@ public struct BookReaderView: View {
     }
 
     private var positionDescription: String {
-        "Section \(model.spineIndex + 1) of \(model.sectionCount), page \(model.sectionPage + 1) of \(model.sectionPages)"
+        let place = "Section \(model.spineIndex + 1) of \(model.sectionCount), page \(model.sectionPage + 1) of \(model.sectionPages)"
+        // Scrolling has one page a section: how far in is in the characters read.
+        return model.settings.layout == .scroll ? place + ", \(model.charactersRead) characters read" : place
     }
 
     // MARK: Facing pages
@@ -344,6 +381,16 @@ public struct BookReaderView: View {
                     .accessibilityValue(marked ? "Bookmarked" : "")
                 }
                 if let barItem { barItem }
+                if model.settings.layout == .scroll, model.state == .ready, model.readAlongCue == nil {
+                    // Starts scrolling at the reading speed and gets the controls out of the way.
+                    Button("Auto-Scroll", systemImage: "arrow.down.circle") {
+                        model.autoScroll.start()
+                        model.showsChrome = false
+                    }
+                    .labelStyle(.iconOnly)
+                    .buttonBorderShape(.circle)
+                    .accessibilityIdentifier("reader.autoScroll")
+                }
                 ReaderSettingsButton { showsSettings = true }
             }
             .buttonStyle(.bordered)
@@ -553,4 +600,10 @@ private struct OptionalPopupBackground: ViewModifier {
     func body(content: Content) -> some View {
         if let lookup { content.lookupPopupBackground(lookup) } else { content.background(.background) }
     }
+}
+
+/// What the page's auto-scroll follows: whether it moves, and how fast.
+private struct AutoScrollKey: Equatable {
+    var moving: Bool
+    var speed: Int
 }

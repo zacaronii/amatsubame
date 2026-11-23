@@ -38,6 +38,16 @@ struct ReaderChrome: View {
                         Text("Kavita keeps bookmarks only for accounts with its Bookmark role. An admin can turn it on in Kavita\u{2019}s user settings.")
                     }
                 }
+                if model.settings.mode == .longStrip, model.state == .ready {
+                    // Starts scrolling and gets the controls out of the way.
+                    Button("Auto-Scroll", systemImage: "arrow.down.circle") {
+                        model.autoScroll.start()
+                        model.showsChrome = false
+                    }
+                    .labelStyle(.iconOnly)
+                    .buttonBorderShape(.circle)
+                    .accessibilityIdentifier("reader.autoScroll")
+                }
                 ReaderSettingsButton(action: onSettings)
                     .disabled(model.state != .ready)
             }

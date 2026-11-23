@@ -295,7 +295,7 @@
     // Where to come back to when the page is laid out again (a resize).
     state.place = {xpath, fraction: total ? before / total : null};
     post({kind: 'position', page: state.page, pages: state.pages.length, xpath, vertical: state.vertical,
-          moved: state.moved || state.settings.layout === 'scroll' && scrolledByUser,
+          moved: state.moved || state.settings.layout === 'scroll' && (scrolledByUser || autoSpeed > 0),
           characters: before, total, atEnd: state.page >= state.pages.length - step()});
   }
 
@@ -577,6 +577,75 @@
       report();
     }, 300);
   });
+
+  // Auto-scroll (the Scroll layout): `speed` points a second along the reading direction (down,
+  // or leftward for vertical text); 0 stops. A finger or wheel holds it until a second after it
+  // lets go; while it moves the position is reported every 10 s (a continuous scroll never
+  // settles for the scroll listener, and each report can send progress to Kavita); at the
+  // section's end it reports the edge, as paging on does.
+  let autoSpeed = 0, autoFrame = null, autoLast = 0, autoCarry = 0, autoReported = 0, autoHeldUntil = 0, inputPosted = 0;
+  function autoScroll(speed) {
+    autoSpeed = state.settings.layout === 'paged' ? 0 : Math.max(speed || 0, 0);
+    if (autoFrame) cancelAnimationFrame(autoFrame);
+    autoFrame = null; autoLast = 0; autoCarry = 0;
+    if (autoSpeed > 0) autoFrame = requestAnimationFrame(autoStep);
+  }
+  function autoStep(time) {
+    if (!autoSpeed) return;
+    const seconds = autoLast ? Math.min((time - autoLast) / 1000, 0.1) : 0;
+    autoLast = time;
+    if (time >= autoHeldUntil) {
+      // Nothing left to scroll (the section's end, or a picture page that doesn't scroll):
+      // on to the next section.
+      if (autoRoom() < 0.5) {
+        autoScroll(0);
+        report();
+        post({kind: 'edge', direction: 'next'});
+        return;
+      }
+      autoCarry += autoSpeed * seconds;
+      const step = Math.floor(autoCarry);
+      if (step >= 1) {
+        autoCarry -= step;
+        window.scrollBy(state.vertical ? -step : 0, state.vertical ? 0 : step);
+      }
+      if (time - autoReported > 10000) {
+        autoReported = time;
+        report();
+      }
+    }
+    autoFrame = requestAnimationFrame(autoStep);
+  }
+  /// How far the page can still scroll along the reading direction (vertical text scrolls left,
+  /// with a negative scrollX).
+  function autoRoom() {
+    if (root.dataset.kbImagePage === 'true') return 0;
+    const page = document.scrollingElement || document.documentElement;
+    return state.vertical ? page.scrollWidth - window.innerWidth + window.scrollX
+                          : page.scrollHeight - window.innerHeight - window.scrollY;
+  }
+
+  /// What the reading speed is worked out from: a character's size, one line to the next, and
+  /// how long a line (a column, in vertical text) is on screen.
+  function textMetrics() {
+    const style = getComputedStyle(document.body);
+    const fontSize = parseFloat(style.fontSize) || 16;
+    const lineHeight = parseFloat(style.lineHeight) || fontSize * 1.5;
+    const lineLength = state.vertical
+      ? window.innerHeight - (parseFloat(style.paddingTop) || 0) - (parseFloat(style.paddingBottom) || 0)
+      : window.innerWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0);
+    return {fontSize, lineAdvance: lineHeight, lineLength};
+  }
+  ['touchstart', 'wheel'].forEach((type) => document.addEventListener(type, () => { autoHeldUntil = Infinity; }, {passive: true}));
+  ['touchend', 'touchcancel'].forEach((type) => document.addEventListener(type, () => { autoHeldUntil = performance.now() + 1000; }, {passive: true}));
+  document.addEventListener('wheel', () => { autoHeldUntil = performance.now() + 1000; }, {passive: true});
+  // Someone is reading: touches, keys, the pointer (at most every few seconds).
+  ['touchstart', 'keydown', 'pointermove', 'wheel'].forEach((type) => document.addEventListener(type, () => {
+    const now = performance.now();
+    if (now - inputPosted < 5000) return;
+    inputPosted = now;
+    post({kind: 'input'});
+  }, {passive: true}));
 
   // Back to the first character on the page before the resize (measuring now would use the
   // old pages against the new layout).
@@ -1078,5 +1147,5 @@
     wordRuns, markWords, unmarkWords,
     marks: {show: showUserMarks, sentenceAt, markAt, pageStart},
     readAlong: {show: showReadAlong, clear: clearReadAlong, split: () => readAlongSplit, advance: advanceReadAlong, lastTap: () => lastTap, xpathOfRun, firstVisiblePlace},
-    pageCount: () => state.pages.length, page: () => state.page};
+    pageCount: () => state.pages.length, page: () => state.page, autoScroll, textMetrics};
 })();

@@ -36,7 +36,11 @@ public final class MangaReaderModel {
     public var showsChrome = false {
         // The controls came up: a word the pointer rests on isn't looked up (a click would only
         // hide them).
-        didSet { if showsChrome { dropHover() } }
+        didSet {
+            if showsChrome { dropHover() }
+            autoScroll.set(.controls, showsChrome)
+            autoScroll.noteInput()
+        }
     }
     /// Set by the view from the available space when spreads are on `auto`.
     public var spreadsFitScreen = false
@@ -64,7 +68,14 @@ public final class MangaReaderModel {
     }
 
     /// The lookup popup for the last tapped text, and where on screen it was (global coordinates).
-    public var popup: LookupPopupModel?
+    public var popup: LookupPopupModel? {
+        didSet {
+            autoScroll.set(.lookup, popup != nil)
+            if popup != nil { autoScroll.noteInput() }
+        }
+    }
+    /// Auto-scroll in the long strip.
+    public let autoScroll = AutoScroll()
     /// The page of the last lookup, until you page away from it: a spread that splits (folding
     /// the iPhone Duo, which also closes the popup) shows that page rather than the spread's first.
     public private(set) var popupPage: Int?
@@ -74,7 +85,9 @@ public final class MangaReaderModel {
     /// The box being drawn for manual OCR, in the page's own coordinates.
     public var selection: (page: Int, rect: CGRect)?
     /// True from a long press until a box is drawn or selection is cancelled.
-    public private(set) var isSelecting = false
+    public private(set) var isSelecting = false {
+        didSet { autoScroll.set(.selecting, isSelecting) }
+    }
 
     public let ocr: OCRService?
     public let lookup: LookupService?
@@ -231,6 +244,8 @@ public final class MangaReaderModel {
 
     /// The end-of-chapter screen counts as finishing the last page.
     public func reachedEnd() {
+        // Auto-scroll stops at the chapter's end (the next chapter is the reader's choice).
+        autoScroll.stop()
         pagesShown(first: pageCount - 1, lastVisible: pageCount - 1)
     }
 

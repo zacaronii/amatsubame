@@ -44,6 +44,61 @@ final class BookUITests: XCTestCase {
 
     private func position() -> String { page.value as? String ?? "" }
 
+    /// Auto-scroll in the Scrolling layout: at the reading speed shown in characters a minute, it
+    /// moves the place on by itself, waits while the controls show, and closes from its capsule.
+    func testAutoScrollInTheScrollingLayout() throws {
+        openBook()
+        page.tap()
+        let settings = app.buttons["reader.settings"].firstMatch
+        if !settings.exists { page.tap() }
+        XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        settings.tap()
+        // Layout ▸ Pages, a menu further down the sheet.
+        let pages = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Pages'")).firstMatch
+        for _ in 0..<4 where !(pages.exists && pages.isHittable) { app.swipeUp() }
+        pages.tap()
+        app.buttons["Scrolling"].firstMatch.tap()
+        app.buttons["Done"].firstMatch.tap()
+        sleep(3)
+        let start = app.buttons["reader.autoScroll"].firstMatch
+        if !start.exists { page.tap() }
+        XCTAssertTrue(start.waitForExistence(timeout: 5))
+        start.tap()
+        let speed = app.staticTexts["autoScroll.speed"].firstMatch
+        XCTAssertTrue(speed.waitForExistence(timeout: 5))
+        XCTAssertEqual(speed.value as? String, "300 characters a minute")
+        // The fastest, to see it move in a few seconds.
+        for _ in 0..<14 { app.buttons["autoScroll.faster"].firstMatch.tap() }
+        XCTAssertEqual(speed.value as? String, "1000 characters a minute")
+        // Scrolling reads "…, N characters read": it goes up (past the cover, through the text).
+        func read() -> Int { Int(position().split(separator: ",").last?.split(separator: " ").first ?? "") ?? -1 }
+        let before = read()
+        let moved = expectation(for: NSPredicate { _, _ in read() > before + 50 }, evaluatedWith: nil)
+        wait(for: [moved], timeout: 60)
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "auto-scroll-book"
+        shot.lifetime = .keepAlways
+        add(shot)
+        // A tap on the page (a lookup on a word, or the controls beside one): it waits.
+        page.tap()
+        sleep(2)
+        let held = read()
+        sleep(6)
+        XCTAssertEqual(read(), held, "waits while the lookup or the controls show")
+        // Closed again (a tap on the page while the controls or a lookup show only closes them):
+        // it carries on.
+        let close = app.buttons["autoScroll.close"].firstMatch
+        for _ in 0..<2 where !close.exists {
+            page.tap()
+            sleep(2)
+        }
+        XCTAssertTrue(close.waitForExistence(timeout: 5), "the capsule is back")
+        let again = expectation(for: NSPredicate { _, _ in read() > held + 50 }, evaluatedWith: nil)
+        wait(for: [again], timeout: 60)
+        close.tap()
+        XCTAssertTrue(speed.waitForNonExistence(timeout: 5))
+    }
+
     /// Word marks on a book page (a screenshot to check by eye; with no Anki set up every
     /// dictionary word is "not in Anki"). Needs `UITEST_DICTIONARY_ZIPS`.
     func testBookPageShowsWordMarks() throws {

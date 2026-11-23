@@ -98,6 +98,16 @@ import Testing
 }
 
 @Suite struct MangaReaderSettingsDecodingTests {
+    @Test func autoScrollSpeedsHaveDefaultsForSettingsSavedBefore() throws {
+        let manga = try JSONDecoder().decode(MangaReaderSettings.self, from: Data(#"{"mode":"longStrip"}"#.utf8))
+        #expect(manga.autoScrollLevel == 5)
+        let book = try JSONDecoder().decode(BookReaderSettings.self, from: Data(#"{"layout":"scroll"}"#.utf8))
+        #expect(book.autoScrollCharactersPerMinute == 300)
+        var faster = BookReaderSettings()
+        faster.autoScrollCharactersPerMinute = 450
+        #expect(try JSONDecoder().decode(BookReaderSettings.self, from: JSONEncoder().encode(faster)).autoScrollCharactersPerMinute == 450)
+    }
+
     @Test func splitWidePagesIsOnForSettingsSavedBefore() throws {
         let old = try JSONDecoder().decode(MangaReaderSettings.self, from: Data(#"{"mode":"paged","coverAlone":false}"#.utf8))
         #expect(old.splitsWidePages)
