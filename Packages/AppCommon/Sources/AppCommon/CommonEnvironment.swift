@@ -131,7 +131,7 @@ public final class CommonEnvironment {
         dictionaryUpdater = DictionaryUpdater(library: dictionaries, lookup: lookup, reachability: reachability)
         activity = ActivityLog(database: database)
         goals = DailyGoalStore(database: database)
-        statsSync = StatsCloudSync(database: database)
+        statsSync = StatsCloudSync(database: database, collections: Self.syncedCollections)
         lookup.activity = activity
         ankiSettings = AnkiSettingsStore(database: setupDatabase)
         minedWords = MinedWordStore(database: setupDatabase)
@@ -391,6 +391,16 @@ public final class CommonEnvironment {
     public var appsSharingSetup: [String] {
         guard setupMode == .shared, let members = setupSharing?.shared.members else { return [] }
         return ["Yomu", "Miru", "Kiku", "Hiku"].filter { $0 != Self.appName && members[$0] == true }
+    }
+
+    /// What Sync with iCloud keeps the same besides Stats, in each app.
+    static var syncedCollections: [any SyncedCollection] {
+        switch appName {
+        case "Yomu": [DailyGoalCollection(), TableCollection.mangaReaderSettings, TableCollection.bookReaderSettings]
+        case "Miru": [TableCollection.playerSettings]
+        case "Kiku": [TableCollection.listenSettings, TableCollection.showListenSettings]
+        default: []
+        }
     }
 
     public static var appName: String {
