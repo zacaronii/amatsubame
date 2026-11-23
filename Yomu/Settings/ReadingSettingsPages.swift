@@ -62,6 +62,7 @@ struct StorageView: View {
     @State private var cacheBytes: Int64 = 0
     @State private var dictionaryBytes: Int64 = 0
     @State private var confirmsClearCache = false
+    @State private var confirmsRemoveAudio = false
 
     private var downloadBytes: Int64 {
         environment.downloader.records.values.reduce(0) { $0 + ($1.state == .done ? ($1.bytesTotal ?? 0) : $1.bytesDone) }
@@ -76,6 +77,7 @@ struct StorageView: View {
             Section {
                 StorageSummary(parts: [
                     .init("Downloads", bytes: downloadBytes, color: .blue),
+                    .init("Read-along audio", bytes: environment.readAlongDownloads.bytes, color: .teal),
                     .init("Dictionaries", bytes: dictionaryBytes, color: .purple),
                     .init("Text recognition", bytes: modelBytes, color: .cyan),
                     .init("Cache", bytes: cacheBytes, color: .gray),
@@ -88,6 +90,17 @@ struct StorageView: View {
                     SettingsRowLabel("Downloads", value: downloadBytes.storageText, systemImage: "arrow.down.circle.fill", color: .blue)
                 }
                 .accessibilityIdentifier("storage.downloads")
+                HStack {
+                    let audio = environment.readAlongDownloads
+                    SettingsRowLabel("Read-Along Audio", value: audio.fileCount == 0 ? "None" : "\(audio.fileCount) · \(audio.bytes.storageText)",
+                                     systemImage: "headphones", color: .teal)
+                    Button("Remove", role: .destructive) { confirmsRemoveAudio = true }
+                        #if os(iOS)
+                        .buttonStyle(.borderless)
+                        #endif
+                        .disabled(audio.fileCount == 0 && audio.running.isEmpty)
+                        .accessibilityIdentifier("storage.removeReadAlongAudio")
+                }
                 NavigationLink {
                     DictionariesView()
                 } label: {
@@ -127,6 +140,11 @@ struct StorageView: View {
         .formStyle(.grouped)
         .navigationTitle("Storage")
         .task { await measure() }
+        .confirmationDialog("Remove the read-along audio?", isPresented: $confirmsRemoveAudio, titleVisibility: .visible) {
+            Button("Remove Audio", role: .destructive) { Task { await environment.readAlongDownloads.deleteAll() } }
+        } message: {
+            Text("Downloads in progress stop. Reading along streams the audio from Audiobookshelf again, and you can download it again from the series.")
+        }
         .confirmationDialog("Clear the cache?", isPresented: $confirmsClearCache, titleVisibility: .visible) {
             Button("Clear Cache", role: .destructive) {
                 try? environment.ocr.cache.clear()

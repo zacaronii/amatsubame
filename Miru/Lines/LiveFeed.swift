@@ -25,6 +25,21 @@ struct FeedHold: Equatable {
     }
 }
 
+/// Failed polls in a row: Watching Now keeps its last list until `clearsAfter` of them (one
+/// dropped poll mustn't empty it), and the count starts again at the first poll that works.
+struct PollFailures {
+    static let clearsAfter = 3
+    private(set) var inARow = 0
+
+    /// Counts one; true when the list should go.
+    mutating func failed() -> Bool {
+        inARow += 1
+        return inARow >= Self.clearsAfter
+    }
+
+    mutating func succeeded() { inARow = 0 }
+}
+
 /// Another device playing something from a visible library ("Watching Now" in Lines).
 struct LiveRoute: Hashable {
     var sessionId: String
@@ -34,6 +49,10 @@ struct LiveRoute: Hashable {
 @MainActor @Observable
 final class LiveSessionsModel {
     private(set) var sessions: [JellyfinSession] = []
+    /// The last poll failed: `sessions` is the last list (kept for `clearsAfter` failures in a
+    /// row, so one dropped poll doesn't empty Watching Now).
+    private(set) var isUnreachable: Bool = false
+    @ObservationIgnored private var failures = PollFailures()
     @ObservationIgnored private let environment: PlayerEnvironment
     /// Library per series (or movie), so each show's ancestors are looked up once.
     @ObservationIgnored private var libraries: [String: String] = [:]
@@ -52,10 +71,17 @@ final class LiveSessionsModel {
     }
 
     func refresh() async {
-        guard let client = environment.jellyfinClient(), let all = try? await client.sessions() else {
+        guard let client = environment.jellyfinClient() else {
             sessions = []
             return
         }
+        guard let all = try? await client.sessions() else {
+            isUnreachable = true
+            if failures.failed() { sessions = [] }
+            return
+        }
+        failures.succeeded()
+        isUnreachable = false
         var visible: [JellyfinSession] = []
         for session in all {
             guard let item = session.nowPlayingItem else { continue }
@@ -261,7 +287,14 @@ struct LiveFeedView: View {
                 ContentUnavailableView("No Japanese Subtitles", systemImage: "captions.bubble",
                                        description: Text("Jellyfin has no Japanese text subtitles for this video."))
             case (_, .failed(let message)?):
-                ContentUnavailableView("Couldn't Load Subtitles", systemImage: "wifi.exclamationmark", description: Text(message))
+                ContentUnavailableView {
+                    Label("Couldn't Load Subtitles", systemImage: "wifi.exclamationmark")
+                } description: {
+                    Text(message)
+                } actions: {
+                    Button("Try Again") { Task { await model.transcript?.load() } }
+                        .accessibilityIdentifier("live.retry")
+                }
             default:
                 ProgressView()
             }

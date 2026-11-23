@@ -877,6 +877,21 @@ final class ReaderUITests: XCTestCase {
         XCTAssertEqual(listValue(), "", "and after the list is read again")
     }
 
+    /// Settings ▸ Storage lists read-along audio (none on this simulator), with Remove asked
+    /// first and off while there's nothing to remove. Reads nothing from Audiobookshelf.
+    func testStorageListsReadAlongAudio() throws {
+        app.launch()
+        app.tabBars.buttons["Settings"].tap()
+        let storage = app.buttons["settings.storage"].firstMatch
+        for _ in 0..<8 where !storage.isHittable { app.swipeUp() }
+        storage.tap()
+        let remove = app.buttons["storage.removeReadAlongAudio"].firstMatch
+        XCTAssertTrue(remove.waitForExistence(timeout: 10), "the read-along audio row")
+        XCTAssertTrue(app.staticTexts["Read-Along Audio"].exists)
+        XCTAssertFalse(remove.isEnabled, "nothing to remove")
+        snapshot("storage-read-along")
+    }
+
     /// Adds a series' first volume to the test's reading list (made with the first), then goes
     /// back to the Library home.
     private func addFirstVolume(library: String, series: String, new: Bool) {
