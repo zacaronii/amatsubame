@@ -43,6 +43,8 @@ public final class MPVController {
     /// waits instead of stopping every few seconds.
     public private(set) var bufferWait = BufferWait()
     public private(set) var tracks: [Track] = []
+    /// The file's own chapters (mpv's `chapter-list`): start in seconds and title.
+    public private(set) var fileChapters: [(start: Double, title: String?)] = []
     public private(set) var lastError: String?
     /// mpv's own volume, 0…100 (the system volume is separate).
     public private(set) var volume: Double = 100
@@ -94,7 +96,7 @@ public final class MPVController {
         for (name, format) in [("time-pos", MPV_FORMAT_DOUBLE), ("duration", MPV_FORMAT_DOUBLE), ("pause", MPV_FORMAT_FLAG),
                                ("eof-reached", MPV_FORMAT_FLAG), ("track-list", MPV_FORMAT_NODE), ("volume", MPV_FORMAT_DOUBLE),
                                ("video-params/aspect", MPV_FORMAT_DOUBLE), ("paused-for-cache", MPV_FORMAT_FLAG),
-                               ("cache-buffering-state", MPV_FORMAT_INT64)] {
+                               ("cache-buffering-state", MPV_FORMAT_INT64), ("chapter-list", MPV_FORMAT_NODE)] {
             mpv_observe_property(mpv, 0, name, format)
         }
         mpv_set_wakeup_callback(mpv, mpvWakeup, Unmanaged.passUnretained(self).toOpaque())
@@ -337,7 +339,7 @@ public final class MPVController {
 
     enum Update: Sendable {
         case time(Double), duration(Double), paused(Bool), ended(Bool), tracks([Track]), volume(Double), aspect(Double)
-        case buffering(Bool), bufferPercent(Int)
+        case buffering(Bool), bufferPercent(Int), chapters([(start: Double, title: String?)])
         case none
     }
 
@@ -361,8 +363,30 @@ public final class MPVController {
             return .bufferPercent(Int(property.data.assumingMemoryBound(to: Int64.self).pointee))
         case ("track-list", MPV_FORMAT_NODE):
             return .tracks(tracks(from: property.data.assumingMemoryBound(to: mpv_node.self).pointee))
+        case ("chapter-list", MPV_FORMAT_NODE):
+            return .chapters(chapters(from: property.data.assumingMemoryBound(to: mpv_node.self).pointee))
         default:
             return .none
+        }
+    }
+
+    nonisolated private static func chapters(from node: mpv_node) -> [(start: Double, title: String?)] {
+        guard node.format == MPV_FORMAT_NODE_ARRAY, let list = node.u.list?.pointee else { return [] }
+        return (0..<Int(list.num)).compactMap { index in
+            let item = list.values[index]
+            guard item.format == MPV_FORMAT_NODE_MAP, let map = item.u.list?.pointee else { return nil }
+            var start: Double?
+            var title: String?
+            for key in 0..<Int(map.num) {
+                guard let name = map.keys?[key] else { continue }
+                let value = map.values[key]
+                switch String(cString: name) {
+                case "time" where value.format == MPV_FORMAT_DOUBLE: start = value.u.double_
+                case "title" where value.format == MPV_FORMAT_STRING: title = value.u.string.map { String(cString: $0) }
+                default: break
+                }
+            }
+            return start.map { ($0, title) }
         }
     }
 
@@ -400,6 +424,7 @@ public final class MPVController {
         case .paused(let value): isPaused = value
         case .ended(let value): reachedEnd = value
         case .tracks(let value): tracks = value
+        case .chapters(let value): fileChapters = value
         case .volume(let value): volume = value
         case .buffering(let value):
             isBuffering = value

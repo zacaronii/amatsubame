@@ -1249,6 +1249,7 @@ final class PlaybackModel {
             toggleEnglish()
             showOSD(showsEnglish ? "English subtitles on" : "English subtitles off")
         case .skip: skipSegment()
+        case .previousChapter, .nextChapter: moveChapter(forward: shortcut == .nextChapter)
         case .previousEpisode: Task { await playPreviousEpisode() }
         case .nextEpisode:
             guard nextItemId != nil else { return showOSD("No next episode") }
@@ -1456,6 +1457,27 @@ final class PlaybackModel {
         guard fills != fillsScreen else { return }
         fillsScreen = fills
         showOSD(fills ? "Zoomed to Fill" : "Fit to Screen")
+    }
+
+    // MARK: Chapters
+
+    /// The video's chapters: Jellyfin's, or the file's own (a download, a local file).
+    var chapters: PlayerChapters {
+        let server = (item?.chapters ?? []).map { (start: $0.start, name: $0.name) }
+        let list = server.count >= 2 ? server : mpv.fileChapters.map { (start: $0.start, name: $0.title) }
+        return PlayerChapters(list, duration: mpv.duration)
+    }
+
+    /// Previous or next chapter (Page Up and Page Down, and the options menu).
+    func moveChapter(forward: Bool) {
+        let chapters = chapters
+        guard !chapters.isEmpty else { return showOSD("No chapters") }
+        let time = mpv.timePosition
+        guard let target = forward ? chapters.nextStart(from: time) : chapters.previousStart(from: time) else {
+            return showOSD("Last chapter")
+        }
+        mpv.seek(to: target)
+        showOSD(chapters.name(at: target) ?? "Chapter")
     }
 
     func showOSD(_ text: String) {
