@@ -50,4 +50,14 @@ final class LinesAndSettingsUITests: XCTestCase {
         field.typeText("鯨")
         XCTAssertTrue(noResults.waitForExistence(timeout: 5), "No Results after the search")
     }
+
+    /// #166 in Miru: two screens deep in Settings, tapping the Settings tab again shows its top.
+    @MainActor
+    func testSettingsTabReturnsToTheTopFromTwoScreensDeep() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment["UITEST_PLAYER"] = "1"
+        app.launch()
+        checkSettingsTabRetap(app)
+    }
 }

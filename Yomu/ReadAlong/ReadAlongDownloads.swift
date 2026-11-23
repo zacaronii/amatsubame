@@ -45,7 +45,7 @@ final class ReadAlongDownloads {
     func clearResult(itemId: String) { results[itemId] = nil }
 
     /// Unpairing a volume deletes its book's audio, unless another volume still reads along with
-    /// that book (`pairs` of the book before unpairing).
+    /// that book (`pairs` of the book, before or after unpairing: the answer is the same).
     static func deletesAudio(unpairing chapterId: Int, pairs: [Int]) -> Bool {
         pairs.allSatisfy { $0 == chapterId }
     }

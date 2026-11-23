@@ -892,6 +892,13 @@ final class ReaderUITests: XCTestCase {
         snapshot("storage-read-along")
     }
 
+    /// #166 in Yomu: two screens deep in Settings, tapping the Settings tab again shows its top.
+    @MainActor
+    func testSettingsTabReturnsToTheTopFromTwoScreensDeep() throws {
+        app.launch()
+        checkSettingsTabRetap(app)
+    }
+
     /// Adds a series' first volume to the test's reading list (made with the first), then goes
     /// back to the Library home.
     private func addFirstVolume(library: String, series: String, new: Bool) {
