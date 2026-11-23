@@ -276,6 +276,16 @@ final class BookUITests: XCTestCase {
         XCTAssertEqual(position().split(separator: ",").first, start.split(separator: ",").first, "back in the section it started in")
     }
 
+    /// With a keyboard, ⌘F in an open book searches the book (Search Dictionary moves to ⇧⌘F there).
+    func testCommandFSearchesTheOpenBook() throws {
+        openBook()
+        page.typeKey("f", modifierFlags: .command)
+        XCTAssertTrue(app.navigationBars["Search"].waitForExistence(timeout: 5), "the book's search, not the Dictionary tab")
+        XCTAssertTrue(app.searchFields.firstMatch.exists)
+        app.buttons["Done"].firstMatch.tap()
+        XCTAssertTrue(page.waitForExistence(timeout: 5), "still in the book")
+    }
+
     func testTappingTextOpensLookup() throws {
         guard ProcessInfo.processInfo.environment["UITEST_DICTIONARY_ZIPS"] != nil else { throw XCTSkip("Needs UITEST_DICTIONARY_ZIPS.") }
         openBook()
