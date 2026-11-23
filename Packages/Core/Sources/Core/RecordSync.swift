@@ -129,7 +129,12 @@ public struct RecordSync: Sendable {
                     try collection.apply(id: record.id, value: record.deleted ? nil : incoming.value, db)
                     // Kept as the collection now writes it, so the next look for local edits finds none.
                     var kept = incoming
-                    if !record.deleted { kept.value = try collection.records(db)[record.id] ?? incoming.value }
+                    if !record.deleted {
+                        // A record this device doesn't take (a series of another server) is left
+                        // out: remembered, it would read as deleted here and go out as a deletion.
+                        guard let value = try collection.records(db)[record.id] else { continue }
+                        kept.value = value
+                    }
                     try kept.save(db)
                     applied = true
                 }
