@@ -46,6 +46,12 @@ public enum SpreadLayout {
         slots.firstIndex { $0.pages.contains(page) } ?? (page <= 0 ? 0 : max(slots.count - 1, 0))
     }
 
+    /// Moving between the two halves of the same page (not a page move).
+    public static func isHalfMove(from old: ReaderSlot?, to new: ReaderSlot?) -> Bool {
+        guard let old, let new, old.half != nil, new.half != nil else { return false }
+        return old.pages == new.pages && old.half != new.half
+    }
+
     /// After the slots change (a resize, the toggle): the slot showing the same page, and the
     /// same half of it when it's still split; else the page's first slot.
     public static func slotIndex(keeping old: ReaderSlot?, page: Int, in slots: [ReaderSlot]) -> Int {

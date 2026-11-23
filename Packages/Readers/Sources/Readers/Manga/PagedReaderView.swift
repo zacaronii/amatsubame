@@ -81,10 +81,12 @@ struct PagedReaderView: View {
                     lastSlots = newSlots
                     realign(proxy)
                 }
-                .onChange(of: position) { _, index in
+                .onChange(of: position) { old, index in
                     // Mid-resize the scroll view reports whatever page its old offset now falls
                     // on; that isn't a page being read.
                     guard let index, !realigning, geometry.size.width == pageWidth else { return }
+                    let before = old.flatMap { slots.indices.contains($0) ? slots[$0] : nil }
+                    if SpreadLayout.isHalfMove(from: before, to: slots.indices.contains(index) ? slots[index] : nil) { model.halfChanged() }
                     if index >= endIndex {
                         model.reachedEnd()
                     } else if slots.indices.contains(index) {

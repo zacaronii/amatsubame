@@ -107,7 +107,9 @@ public final class MangaReaderModel {
 
     public var pageCount: Int { dimensions.isEmpty ? chapter.pages : dimensions.count }
 
-    public var usesSpreads: Bool {
+    public var usesSpreads: Bool { Self.usesSpreads(settings: settings, spreadsFitScreen: spreadsFitScreen) }
+
+    nonisolated static func usesSpreads(settings: MangaReaderSettings, spreadsFitScreen: Bool) -> Bool {
         switch settings.spreads {
         case .on: true
         case .off: false
@@ -123,8 +125,15 @@ public final class MangaReaderModel {
             widePages: widePages,
             spreads: usesSpreads,
             coverAlone: settings.coverAlone,
-            splitsWide: settings.splitsWidePages && viewportIsPortrait
+            splitsWide: Self.splitsWide(settings: settings, portrait: viewportIsPortrait, spreadsFitScreen: spreadsFitScreen)
         )
+    }
+
+    /// Whether a wide page is split: the setting on, the reader taller than wide, and spreads not
+    /// in use (pages side by side at half width there, a split wide page would be twice their
+    /// scale; Automatic never uses them in portrait).
+    nonisolated static func splitsWide(settings: MangaReaderSettings, portrait: Bool, spreadsFitScreen: Bool) -> Bool {
+        settings.splitsWidePages && portrait && !usesSpreads(settings: settings, spreadsFitScreen: spreadsFitScreen)
     }
 
     /// Kavita's wide pages (two-page scans).
@@ -188,6 +197,13 @@ public final class MangaReaderModel {
 
     /// The page to keep on screen when the spreads change (or the pager is rebuilt).
     var pageToKeep: Int { popupPage ?? currentPage }
+
+    /// The other half of a split page came into view: a lookup on the half left behind closes,
+    /// as it does when the page changes (the word is no longer on screen).
+    public func halfChanged() {
+        popup = nil
+        popupPage = nil
+    }
 
     /// Called as pages scroll into view. `lastVisible` is what counts as read.
     public func pagesShown(first: Int, lastVisible: Int) {

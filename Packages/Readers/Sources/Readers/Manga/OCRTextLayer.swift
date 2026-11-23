@@ -52,7 +52,7 @@ struct OCRTextLayer: View {
                             .position(x: rect.midX, y: rect.midY)
                     }
                 }
-                if let overlay = model.textOverlay(page: page), let range = overlay.highlight {
+                if let overlay = model.textOverlay(page: page), let range = overlay.highlight, Self.isShown(overlay.block.box, in: visible) {
                     // The word being looked up, marked on the lettering itself: nothing is drawn
                     // but a tint over its characters, so it shows what the tap was taken for.
                     let rect = place.rect(overlay.block.box)

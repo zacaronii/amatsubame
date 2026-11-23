@@ -1,3 +1,4 @@
+import Core
 import CoreGraphics
 import OCR
 @testable import Readers
@@ -15,13 +16,27 @@ import Testing
         #expect(portrait.map(\.half) == [nil, nil, .first, .second, nil])
     }
 
-    @Test func theViewportDecidesNotTheSpreadsSetting() {
-        // Landscape (no split) with spreads off: the wide page stays whole.
-        #expect(slots(4, wide: [2], spreads: false, splits: false).map(\.half) == [nil, nil, nil, nil])
-        // Portrait with spreads on: the wide page stands alone, and is split.
-        let spread = slots(6, wide: [3], spreads: true, splits: true)
-        #expect(spread.map(\.pages) == [[0], [1, 2], [3], [3], [4, 5]])
-        #expect(spread.filter { $0.half != nil }.count == 2)
+    @Test func onlyAPortraitReaderWithoutSpreadsSplits() {
+        func splits(portrait: Bool, spreads: MangaReaderSettings.Spreads, on: Bool = true) -> Bool {
+            var settings = MangaReaderSettings()
+            settings.spreads = spreads
+            settings.splitsWidePages = on
+            return MangaReaderModel.splitsWide(settings: settings, portrait: portrait, spreadsFitScreen: !portrait)
+        }
+        #expect(splits(portrait: true, spreads: .auto), "portrait, Automatic (no spreads there): split")
+        #expect(splits(portrait: true, spreads: .off))
+        #expect(!splits(portrait: true, spreads: .on), "spreads forced on: the wide page whole, at the pages' scale")
+        #expect(!splits(portrait: false, spreads: .off), "landscape: whole, spreads or not")
+        #expect(!splits(portrait: false, spreads: .auto))
+        #expect(!splits(portrait: true, spreads: .auto, on: false), "the setting off")
+    }
+
+    @Test func movingBetweenHalvesIsNotAPageMove() {
+        let first = ReaderSlot(pages: [2], half: .first), second = ReaderSlot(pages: [2], half: .second)
+        #expect(SpreadLayout.isHalfMove(from: first, to: second))
+        #expect(SpreadLayout.isHalfMove(from: second, to: first))
+        #expect(!SpreadLayout.isHalfMove(from: second, to: ReaderSlot(pages: [3])))
+        #expect(!SpreadLayout.isHalfMove(from: ReaderSlot(pages: [1]), to: first))
     }
 
     @Test func offIsTodaysLayoutExactly() {
