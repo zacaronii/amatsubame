@@ -121,6 +121,23 @@ import UniformTypeIdentifiers
         #expect(syncs == 1, "nothing new to send")
     }
 
+    /// Where the reader opens follows the sender: a queued turn it will drop (Kavita newer, not
+    /// this device's) doesn't hold this device's place; one it will send does.
+    @Test func theStartFollowsWhatTheSenderWillDo() throws {
+        let recorder = recorder()
+        recorder.start(at: 0)
+        recorder.record(page: 19)
+        recorder.flush()
+        let local = try #require(try progress.progress(chapterId: 206))
+        let elsewhere = KavitaServerProgress(chapterId: 206, pageNum: 60, lastModifiedUtc: local.updatedAt.addingTimeInterval(3600))
+        let unsent = recorder.queuedChangeStillGoes(server: elsewhere)
+        #expect(!unsent)
+        #expect(ProgressSyncPolicy.startPage(local: local, server: elsewhere, pages: 100, unsent: unsent) == 60)
+        let older = KavitaServerProgress(chapterId: 206, pageNum: 3, lastModifiedUtc: local.updatedAt.addingTimeInterval(-3600))
+        #expect(recorder.queuedChangeStillGoes(server: older))
+        #expect(ProgressSyncPolicy.startPage(local: local, server: older, pages: 100, unsent: true) == 19)
+    }
+
     @Test func openingAChapterRecordsNothing() throws {
         let recorder = recorder()
         recorder.start(at: 7)

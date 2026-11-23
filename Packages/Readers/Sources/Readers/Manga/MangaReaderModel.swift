@@ -142,7 +142,7 @@ public final class MangaReaderModel {
         let local = try? progressStore.progress(chapterId: chapter.chapterId)
         let server = await serverProgress()
         startPage = opensAt.map { min(max($0, 0), max(pageCount - 1, 0)) }
-            ?? ProgressSyncPolicy.startPage(local: local, server: server, pages: pageCount)
+            ?? ProgressSyncPolicy.startPage(local: local, server: server, pages: pageCount, unsent: recorder.queuedChangeStillGoes(server: server))
         currentPage = startPage
         recorder.start(at: startPage)
         state = .ready

@@ -202,6 +202,12 @@ enum TestEpub {
                                            updatedAt: kavitaDate.addingTimeInterval(1))
         let keptPlace = KavitaServerProgress(chapterId: 1, pageNum: 0, bookScrollId: "//body/div[1]/p[9]", lastModifiedUtc: kavitaDate)
         #expect(ProgressSyncPolicy.startPosition(local: settled, server: keptPlace, pages: 46) == (0, nil))
+        // The one rule at the reader's start: a queued change keeps this device's place even when
+        // Kavita's is newer (a clock behind); nothing queued, the newer place.
+        let offline = LocalReadingProgress(chapterId: 1, seriesId: 1, volumeId: 1, libraryId: 1, page: 9, pages: 46,
+                                           updatedAt: kavitaDate.addingTimeInterval(-600), scrollId: "//p[2]")
+        #expect(ProgressSyncPolicy.startPosition(local: offline, server: keptPlace, pages: 46, unsent: true) == (9, "//p[2]"))
+        #expect(ProgressSyncPolicy.startPosition(local: offline, server: keptPlace, pages: 46) == (0, "//body/div[1]/p[9]"))
     }
 
     @MainActor @Test func recorderSendsBookScrollId() throws {

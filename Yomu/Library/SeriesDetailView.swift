@@ -8,6 +8,11 @@ struct SeriesDetailView: View {
     @Environment(AppEnvironment.self) private var environment
     @State var series: KavitaSeries
     @State private var contents: KavitaSeriesContents?
+    /// The volumes as Kavita has them (cached or just read); `contents` is these with this
+    /// device's places applied by the one rule (`LocalReadingProgress.devicesPlaceWins`).
+    @State private var kavitaContents: KavitaSeriesContents?
+    /// This device's rows and the queue (nil until first read).
+    @State private var places: DevicePlaces?
     @State private var error: String?
     @State private var session: ReaderSession?
     /// Each EPUB volume's characters, by chapter id (books only).
@@ -186,6 +191,16 @@ struct SeriesDetailView: View {
             await countCharacters()
         }
         .task { await loadMetadata() }
+        .task(id: series.id) {
+            // This device's rows and the queue: a page turn, a mark, or a change leaving the queue
+            // (sent, or skipped for newer reading elsewhere) shows at once.
+            do {
+                for try await value in environment.readingProgress.observePlaces(seriesId: series.id) {
+                    places = value
+                    applyPlaces()
+                }
+            } catch {}
+        }
         .sheet(isPresented: $showsCollections) { CollectionsSheet(seriesId: series.id) }
         .sheet(item: $addingToList) { chapter in ReadingListsSheet(chapter: readingListChapter(chapter)) }
         .task(id: environment.readerMarkAccount()) {
@@ -597,20 +612,34 @@ struct SeriesDetailView: View {
         session = ReaderSession(chapter: contents.readerChapter(chapter, series: series), series: series, contents: contents)
     }
 
+    /// Kavita's volumes with this device's places, by the one rule.
+    private func applyPlaces() {
+        guard let kavitaContents else { return }
+        if places == nil { places = try? environment.readingProgress.places(seriesId: series.id) }
+        let rows = places?.rows ?? []
+        let applied = kavitaContents.readingFurther(Dictionary(rows.map { ($0.chapterId, $0.pagesRead) }, uniquingKeysWith: max),
+                                                    updated: Dictionary(rows.map { ($0.chapterId, $0.updatedAt) }, uniquingKeysWith: max),
+                                                    unsent: places?.unsentChapters(seriesId: series.id) ?? [])
+        contents = applied
+        // The header's total follows too.
+        series.pagesRead = applied.readingOrder.reduce(0) { $0 + min($1.pagesRead, $1.pages) }
+            + applied.specials.reduce(0) { $0 + min($1.pagesRead, $1.pages) }
+    }
+
     private func load() async {
         let repository = environment.kavitaLibrary
         // What was read on this device counts too (manga read offline, or not sent yet), so the
         // rings, "Page x of y", Finished marks and Continue follow it at once.
         let saved = (try? environment.readingProgress.progress(seriesId: series.id)) ?? []
-        let local = Dictionary(saved.map { ($0.chapterId, ProgressSyncPolicy.pageNum(forPage: $0.page, pages: $0.pages)) }, uniquingKeysWith: max)
-        let updated = Dictionary(saved.map { ($0.chapterId, $0.updatedAt) }, uniquingKeysWith: max)
+        let local = Dictionary(saved.map { ($0.chapterId, $0.pagesRead) }, uniquingKeysWith: max)
         if let cached = try? repository.cachedVolumes(seriesId: series.id), !cached.isEmpty {
-            contents = KavitaSeriesContents(volumes: cached).readingFurther(local, updated: updated)
+            kavitaContents = KavitaSeriesContents(volumes: cached)
+            applyPlaces()
         }
         guard let client = environment.kavitaClient() else { return }
         do {
-            contents = KavitaSeriesContents(volumes: try await repository.refreshVolumes(seriesId: series.id, using: client))
-                .readingFurther(local, updated: updated)
+            kavitaContents = KavitaSeriesContents(volumes: try await repository.refreshVolumes(seriesId: series.id, using: client))
+            applyPlaces()
             if let refreshed = contents {
                 let read = refreshed.readingOrder.reduce(0) { $0 + min($1.pagesRead, $1.pages) }
                     + refreshed.specials.reduce(0) { $0 + min($1.pagesRead, $1.pages) }

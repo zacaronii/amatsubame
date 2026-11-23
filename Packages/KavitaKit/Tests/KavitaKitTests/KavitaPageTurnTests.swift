@@ -160,4 +160,41 @@ import Testing
         let transport = try await send(setup, kavita: kavita(page: 20, at: "2026-10-31T00:00:30"))
         #expect(paths(transport) == ["/api/Reader/get-progress"], "an older build's mark: judged by dates alone")
     }
+
+    // MARK: At a reader's start (the sender's own check)
+
+    func server(page: Int, at seconds: TimeInterval, scroll: String? = nil) -> KavitaServerProgress {
+        KavitaServerProgress(chapterId: 206, pageNum: page, bookScrollId: scroll, lastModifiedUtc: t0.addingTimeInterval(seconds))
+    }
+
+    @Test func aStuckTurnOverNewerReadingElsewhereDoesntHoldTheStart() throws {
+        let setup = try setup()
+        try setup.outbox.enqueue(turn(20, at: t0), kind: .kavitaProgress, coalesceKey: "kavita.chapter.206")
+        let still = try KavitaProgressCheck.queuedChangeStillGoes(chapterId: 206, seriesId: 4, server: server(page: 60, at: 3600), outbox: setup.outbox)
+        #expect(!still, "the sender will drop it: open at Kavita's 60")
+    }
+
+    @Test func aQueuedTurnBehindThisDevicesOwnSendHoldsTheStart() async throws {
+        let setup = try setup()
+        try setup.outbox.enqueue(turn(5, at: t0), kind: .kavitaProgress, coalesceKey: "kavita.chapter.206")
+        _ = try await send(setup, kavita: kavita(page: 0, at: "2026-10-30T00:00:00"))
+        try setup.outbox.enqueue(turn(6, at: t0.addingTimeInterval(10)), kind: .kavitaProgress, coalesceKey: "kavita.chapter.206")
+        // Kavita dated this device's page 5 after page 6 was turned (or the clock is behind).
+        let still = try KavitaProgressCheck.queuedChangeStillGoes(chapterId: 206, seriesId: 4, server: server(page: 5, at: 30), outbox: setup.outbox)
+        #expect(still, "it will be sent: open at this device's place")
+    }
+
+    @Test func aWaitingSeriesMarkOverNewerReadingElsewhereDoesntHoldTheStart() throws {
+        let setup = try setup()
+        let unread = mark(.unread, at: t0, series: true)
+        try setup.outbox.enqueue(unread, kind: .kavitaProgress, coalesceKey: unread.coalesceKey)
+        #expect(try !KavitaProgressCheck.queuedChangeStillGoes(chapterId: 206, seriesId: 4, server: server(page: 60, at: 3600), outbox: setup.outbox))
+        #expect(try KavitaProgressCheck.queuedChangeStillGoes(chapterId: 206, seriesId: 4, server: server(page: 60, at: -3600), outbox: setup.outbox),
+                "Kavita older: it goes")
+    }
+
+    @Test func nothingQueuedHoldsNothing() throws {
+        let setup = try setup()
+        #expect(try !KavitaProgressCheck.queuedChangeStillGoes(chapterId: 206, seriesId: 4, server: server(page: 60, at: -3600), outbox: setup.outbox))
+    }
 }

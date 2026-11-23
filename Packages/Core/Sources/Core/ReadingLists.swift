@@ -170,14 +170,14 @@ public struct ReadingListEntry: Equatable, Sendable {
     public var pagesRead: Int?
     public var pages: Int?
 
-    public init(item: ReadingListItemRow, local: LocalReadingProgress?) {
+    public init(item: ReadingListItemRow, local: LocalReadingProgress?, unsent: Bool = false) {
         self.item = item
         let pages = item.kavitaPages ?? local?.pages
         self.pages = pages
         switch (item.kavitaPagesRead, local) {
         case let (kavita?, local?):
             pagesRead = LocalReadingProgress.pagesRead(kavita: kavita, kavitaAt: item.kavitaReadAt, local: local.pagesRead,
-                                                       localAt: local.updatedAt, pages: pages ?? local.pages)
+                                                       localAt: local.updatedAt, pages: pages ?? local.pages, unsent: unsent)
         case let (nil, local?): pagesRead = local.pagesRead
         case let (kavita?, nil): pagesRead = kavita
         case (nil, nil): pagesRead = nil
@@ -277,10 +277,11 @@ public struct ReadingListStore: Sendable {
         return order.compactMap { byChapter[$0] }
     }
 
-    /// The list's items with how far each is read, by the series page's rule
-    /// (`LocalReadingProgress.pagesRead(kavita:…)`): this device's progress where it has some,
-    /// with Kavita's as last read where that's newer, else Kavita's alone. Follows the device's
-    /// progress too, so reading or marking here shows at once.
+    /// The list's items with how far each is read, by the one rule
+    /// (`LocalReadingProgress.devicesPlaceWins`): this device's progress while it has a change
+    /// not sent, else the newer of it and Kavita's as last read, else whichever there is. Follows
+    /// the device's progress and the queue too, so reading or marking here shows at once, and a
+    /// change leaving the queue shows too.
     public func observeEntries(listId: Int64) -> AsyncThrowingStream<[ReadingListEntry], any Error> {
         database.values { try Self.entries($0, listId: listId) }
     }
@@ -293,7 +294,12 @@ public struct ReadingListStore: Sendable {
         let items = try Self.items(db, listId: listId)
         let local = Dictionary(try LocalReadingProgress.filter(items.map(\.chapterId).contains(Column("chapterId"))).fetchAll(db)
             .map { ($0.chapterId, $0) }, uniquingKeysWith: { first, _ in first })
-        return items.map { ReadingListEntry(item: $0, local: local[$0.chapterId]) }
+        // The queue too, so the list changes when a change leaves it (sent, or skipped).
+        let unsent = try OutboxStore.unsentProgressKeys(db)
+        return items.map { item in
+            ReadingListEntry(item: item, local: local[item.chapterId],
+                             unsent: LocalReadingProgress.progressKeys(chapterId: item.chapterId, seriesId: item.seriesId).contains(where: unsent.contains))
+        }
     }
 
     /// Kavita's order (adds after it), then each move: the chapter taken out and put right after

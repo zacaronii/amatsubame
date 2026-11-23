@@ -252,4 +252,72 @@ import Testing
         #expect(try entry(store, id, 1).item.kavitaReadAt == t0.addingTimeInterval(120))
         #expect(try entry(store, id, 1).isRead, "Kavita's newer read (120 s) wins over this device's (60 s)")
     }
+
+    // MARK: The one rule (whose place wins)
+
+    /// Kavita read the chapter to the end at `t0`; this device has it at page 3 (or as given),
+    /// saved at `localAt`.
+    func placeSetup(localAt: Date, localPage: Int = 3) throws -> (ReadingListStore, OutboxStore, Int64) {
+        let (store, outbox) = try stores()
+        let id = try abcd(store)
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        try store.mergeItems((1...4).map { listedRead($0, read: $0 == 1 ? 3 : 20, at: t0) }, listId: id)
+        try ReadingProgressStore(database: store.database).save(LocalReadingProgress(
+            chapterId: 1, seriesId: 10, volumeId: 100, libraryId: 1, page: localPage, pages: 20, updatedAt: localAt))
+        return (store, outbox, id)
+    }
+
+    @Test func aQueuedChangeKeepsThisDevicesPlaceEvenIfKavitaIsNewer() throws {
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        // Read to the end here while offline on a clock that's behind: older than Kavita's page 3.
+        let (store, outbox, id) = try placeSetup(localAt: t0.addingTimeInterval(-600), localPage: 19)
+        try outbox.enqueue(Progress(chapterId: 1, page: 19), kind: .kavitaProgress, coalesceKey: "kavita.chapter.1")
+        #expect(try entry(store, id, 1).isRead, "a queued chapter change: this device's")
+        _ = try outbox.claimDueJobs(kinds: [.kavitaProgress])
+        #expect(try entry(store, id, 1).isRead, "being sent: still this device's")
+        try outbox.markSent(try #require(try outbox.jobs(states: [.inFlight]).first?.id))
+        // Sent: the screen recomputes against Kavita's side as last read, which is stale here
+        // (Kavita itself now holds what was sent) until the list is read again.
+        #expect(try !entry(store, id, 1).isRead, "sent (or skipped): the newer place as last read, Kavita's")
+    }
+
+    @Test func aQueuedSeriesChangeKeepsThisDevicesPlace() throws {
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        let (store, outbox, id) = try placeSetup(localAt: t0.addingTimeInterval(-600), localPage: 19)
+        try outbox.enqueue(Progress(chapterId: 0, page: 0), kind: .kavitaProgress, coalesceKey: "kavita.series.10")
+        #expect(try entry(store, id, 1).isRead)
+    }
+
+    @Test func withNothingQueuedTheNewerPlaceWinsBothWays() throws {
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        // Kavita newer with fewer pages (marked unread or read less far elsewhere): Kavita's.
+        let (older, _, a) = try placeSetup(localAt: t0.addingTimeInterval(-600), localPage: 19)
+        #expect(try entry(older, a, 1).pagesRead == 3)
+        // This device newer: its.
+        let (newer, _, b) = try placeSetup(localAt: t0.addingTimeInterval(600), localPage: 19)
+        #expect(try entry(newer, b, 1).isRead)
+    }
+
+    @Test func aChangeThatFailedForGoodNoLongerProtectsThePlace() throws {
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        let (store, outbox, id) = try placeSetup(localAt: t0.addingTimeInterval(-600), localPage: 19)
+        let job = try outbox.enqueue(Progress(chapterId: 1, page: 19), kind: .kavitaProgress, coalesceKey: "kavita.chapter.1")
+        try outbox.markFailed(job, error: "refused")
+        #expect(try entry(store, id, 1).pagesRead == 3, "dates decide")
+    }
+
+    @Test func theListChangesWhenAChangeLeavesTheQueue() async throws {
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        let (store, outbox, id) = try placeSetup(localAt: t0.addingTimeInterval(-600), localPage: 19)
+        let job = try outbox.enqueue(Progress(chapterId: 1, page: 19), kind: .kavitaProgress, coalesceKey: "kavita.chapter.1")
+        var stream = store.observeEntries(listId: id).makeAsyncIterator()
+        #expect(try await stream.next()?.first { $0.item.chapterId == 1 }?.isRead == true)
+        _ = try outbox.claimDueJobs(kinds: [.kavitaProgress])
+        try outbox.markSent(job)
+        var flipped = false
+        for _ in 0..<3 {
+            if try await stream.next()?.first(where: { $0.item.chapterId == 1 })?.isRead == false { flipped = true; break }
+        }
+        #expect(flipped, "the observation follows the queue")
+    }
 }

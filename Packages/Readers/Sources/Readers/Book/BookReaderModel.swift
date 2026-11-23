@@ -191,7 +191,7 @@ public final class BookReaderModel {
         }
         let local = try? progressStore.progress(chapterId: chapter.chapterId)
         let server = await quickServerProgress()
-        var start = ProgressSyncPolicy.startPosition(local: local, server: server, pages: sectionCount)
+        var start = ProgressSyncPolicy.startPosition(local: local, server: server, pages: sectionCount, unsent: recorder.queuedChangeStillGoes(server: server))
         if let opensAt { start = (min(max(opensAt.page, 0), max(sectionCount - 1, 0)), opensAt.xpath) }
         recorder.start(at: start.page, scrollId: start.scrollId)
         state = .ready
