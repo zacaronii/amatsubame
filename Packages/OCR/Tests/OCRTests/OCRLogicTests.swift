@@ -419,6 +419,40 @@ import CoreML
         #expect(layout.cells.count == 11)
     }
 
+    /// #13: a 「 or 『 the recognizer added before a horizontal block's text is dropped, and only
+    /// then; made-up text.
+    @Test func aStrayOpenerIsDroppedOnlyWhenItIsStray() {
+        #expect(RecognizedText.droppingStrayOpener("「ダメ！そんな", vertical: false) == "ダメ！そんな")
+        #expect(RecognizedText.droppingStrayOpener("『ダメ！そんな", vertical: false) == "ダメ！そんな")
+        #expect(RecognizedText.droppingStrayOpener("「ダメ」と言った", vertical: false) == "「ダメ」と言った", "closed in the block: a real quote")
+        #expect(RecognizedText.droppingStrayOpener("『本』を読む", vertical: false) == "『本』を読む")
+        #expect(RecognizedText.droppingStrayOpener("「ダメ！そんな", vertical: true) == "「ダメ！そんな", "vertical: kept")
+        #expect(RecognizedText.droppingStrayOpener("「", vertical: false) == "「", "only the bracket: left as it is")
+        #expect(RecognizedText.droppingStrayOpener("「「ダメ", vertical: false) == "「ダメ", "only the first, once")
+        #expect(RecognizedText.droppingStrayOpener("．．．ダメ", vertical: false) == "．．．ダメ", "a leading ellipsis isn't touched")
+        #expect(RecognizedText.droppingStrayOpener("ダメ「", vertical: false) == "ダメ「")
+    }
+
+    /// With the stray 「 dropped before the text is matched to the lettering, each character
+    /// keeps its own square: the first cell belongs to the first character drawn, so a tap on
+    /// the first word looks up that word.
+    @Test func withTheStrayOpenerDroppedTheCellsLineUp() {
+        let drawn = "ダメそんな"
+        let image = SyntheticPage.text(drawn, vertical: false)
+        let box = NormalizedRect(x: 0, y: 0, width: 1, height: 1)
+        let read = "「" + drawn
+        let text = RecognizedText.droppingStrayOpener(read, vertical: false)
+        let layout = TextLines.layout(of: box, in: image, vertical: false, text: text)
+        #expect(layout.exact, "matched to what's drawn")
+        #expect(layout.cells.count == drawn.count)
+        guard layout.cells.count == drawn.count else { return }
+        // The first cell starts where the first glyph is drawn (24 px in from the left).
+        #expect(abs(layout.cells[0].minX - 24.0 / Double(image.width)) < 0.03)
+        #expect(zip(layout.cells, layout.cells.dropFirst()).allSatisfy { $0.minX < $1.minX }, "in order along the line")
+        // Kept, the stray 「 takes the first square and everything after is one off.
+        #expect(!TextLines.layout(of: box, in: image, vertical: false, text: read).exact)
+    }
+
     /// Text that doesn't match what's drawn (a character missed in reading) is placed as well
     /// as can be, but not called exact: nothing will be drawn on the page for it.
     @Test func misreadTextIsNotExact() {

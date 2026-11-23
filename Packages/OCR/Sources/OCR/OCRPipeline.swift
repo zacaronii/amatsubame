@@ -66,10 +66,11 @@ public actor OCRPipeline {
         var blocks: [OCRBlock] = []
         for index in order {
             let detection = texts[index]
-            let text = try read(detection.box, in: image)
-            guard !text.isEmpty else { continue }
+            let read = try read(detection.box, in: image)
+            guard !read.isEmpty else { continue }
             let pixels = detection.box.pixels(in: CGSize(width: image.width, height: image.height))
-            let vertical = TextOrientation.isVertical(pixelSize: pixels.size, text: text)
+            let vertical = TextOrientation.isVertical(pixelSize: pixels.size, text: read)
+            let text = RecognizedText.droppingStrayOpener(read, vertical: vertical)
             let layout = TextLines.layout(of: detection.box, in: image, vertical: vertical, text: text)
             var block = OCRBlock(box: detection.box, text: text, vertical: vertical,
                                  kind: detection.label == .textInBubble ? .bubbleText : .freeText, score: detection.score)
@@ -83,9 +84,10 @@ public actor OCRPipeline {
 
     /// Reads a region the user drew (normalized to the page).
     public func recognize(region: NormalizedRect, in image: CGImage) throws -> OCRBlock {
-        let text = try read(region, in: image, padding: 0)
+        let read = try read(region, in: image, padding: 0)
         let pixels = region.pixels(in: CGSize(width: image.width, height: image.height))
-        let vertical = TextOrientation.isVertical(pixelSize: pixels.size, text: text)
+        let vertical = TextOrientation.isVertical(pixelSize: pixels.size, text: read)
+        let text = RecognizedText.droppingStrayOpener(read, vertical: vertical)
         let layout = TextLines.layout(of: region, in: image, vertical: vertical, text: text)
         var block = OCRBlock(box: region, text: text, vertical: vertical, kind: .manual)
         block.place(layout)
