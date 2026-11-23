@@ -1055,6 +1055,31 @@ final class ReaderUITests: XCTestCase {
         XCTAssertTrue(cropped.waitForNonExistence(timeout: 5), "off: whole again")
     }
 
+    /// Spreads coming on while reading near a chapter's end (an iPhone turned sideways, the
+    /// Duo unfolded) about halve the slots; a page still on screen was built again with its old
+    /// slot number, past the new end, and the app crashed. It keeps the page now.
+    func testSpreadsComingOnNearTheEndKeepsThePage() throws {
+        app.launchEnvironment["UITEST_READER_OPENS_AT_END"] = "1"
+        app.launch()
+        XCUIDevice.shared.orientation = .portrait
+        openReader()
+        defer { XCUIDevice.shared.orientation = .portrait }
+        reader.swipeLeft()   // back in right to left: off the last page
+        sleep(1)
+        reader.swipeLeft()
+        sleep(1)
+        let before = try pageCounter()
+        XCUIDevice.shared.orientation = .landscapeLeft
+        sleep(3)
+        XCTAssertEqual(app.state, .runningForeground, "still running with spreads on")
+        XCTAssertTrue(reader.waitForExistence(timeout: 5))
+        let value = reader.value as? String ?? ""
+        XCTAssertTrue(value.hasPrefix("Page \(before) of") || value.hasPrefix("Page \(before - 1) of"), "the same page or its spread: \(value)")
+        XCUIDevice.shared.orientation = .portrait
+        sleep(2)
+        XCTAssertEqual(app.state, .runningForeground, "and back")
+    }
+
     /// Adds a series' first volume to the test's reading list (made with the first), then goes
     /// back to the Library home.
     private func addFirstVolume(library: String, series: String, new: Bool) {

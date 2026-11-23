@@ -36,10 +36,15 @@ struct PagedReaderView: View {
                                 if index < endIndex, abs(index - (position ?? 0)) > Self.builtAround {
                                     Color.clear
                                 } else if index < endIndex {
+                                    // The slot is taken here, not in the page's closure: SwiftUI
+                                    // can run that again after the slots shrink (spreads coming on
+                                    // as the Duo unfolds or the phone turns) and before this row is
+                                    // dropped, and the old index then ran past the end.
+                                    let slot = slots[index]
                                     ZoomablePage(doubleTapZooms: model.settings.doubleTapZooms) { tap in
                                         // Taps are handled inside the zoomable content: the native
                                         // zoom view receives touches/clicks before outer gestures.
-                                        SpreadView(model: model, slot: slots[index], sideInsets: sideInsets)
+                                        SpreadView(model: model, slot: slot, sideInsets: sideInsets)
                                             .contentShape(.rect)
                                             .gesture(tap { globalX in
                                                 let frame = geometry.frame(in: .global)
