@@ -60,10 +60,14 @@ public final class ReadingProgressRecorder {
         }
     }
 
-    /// Whether this chapter has a progress change queued and not sent yet: then this device's
-    /// place is where to open (`LocalReadingProgress.devicesPlaceWins`).
-    public var hasUnsentChange: Bool {
-        (try? outbox.hasUnsentProgress(chapterId: chapter.chapterId, seriesId: chapter.seriesId)) ?? false
+    /// Whether this chapter has a progress change queued that will still be sent, judged against
+    /// Kavita's progress as just read (`KavitaProgressCheck.queuedChangeStillGoes`, the sender's
+    /// own check): then this device's place is where to open. Without Kavita's answer: whether
+    /// anything is queued.
+    public func queuedChangeStillGoes(server: KavitaServerProgress?) -> Bool {
+        guard let server else { return (try? outbox.hasUnsentProgress(chapterId: chapter.chapterId, seriesId: chapter.seriesId)) ?? false }
+        return (try? KavitaProgressCheck.queuedChangeStillGoes(chapterId: chapter.chapterId, seriesId: chapter.seriesId,
+                                                                server: server, outbox: outbox)) ?? false
     }
 
     /// Queues any unsent page now (reader closing, app backgrounding).

@@ -400,6 +400,15 @@ public struct OutboxStore: Sendable {
         try database.reader.read { try Self.unsentProgressKeys($0) }
     }
 
+    /// The progress jobs with these keys not sent yet (as `unsentProgressKeys`).
+    public func unsentProgressJobs(coalesceKeys: [String]) throws -> [OutboxJob] {
+        try database.reader.read { db in
+            try OutboxJob.filter(Column("kind") == OutboxJobKind.kavitaProgress && coalesceKeys.contains(Column("coalesceKey"))
+                                 && [OutboxJobState.pending.rawValue, OutboxJobState.inFlight.rawValue].contains(Column("state")))
+                .fetchAll(db)
+        }
+    }
+
     /// Whether this chapter has a progress change not sent yet (`LocalReadingProgress.progressKeys`).
     public func hasUnsentProgress(chapterId: Int, seriesId: Int) throws -> Bool {
         let keys = try unsentProgressKeys()

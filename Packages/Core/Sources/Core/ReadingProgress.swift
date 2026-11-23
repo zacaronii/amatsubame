@@ -49,10 +49,12 @@ extension LocalReadingProgress {
 
     /// The one rule for whose place a chapter is at, used by the series page, a reading list and
     /// the reader's start: this device's while it has a change for the chapter (or its series)
-    /// not sent yet (`unsent`: waiting, backing off, held or being sent), so pages read offline
-    /// are never lost, whatever the device's clock says; otherwise the newer of the two, so a
-    /// chapter marked unread (or read less far) elsewhere shows here too. Kavita without a date
-    /// (never read there): this device's.
+    /// not sent yet (`unsent`: waiting, backing off, held or being sent; at a reader's start, only
+    /// a change the sender will still send, `KavitaProgressCheck.queuedChangeStillGoes`), so what
+    /// was read here offline is what's shown while it waits; whether it reaches Kavita is the
+    /// sender's call by when it was made. Otherwise the newer of the two, so a chapter marked
+    /// unread (or read less far) elsewhere shows here too. Kavita without a date (never read
+    /// there): this device's.
     public static func devicesPlaceWins(localAt: Date?, kavitaAt: Date?, unsent: Bool) -> Bool {
         if unsent { return true }
         guard let kavitaAt else { return true }
@@ -93,6 +95,14 @@ public struct ReadingProgressStore: Sendable {
 
     public func save(_ progress: LocalReadingProgress) throws {
         try database.writer.write { try progress.save($0) }
+    }
+
+    /// The same, read once (before the observation's first value).
+    public func places(seriesId: Int) throws -> DevicePlaces {
+        try database.reader.read { db in
+            DevicePlaces(rows: try LocalReadingProgress.filter(Column("seriesId") == seriesId).fetchAll(db),
+                         unsentKeys: try OutboxStore.unsentProgressKeys(db))
+        }
     }
 
     /// A series' progress rows on this device and the progress changes not sent yet, whenever

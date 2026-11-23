@@ -276,7 +276,9 @@ import Testing
         _ = try outbox.claimDueJobs(kinds: [.kavitaProgress])
         #expect(try entry(store, id, 1).isRead, "being sent: still this device's")
         try outbox.markSent(try #require(try outbox.jobs(states: [.inFlight]).first?.id))
-        #expect(try !entry(store, id, 1).isRead, "sent (or skipped): the newer place, Kavita's")
+        // Sent: the screen recomputes against Kavita's side as last read, which is stale here
+        // (Kavita itself now holds what was sent) until the list is read again.
+        #expect(try !entry(store, id, 1).isRead, "sent (or skipped): the newer place as last read, Kavita's")
     }
 
     @Test func aQueuedSeriesChangeKeepsThisDevicesPlace() throws {

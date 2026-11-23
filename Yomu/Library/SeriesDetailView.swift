@@ -11,7 +11,8 @@ struct SeriesDetailView: View {
     /// The volumes as Kavita has them (cached or just read); `contents` is these with this
     /// device's places applied by the one rule (`LocalReadingProgress.devicesPlaceWins`).
     @State private var kavitaContents: KavitaSeriesContents?
-    @State private var places = DevicePlaces(rows: [], unsentKeys: [])
+    /// This device's rows and the queue (nil until first read).
+    @State private var places: DevicePlaces?
     @State private var error: String?
     @State private var session: ReaderSession?
     /// Each EPUB volume's characters, by chapter id (books only).
@@ -614,10 +615,15 @@ struct SeriesDetailView: View {
     /// Kavita's volumes with this device's places, by the one rule.
     private func applyPlaces() {
         guard let kavitaContents else { return }
-        let rows = places.rows.isEmpty ? ((try? environment.readingProgress.progress(seriesId: series.id)) ?? []) : places.rows
-        contents = kavitaContents.readingFurther(Dictionary(rows.map { ($0.chapterId, $0.pagesRead) }, uniquingKeysWith: max),
-                                                 updated: Dictionary(rows.map { ($0.chapterId, $0.updatedAt) }, uniquingKeysWith: max),
-                                                 unsent: places.unsentChapters(seriesId: series.id))
+        if places == nil { places = try? environment.readingProgress.places(seriesId: series.id) }
+        let rows = places?.rows ?? []
+        let applied = kavitaContents.readingFurther(Dictionary(rows.map { ($0.chapterId, $0.pagesRead) }, uniquingKeysWith: max),
+                                                    updated: Dictionary(rows.map { ($0.chapterId, $0.updatedAt) }, uniquingKeysWith: max),
+                                                    unsent: places?.unsentChapters(seriesId: series.id) ?? [])
+        contents = applied
+        // The header's total follows too.
+        series.pagesRead = applied.readingOrder.reduce(0) { $0 + min($1.pagesRead, $1.pages) }
+            + applied.specials.reduce(0) { $0 + min($1.pagesRead, $1.pages) }
     }
 
     private func load() async {
