@@ -84,4 +84,31 @@ final class LinesAndSettingsUITests: XCTestCase {
         episode.tap()
         XCTAssertTrue(episode.waitForNonExistence(timeout: 5), "the next tap opens it")
     }
+
+    /// Side by side (a wide screen: an iPhone sideways, the Duo open), picking another episode
+    /// replaces the right side; the list on the left stays where it is (it slid out and back).
+    @MainActor
+    func testWideLinesListStaysPutWhenPickingAnEpisode() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment["UITEST_PLAYER"] = "1"
+        app.launchEnvironment["UITEST_TRANSCRIPT"] = "2"
+        app.launch()
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        sleep(1)
+        app.buttons["Lines"].firstMatch.tap()
+        let episodes = app.buttons.matching(identifier: "lines.episode")
+        XCTAssertTrue(episodes.element(boundBy: 1).waitForExistence(timeout: 15), "two episodes")
+        func line(_ text: String) -> XCUIElement { app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch }
+        XCTAssertTrue(line("吾輩は猫").waitForExistence(timeout: 10), "wide: the latest is open on the right")
+        episodes.element(boundBy: 1).tap()
+        XCTAssertTrue(line("親譲り").waitForExistence(timeout: 5), "the second episode on the right")
+        XCTAssertTrue(episodes.element(boundBy: 0).isHittable, "the list is still there")
+        // The left side never pushed a screen of its own (it slid away and back, too quick to
+        // see in the tree: the debug count says).
+        let pushes = app.descendants(matching: .any)["split.leftPushes"].firstMatch
+        XCTAssertTrue(pushes.exists, "a debug build")
+        XCTAssertEqual(pushes.value as? String, "0", "the list slid out and back")
+    }
 }
