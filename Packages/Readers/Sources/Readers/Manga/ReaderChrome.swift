@@ -131,6 +131,12 @@ struct ReaderSettingsSheet: View {
                     } footer: {
                         Text("In portrait, a two-page scan is shown one half at a time.")
                     }
+                    Section {
+                        Toggle("Crop Borders", isOn: $model.settings.cropsBorders)
+                            .accessibilityIdentifier("reader.cropBorders")
+                    } footer: {
+                        Text("Trims a page's blank white or black margins so the art fills more of the screen. A page that's mostly blank is shown whole.")
+                    }
                 } else {
                     Section("Page Width") {
                         RoundStepperRow("Page width", value: $model.settings.stripWidth, in: 0.6...1, step: 0.05) {

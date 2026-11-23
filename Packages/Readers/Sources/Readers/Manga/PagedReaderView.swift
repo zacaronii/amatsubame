@@ -212,14 +212,9 @@ private struct SpreadView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            if let page = slot.pages.first, slot.half != nil {
-                HalfPageView(model: model, page: page, visible: slot.visibleRange(rightToLeft: model.settings.direction == .rightToLeft))
-            } else {
-                ForEach(slot.pages, id: \.self) { page in
-                    PageImageView(chapterId: model.chapter.chapterId, page: page,
-                                  aspectRatio: model.aspectRatio(of: page), pages: model.pages)
-                        .overlay { OCRTextLayer(model: model, page: page) }
-                }
+            let shown = model.shown(slot)
+            ForEach(Array(zip(slot.pages, shown)), id: \.0) { page, part in
+                PartPageView(model: model, page: page, shown: part)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -231,28 +226,34 @@ private struct SpreadView: View {
     }
 }
 
-/// Half of a wide page: the one decoded page drawn at twice the half's width and clipped to
-/// `visible` (both halves are the same size, so they share the decoded image). The text over it
-/// is laid out for the half alone, so the other half's blocks can't be tapped.
-private struct HalfPageView: View {
+/// A page, or the part of it shown: half of a wide page, or the page with Crop Borders' margins
+/// off. The decoded page is drawn at the size that puts `shown` in this view and clipped to it
+/// (both halves are the same size, so they share the decoded image). The text over it is laid
+/// out for the part alone, so the other half's blocks can't be tapped. A mined card's picture
+/// is still the whole page.
+private struct PartPageView: View {
     let model: MangaReaderModel
     let page: Int
-    /// The part of the page shown, as a fraction of its width from its left edge.
-    let visible: ClosedRange<Double>
+    /// The part of the page shown, normalised from its top left.
+    let shown: CGRect
 
     var body: some View {
-        let fraction = visible.upperBound - visible.lowerBound
         GeometryReader { geometry in
-            let full = CGSize(width: geometry.size.width / fraction, height: geometry.size.height)
-            PageImageView(chapterId: model.chapter.chapterId, page: page, aspectRatio: model.aspectRatio(of: page), pages: model.pages)
+            let full = CGSize(width: geometry.size.width / shown.width, height: geometry.size.height / shown.height)
+            PageImageView(chapterId: model.chapter.chapterId, page: page, aspectRatio: model.aspectRatio(of: page), pages: model.pages,
+                          measures: model.settings.cropsBorders && model.settings.mode == .paged) { model.measureBorders(page: page, image: $0) }
                 .frame(width: full.width, height: full.height)
-                .offset(x: -visible.lowerBound * full.width)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
+                .offset(x: -shown.minX * full.width, y: -shown.minY * full.height)
+                // A whole page as it always was; a part's picture is only a drawing.
+                .allowsHitTesting(shown == OCRTextLayer.whole)
+                .accessibilityHidden(shown != OCRTextLayer.whole)
         }
         .clipped()
-        .overlay { OCRTextLayer(model: model, page: page, visible: visible) }
-        .aspectRatio(model.aspectRatio(of: page) * fraction, contentMode: .fit)
+        .overlay { OCRTextLayer(model: model, page: page, shown: shown) }
+        .aspectRatio(model.aspectRatio(of: page) * shown.width / shown.height, contentMode: .fit)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier(shown.width < 1 && shown.height < 1 ? "reader.page.cropped" : "reader.page")
+        .accessibilityLabel("Page \(page + 1)")
         // Offsets are physical positions on the page, even in a right-to-left reader.
         .environment(\.layoutDirection, .leftToRight)
     }
