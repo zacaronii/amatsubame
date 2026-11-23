@@ -240,10 +240,12 @@ struct PlaybackView: View {
             }
             shortcutFeedback
             #if os(iOS)
-            // iOS gives Esc and Backspace only to key commands, never to onKeyPress.
+            // iOS gives Esc, Backspace and Page Up/Down only to key commands, never to onKeyPress.
             Group {
                 Button("Close", action: escape).keyboardShortcut(.escape, modifiers: [])
                 Button("Normal Speed") { model.perform(.normalSpeed) }.keyboardShortcut(.delete, modifiers: [])
+                Button("Previous Chapter") { model.perform(.previousChapter) }.keyboardShortcut(.pageUp, modifiers: [])
+                Button("Next Chapter") { model.perform(.nextChapter) }.keyboardShortcut(.pageDown, modifiers: [])
             }
             .opacity(0)
             .allowsHitTesting(false)
@@ -792,6 +794,12 @@ struct PlaybackView: View {
                 }
                 .pickerStyle(.menu)
             }
+            if !model.chapters.isEmpty {
+                Button("Previous Chapter", systemImage: "backward.end") { model.perform(.previousChapter) }
+                    .accessibilityIdentifier("player.previousChapter")
+                Button("Next Chapter", systemImage: "forward.end") { model.perform(.nextChapter) }
+                    .accessibilityIdentifier("player.nextChapter")
+            }
             subtitleLookMenu
             sleepMenu
             Toggle("Pause After Each Line", isOn: Binding(get: { model.pausesAfterLines }, set: { model.setPausesAfterLines($0) }))
@@ -911,7 +919,27 @@ struct PlaybackView: View {
             }
         }
         .tint(Color("AccentColor"))
+        // The chapters' starts, as small marks across the bar.
+        .overlay { chapterMarks(duration: duration) }
         .accessibilityIdentifier("player.scrubber")
+    }
+
+    /// Thin marks where each chapter after the first starts, on the slider's track (inset by
+    /// the thumb's half-width, so they line up with where dragging there would land).
+    private func chapterMarks(duration: Double) -> some View {
+        let marks = model.chapters.marks(duration: duration)
+        return GeometryReader { geometry in
+            let inset: CGFloat = 12
+            let track = max(geometry.size.width - inset * 2, 0)
+            ForEach(Array(marks.enumerated()), id: \.offset) { _, fraction in
+                Capsule()
+                    .fill(.white.opacity(0.85))
+                    .frame(width: 2, height: 8)
+                    .position(x: inset + track * fraction, y: geometry.size.height / 2)
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     private var playPauseLabel: String { model.mpv.isPaused ? "Play" : "Pause" }
@@ -930,6 +958,13 @@ struct PlaybackView: View {
             }
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("player.scrubTime")
+            // The chapter being scrubbed into, on videos that have them.
+            if let chapter = model.chapters.name(at: scrub.target) {
+                Text(chapter)
+                    .font(.headline)
+                    .lineLimit(1)
+                    .accessibilityIdentifier("player.scrubChapter")
+            }
             ZStack {
                 Rectangle().fill(.black.opacity(0.5))
                 if let image = model.thumbnails?.image {

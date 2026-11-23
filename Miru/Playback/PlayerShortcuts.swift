@@ -12,7 +12,7 @@ enum PlayerShortcut: String, CaseIterable, Identifiable {
     case slower, faster, halfSpeed, doubleSpeed, normalSpeed, frameBack, frameForward, loop
     case volumeDown, volumeUp, mute, nextAudio
     case toggleJapanese, nextSubtitles, subtitlesEarlier, subtitlesLater, english
-    case skip, previousEpisode, nextEpisode
+    case skip, previousChapter, nextChapter, previousEpisode, nextEpisode
     case info, fullScreen, shortcuts, close
 
     var id: String { rawValue }
@@ -71,6 +71,8 @@ enum PlayerShortcut: String, CaseIterable, Identifiable {
         case .subtitlesLater: [Key("x", [], "X")]
         case .english: [Key("e", [], "E"), Key("e", .command, "⌘E")]
         case .skip: [Key("s", [], "S")]
+        case .previousChapter: [Key(.pageUp, [], "Page Up")]
+        case .nextChapter: [Key(.pageDown, [], "Page Down")]
         case .previousEpisode: [Key("<", [], "<")]
         case .nextEpisode: [Key(">", [], ">")]
         case .info: [Key("i", [], "I")]
@@ -112,6 +114,8 @@ enum PlayerShortcut: String, CaseIterable, Identifiable {
         case .subtitlesLater: "Subtitles 0.1 s Later"
         case .english: "English Subtitles"
         case .skip: "Skip Intro or Credits"
+        case .previousChapter: "Previous Chapter"
+        case .nextChapter: "Next Chapter"
         case .previousEpisode: "Previous Episode"
         case .nextEpisode: "Next Episode"
         case .info: "Stream Info"
@@ -132,6 +136,7 @@ enum PlayerShortcut: String, CaseIterable, Identifiable {
         case .frameBack, .frameForward: "Pauses."
         case .loop: "Press once at the start, again at the end; a third press stops looping."
         case .nextSubtitles: "Jellyfin's Japanese tracks and the file picked on Jimaku."
+        case .previousChapter: "A few seconds into a chapter, its start; sooner, the one before. Videos with chapters only."
         case .subtitlesEarlier, .subtitlesLater: "A Jimaku file keeps its timing; Jellyfin's tracks only for this episode."
         case .fullScreen: "Double-clicking the video also works."
         case .close: "Esc closes the lookup or leaves full screen first."
@@ -146,7 +151,7 @@ enum PlayerShortcut: String, CaseIterable, Identifiable {
         case .slower, .faster, .halfSpeed, .doubleSpeed, .normalSpeed, .frameBack, .frameForward, .loop: .speed
         case .volumeDown, .volumeUp, .mute, .nextAudio: .sound
         case .toggleJapanese, .nextSubtitles, .subtitlesEarlier, .subtitlesLater, .english: .subtitles
-        case .skip, .previousEpisode, .nextEpisode: .episodes
+        case .skip, .previousChapter, .nextChapter, .previousEpisode, .nextEpisode: .episodes
         case .info, .fullScreen, .shortcuts, .close: .window
         }
     }
@@ -169,7 +174,8 @@ enum PlayerShortcut: String, CaseIterable, Identifiable {
     /// Keys whose modifiers matter exactly (Shift-arrow is its own shortcut). For typed
     /// characters Shift only picks the character ({ is Shift-[), so it's ignored, once the
     /// character is the shifted one: iOS can report Shift-[ as "[" with Shift held.
-    private static let namedKeys: [Character] = [KeyEquivalent.space, .leftArrow, .rightArrow, .upArrow, .downArrow, .delete, .escape]
+    private static let namedKeys: [Character] = [KeyEquivalent.space, .leftArrow, .rightArrow, .upArrow, .downArrow, .delete, .escape,
+                                                 .pageUp, .pageDown]
         .map(\.character)
 
     private static let shifted: [String: String] = ["[": "{", "]": "}", "3": "#", ",": "<", ".": ">", "/": "?"]

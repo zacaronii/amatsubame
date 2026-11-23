@@ -114,6 +114,54 @@ final class PlayerGestureUITests: XCTestCase {
         XCTAssertFalse(value().contains("filled"), "pinched in: fitted")
     }
 
+    /// A video with chapters (the file's own, as for a download): marks on the scrubber; Next
+    /// and Previous Chapter jump between them, naming the chapter, and are in the options menu.
+    /// Needs `TEST_RUNNER_UITEST_PLAYER_CHAPTERS_VIDEO`: a 60 s video with chapters at 0, 15 s and
+    /// 40 s ("Opening", "Part A", "Ending").
+    func testChaptersFromTheOptionsMenu() throws {
+        guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_CHAPTERS_VIDEO"] else {
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_CHAPTERS_VIDEO to a video with chapters.")
+        }
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .landscapeLeft
+        addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
+        let app = XCUIApplication()
+        app.launchEnvironment["UITEST_PLAYER"] = "1"
+        app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
+        app.launch()
+        let player = app.descendants(matching: .any)["player.video"].firstMatch
+        XCTAssertTrue(player.waitForExistence(timeout: 10))
+        func time() -> Double { Double((player.value as? String ?? "").split(separator: " ").first ?? "") ?? -1 }
+        let playing = expectation(for: NSPredicate { _, _ in time() > 2 }, evaluatedWith: nil)
+        wait(for: [playing], timeout: 15)
+        // Paused, so the app goes idle between steps (with a menu open over playing video,
+        // XCUITest waits a minute for it); chapter moves work the same.
+        player.twoFingerTap()
+        // From the options menu (Page Up and Page Down do the same; the simulator can't press them).
+        func chapter(_ id: String, to title: String, at seconds: Double) {
+            let options = app.descendants(matching: .any)["player.options"].firstMatch
+            if !options.isHittable { player.tap() }
+            XCTAssertTrue(options.waitForExistence(timeout: 5))
+            options.tap()
+            let item = app.descendants(matching: .any)[id].firstMatch
+            XCTAssertTrue(item.waitForExistence(timeout: 5), id)
+            item.tap()
+            // The note naming the chapter is gone by the time XCUITest looks again (1.5 s; its
+            // idle wait after a tap is longer): the position is checked, the name on screenshots.
+            let moved = expectation(for: NSPredicate { _, _ in abs(time() - seconds) < 1.5 }, evaluatedWith: nil)
+            wait(for: [moved], timeout: 3)
+        }
+
+        chapter("player.nextChapter", to: "Part A", at: 15)
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "chapter marks"
+        shot.lifetime = .keepAlways
+        add(shot)
+        chapter("player.nextChapter", to: "Ending", at: 40)
+        // Just into Ending: Previous goes to Part A, not Ending's start.
+        chapter("player.previousChapter", to: "Part A", at: 15)
+    }
+
     func testSkipIntroButton() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
             throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file to test skipping.")

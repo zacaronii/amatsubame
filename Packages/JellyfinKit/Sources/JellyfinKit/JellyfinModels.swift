@@ -50,6 +50,9 @@ public struct JellyfinItem: Decodable, Identifiable, Equatable, Hashable, Sendab
     public var providerIds: [String: String]?
     /// Scrub thumbnails the server made, by media source id, then by thumbnail width.
     public var trickplay: [String: [String: JellyfinTrickplayInfo]]?
+    /// The video's chapters, from its file (on `item(id:)`; verified on 12.4.0: several can
+    /// share a start, e.g. a prologue and the opening both at 0).
+    public var chapters: [JellyfinChapter]?
 
     public init(id: String, name: String, type: String) {
         self.id = id
@@ -358,6 +361,19 @@ public struct LiveClock: Equatable, Sendable {
         guard let anchoredAt else { return anchor }
         return isPaused ? anchor : anchor + max(date.timeIntervalSince(anchoredAt), 0)
     }
+}
+
+/// A chapter of a video: where it starts and its name ("Chapter 01" when the file has none).
+public struct JellyfinChapter: Decodable, Equatable, Hashable, Sendable {
+    public var startPositionTicks: Int64
+    public var name: String?
+
+    public init(startPositionTicks: Int64, name: String?) {
+        self.startPositionTicks = startPositionTicks
+        self.name = name
+    }
+
+    public var start: Double { JellyfinTicks.seconds(startPositionTicks) }
 }
 
 /// One size of a video's trickplay thumbnails: sheets (`tileWidth` × `tileHeight` thumbnails
