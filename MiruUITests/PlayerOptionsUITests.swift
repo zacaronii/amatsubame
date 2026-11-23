@@ -88,6 +88,39 @@ final class PlayerOptionsUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter().wait(for: [expectation(for: through, evaluatedWith: nil)], timeout: 10), .completed, "played through: \(time())")
     }
 
+    /// With a screen connected (simulated: the simulator can't attach one), the picture's place
+    /// says where it's playing, and the Japanese line stays here to tap and look up; the AirPlay
+    /// button is in the top bar.
+    func testExternalDisplayKeepsTheLinesHere() throws {
+        guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file.")
+        }
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment = ["UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video, "UITEST_JIMAKU": "1", "UITEST_EXTERNAL_DISPLAY": "1"]
+        app.launch()
+        let player = app.descendants(matching: .any)["player.video"].firstMatch
+        XCTAssertTrue(player.waitForExistence(timeout: 10))
+        // (Inside the picture's area, which names its elements "player.video": found by its words.)
+        let note = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH 'Playing on'")).firstMatch
+        XCTAssertTrue(note.waitForExistence(timeout: 5), "the picture's place says where it plays")
+        let find = app.buttons["player.noSubtitles"]
+        for _ in 0..<3 where !(find.waitForExistence(timeout: 3) && find.isHittable) { player.tap() }
+        XCTAssertTrue(app.descendants(matching: .any)["player.airplay"].firstMatch.exists, "AirPlay in the top bar")
+        find.tap()
+        let file = app.buttons.matching(identifier: "subtitles.file").firstMatch
+        XCTAssertTrue(file.waitForExistence(timeout: 10))
+        file.tap()
+        let line = app.descendants(matching: .any).matching(identifier: "subtitle.line").firstMatch
+        XCTAssertTrue(line.waitForExistence(timeout: 10), "the Japanese line is here")
+        line.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["player.lookup"].firstMatch.waitForExistence(timeout: 5), "and looks up")
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "external display"
+        shot.lifetime = .keepAlways
+        add(shot)
+    }
+
     /// Holding the picture plays at 2× until it's let go.
     func testHoldingThePicturePlaysFaster() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
