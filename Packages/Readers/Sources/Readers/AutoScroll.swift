@@ -35,6 +35,9 @@ public final class AutoScroll {
     public private(set) var stoppedIdle = false
     @ObservationIgnored private var lastInput = Date()
     @ObservationIgnored private var resumeTask: Task<Void, Never>?
+    /// While on, paused or not: checks the idle limit every few seconds (the scroll loops stop
+    /// while paused, and a reader put down with the controls up would keep the screen on).
+    @ObservationIgnored private var idleTask: Task<Void, Never>?
 
     public init() {}
 
@@ -47,11 +50,20 @@ public final class AutoScroll {
         stoppedIdle = false
         pauses.remove(.handScroll)
         lastInput = now
+        idleTask?.cancel()
+        idleTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                guard let self, !Task.isCancelled, self.isOn else { return }
+                self.checkIdle()
+            }
+        }
     }
 
     public func stop() {
         isOn = false
         resumeTask?.cancel()
+        idleTask?.cancel()
         pauses.remove(.handScroll)
     }
 
@@ -94,7 +106,7 @@ public final class AutoScroll {
         }
     }
 
-    /// Called as it moves: stops it once the idle limit has passed. Returns whether it stopped.
+    /// Stops it once the idle limit has passed, moving or paused. Returns whether it stopped.
     @discardableResult
     public func checkIdle(now: Date = .now) -> Bool {
         guard isOn, Self.idleStops(lastInput: lastInput, now: now) else { return false }
@@ -116,6 +128,16 @@ public final class AutoScroll {
         let level = Double(min(max(level, mangaLevels.lowerBound), mangaLevels.upperBound))
         // 20 pt/s at 1 to 200 pt/s at 10, evenly by ratio (each step about 29 % faster).
         return 20 * pow(10, (level - 1) / 9)
+    }
+
+    /// How long a book section with nothing to scroll stays before auto-scroll moves on: a
+    /// picture page a fixed few seconds; text that fits on the screen the time its characters take
+    /// at the chosen speed (at least 2 s), so it's read, not flashed by.
+    public nonisolated static let pictureDwell: Double = 5
+    public nonisolated static func dwellSeconds(picture: Bool, characters: Int, charactersPerMinute: Int) -> Double {
+        if picture { return pictureDwell }
+        guard charactersPerMinute > 0 else { return 2 }
+        return max(Double(characters) / Double(charactersPerMinute) * 60, 2)
     }
 
     /// A book's reading speeds, in characters a minute.

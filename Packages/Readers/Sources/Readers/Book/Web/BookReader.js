@@ -583,8 +583,13 @@
   // lets go; while it moves the position is reported every 10 s (a continuous scroll never
   // settles for the scroll listener, and each report can send progress to Kavita); at the
   // section's end it reports the edge, as paging on does.
+  // A section with nothing to scroll stays `dwell` seconds of auto-scroll time first (a picture
+  // page `picture`), counted across pauses; one scrolled to its end moves on at once. Each
+  // section is its own page load, so these start again with it.
   let autoSpeed = 0, autoFrame = null, autoLast = 0, autoCarry = 0, autoReported = 0, autoHeldUntil = 0, inputPosted = 0;
-  function autoScroll(speed) {
+  let autoDwell = {text: 2, picture: 5}, dwellSpent = 0, scrolledThisSection = false;
+  function autoScroll(speed, dwell) {
+    if (dwell) autoDwell = dwell;
     autoSpeed = state.settings.layout === 'paged' ? 0 : Math.max(speed || 0, 0);
     if (autoFrame) cancelAnimationFrame(autoFrame);
     autoFrame = null; autoLast = 0; autoCarry = 0;
@@ -595,19 +600,25 @@
     const seconds = autoLast ? Math.min((time - autoLast) / 1000, 0.1) : 0;
     autoLast = time;
     if (time >= autoHeldUntil) {
-      // Nothing left to scroll (the section's end, or a picture page that doesn't scroll):
-      // on to the next section.
+      // Nothing left to scroll: on to the next section, once it has been read (scrolled to
+      // its end, or shown for its dwell when it never needed scrolling).
       if (autoRoom() < 0.5) {
-        autoScroll(0);
-        report();
-        post({kind: 'edge', direction: 'next'});
-        return;
-      }
-      autoCarry += autoSpeed * seconds;
-      const step = Math.floor(autoCarry);
-      if (step >= 1) {
-        autoCarry -= step;
-        window.scrollBy(state.vertical ? -step : 0, state.vertical ? 0 : step);
+        const dwell = root.dataset.kbImagePage === 'true' ? autoDwell.picture : autoDwell.text;
+        dwellSpent += seconds;
+        if (scrolledThisSection || dwellSpent >= dwell) {
+          autoScroll(0);
+          report();
+          post({kind: 'edge', direction: 'next'});
+          return;
+        }
+      } else {
+        autoCarry += autoSpeed * seconds;
+        const step = Math.floor(autoCarry);
+        if (step >= 1) {
+          autoCarry -= step;
+          scrolledThisSection = true;
+          window.scrollBy(state.vertical ? -step : 0, state.vertical ? 0 : step);
+        }
       }
       if (time - autoReported > 10000) {
         autoReported = time;

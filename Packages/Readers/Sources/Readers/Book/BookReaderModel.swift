@@ -659,8 +659,11 @@ public final class BookReaderModel {
         func value(_ key: String) -> Double { (metrics?[key] as? NSNumber)?.doubleValue ?? 0 }
         let speed = AutoScroll.bookPointsPerSecond(charactersPerMinute: settings.autoScrollCharactersPerMinute, fontSize: value("fontSize"),
                                                    lineAdvance: value("lineAdvance"), lineLength: value("lineLength"))
+        // A section that fits on the screen stays for the time its characters take.
+        let characters = textIndex.sections.indices.contains(spineIndex) ? textIndex.sections[spineIndex] : 0
+        let text = AutoScroll.dwellSeconds(picture: false, characters: characters, charactersPerMinute: settings.autoScrollCharactersPerMinute)
         guard autoScroll.isMoving else { return }
-        web.run("window.bookReader?.autoScroll(\(speed))")
+        web.run("window.bookReader?.autoScroll(\(speed), {text: \(text), picture: \(AutoScroll.pictureDwell)})")
     }
 
     public func showReadAlong(_ cue: ReadAlongCue?, follow: Bool) {

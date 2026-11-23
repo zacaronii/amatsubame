@@ -64,6 +64,16 @@ final class BookUITests: XCTestCase {
         if !start.exists { page.tap() }
         XCTAssertTrue(start.waitForExistence(timeout: 5))
         start.tap()
+        // The test book opens on its cover, a picture page: it stays a few seconds before the
+        // next section (a page with nothing to scroll isn't flashed by).
+        let started = Date()
+        func section() -> String { String(position().split(separator: ",").first ?? "") }
+        let cover = section()
+        while section() == cover, Date().timeIntervalSince(started) < 20 { usleep(250_000) }
+        let stayed = Date().timeIntervalSince(started)
+        let note = XCTAttachment(string: "cover stayed \(stayed) s"); note.name = "cover dwell"; note.lifetime = .keepAlways; add(note)
+        XCTAssertGreaterThan(stayed, 4, "the picture page stays")
+        XCTAssertLessThan(stayed, 12, "and then moves on")
         let speed = app.staticTexts["autoScroll.speed"].firstMatch
         XCTAssertTrue(speed.waitForExistence(timeout: 5))
         XCTAssertEqual(speed.value as? String, "300 characters a minute")

@@ -90,14 +90,13 @@ struct LongStripReaderView: View {
             let seconds = Double((now - last) / .milliseconds(1)) / 1000
             last = now
             if model.autoScroll.checkIdle() { return }
+            // At the end of what's laid out (pages below still loading, or estimated short), it
+            // waits for room rather than stopping: the end-of-chapter screen stops it.
+            guard offset < maxOffset - 0.5 else { continue }
             let step = AutoScroll.mangaPointsPerSecond(level: model.settings.autoScrollLevel) * min(seconds, 0.1)
             let target = min(offset + step, max(maxOffset, 0))
             position.scrollTo(y: target)
             offset = target
-            if target >= maxOffset - 0.5 {
-                model.autoScroll.stop()
-                return
-            }
         }
     }
 }

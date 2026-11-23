@@ -92,7 +92,9 @@ public struct MangaReaderView: View {
             LookupPopupView(service: lookup, model: popup, drawsBackground: false)
         }
         .animation(.easeInOut(duration: 0.2), value: model.showsChrome)
-        .focusedSceneValue(\.readerPaging, ReaderPaging(next: { model.requestPage(1) }, previous: { model.requestPage(-1) }))
+        // Paging keys count as someone reading too (auto-scroll's idle limit).
+        .focusedSceneValue(\.readerPaging, ReaderPaging(next: { model.autoScroll.noteInput(); model.requestPage(1) },
+                                                       previous: { model.autoScroll.noteInput(); model.requestPage(-1) }))
         .task { await model.load() }
         .task { await model.bookmarks?.follow() }
         .onDisappear { model.flushProgress() }

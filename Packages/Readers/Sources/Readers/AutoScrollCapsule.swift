@@ -35,7 +35,7 @@ struct AutoScrollCapsule: View {
         .glassEffect(in: .capsule)
         .overlay(alignment: .top) {
             if autoScroll.stoppedIdle {
-                Text("Stopped after 30 minutes without a touch")
+                Text("Stopped after \(Int(AutoScroll.idleLimit / 60)) minutes without a touch")
                     .font(.caption)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)

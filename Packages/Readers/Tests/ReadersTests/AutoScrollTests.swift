@@ -20,6 +20,27 @@ import Testing
         #expect(!AutoScroll.idleStops(lastInput: start, now: start.addingTimeInterval(AutoScroll.idleLimit - 1)))
     }
 
+    /// Paused (the controls left up, a lookup open) still counts toward the limit: a reader put
+    /// down that way doesn't keep the screen on for ever.
+    @Test func thePausedLimitStopsItToo() {
+        let scroll = AutoScroll()
+        scroll.start(now: start)
+        scroll.set(.controls, true)
+        #expect(!scroll.isMoving)
+        #expect(!scroll.checkIdle(now: start.addingTimeInterval(29 * 60)))
+        #expect(scroll.checkIdle(now: start.addingTimeInterval(30 * 60)))
+        #expect(!scroll.isOn && scroll.stoppedIdle)
+    }
+
+    /// A section with nothing to scroll stays a while: a picture page 5 s, text the time its
+    /// characters take at the speed (at least 2 s).
+    @Test func sectionsThatFitStayForTheirReadingTime() {
+        #expect(AutoScroll.dwellSeconds(picture: true, characters: 0, charactersPerMinute: 300) == 5)
+        #expect(AutoScroll.dwellSeconds(picture: false, characters: 150, charactersPerMinute: 300) == 30)
+        #expect(AutoScroll.dwellSeconds(picture: false, characters: 4, charactersPerMinute: 300) == 2, "at least 2 s")
+        #expect(AutoScroll.dwellSeconds(picture: false, characters: 150, charactersPerMinute: 0) == 2)
+    }
+
     @Test func startingAgainClearsTheIdleStop() {
         let scroll = AutoScroll()
         scroll.start(now: start)
