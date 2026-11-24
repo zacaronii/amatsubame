@@ -1,6 +1,5 @@
 # Kiku's Home Screen, Lock Screen and Control Center widgets (docs/kiku.md ▸ Widgets).
-# Included only with KIKU_WIDGETS=YES (`KIKU_WIDGETS=YES xcodegen`): the extension needs an
-# App ID with the App Group in the developer account first, and a plain build stays as it was.
+# Its App ID (`.kiku.widgets`, with the App Group) is registered in the developer account.
 targets:
   Kiku:
     dependencies:

@@ -1,8 +1,7 @@
 name: Amatsubame
 include:
-  # Kiku's widgets: only with KIKU_WIDGETS=YES (they need an App ID set up first).
+  # Kiku's widgets (docs/kiku.md ▸ Widgets).
   - path: kiku-widgets.yml
-    enable: ${KIKU_WIDGETS}
 options:
   bundleIdPrefix: com.amatsubame
   deploymentTarget:
