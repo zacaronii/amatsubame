@@ -69,6 +69,7 @@ final class CharacterNamesUITests: XCTestCase {
 
         // Closed: the cast goes, and with nothing open, the dictionary.
         let page = app.descendants(matching: .any)["book.page"].firstMatch
+        XCTAssertTrue(page.waitForExistence(timeout: 60), "the book's page")
         page.tap()
         let close = app.buttons["reader.close"].firstMatch
         if !close.waitForExistence(timeout: 3) { page.tap() }

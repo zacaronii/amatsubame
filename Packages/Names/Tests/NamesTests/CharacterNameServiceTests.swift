@@ -108,6 +108,45 @@ import Testing
         #expect(await service.open(unknown, app: "yomu") == .none)
     }
 
+    /// Killed with a book open (the reader never closed): the next launch takes its cast out.
+    @Test func aSeriesLeftOpenGoesAtTheNextLaunch() async throws {
+        let transport = try NamesFixtures.transport()
+        let (service, library, database) = try makeService(transport)
+        _ = await service.open(series(aniList: 900001), app: "yomu")
+        #expect(try library.dictionaries().map(\.title) == ["Character Names"])
+        // A new process: the same setup, a new service (a moment later).
+        try await Task.sleep(for: .milliseconds(20))
+        let (relaunched, _, _) = try makeService(transport, database: database)
+        await relaunched.launched(app: "yomu")
+        #expect(try await database.reader.read { try CharacterNameOpenSeries.fetchCount($0) } == 0)
+        #expect(try DictionaryLibrary(database: database, directory: folder.appending(path: "Dictionaries")).dictionaries().isEmpty)
+        _ = library
+    }
+
+    /// A search that couldn't settle the series isn't run again on every open, only after a day.
+    @Test func anUnsettledSeriesIsSearchedAgainAfterADay() async throws {
+        let transport = try NamesFixtures.transport()
+        let clock = TestClock()
+        let database = try AppDatabase.inMemory()
+        let library = DictionaryLibrary(database: database, directory: folder.appending(path: "Dictionaries"))
+        let http = HTTPClient(transport: transport)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let service = CharacterNameService(
+            database: database, library: library, aniList: AniListClient(http: http, limiter: RequestLimiter(spacing: .zero)),
+            mangaBaka: MangaBakaClient(http: http, limiter: RequestLimiter(spacing: .zero)),
+            portraits: PortraitStore(directory: folder.appending(path: "Portraits"), http: http), readings: FakeReadings(),
+            scratch: folder, now: { clock.now })
+        let unknown = series(4, title: "知らない題名", kind: nil)
+        func searches() -> Int { transport.requests.filter { $0.url?.host() == "graphql.anilist.co" }.count }
+        #expect(await service.open(unknown, app: "yomu") == .needsPick)
+        let asked = searches()
+        #expect(await service.open(unknown, app: "yomu") == .needsPick)
+        #expect(searches() == asked, "not searched again the same day")
+        clock.now += CharacterNameService.searchRetry + 1
+        #expect(await service.open(unknown, app: "yomu") == .needsPick)
+        #expect(searches() > asked, "searched again a day later")
+    }
+
     @Test func turningItOff() async throws {
         let (service, library, _) = try makeService(try NamesFixtures.transport())
         _ = await service.open(series(aniList: 900001), app: "yomu")
@@ -129,6 +168,15 @@ import Testing
         let (_, characters) = try await client.cast(mediaId: 900001, type: .manga)
         #expect(characters.count == 4 && calls.value == 2)
         #expect(waits.values.contains { $0 >= .seconds(59) }, "no Retry-After header: a minute, as AniList's timeout")
+    }
+}
+
+final class TestClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = Date(timeIntervalSince1970: 1_800_000_000)
+    var now: Date {
+        get { lock.withLock { value } }
+        set { lock.withLock { value = newValue } }
     }
 }
 

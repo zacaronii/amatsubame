@@ -360,6 +360,8 @@ final class AppEnvironment {
     func start() async {
         guard !started else { return }
         started = true
+        // A book left open when Yomu last stopped takes its characters out of the names.
+        await self.common.characterNames.launched(app: "yomu")
         async let common: Void = common.start()
         async let hidden: Void = observeHiddenLibraries()
         async let downloads: Void = downloader.start()

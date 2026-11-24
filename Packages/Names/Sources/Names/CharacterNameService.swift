@@ -63,6 +63,9 @@ public actor CharacterNameService {
     public static let castLifetime: TimeInterval = 30 * 24 * 3600
     /// Casts kept (each a few KB and its portraits) besides the open ones.
     public static let keptCasts = 50
+    /// A series the search couldn't settle is searched again after this long (not on every
+    /// open, so opening it offline doesn't reach for AniList each time).
+    public static let searchRetry: TimeInterval = 24 * 3600
 
     let database: AppDatabase
     let library: DictionaryLibrary
@@ -72,6 +75,8 @@ public actor CharacterNameService {
     let readings: any NameReadingSource
     let now: @Sendable () -> Date
     let scratch: URL
+    /// When this service (the app's process) started.
+    let started: Date
 
     public init(database: AppDatabase, library: DictionaryLibrary, aniList: AniListClient, mangaBaka: MangaBakaClient,
                 portraits: PortraitStore, readings: (any NameReadingSource)? = nil, scratch: URL = FileManager.default.temporaryDirectory,
@@ -84,6 +89,7 @@ public actor CharacterNameService {
         self.readings = readings ?? JMnedictReadings(engine: library.engine)
         self.scratch = scratch
         self.now = now
+        started = now()
     }
 
     // MARK: Opening and closing
@@ -109,6 +115,18 @@ public actor CharacterNameService {
         }
         await rebuild()
         return outcome
+    }
+
+    /// The app starts: a series it had open when it last stopped (killed, or crashed before the
+    /// reader closed) is no longer open, so its cast leaves the dictionary. Only a row from before
+    /// this service was made: one the app has just opened stays.
+    public func launched(app: String) async {
+        let started = self.started
+        let removed = (try? await database.writer.write { db -> Bool in
+            guard let row = try CharacterNameOpenSeries.fetchOne(db, key: app), row.openedAt < started else { return false }
+            return try row.delete(db)
+        }) ?? false
+        if removed { await rebuild() }
     }
 
     /// The app closed its series: its cast leaves the dictionary.
@@ -165,6 +183,8 @@ public actor CharacterNameService {
         if let stored {
             if let mediaKey = stored.mediaKey { return .media(mediaKey) }
             if stored.source == .picked { return .none }
+            // Unsettled recently: still waiting for the user's pick.
+            if now().timeIntervalSince(stored.matchedAt) < Self.searchRetry { return .ask }
         }
         let found = try await find(series)
         try await database.writer.write { db in
