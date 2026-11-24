@@ -516,6 +516,8 @@ final class PlaybackModel {
                 }
             }
             #endif
+            // UITEST_PLAYER_ENGLISH_OFFERED=<path>: an English file offered, off (as a download's).
+            localEnglish = ProcessInfo.processInfo.environment["UITEST_PLAYER_ENGLISH_OFFERED"].map { $0.hasPrefix("http") ? URL(string: $0)! : URL(filePath: $0) }
             // UITEST_PLAYER_ENGLISH=<path>: an English subtitle file mpv draws (once the video is loaded).
             if let english = ProcessInfo.processInfo.environment["UITEST_PLAYER_ENGLISH"] {
                 Task {
@@ -644,6 +646,7 @@ final class PlaybackModel {
         syncStatus = nil
         localEnglish = environment.downloader.englishSubtitles(itemId: item.id)
         englishTrackId = nil
+        addingEnglish = false
         showsEnglish = false
         // The saved intro and credits at once (a download has them); Jellyfin's replace them below.
         segments = environment.segments.saved(itemId: item.id)
@@ -1349,26 +1352,44 @@ final class PlaybackModel {
         mpv.setPaused(false)
     }
 
+    /// English on or off. The file is added once, in the background (Jellyfin can take a while
+    /// to pull it out of a big video file); turned off before it's in, it stays off when it comes.
     func toggleEnglish() {
         if showsEnglish {
             mpv.selectSubtitle(nil)
             showsEnglish = false
             return
         }
+        showsEnglish = true
         if let englishTrackId {
             mpv.selectSubtitle(englishTrackId)
+        } else if addingEnglish {
+            // Selected as it comes in.
         } else if let localEnglish {
+            addingEnglish = true
             mpv.showSubtitles(from: localEnglish)
         } else if let englishStream, let client, let item, let mediaSourceId {
+            addingEnglish = true
             mpv.showSubtitles(from: client.subtitleURL(itemId: item.id, mediaSourceId: mediaSourceId, index: englishStream.index))
         }
-        showsEnglish = true
     }
 
-    /// Remembers mpv's id for the English file once it's been added.
+    /// The English file is being added (mpv selects it when it's in).
+    @ObservationIgnored private var addingEnglish = false
+
+    /// Remembers mpv's id for the English file once it's in, and keeps mpv's subtitle to the
+    /// switch: the file selects itself as it comes, even if English was turned off meanwhile.
     private func noteEnglishTrack() {
-        guard englishTrackId == nil, showsEnglish else { return }
-        englishTrackId = mpv.tracks.first { $0.type == "sub" && $0.isExternal }?.id
+        if englishTrackId == nil, let added = mpv.tracks.first(where: { $0.type == "sub" && $0.isExternal })?.id {
+            englishTrackId = added
+            addingEnglish = false
+        }
+        let selected = mpv.tracks.first { $0.type == "sub" && $0.isSelected }?.id
+        if !showsEnglish, selected != nil {
+            mpv.selectSubtitle(nil)
+        } else if showsEnglish, let englishTrackId, selected != englishTrackId {
+            mpv.selectSubtitle(englishTrackId)
+        }
     }
 
     // MARK: Lookup and mining

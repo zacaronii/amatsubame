@@ -211,6 +211,36 @@ final class PlayerOptionsUITests: XCTestCase {
         add(attachment)
     }
 
+    /// English Subtitles in the options menu turns mpv's English line on, off and on again.
+    func testEnglishSubtitlesTurnOnAndOff() throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard let video = environment["UITEST_PLAYER_VIDEO"], let english = environment["UITEST_PLAYER_ENGLISH_FILE"] else {
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO and TEST_RUNNER_UITEST_PLAYER_ENGLISH_FILE (an .srt).")
+        }
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment = ["UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video, "UITEST_PLAYER_ENGLISH_OFFERED": english]
+        app.launch()
+        let player = app.descendants(matching: .any)["player.video"].firstMatch
+        XCTAssertTrue(player.waitForExistence(timeout: 10))
+        checkEnglishTurnsOnAndOff(app, player: player)
+    }
+
+    /// English turned off while its file is still coming (a slow server): it stays off.
+    func testEnglishTurnedOffWhileItLoadsStaysOff() throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard let video = environment["UITEST_PLAYER_VIDEO"], let slow = environment["UITEST_PLAYER_ENGLISH_SLOW_URL"] else {
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO and TEST_RUNNER_UITEST_PLAYER_ENGLISH_SLOW_URL (an .srt served after a delay).")
+        }
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment = ["UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video, "UITEST_PLAYER_ENGLISH_OFFERED": slow]
+        app.launch()
+        let player = app.descendants(matching: .any)["player.video"].firstMatch
+        XCTAssertTrue(player.waitForExistence(timeout: 10))
+        checkEnglishOffBeforeItLoads(app, player: player)
+    }
+
     /// Hide Until Tapped: the line is blurred and can't be looked up until a tap shows it; and
     /// the size and position from Settings apply.
     func testHiddenSubtitlesShowOnATap() throws {

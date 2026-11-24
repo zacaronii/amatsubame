@@ -9,7 +9,9 @@ struct PlaybackView: View {
     /// Debug: tells the UI tests when the audio session mixes.
     private var debugSessionNote: String {
         #if DEBUG
-        NowPlaying.sessionNote
+        // And mpv's subtitle track and the line it draws (English), for UI tests.
+        NowPlaying.sessionNote + ", mpv sid: \(model.mpv.stringProperty("sid") ?? "-")"
+            + (model.mpv.stringProperty("sub-text").flatMap { $0.isEmpty ? nil : ", mpv line: \($0)" } ?? "")
         #else
         ""
         #endif
