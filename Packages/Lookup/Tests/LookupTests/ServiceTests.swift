@@ -116,6 +116,29 @@ import Testing
         return service
     }
 
+    /// A card's extra senses come only from the same word: another dictionary's entry under a
+    /// different reading of the same spelling is its own result and never joins the card.
+    @Test func cardSensesComeOnlyFromTheSameWordAndReading() async throws {
+        let database = try AppDatabase.inMemory()
+        let library = DictionaryLibrary(database: database, directory: FileManager.default.temporaryDirectory.appending(path: "senses-\(UUID().uuidString)"))
+        var first = TestDictionaryBuilder(title: "First")
+        first.terms = [.init("風呂", "ふろ", glossary: ["a bath"])]
+        var second = TestDictionaryBuilder(title: "Second")
+        second.terms = [
+            .init("風呂", "ぶろ", glossary: ["wrong reading"], score: 10),
+            .init("風呂", "ふろ", glossary: ["bathing", "bathtub"]),
+            .init("風呂場", "ふろば", glossary: ["bathroom (compound)"]),
+        ]
+        try await library.importDictionary(at: try first.write())
+        try await library.importDictionary(at: try second.write())
+        let service = LookupService(library: library, audio: AudioService(database: database))
+        try await service.reload()
+        let page = await service.lookup(text: "風呂に入る", utf16Offset: 0)
+        let furo = try #require(page.results.first { $0.expression == "風呂" && $0.reading == "ふろ" })
+        let card = MiningService.card(for: furo, sentence: nil, miscInfo: nil, settings: .default, allowDuplicate: false)
+        #expect(card.content[.shortDefinition] == "1. a bath<br>2. bathing; bathtub")
+    }
+
     @Test func tapLooksUpFromTheTappedCharacterAndKeepsTheSentence() async throws {
         let service = try await makeService()
         let text = "昨日、映画を見た。そして寿司を食べさせられなかった。"

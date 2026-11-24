@@ -314,6 +314,10 @@ filled in the way Yomitan's Lapis setup does, and each card is a word and senten
 | FreqSort | Frequency sort value |
 | MiscInfo | Source |
 
+The short definition is a few numbered meanings: up to three senses from the first dictionary, each
+with its first glosses. When that dictionary has only one sense, the next dictionaries' senses follow
+it (in your dictionary order), leaving out glosses it already has.
+
 For another note type, the apps fill in any Lapis field names it has; otherwise the word goes in the
 first field and the sentence in a field called Sentence. Check **Fields** and adjust the rest.
 
@@ -326,7 +330,7 @@ sentence it came from. The rest depends on the app:
 | --- | --- | --- | --- | --- |
 | Yomu, manga | The recognised text | The page | | Series, chapter and page |
 | Yomu, books | The sentence | The book's cover | With read-along: the spoken sentence | Series, volume and section |
-| Miru | The subtitle line | A screenshot, or the line as an animated GIF (Card Picture) | The line | Show, episode and time |
+| Miru | The subtitle line | The line as an animated GIF, or a screenshot (Card Picture) | The line | Show, episode and time |
 | Kiku | The transcript line | The episode's cover | The line | Show, episode and time |
 | Hiku | The sentence | | | The page's title and address |
 
