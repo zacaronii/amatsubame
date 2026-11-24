@@ -100,7 +100,7 @@ public final class MPVController {
             ("sid", "no"),
             // …at the top, clear of the app's Japanese line at the bottom.
             ("sub-align-y", "top"), ("sub-margin-y", String(Self.subtitleMargin)),
-        ] + MPVOptions.noScripts + MPVOptions.audioSession {
+        ] + MPVOptions.noScripts + MPVOptions.audioSession + MPVOptions.audioFormat {
             mpv_set_option_string(mpv, name, value)
         }
         mpv_initialize(mpv)
@@ -539,6 +539,17 @@ enum MPVOptions {
     static let audioSession: [(String, String)] = [("audio-exclusive", "yes")]
     #else
     static let audioSession: [(String, String)] = []
+    #endif
+
+    /// On macOS 27, mpv 0.41's CoreAudio output can't open multichannel planar float (48 kHz 5.1/7.1:
+    /// "unable to set the input channel layout", -50) and falls back to AVFoundation, but leaves its
+    /// device listener behind: the next audio device change (headphones, AirPods, a display) calls
+    /// it on the freed output and crashes (mpv#18274, fixed in mpv 0.42). Interleaved float opens
+    /// fine. Drop this once MPVKit ships mpv 0.42.
+    #if os(macOS)
+    static let audioFormat: [(String, String)] = [("audio-format", "float")]
+    #else
+    static let audioFormat: [(String, String)] = []
     #endif
 }
 
