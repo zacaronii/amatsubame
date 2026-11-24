@@ -64,8 +64,32 @@ packages:
     path: Packages/HachidoriKit
   Names:
     path: Packages/Names
+  PlayerEngine:
+    path: Packages/PlayerEngine
+  # Spike only (never merged): AetherEngine, pinned.
+  AetherEngine:
+    url: https://github.com/superuser404notfound/AetherEngine
+    exactVersion: 7.73.0
 
 targets:
+  # Spike: AetherEngine in a dynamic framework of its own, so it binds to its own FFmpeg
+  # (AetherLib*), not MPVKit's static one in the app (AetherEngine's installation guide).
+  AetherBridge:
+    type: framework
+    supportedDestinations: [iOS, macOS]
+    platform: auto
+    deploymentTarget:
+      iOS: "26.0"
+      macOS: "26.0"
+    sources: [AetherBridge]
+    dependencies:
+      - package: AetherEngine
+      - package: PlayerEngine
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).aetherbridge
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
   Yomu:
     type: application
     supportedDestinations: [iOS, macOS]
@@ -164,6 +188,24 @@ targets:
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortraitUpsideDown"
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
+    postCompileScripts:
+      # Spike: AetherBridge's FFmpeg frameworks and the engine's resources into the app.
+      - name: Embed AetherEngine frameworks
+        basedOnDependencyAnalysis: false
+        script: |
+          set -e
+          dest="$TARGET_BUILD_DIR/$FRAMEWORKS_FOLDER_PATH"
+          mkdir -p "$dest"
+          for f in "$BUILT_PRODUCTS_DIR"/AetherLib*.framework; do
+            [ -d "$f" ] || continue
+            rm -rf "$dest/$(basename "$f")"
+            cp -R "$f" "$dest/"
+            codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY:--}" --preserve-metadata=identifier,entitlements "$dest/$(basename "$f")" || true
+          done
+          if [ -d "$BUILT_PRODUCTS_DIR/AetherEngine_AetherEngine.bundle" ]; then
+            rm -rf "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/AetherEngine_AetherEngine.bundle"
+            cp -R "$BUILT_PRODUCTS_DIR/AetherEngine_AetherEngine.bundle" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/"
+          fi
     dependencies:
       - package: AppCommon
       - package: Core
@@ -173,6 +215,9 @@ targets:
       - package: Lookup
       - package: Player
         product: PlayerKit
+      # Spike: the engine lab compares mpv and AetherEngine.
+      - package: PlayerEngine
+      - target: AetherBridge
       - package: JimakuKit
       - package: AudiobookshelfKit
 

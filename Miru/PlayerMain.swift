@@ -17,12 +17,24 @@ struct MiruApp: App {
 
     var body: some Scene {
         WindowGroup {
+            #if DEBUG
+            if let lab = EngineLab.make() {
+                EngineLabView(lab: lab)
+            } else {
+                PlayerRootView()
+                    .tint(Color("AccentColor"))
+                    .environment(environment)
+                    .environment(environment.common)
+                    .task { await environment.start() }
+            }
+            #else
             PlayerRootView()
                 // The app's AccentColor (Yomu green, Miru purple); the Info.plist accent alone wasn't applied.
                 .tint(Color("AccentColor"))
                 .environment(environment)
                 .environment(environment.common)
                 .task { await environment.start() }
+            #endif
         }
         .commands { PlayerMenus(environment: environment) }
         .onChange(of: scenePhase) { _, phase in

@@ -10,6 +10,7 @@ let package = Package(
     ],
     dependencies: [
         .package(path: "../Core"),
+        .package(path: "../PlayerEngine"),
         .package(path: "../../Vendor/libfvad"),
         // The LGPL product only ("MPVKit", never "MPVKit-GPL").
         .package(url: "https://github.com/mpvkit/MPVKit", exact: "1.1.0-n9.0.2"),
@@ -17,6 +18,7 @@ let package = Package(
     targets: [
         .target(name: "PlayerKit", dependencies: [
             .product(name: "Core", package: "Core"),
+            .product(name: "PlayerEngine", package: "PlayerEngine"),
             .product(name: "MPVKit", package: "MPVKit"),
             .product(name: "CFVad", package: "libfvad"),
         ], resources: [.copy("Resources/cacert.pem")]),
