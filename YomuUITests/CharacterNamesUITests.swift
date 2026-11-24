@@ -60,11 +60,11 @@ final class CharacterNamesUITests: XCTestCase {
         result.tap()
         XCTAssertTrue(result.waitForNonExistence(timeout: 10), "picked, the sheet closes")
 
-        // Reading: its cast is in the dictionary (the four named characters).
+        // Reading: its cast is in the dictionary (the six named characters).
         app.buttons["series.continue"].firstMatch.tap()
         let state = app.descendants(matching: .any)["reader.characterNames"].firstMatch
         XCTAssertTrue(state.waitForExistence(timeout: 60), "the reader opened")
-        let ready = NSPredicate(format: "label CONTAINS 'ready(characters: 4)'")
+        let ready = NSPredicate(format: "label CONTAINS 'ready(characters: 6)'")
         XCTAssertEqual(XCTWaiter().wait(for: [expectation(for: ready, evaluatedWith: state)], timeout: 30), .completed, state.label)
 
         // Closed: the cast goes, and with nothing open, the dictionary.
