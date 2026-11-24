@@ -194,6 +194,19 @@ final class EngineLab {
         if runs("cues"), let aether = engine as? AetherPlayerEngine {
             note("aether · \(file.name): cues")
             result["subtitleTracks"] = aether.subtitleTracks.map { "\($0.id) \($0.codec) \($0.language ?? "-")" }
+            // LAB_ALL_TRACKS=1: every text track in turn, the cues each gives around 300 s.
+            if ProcessInfo.processInfo.environment["LAB_ALL_TRACKS"] == "1" {
+                var perTrack: [String: Int] = [:]
+                for track in aether.subtitleTracks {
+                    note("aether · \(file.name): track \(track.id) (\(track.codec) \(track.language ?? "-"))")
+                    await engine.selectSubtitle(index: track.id)
+                    _ = await engine.seekAndWait(to: 300, exact: true, timeout: 10)
+                    engine.setPaused(false)
+                    try? await Task.sleep(for: .seconds(5))
+                    perTrack["\(track.id) \(track.codec) \(track.language ?? "-")"] = engine.cues.count
+                }
+                result["cuesPerTrack"] = perTrack
+            }
             // The config's index is mpv's; AetherEngine's ids are stream indices: fall back to its first track.
             let ids = aether.subtitleTracks.map(\.id)
             if let index = file.subtitle.flatMap({ ids.contains($0) ? $0 : ids.first }) {

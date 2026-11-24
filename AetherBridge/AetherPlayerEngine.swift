@@ -22,6 +22,8 @@ public final class AetherPlayerEngine: PlayerEngine {
 
     public static func installLog() {
         EngineLog.handler = { line in
+            // Every line, timed, on stdout too (the lab's run log interleaves them with its steps).
+            print("[engine \(Date().formatted(.iso8601.time(includingFractionalSeconds: true)))] \(line)")
             Task { @MainActor in
                 if log.count < 4000 { log.append(line) }
             }
@@ -52,6 +54,8 @@ public final class AetherPlayerEngine: PlayerEngine {
         options.httpHeaders = headers
         // AETHER_NATIVE_SUBS=0: keep every subtitle track on the cue path (no AVPlayer rendering).
         options.prepareNativeSubtitles = ProcessInfo.processInfo.environment["AETHER_NATIVE_SUBS"] != "0"
+        // AETHER_SKIP_ATTACHMENTS=1: open without reading Matroska attachments (fonts), AE#956.
+        options.skipsContainerAttachments = ProcessInfo.processInfo.environment["AETHER_SKIP_ATTACHMENTS"] == "1"
         _ = try await engine.load(url: url, startPosition: start > 0 ? start : nil, options: options)
     }
 
