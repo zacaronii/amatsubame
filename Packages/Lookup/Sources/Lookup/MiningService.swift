@@ -246,11 +246,16 @@ public final class MiningService {
         }
         let firstDictionary = items.first?.dictionary
         // From the first dictionary with glosses, so a prose dictionary first doesn't leave it empty.
-        // JMdict's "forms" entry lists spellings (事態, 事体), not a meaning.
+        // When that one has a single sense, the next dictionaries' senses follow it (numbered
+        // meanings stick better). JMdict's "forms" entry lists spellings (事態, 事体), not a meaning.
         let meanings = result.glossaries.filter { !$0.definitionTags.contains("forms") }
         let glossesByDictionary = Dictionary(grouping: meanings, by: \.dictionary)
             .mapValues { $0.flatMap { StructuredContentRenderer.glosses(glossaryJSON: $0.json) } }
-        let shortSenses = meanings.lazy.map(\.dictionary).compactMap { glossesByDictionary[$0] }.first { !$0.isEmpty } ?? []
+        var dictionaries: [String] = []
+        for glossary in meanings where !dictionaries.contains(glossary.dictionary) { dictionaries.append(glossary.dictionary) }
+        let withGlosses = dictionaries.compactMap { glossesByDictionary[$0] }.filter { !$0.isEmpty }
+        let first = withGlosses.first ?? []
+        let shortSenses = first.count == 1 ? withGlosses.flatMap(\.self) : first
         var content: [AnkiContentSlot: String] = [
             .furigana: CardFormatting.furigana(expression: result.expression, reading: result.reading),
             .mainDefinition: CardFormatting.glossary(items.filter { $0.dictionary == firstDictionary }),

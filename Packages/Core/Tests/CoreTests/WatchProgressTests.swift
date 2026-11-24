@@ -66,10 +66,10 @@ import Testing
     @Test func playerSettingsDefaultToButtons() throws {
         let database = try AppDatabase.inMemory()
         #expect(PlayerSettings.load(database).autoSkipsIntros == false)
-        #expect(PlayerSettings.load(database).cardPicture == .screenshot)
-        try PlayerSettings(autoSkipsIntros: true, cardPicture: .animated).save(database)
+        #expect(PlayerSettings.load(database).cardPicture == .animated, "new setups get animated card pictures")
+        try PlayerSettings(autoSkipsIntros: true, cardPicture: .screenshot).save(database)
         #expect(PlayerSettings.load(database).autoSkipsIntros)
-        #expect(PlayerSettings.load(database).cardPicture == .animated)
+        #expect(PlayerSettings.load(database).cardPicture == .screenshot, "a saved choice stays")
     }
 
     @Test func japaneseOnlyLibrariesAndAudioChecks() async throws {
