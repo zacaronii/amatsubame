@@ -3,7 +3,7 @@ import KikuIntents
 import SwiftUI
 import WidgetKit
 
-/// Kiku's widgets and controls (built only with `KIKU_WIDGETS=YES`: docs/kiku.md ▸ Widgets).
+/// Kiku's widgets and controls (docs/kiku.md ▸ Widgets).
 /// They show the snapshot Kiku writes to the App Group and run Kiku's intents, which play
 /// inside the app; nothing here talks to a server.
 @main
