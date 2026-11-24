@@ -228,12 +228,14 @@ public final class MPVController {
     }
 
     /// Adds an external subtitle file mpv should draw (e.g. English), or turns mpv's subtitles off.
+    /// The file loads in the background (from Jellyfin it can take a while: the server pulls it
+    /// out of the video file): the track appears in `tracks`, selected, once it's in.
     public func showSubtitles(from url: URL?, headers: [String: String] = [:]) {
         guard let url else {
             setString("sid", "no")
             return
         }
-        command(["sub-add", url.absoluteString, "select"])
+        command(["sub-add", url.absoluteString, "select"], async: true)
     }
 
     /// Makes mpv adopt the view's new size. MPVKit's MoltenVK context only reads the
@@ -280,13 +282,14 @@ public final class MPVController {
 
     // MARK: mpv plumbing
 
-    private func command(_ args: [String]) {
+    /// Runs a command; `async`: without waiting for it (mpv copies the arguments).
+    private func command(_ args: [String], async: Bool = false) {
         guard let mpv = handle else { return }
         var cStrings = args.map { strdup($0) } + [nil]
         defer { cStrings.forEach { free($0) } }
         cStrings.withUnsafeMutableBufferPointer { buffer in
             buffer.baseAddress!.withMemoryRebound(to: UnsafePointer<CChar>?.self, capacity: buffer.count) { pointer in
-                _ = mpv_command(mpv, pointer)
+                _ = async ? mpv_command_async(mpv, 0, pointer) : mpv_command(mpv, pointer)
             }
         }
     }
@@ -295,6 +298,13 @@ public final class MPVController {
         guard let mpv = handle else { return }
         var flag: Int32 = value ? 1 : 0
         mpv_set_property(mpv, name, MPV_FORMAT_FLAG, &flag)
+    }
+
+    /// A property as mpv has it now (for tests: `sub-text`, the line it draws).
+    public func stringProperty(_ name: String) -> String? {
+        guard let mpv = handle, let value = mpv_get_property_string(mpv, name) else { return nil }
+        defer { mpv_free(value) }
+        return String(cString: value)
     }
 
     private func setString(_ name: String, _ value: String) {
