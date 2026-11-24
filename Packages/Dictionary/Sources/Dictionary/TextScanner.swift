@@ -22,17 +22,22 @@ public enum TextScanner {
     /// Lettering and OCR often give the long-vowel mark as a look-alike: manga OCR reads a
     /// vertical ー as 一, and fonts use ―, －, — or ─. The engine only maps ｰ (NFKC), so
     /// フリ一レン found nothing longer than フリ. A dash right after katakana becomes ー, and so
-    /// does 一 unless a kanji follows (カード一枚 keeps its 一). Same length, so offsets and the
-    /// highlight still line up; the text shown and mined keeps what was written.
+    /// does 一 unless a kanji or つ follows (カード一枚 and ケーキ一つ keep it; at the end it's ー,
+    /// as OCR is where it comes from). Same length, so offsets and the highlight still line up;
+    /// the text shown and mined keeps what was written.
     static func longVowelsRestored(_ text: String) -> String {
         var characters = Array(text)
         for index in characters.indices.dropFirst() where longVowelLookalikes.contains(characters[index]) {
             guard isKatakana(characters[index - 1]) else { continue }
-            if characters[index] == "一", index + 1 < characters.count,
-               characters[index + 1].unicodeScalars.first?.properties.isIdeographic == true { continue }
+            if characters[index] == "一", index + 1 < characters.count, isNumberAfter(characters[index + 1]) { continue }
             characters[index] = "ー"
         }
         return String(characters)
+    }
+
+    /// What makes 一 a number rather than ー: a kanji (一枚) or the counter つ (ケーキ一つ).
+    static func isNumberAfter(_ character: Character) -> Bool {
+        character == "つ" || character == "ッ" || character.unicodeScalars.first?.properties.isIdeographic == true
     }
 
     static let longVowelLookalikes: Set<Character> = ["一", "―", "－", "—", "─", "‐"]

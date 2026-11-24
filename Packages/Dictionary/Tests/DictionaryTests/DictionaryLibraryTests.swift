@@ -205,12 +205,16 @@ import Testing
         #expect(TextScanner.scanText(text, utf16Offset: 999).isEmpty)
     }
 
-    /// 一 and dashes after katakana are read as ー; 一 before a kanji (a number) is left alone.
+    /// 一 and dashes after katakana are read as ー; 一 before a kanji or つ (a number) is left alone.
     @Test func longVowelLookalikesAfterKatakana() {
         #expect(TextScanner.scanText("フリ一レン。", utf16Offset: 0) == "フリーレン。")
         #expect(TextScanner.scanText("ヒ―ロ－だ", utf16Offset: 0) == "ヒーローだ")
         #expect(TextScanner.scanText("コ—ヒ─", utf16Offset: 0) == "コーヒー")
         #expect(TextScanner.scanText("カード一枚", utf16Offset: 0) == "カード一枚")
+        #expect(TextScanner.scanText("ケーキ一つ", utf16Offset: 0) == "ケーキ一つ")
+        #expect(TextScanner.scanText("リンゴ一ッ", utf16Offset: 0) == "リンゴ一ッ")
+        // At the end, after katakana: OCR's ー (ヒーロ一 → ヒーロー).
+        #expect(TextScanner.scanText("ヒーロ一", utf16Offset: 0) == "ヒーロー")
         #expect(TextScanner.scanText("一つ", utf16Offset: 0) == "一つ")
         #expect(TextScanner.scanText("今日一日", utf16Offset: 0) == "今日一日")
     }
