@@ -49,6 +49,7 @@ final class EngineLab {
 
     func note(_ text: String) {
         log.append(text)
+        print("[lab \(Date().formatted(.iso8601.time(includingFractionalSeconds: false)))] \(text)")
         status = text
     }
 
@@ -77,7 +78,7 @@ final class EngineLab {
                 try? await Task.sleep(for: .seconds(1))
             }
         }
-        if let lines = Optional(AetherPlayerEngine.log.filter { $0.contains("[FFmpeg]") || $0.contains("ERROR") }.prefix(40)) {
+        if let lines = Optional(AetherPlayerEngine.log.filter { $0.contains("[FFmpeg]") || $0.contains("ERROR") || $0.localizedCaseInsensitiveContains("subtitle") }.prefix(80)) {
             results.append(["engineLog": Array(lines)])
         }
         write()
@@ -85,8 +86,20 @@ final class EngineLab {
     }
 
     private func write() {
-        let data = try? JSONSerialization.data(withJSONObject: ["results": results, "log": log], options: [.prettyPrinted, .sortedKeys])
+        // JSONSerialization raises an Objective-C exception on NaN (a step that never landed);
+        // AppKit swallows it mid-task and the next redraw crashes. Write NaN as null.
+        let data = try? JSONSerialization.data(withJSONObject: Self.jsonSafe(["results": results, "log": log]),
+                                               options: [.prettyPrinted, .sortedKeys])
         FileManager.default.createFile(atPath: config.output, contents: data)
+    }
+
+    static func jsonSafe(_ value: Any) -> Any {
+        switch value {
+        case let number as Double where !number.isFinite: NSNull()
+        case let dictionary as [String: Any]: dictionary.mapValues(jsonSafe)
+        case let array as [Any]: array.map(jsonSafe)
+        default: value
+        }
     }
 
     private func waitStarted(_ engine: any PlayerEngine, timeout: Double) async -> Double? {
@@ -181,7 +194,10 @@ final class EngineLab {
         if runs("cues"), let aether = engine as? AetherPlayerEngine {
             note("aether · \(file.name): cues")
             result["subtitleTracks"] = aether.subtitleTracks.map { "\($0.id) \($0.codec) \($0.language ?? "-")" }
-            if let index = file.subtitle {
+            // The config's index is mpv's; AetherEngine's ids are stream indices: fall back to its first track.
+            let ids = aether.subtitleTracks.map(\.id)
+            if let index = file.subtitle.flatMap({ ids.contains($0) ? $0 : ids.first }) {
+                result["cueTrack"] = index
                 await engine.selectSubtitle(index: index)
                 _ = await engine.seekAndWait(to: 300, exact: true, timeout: 10)
                 engine.setPaused(false)
@@ -263,7 +279,8 @@ struct EngineLabView: View {
         VStack(spacing: 8) {
             ZStack {
                 Color.black
-                if let engine = lab.engine { engine.view }
+                // UITEST_ENGINE_LAB_HEADLESS: measure without drawing the engine's view.
+                if let engine = lab.engine, ProcessInfo.processInfo.environment["UITEST_ENGINE_LAB_HEADLESS"] == nil { engine.view }
             }
             .frame(height: 260)
             Text(lab.status).font(.headline).accessibilityIdentifier("lab.status")

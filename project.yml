@@ -179,6 +179,8 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Shared/App-macOS$(AMATSUBAME_CLOUD_MAC_SUFFIX).entitlements
         ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
+        # Spike: AetherBridge and the AetherLib* frameworks sit in Contents/Frameworks.
+        LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]: $(inherited) @executable_path/../Frameworks
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_FILE: Miru/Resources/Info.plist
         INFOPLIST_KEY_CFBundleDisplayName: Miru

@@ -50,7 +50,8 @@ public final class AetherPlayerEngine: PlayerEngine {
         self.headers = headers
         var options = LoadOptions()
         options.httpHeaders = headers
-        options.prepareNativeSubtitles = true
+        // AETHER_NATIVE_SUBS=0: keep every subtitle track on the cue path (no AVPlayer rendering).
+        options.prepareNativeSubtitles = ProcessInfo.processInfo.environment["AETHER_NATIVE_SUBS"] != "0"
         _ = try await engine.load(url: url, startPosition: start > 0 ? start : nil, options: options)
     }
 
@@ -130,7 +131,7 @@ public final class AetherPlayerEngine: PlayerEngine {
 
     /// The embedded subtitle tracks: (id, codec, language).
     public var subtitleTracks: [(id: Int, codec: String, language: String?)] {
-        engine.subtitleTracks.map { ($0.id, $0.codec, $0.language) }
+        engine.subtitleTracks.map { ($0.id, $0.isNativelyRenderedSubtitle ? "\($0.codec)(native)" : $0.codec, $0.language) }
     }
 
     public func snapshot(at time: Double) async -> CGImage? {
