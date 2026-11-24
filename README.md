@@ -16,7 +16,7 @@ idea: never touching down out of Japanese.
 | **Miru** | 見る, to watch | Jellyfin video through mpv with tappable Japanese subtitles, subtitles from Jimaku with Auto-Sync, and Lines: a searchable history of the lines you've watched |
 | **Kiku** | 聞く, to listen | Audiobookshelf podcasts and audiobooks with tappable transcripts from Kaku, plus marks: mark what you just heard (AirPods, Action Button, Siri, CarPlay, Apple Watch) and mine it later |
 | **Hiku** | 引く, to look up | A Safari Web Extension: tap Japanese text on any page for the same popup, and mine it to Anki |
-| **Kaku** | 書く, to write down | A transcription server (Whisper large-v3 on an NVIDIA GPU) that writes timed Japanese transcripts of your Audiobookshelf libraries for Kiku and Yomu, and subtitles for Jellyfin episodes on request |
+| **Kaku** | 書く, to write down | A transcription server (anime-whisper, a Japanese Whisper model, on an NVIDIA GPU) that writes timed Japanese transcripts of your Audiobookshelf libraries for Kiku and Yomu, and subtitles for Jellyfin episodes on request |
 
 The apps share dictionaries, word audio sources and AnkiConnect settings on a device, so you set them
 up once.
@@ -157,8 +157,9 @@ Amatsubame stands on the work of many people. Thank you to:
   recognition models.
 - [mpv](https://mpv.io), [FFmpeg](https://ffmpeg.org) and [MPVKit](https://github.com/mpvkit/MPVKit):
   video playback in Miru.
-- [faster-whisper](https://github.com/SYSTRAN/faster-whisper) and OpenAI's
-  [Whisper](https://github.com/openai/whisper): Kaku's transcripts.
+- [faster-whisper](https://github.com/SYSTRAN/faster-whisper), OpenAI's
+  [Whisper](https://github.com/openai/whisper) and [anime-whisper](https://huggingface.co/litagin/anime-whisper):
+  Kaku's transcripts.
 - [GRDB.swift](https://github.com/groue/GRDB.swift), [ZIPFoundation](https://github.com/weichsel/ZIPFoundation)
   and [libfvad](https://github.com/dpirch/libfvad), along with the libraries listed in
   [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

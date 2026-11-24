@@ -88,3 +88,19 @@ def test_repeated_lines_are_flagged():
                             ('ご視聴ありがとうございました。', 3, 4), ('では。', 4, 5)))
     assert repeated(sentences) == {2, 3}
     assert repeated(sentences[:3]) == set()
+
+
+def test_closing_marks_stay_on_their_line():
+    """anime-whisper writes "!?" as two tokens, and closes quotes after the ender: no lone "?" or
+    "」" line, and the next line starts after the closing mark."""
+    def run(tokens):
+        words, t = [], 0.0
+        for text, gap in tokens:
+            t += gap
+            words.append(Word(text, t, t + 0.2))
+            t += 0.2
+        return [sentence.text for sentence in split(words)]
+    assert run([('えっ', 0), ('!', 0), ('?', 0), ('何', 0.1), ('それ', 0)]) == ['えっ!?', '何それ']
+    assert run([('「', 0), ('待て', 0), ('!', 0), ('」', 0), ('はい', 0.1), ('。', 0)]) == ['「待て!」', 'はい。']
+    # No final 。 (it leaves some off): the pause still ends the line.
+    assert run([('今日', 0), ('は', 0), ('晴れ', 0), ('明日', 1.5), ('も', 0), ('晴れ', 0)]) == ['今日は晴れ', '明日も晴れ']

@@ -2,7 +2,7 @@ from dataclasses import replace
 
 from conftest import NOW
 
-from kaku import model_key
+from kaku import PIPELINE, model_key
 from kaku.db import BACKLOG, NEW, NOW as NOW_PRIORITY
 
 KEY = model_key('large-v3')
@@ -49,7 +49,7 @@ def test_asking_now_jumps_the_queue(service):
     assert service.db.claim(now=NOW + 2)['episode_id'] == 'episode-2'
 
 
-def test_a_changed_file_or_model_is_transcribed_again(service):
+def test_a_changed_file_or_pipeline_is_transcribed_again(service, monkeypatch):
     enable_podcasts(service)
     service.poller.poll_once(now=NOW)
     while service.worker.run_once():
@@ -59,8 +59,43 @@ def test_a_changed_file_or_model_is_transcribed_again(service):
     assert not service.db.offer(episode, BACKLOG, KEY, now=NOW)
     grown = replace(episode.tracks[0], size=episode.tracks[0].size + 1)
     assert service.db.offer(replace(episode, tracks=(grown,)), BACKLOG, KEY, now=NOW)
-    assert service.db.offer(service.audiobookshelf.episode('item-1', 'episode-2'), BACKLOG, 'large-v4/p2', now=NOW)
+    # A newer pipeline (output changed): every transcript is made again.
+    monkeypatch.setattr('kaku.PIPELINE', PIPELINE + 1)
+    assert service.db.offer(service.audiobookshelf.episode('item-1', 'episode-2'), BACKLOG, f'large-v3/p{PIPELINE + 1}', now=NOW)
     assert len(service.db.queue()) == 2
+
+
+def test_another_model_keeps_the_transcripts(service):
+    """KAKU_MODEL changed: the library isn't transcribed again; new jobs and Transcribe Again use
+    the new model, and each transcript keeps the model that made it."""
+    import json
+    enable_podcasts(service)
+    service.poller.poll_once(now=NOW)
+    while service.worker.run_once():
+        pass
+    service.transcriber.name = service.poller.model = 'anime-whisper'
+    service.poller.poll_once(now=NOW + 1)
+    assert service.db.queue() == [], 'nothing queued for the new model'
+    episode = service.audiobookshelf.episode('item-1', 'episode-1')
+    assert not service.db.offer(episode, BACKLOG, model_key('anime-whisper'), now=NOW + 2)
+    assert service.db.transcript('item-1', 'episode-1')['model'] == model_key('large-v3')
+    # Transcribe Again: the new model.
+    assert service.db.offer(episode, NOW_PRIORITY, model_key('anime-whisper'), now=NOW + 3, force=True)
+    assert service.worker.run_once()
+    saved = service.db.transcript('item-1', 'episode-1')
+    assert saved['model'] == model_key('anime-whisper')
+    assert json.load(open(saved['path'], encoding='utf-8'))['source']['model'] == 'anime-whisper'
+
+
+def test_the_queue_waits_while_the_model_isnt_ready(service):
+    enable_podcasts(service)
+    service.poller.poll_once(now=NOW)
+    service.transcriber.not_ready = 'No converted anime-whisper'
+    assert not service.worker.run_once()
+    assert service.db.counts() == {'queued': 2}, 'no job claimed or failed'
+    assert service.worker.model_error == 'No converted anime-whisper'
+    service.transcriber.not_ready = None
+    assert service.worker.run_once() and service.worker.model_error is None
 
 
 def test_failures_are_retried_then_kept(service):

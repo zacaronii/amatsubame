@@ -15,7 +15,7 @@ Add Audiobookshelf to the project in three parts: a transcriber container, **Kak
 | Source of truth for listening position | Audiobookshelf. Both apps resume from the newer position, as Yomu already does with Kavita |
 | Where transcripts come from | Kaku container (GPU). Publisher transcripts in the feed are used when present. Apple's on-device speech engine is a fallback only |
 | What gets transcribed | Whole Audiobookshelf libraries, switched on per library (Japanese and English content usually live in separate libraries). Backlog included; storage is under 1 MB per hour of audio |
-| Model | Whisper large-v3 (faster-whisper), chosen 2026-11-04 after the milestone 0 test on real Japanese podcasts |
+| Model | anime-whisper (faster-whisper, converted), since Kaku 1.7 (2026-11-24); Whisper large-v3 before, chosen 2026-11-04 after the milestone 0 test on real Japanese podcasts. See docs/kaku.md ▸ Model |
 | Pairings (EPUB ↔ audiobook) | Stored in Kaku, so both apps see them |
 | Code location | Same repo: a new app target, a shared Audiobookshelf package, and the container in `Server/kaku` |
 | Names | Kiku (聞く) for the audio app and Kaku (書く) for the transcriber (docs/NAMING.md) |
@@ -169,6 +169,7 @@ Each milestone runs in order and ends with something testable; milestone 0 decid
 
 0. **Model test.** A throwaway script (in `Server/kaku`) that transcribes 3–4 real Japanese podcast episodes with both Kotoba-Whisper v2 and Whisper large-v3, with word timings and sentence splitting, and writes side-by-side output plus timing per hour of audio.
    - Done when: both have been compared on real episodes and a model picked; the GPU's speed per hour of audio is known.
+   - **Superseded 2026-11-24:** anime-whisper replaced large-v3 after a wider comparison (anime, audiobooks, podcasts): docs/kaku.md ▸ Model.
    - **Done 2026-11-04: Whisper large-v3.** Four episodes (about 2½ h: a solo studio show, a casual two-person chat, an outdoor recording with wind, a fast tech talk), both models through faster-whisper with the same settings (beam 5, voice detection, word timestamps) on a 16 GB RTX 50-series card:
 
      | | large-v3 | Kotoba-Whisper v2 |

@@ -33,7 +33,7 @@ def build(config, transcriber=None, audiobookshelf=None, jellyfin=None):
     os.makedirs(config.data_dir, exist_ok=True)
     db = Database(os.path.join(config.data_dir, 'kaku.db'))
     audiobookshelf = audiobookshelf or Audiobookshelf(config.audiobookshelf_url, config.audiobookshelf_key)
-    transcriber = transcriber or WhisperTranscriber(config.model)
+    transcriber = transcriber or WhisperTranscriber(config.model, config.models_dir, config.chunk_length, config.prompt)
     if jellyfin is None and config.jellyfin_url and config.jellyfin_key:
         jellyfin = Jellyfin(config.jellyfin_url, config.jellyfin_key)
     worker = Worker(db, audiobookshelf, transcriber, config.data_dir, config.idle_unload_seconds, jellyfin)
