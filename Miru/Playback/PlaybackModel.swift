@@ -497,8 +497,17 @@ final class PlaybackModel {
     static let tvBitrate = 20_000_000
 
     /// The current AirPlay output, if the sound goes to one.
-    private var airPlayRoute: AVAudioSessionPortDescription? {
-        AVAudioSession.sharedInstance().currentRoute.outputs.first { $0.portType == .airPlay }
+    private var airPlayRoute: (uid: String, portName: String)? {
+        let outputs = AVAudioSession.sharedInstance().currentRoute.outputs
+        guard let uid = Self.airPlayOutput(outputs.map { ($0.portType, $0.uid) }) else { return nil }
+        return (uid, outputs.first { $0.uid == uid }?.portName ?? "")
+    }
+
+    /// The AirPlay output among a route's outputs (its uid): only AirPlay. AirPods and other
+    /// Bluetooth, CarPlay, wired headphones, HDMI and the device's own speaker never start
+    /// a hand-off.
+    nonisolated static func airPlayOutput(_ outputs: [(type: AVAudioSession.Port, uid: String)]) -> String? {
+        outputs.first { $0.type == .airPlay }?.uid
     }
 
     /// The output changed (an AirPlay receiver picked, or this device again), or the video
@@ -525,7 +534,7 @@ final class PlaybackModel {
         startAirPlayVideo(item: item, route: route)
     }
 
-    private func startAirPlayVideo(item: JellyfinItem, route: AVAudioSessionPortDescription) {
+    private func startAirPlayVideo(item: JellyfinItem, route: (uid: String, portName: String)) {
         airPlayState = .starting
         let handoff = AirPlayVideoHandoff(player: airPlayPlayer) { [weak self] id in self?.stopPiPTranscode(id) }
         airPlay = handoff

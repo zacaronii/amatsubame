@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 @testable import Miru
 import Testing
@@ -134,6 +135,18 @@ import Testing
         try? await Task.sleep(for: .milliseconds(50))
         tv.hasFailed = true
         #expect(await watching.value == .unreachable)
+    }
+
+    /// Only an AirPlay output starts a hand-off: AirPods and other Bluetooth, CarPlay, wired
+    /// headphones and HDMI never do (no probe, no transcode).
+    @Test func onlyAnAirPlayOutputCounts() {
+        let others: [AVAudioSession.Port] = [.bluetoothA2DP, .bluetoothHFP, .bluetoothLE, .carAudio, .headphones,
+                                             .HDMI, .builtInSpeaker, .usbAudio, .lineOut]
+        for port in others {
+            #expect(PlaybackModel.airPlayOutput([(port, "R-1")]) == nil, "\(port.rawValue)")
+        }
+        #expect(PlaybackModel.airPlayOutput([(.airPlay, "TV-1")]) == "TV-1")
+        #expect(PlaybackModel.airPlayOutput([(.bluetoothA2DP, "R-1"), (.airPlay, "TV-1")]) == "TV-1")
     }
 
     /// Paused on the TV for a long time isn't a stall.
