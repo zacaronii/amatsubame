@@ -1,5 +1,6 @@
 import AppCommon
 import KavitaKit
+import Names
 import Readers
 import SwiftUI
 
@@ -40,6 +41,8 @@ struct ReaderContainer: View {
     @State private var opened = 0
     /// What the end of the volume offers while reading in a list (nil: the series' next).
     @State private var offer: NextOffer?
+    /// What opening the series did for the character names (shown to UI tests in Debug).
+    @State private var namesOutcome: CharacterNamesOutcome?
     let onClose: () -> Void
 
     var body: some View {
@@ -90,6 +93,9 @@ struct ReaderContainer: View {
         }
         .onDisappear {
             environment.readerIsOpen = false
+            // Its cast leaves the character names dictionary.
+            let names = environment.common.characterNames
+            Task { await names.close(app: "yomu") }
             #if os(iOS)
             OrientationLock.release()
             #endif
@@ -129,12 +135,24 @@ struct ReaderContainer: View {
         .onChange(of: environment.isLibraryOffline) {
             if let listId = session.readingListId { offer = makeOffer(listId: listId).carrying(from: offer) }
         }
+        .task(id: session.series.id) {
+            // The series' characters go into the names dictionary while it's open.
+            namesOutcome = await environment.common.characterNames.open(environment.namedSeries(session.series), app: "yomu")
+        }
         .task(id: session.chapter.chapterId) {
             // Moving on to the next volume can make automatic downloads fetch one more.
             environment.autoDownloads.openChapterId = session.chapter.chapterId
             environment.autoDownloads.schedule(after: 10)
         }
         .focusedSceneValue(\.readerClose, closeReader)
+        #if DEBUG
+        .overlay(alignment: .topLeading) {
+            Color.clear.frame(width: 1, height: 1)
+                .accessibilityElement()
+                .accessibilityLabel("Character names: \(namesOutcome.map { "\($0)" } ?? "opening")")
+                .accessibilityIdentifier("reader.characterNames")
+        }
+        #endif
         #if os(macOS)
         .navigationTitle("\(session.chapter.seriesTitle) – \(session.chapter.title)")
         #endif

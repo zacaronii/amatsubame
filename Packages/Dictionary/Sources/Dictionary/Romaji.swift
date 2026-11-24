@@ -71,7 +71,8 @@ public enum Romaji {
         }
     }
 
-    static let table: [String: String] = {
+    /// Romaji spellings to kana (names use it backwards too).
+    public static let table: [String: String] = {
         var table: [String: String] = [
             "a": "あ", "i": "い", "u": "う", "e": "え", "o": "お",
             "ka": "か", "ki": "き", "ku": "く", "ke": "け", "ko": "こ",

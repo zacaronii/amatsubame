@@ -1,5 +1,7 @@
 import Core
 import Foundation
+import Dictionary
+import DictionaryTestSupport
 import HachidoriKit
 @testable import Lookup
 import Synchronization
@@ -121,6 +123,21 @@ final class ScriptedHost: SharingTransport {
         #expect(search.results.first?.glossaries.first?.dictionary == "Host Dictionary")
         #expect(await service.recordSearch(search) == 11)
         #expect(host.records.withLock { $0 } == 2)
+        service.host = nil
+    }
+
+    /// The Mac's lookups go to the host, which hasn't the names of the series open here: the
+    /// local names dictionary's hits join in, a longer one first, a tie after the host's word.
+    @Test func linkedLookupsKeepTheLocalCharacterNames() async throws {
+        let service = try await LookupServiceTests().makeService()
+        var names = TestDictionaryBuilder(title: NameRanking.characterNamesTitle)
+        names.terms = [.init("映画太郎", "えいがたろう", glossary: ["a made-up character"]), .init("映画", "えいが", glossary: ["a one-word name"])]
+        try await service.library.importDictionary(at: try names.write())
+        let host = try await linked(service)
+        let page = await service.lookup(text: "映画太郎です", utf16Offset: 0)
+        #expect(page.results.map { "\($0.expression) \($0.glossaries.first?.dictionary ?? "")" }
+            == ["映画太郎 Character Names", "映画 Host Dictionary", "映画 Character Names"])
+        #expect(host.lookups.withLock { $0 } == 1)
         service.host = nil
     }
 

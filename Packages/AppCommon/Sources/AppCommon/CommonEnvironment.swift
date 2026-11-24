@@ -6,6 +6,7 @@ import GRDB
 import HachidoriKit
 import KechimochiKit
 import Lookup
+import Names
 import Observation
 #if canImport(UIKit)
 import UIKit
@@ -27,6 +28,8 @@ public final class CommonEnvironment {
     public let lookup: LookupService
     /// The recommended dictionaries and their updates.
     public let dictionaryUpdater: DictionaryUpdater
+    /// The character names dictionary: the casts of the series open in Yomu and Miru.
+    public let characterNames: CharacterNameService
     /// First-launch setup (per app).
     public let setup = SetupProgress(defaults: SetupTestData.defaults)
     public let ankiSettings: AnkiSettingsStore
@@ -129,6 +132,17 @@ public final class CommonEnvironment {
         dictionaries = DictionaryLibrary(database: setupDatabase, directory: setupDictionaries, lowMemoryImport: lowMemoryImport)
         lookup = LookupService(library: dictionaries, audio: AudioService(database: setupDatabase, http: http, secrets: routedSecrets), history: database)
         dictionaryUpdater = DictionaryUpdater(library: dictionaries, lookup: lookup, reachability: reachability)
+        // Portraits beside the dictionaries (in the shared setup when it's shared).
+        let portraits = setupDictionaries.deletingLastPathComponent().appending(path: "Character Portraits", directoryHint: .isDirectory)
+        var namesHTTP = http
+        #if DEBUG
+        // UI tests: AniList and MangaBaka from made-up responses.
+        if let fixtures = ProcessInfo.processInfo.environment["UITEST_NAMES_FIXTURES"] {
+            namesHTTP = HTTPClient(transport: NamesFixtureTransport(folder: URL(filePath: fixtures)))
+        }
+        #endif
+        characterNames = CharacterNameService(database: setupDatabase, library: dictionaries, aniList: AniListClient(http: namesHTTP),
+                                              mangaBaka: MangaBakaClient(http: namesHTTP), portraits: PortraitStore(directory: portraits, http: namesHTTP))
         activity = ActivityLog(database: database)
         goals = DailyGoalStore(database: database)
         statsSync = StatsCloudSync(database: database, collections: Self.syncedCollections, sharedSetup: sharedAccountsDatabase)

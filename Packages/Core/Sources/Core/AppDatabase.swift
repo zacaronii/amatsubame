@@ -1111,6 +1111,33 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v69_character_names") { db in
+            // The names dictionary (Packages/Names): casts by AniList media, which media each
+            // series is, the series each app has open, and its switch.
+            try db.create(table: "characterCast") { t in
+                t.primaryKey("mediaKey", .text)
+                t.column("title", .text).notNull()
+                t.column("fetchedAt", .datetime).notNull()
+                t.column("characters", .blob).notNull()
+            }
+            try db.create(table: "characterNameMatch") { t in
+                t.primaryKey("seriesKey", .text)
+                t.column("mediaKey", .text)
+                t.column("source", .text).notNull()
+                t.column("title", .text).notNull()
+                t.column("matchedAt", .datetime).notNull()
+            }
+            try db.create(table: "characterNameOpenSeries") { t in
+                t.primaryKey("app", .text)
+                t.column("seriesKey", .text).notNull()
+                t.column("openedAt", .datetime).notNull()
+            }
+            try db.create(table: "characterNameSettings") { t in
+                t.primaryKey("id", .integer)
+                t.column("enabled", .boolean).notNull().defaults(to: true)
+            }
+        }
+
         return migrator
     }
 }

@@ -62,6 +62,8 @@ packages:
     path: Packages/KechimochiKit
   HachidoriKit:
     path: Packages/HachidoriKit
+  Names:
+    path: Packages/Names
 
 targets:
   Yomu:
@@ -94,6 +96,7 @@ targets:
       - package: AppCommon
       - package: Core
       - package: KavitaKit
+      - package: Names
       - package: AudiobookshelfKit
       - package: Anki
       - package: Readers

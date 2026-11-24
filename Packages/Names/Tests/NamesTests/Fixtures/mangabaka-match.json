@@ -1,0 +1,4 @@
+{"status":200,"data":[
+{"id":5001,"titles":[{"language":"en","title":"A Made-Up Story"},{"language":"ja","title":"架空の物語"}],"source":{"anilist":{"id":900001,"rating":8.1},"my_anime_list":{"id":800001}}},
+{"id":5002,"titles":[{"language":"ja","title":"架空の物語 外伝"}],"source":{"anilist":{"id":null},"my_anime_list":{"id":null}}}
+]}

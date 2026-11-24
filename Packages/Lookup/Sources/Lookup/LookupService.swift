@@ -233,8 +233,18 @@ public final class LookupService {
         return Redirects.follow(results, found: found)
     }
 
+    /// The character names dictionary is installed and on.
+    private var hasCharacterNames: Bool {
+        (try? library.dictionaries().contains { $0.title == NameRanking.characterNamesTitle && $0.enabled }) ?? false
+    }
+
     private func rawTerms(_ text: String, maxResults: Int? = nil) async -> [TermLookupResult] {
-        if looksUpOnHost, !text.isEmpty, let host, let found = await host.lookup(text, maxResults: maxResults) { return found }
+        if looksUpOnHost, !text.isEmpty, let host, let found = await host.lookup(text, maxResults: maxResults) {
+            // The names of the series open here are only in the local dictionary.
+            guard hasCharacterNames else { return found }
+            let names = NameRanking.characterNames(in: await library.engine.lookup(text, maxResults: 8))
+            return NameRanking.merging(names: names, into: found)
+        }
         if let maxResults { return await library.engine.lookup(text, maxResults: maxResults) }
         return await library.engine.lookup(text)
     }

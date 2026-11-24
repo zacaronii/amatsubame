@@ -14,6 +14,8 @@ public struct AboutView: View {
         ("utfcpp", "BSL-1.0", "Used by hoshidicts."),
         ("xxHash", "BSD-2-Clause", "Used by hoshidicts."),
         ("zstd", "BSD", "Used by hoshidicts."),
+        ("AniList", "AniList terms of use", "Character names and pictures for the names dictionary (anilist.co)."),
+        ("MangaBaka", "CC BY-NC-SA 4.0", "Which AniList series a manga or light novel is, for the names dictionary (mangabaka.org)."),
     ]
 
     /// `appCredits` are the app's own libraries, listed before the shared ones.

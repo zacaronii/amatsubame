@@ -19,6 +19,7 @@ import Testing
             "ankiSettings",
             "minedWord",
             "bookReaderSettings", "bookFont", "dailyGoal", "syncRecord", "upNextItem", "upNextPlaylist", "seriesPlayerSetting",
+            "characterCast", "characterNameMatch", "characterNameOpenSeries", "characterNameSettings",
             "hiddenLibrary",
             "watchProgress", "hiddenJellyfinLibrary",
             "transcript", "transcriptLine",
