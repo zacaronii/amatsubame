@@ -85,7 +85,7 @@ final class MiruAppDelegate: NSObject, UIApplicationDelegate {
     }
 }
 
-/// AirPlay for the sound (a TV or speakers): the system's route picker.
+/// AirPlay: the system's route picker, TVs first (a TV gets the picture, a speaker the sound).
 struct AirPlayButton: UIViewRepresentable {
     func makeUIView(context: Context) -> AVRoutePickerViewHost { AVRoutePickerViewHost() }
     func updateUIView(_ view: AVRoutePickerViewHost, context: Context) {}
@@ -97,7 +97,7 @@ final class AVRoutePickerViewHost: UIView {
         let picker = AVRoutePickerView()
         picker.tintColor = .white
         picker.activeTintColor = UIColor(named: "AccentColor") ?? .systemPurple
-        picker.prioritizesVideoDevices = false
+        picker.prioritizesVideoDevices = true
         picker.translatesAutoresizingMaskIntoConstraints = false
         addSubview(picker)
         NSLayoutConstraint.activate([
@@ -108,5 +108,19 @@ final class AVRoutePickerViewHost: UIView {
     }
 
     required init?(coder: NSCoder) { nil }
+
+    #if DEBUG
+    /// UI tests: a touch reached the picker's button (the simulator has no AirPlay, so its
+    /// picker shows nothing): the player says so (`airPlayPickerTappedForTests`).
+    static let tappedForTests = Notification.Name("airPlayPickerTappedForTests")
+
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        let view = super.hitTest(point, with: event)
+        if view is UIButton, event?.type == .touches, ProcessInfo.processInfo.environment["UITEST_PLAYER"] != nil {
+            NotificationCenter.default.post(name: Self.tappedForTests, object: nil)
+        }
+        return view
+    }
+    #endif
 }
 #endif

@@ -70,8 +70,20 @@ Mirroring), or connected to a monitor with a cable, the video plays full screen 
 device shows "Playing on the Other Screen" where the picture was, with the controls and the Japanese
 lines to read, tap and look up there. Stop mirroring and the picture comes back.
 
-The **AirPlay** button in the player's top bar sends **only the sound** to AirPlay speakers or a TV;
-the picture stays on your device. To see the picture on the TV, use Screen Mirroring as above.
+**AirPlay to a TV:** pick an Apple TV (or another AirPlay TV) with the **AirPlay** button in the
+player's top bar and the episode plays on the TV, from the same moment, at the TV's quality. Your
+device shows "Playing on" and the TV's name where the picture was, and keeps the controls and the
+Japanese lines to read, tap and look up; play, pause, seeking, the speed, Condensed and Pause After
+Each Line all steer the TV. Pick your iPhone or iPad again and the picture comes back where the TV
+got to. Some things work differently there:
+- The TV shows Jellyfin's Japanese subtitles (with English to pick on the TV, off unless you turn
+  it on). A Jimaku or Kaku file that isn't on Jellyfin can't go along, and a timing fix you haven't
+  saved to Jellyfin isn't used: the player says so once.
+- The TV fetches the video from Jellyfin itself, so it has to reach the server. If it can't, the
+  player says so and AirPlay plays the sound only, with the picture on your device.
+- A downloaded MKV file plays only the sound over AirPlay (AirPlay can't play MKV).
+
+An AirPlay speaker gets the sound, as before. Screen Mirroring works as above.
 
 **Picture in Picture** (iPhone and iPad): choose it in the sliders menu and the episode carries on
 in a small window while you use other apps; the player shows "Playing in Picture in Picture".
