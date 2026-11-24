@@ -21,7 +21,8 @@ exact seeks, and links cleanly next to MPVKit. It isn't ready to replace mpv for
   and the iOS Simulator lab crashed in mpv's MoltenVK path before reaching it.
 
 Worth looking at again when AetherEngine fixes the ASS reader, with an aether-only run on a device for
-PiP, AirPlay and external display.
+PiP, AirPlay and external display. Reported upstream (against 7.73.0): AetherEngine #1127 (ASS),
+#1128 (remote DTS) and #1129 (first frame).
 
 ## Setup
 
