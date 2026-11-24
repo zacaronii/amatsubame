@@ -3,6 +3,7 @@ import Foundation
 import ImageIO
 import MPVUI
 import PlayerEngine
+import Observation
 import SwiftUI
 
 /// Spike: MPVUI behind `PlayerEngine`, measured the same way as mpv (MPVController) and
@@ -167,7 +168,77 @@ public final class MPVUIPlayerEngine: PlayerEngine {
         player.stop()
     }
 
-    public var view: AnyView { AnyView(MPVVideoPlayer(player: player)) }
+    /// A line drawn over the video with `.videoOverlay` (as Miru's Japanese line would be), so
+    /// picture in picture shows whether the overlay follows.
+    public let overlay = OverlayModel()
+    public var overlayText: String {
+        get { overlay.text }
+        set { overlay.text = newValue }
+    }
+
+    public var view: AnyView {
+        AnyView(MPVVideoPlayer(player: player).videoOverlay(alignment: .bottom) {
+            OverlayLine(engine: self).padding(.bottom, 12)
+        })
+    }
+
+    // MARK: Spike checks
+
+    /// The AirPlay plan MPVUI picks for the loaded file (Miru's setup: no subtitle drawn by mpv).
+    public func externalPlan() async -> [String: Any] {
+        func describe() async -> [String: Any] {
+            do {
+                let plan = try await player.externalPlayback.makePreparationPlan()
+                return ["method": "\(plan.method)", "transcoding": plan.isTranscoding,
+                        "foreground": plan.requiresForeground, "renderingReasons": plan.renderingReasons.map { "\($0)" }]
+            } catch {
+                return ["error": "\(error)"]
+            }
+        }
+        let selected = await describe()
+        // As Miru plays: mpv draws no subtitle (Miru draws its own).
+        player.disableTrack(.subtitle)
+        try? await Task.sleep(for: .milliseconds(500))
+        return ["subtitleSelected": selected, "subtitlesOff": await describe()]
+    }
+
+    /// Picture in picture: supported, possible, whether it starts and stops, with the overlay on.
+    public func pictureInPictureCheck() async -> [String: Any] {
+        let pip = player.pictureInPicture
+        var result: [String: Any] = ["supported": pip.isSupported, "possible": pip.isPossible]
+        guard pip.isSupported else { return result }
+        for _ in 0..<20 where !pip.isPossible { try? await Task.sleep(for: .milliseconds(250)) }
+        result["possibleAfterWait"] = pip.isPossible
+        guard pip.isPossible else { return result }
+        let started = Date()
+        pip.start()
+        for _ in 0..<40 where !pip.isActive { try? await Task.sleep(for: .milliseconds(100)) }
+        result["active"] = pip.isActive
+        result["secondsToStart"] = Date().timeIntervalSince(started)
+        result["overlayActive"] = pip.isVideoOverlayActive
+        result["renderSize"] = "\(Int(pip.renderSize.width))x\(Int(pip.renderSize.height))"
+        // The overlay changing while the small window shows it.
+        for index in 1...4 {
+            overlayText = "オーバーレイ \(index)"
+            try? await Task.sleep(for: .milliseconds(700))
+        }
+        pip.stop()
+        for _ in 0..<40 where pip.isActive { try? await Task.sleep(for: .milliseconds(100)) }
+        result["stopped"] = !pip.isActive
+        result["error"] = pip.lastError.map { "\($0)" }
+        return result
+    }
+}
+
+@MainActor @Observable public final class OverlayModel {
+    public var text = "オーバーレイ"
+}
+
+private struct OverlayLine: View {
+    let engine: MPVUIPlayerEngine
+    var body: some View {
+        Text(engine.overlay.text).font(.title2.bold()).foregroundStyle(.white).shadow(radius: 2)
+    }
 }
 
 extension Duration {
