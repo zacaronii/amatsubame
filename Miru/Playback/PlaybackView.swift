@@ -1,6 +1,7 @@
 import AppCommon
 #if os(iOS)
 import AVFoundation
+import Combine
 #endif
 import Core
 import Lookup
@@ -184,8 +185,8 @@ struct PlaybackView: View {
         .onChange(of: model.showsShortcuts) { _, shows in if !shows { focused = true } }
         #if os(iOS)
         // The AirPlay button sends only the sound (mpv's picture can't go over AirPlay): say once
-        // how the picture gets to the TV.
-        .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification)) { _ in
+        // how the picture gets to the TV. (Posted on a background thread: received on the main one.)
+        .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification).receive(on: RunLoop.main)) { _ in
             guard !notedAirPlaySound, !external.showsVideo,
                   AVAudioSession.sharedInstance().currentRoute.outputs.contains(where: { $0.portType == .airPlay }) else { return }
             notedAirPlaySound = true
