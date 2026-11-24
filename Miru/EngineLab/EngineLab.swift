@@ -1,13 +1,21 @@
 #if DEBUG
+#if canImport(AetherBridge)
 import AetherBridge
+#endif
 import AVKit
 import MediaPlayer
+#if canImport(MPVUIBridge)
+import MPVUIBridge
+#endif
 import PlayerEngine
+#if canImport(PlayerKit)
 import PlayerKit
+#endif
 import SwiftUI
 
-/// Spike (never merged): runs the AetherEngine evaluation's measurements on mpv and on
-/// AetherEngine with the same files. Started with `UITEST_ENGINE_LAB=<config.json>`; writes
+/// Spike (never merged): runs the engine evaluations' measurements (mpv, AetherEngine, and
+/// MPVUI in its own lab app, MPVUILab: MPVKit and MPVUI can't share a package graph) with the
+/// same files. Started with `UITEST_ENGINE_LAB=<config.json>`; writes
 /// the results as JSON to the config's `output` path.
 struct EngineLabConfig: Decodable {
     struct File: Decodable {
@@ -55,15 +63,32 @@ final class EngineLab {
 
     func runs(_ test: String) -> Bool { config.tests?.contains(test) ?? true }
 
+    private func makeEngine(_ name: String) throws -> any PlayerEngine {
+        switch name {
+        #if canImport(AetherBridge)
+        case "aether": return try AetherPlayerEngine()
+        #endif
+        #if canImport(MPVUIBridge)
+        case "mpvui": return MPVUIPlayerEngine()
+        #endif
+        #if canImport(PlayerKit)
+        case "mpv": return MPVPlayerEngine()
+        #endif
+        default: throw CocoaError(.featureUnsupported, userInfo: [NSLocalizedDescriptionKey: "\(name) isn't in this build"])
+        }
+    }
+
     func run() async {
+        #if canImport(AetherBridge)
         AetherPlayerEngine.installLog()
+        #endif
         for name in config.engines {
             for file in config.files {
                 var result: [String: Any] = ["engine": name, "file": file.name]
                 note("\(name) · \(file.name): loading")
                 let engine: any PlayerEngine
                 do {
-                    engine = name == "aether" ? try AetherPlayerEngine() : MPVPlayerEngine()
+                    engine = try makeEngine(name)
                 } catch {
                     result["error"] = "init: \(error)"
                     results.append(result)
@@ -78,9 +103,14 @@ final class EngineLab {
                 try? await Task.sleep(for: .seconds(1))
             }
         }
+        #if canImport(AetherBridge)
         if let lines = Optional(AetherPlayerEngine.log.filter { $0.contains("[FFmpeg]") || $0.contains("ERROR") || $0.localizedCaseInsensitiveContains("subtitle") }.prefix(80)) {
             results.append(["engineLog": Array(lines)])
         }
+        #endif
+        #if canImport(MPVUIBridge)
+        results.append(["engineLog": Array(MPVUIPlayerEngine.log.suffix(80))])
+        #endif
         write()
         note("Done")
     }
@@ -171,9 +201,11 @@ final class EngineLab {
         // 4. Pause After Each Line: overshoot (ms) at 1× and 2×.
         if runs("pause") {
             for speed in [1.0, 2.0] {
-                for method in engine is AetherPlayerEngine ? ["boundary", "clock"] : ["timeEvents"] {
+                for method in Self.pauseMethods(engine) {
                     note("\(engine.engineName) · \(file.name): pause at \(speed)× (\(method))")
+                    #if canImport(AetherBridge)
                     (engine as? AetherPlayerEngine)?.pausesWithBoundaryObserver = method == "boundary"
+                    #endif
                     engine.setSpeed(speed)
                     var overshoots: [Double] = []
                     for round in 0..<8 {
@@ -190,12 +222,12 @@ final class EngineLab {
             }
         }
 
-        // 5. Cues (the engine's own: AetherEngine).
-        if runs("cues"), let aether = engine as? AetherPlayerEngine {
-            note("aether · \(file.name): cues")
-            result["subtitleTracks"] = aether.subtitleTracks.map { "\($0.id) \($0.codec) \($0.language ?? "-")" }
+        // 5. Cues (the engine's own: AetherEngine, MPVUI).
+        if runs("cues"), let tracks = Self.subtitleTracks(engine) {
+            note("\(engine.engineName) · \(file.name): cues")
+            result["subtitleTracks"] = tracks.map { "\($0.id) \($0.codec) \($0.language ?? "-")" }
             // The config's index is mpv's; AetherEngine's ids are stream indices: fall back to its first track.
-            let ids = aether.subtitleTracks.map(\.id)
+            let ids = tracks.map(\.id)
             if let index = file.subtitle.flatMap({ ids.contains($0) ? $0 : ids.first }) {
                 result["cueTrack"] = index
                 await engine.selectSubtitle(index: index)
@@ -244,17 +276,19 @@ final class EngineLab {
             let started = Date()
             let still = await engine.snapshot(at: 123.456)
             result["snapshot"] = ["ok": still != nil, "width": still?.width ?? 0, "seconds": Date().timeIntervalSince(started)]
+            #if canImport(PlayerKit)
             let clip = FileManager.default.temporaryDirectory.appending(path: "lab-\(UUID().uuidString).m4a")
             let clipStarted = Date()
             let audio = try? await MediaClipper.audio(from: file.url, headers: file.headers ?? [:], start: 120, end: 123, to: clip)
             let size = (try? clip.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
             result["mediaClipperAudio"] = ["ok": audio != nil, "bytes": size, "seconds": Date().timeIntervalSince(clipStarted)]
             try? FileManager.default.removeItem(at: clip)
+            #endif
         }
 
         // 7. PiP possible, Now Playing.
         if runs("system") {
-            #if os(iOS)
+            #if os(iOS) && canImport(AetherBridge)
             if let layer = (engine as? AetherPlayerEngine)?.nativePlayerLayer {
                 let pip = AVPictureInPictureController(playerLayer: layer)
                 try? await Task.sleep(for: .seconds(2))
@@ -263,6 +297,23 @@ final class EngineLab {
             #endif
             result["nowPlayingKeys"] = (MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]).keys.sorted()
         }
+    }
+
+    static func pauseMethods(_ engine: any PlayerEngine) -> [String] {
+        #if canImport(AetherBridge)
+        if engine is AetherPlayerEngine { return ["boundary", "clock"] }
+        #endif
+        return ["timeEvents"]
+    }
+
+    static func subtitleTracks(_ engine: any PlayerEngine) -> [(id: Int, codec: String, language: String?)]? {
+        #if canImport(AetherBridge)
+        if let aether = engine as? AetherPlayerEngine { return aether.subtitleTracks }
+        #endif
+        #if canImport(MPVUIBridge)
+        if let mpvui = engine as? MPVUIPlayerEngine { return mpvui.subtitleTracks }
+        #endif
+        return nil
     }
 
     static func median(_ values: [Double]) -> Double {
