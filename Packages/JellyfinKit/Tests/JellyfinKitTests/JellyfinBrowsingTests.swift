@@ -114,6 +114,7 @@ import Testing
         #expect(body["EnableDirectPlay"] as? Bool == false && body["EnableTranscoding"] as? Bool == true)
         #expect(body["AudioStreamIndex"] as? Int == 2 && body["MediaSourceId"] as? String == "M")
         #expect(body["SubtitleStreamIndex"] as? Int == -1, "nothing burnt into the picture")
+        #expect(body["AllowVideoStreamCopy"] as? Bool == false)
         let profile = try #require(body["DeviceProfile"] as? [String: Any])
         #expect((profile["DirectPlayProfiles"] as? [Any])?.isEmpty == true)
         #expect(((profile["TranscodingProfiles"] as? [[String: Any]])?.first?["Protocol"] as? String) == "hls")
@@ -144,6 +145,17 @@ import Testing
         let stop = transport.requests[1]
         #expect(stop.httpMethod == "DELETE" && stop.url?.path().hasSuffix("/Videos/ActiveEncodings") == true)
         #expect(query(stop)["playSessionId"] == "PS" && query(stop)["deviceId"]?.isEmpty == false)
+    }
+
+    /// AirPlay to a TV: the video copied when it fits, the Japanese track in the playlist.
+    @Test func aTVTranscodeCopiesTheVideo() async throws {
+        let transport = StubTransport(routes: ["/Items/E/PlaybackInfo": (200, try fixture("playback-info-transcoding.json"))])
+        let jellyfin = client(transport)
+        _ = try await jellyfin.transcodingInfo(itemId: "E", mediaSourceId: "M", maxBitrate: 20_000_000, audioStreamIndex: 1,
+                                               subtitleStreamIndex: 3, copiesVideo: true)
+        let body = try transport.requests[0].jsonBody()
+        #expect(body["AllowVideoStreamCopy"] as? Bool == true && body["MaxStreamingBitrate"] as? Int == 20_000_000)
+        #expect(body["SubtitleStreamIndex"] as? Int == 3)
     }
 
     @Test func playbackInfoStreamAndSubtitles() async throws {

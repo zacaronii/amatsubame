@@ -5,9 +5,10 @@ import SwiftUI
 import UIKit
 
 /// The picture-in-picture player: AVPlayer on a layer kept in the player's view (iOS shows
-/// picture in picture only from an AVPlayer layer that's on screen).
+/// picture in picture only from an AVPlayer layer that's on screen). AirPlay video builds on it
+/// (`AVAirPlayPlayer`).
 @MainActor
-final class AVPiPPlayer: NSObject, PiPPlayer {
+class AVPiPPlayer: NSObject, PiPPlayer {
     let player = AVPlayer()
     let layer: AVPlayerLayer
     /// Called when the item plays to its end.
@@ -41,8 +42,10 @@ final class AVPiPPlayer: NSObject, PiPPlayer {
         guard ready, !Task.isCancelled else { return false }
         await item.seek(to: CMTime(seconds: time, preferredTimescale: 600), toleranceBefore: .zero,
                         toleranceAfter: CMTime(seconds: 0.5, preferredTimescale: 600))
-        // The Japanese track the playlist carries (a transcode's, in WebVTT), shown.
-        if let group = try? await asset.loadMediaSelectionGroup(for: .legible), let option = group.options.first {
+        // The Japanese track the playlist carries (a transcode's, in WebVTT), shown; the
+        // playlist may carry the others too (English, for one).
+        if let group = try? await asset.loadMediaSelectionGroup(for: .legible),
+           let option = group.options.first(where: Self.isJapanese) ?? group.options.first {
             item.select(option, in: group)
         }
         endObserver.map(NotificationCenter.default.removeObserver)
@@ -50,6 +53,12 @@ final class AVPiPPlayer: NSObject, PiPPlayer {
             MainActor.assumeIsolated { self?.onEnd?() }
         }
         return !Task.isCancelled
+    }
+
+    /// Jellyfin tags its renditions "jpn" (ISO 639-2); "ja" counts too.
+    nonisolated static func isJapanese(_ option: AVMediaSelectionOption) -> Bool {
+        let tag = (option.extendedLanguageTag ?? option.locale?.identifier ?? "").lowercased()
+        return tag == "ja" || tag == "jpn" || tag.hasPrefix("ja-") || tag.hasPrefix("jpn-")
     }
 
     func play(rate: Float) {
