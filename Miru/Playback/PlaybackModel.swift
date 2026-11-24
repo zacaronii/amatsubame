@@ -180,6 +180,8 @@ final class PlaybackModel {
     @ObservationIgnored private let environment: PlayerEnvironment
     @ObservationIgnored private var client: JellyfinClient?
     @ObservationIgnored private var mediaSourceId: String?
+    /// The file's container ("mkv", "mp4"…), for picture in picture.
+    @ObservationIgnored private var mediaContainer: String?
     @ObservationIgnored private var playSessionId: String?
     /// The bits a second Jellyfin is transcoding this video down to; nil when it's the original
     /// file (or a download).
@@ -289,6 +291,139 @@ final class PlaybackModel {
         mpv.seek(to: stretch.upperBound)
     }
 
+    // MARK: Picture in picture (iOS)
+
+    #if os(iOS)
+    enum PiPState { case off, starting, on }
+    /// Picture in picture: AVPlayer plays the episode in the small window while mpv waits
+    /// (`PictureInPictureHandoff`); off, mpv picks up where it got to.
+    private(set) var pipState = PiPState.off
+    @ObservationIgnored private(set) lazy var pip = PictureInPicture()
+    @ObservationIgnored private var pipHandoff: PictureInPictureHandoff?
+    /// A transcode started for picture in picture, kept until it's stopped: the app killed
+    /// meanwhile stops it at the next launch (`stopLeftoverPiPTranscode`).
+    static let pendingPiPTranscodeKey = "pip.pendingTranscode"
+
+    /// The audio and video codecs of the streams playing (Jellyfin's names).
+    private var playingCodecs: (video: String?, audio: String?) {
+        let video = mediaStreams.first { $0.type == "Video" }?.codec
+        let audio = mediaStreams.first { $0.index == audioStreamIndex }?.codec ?? mediaStreams.first(where: \.isAudio)?.codec
+        return (video, audio)
+    }
+
+    /// Offered when the device has picture in picture and the video can reach AVPlayer: a
+    /// stream from Jellyfin (directly or transcoded), or a download AVPlayer opens (not MKV).
+    var canPictureInPicture: Bool {
+        guard PictureInPicture.isSupported, item != nil, mpv.hasStarted else { return false }
+        if mediaSourceId == "local" { return true } // UI tests: a local test video
+        if let localFile {
+            let codecs = playingCodecs
+            return PictureInPictureHandoff.playsDirectly(container: localFile.pathExtension, videoCodec: codecs.video, audioCodec: codecs.audio)
+        }
+        return client != nil
+    }
+
+    func startPictureInPicture() {
+        guard pipState == .off, canPictureInPicture, let item else { return }
+        let time = mpv.timePosition, rate = Float(mpv.speed)
+        let wasPlaying = !mpv.isPaused
+        mpv.setPaused(true)
+        pipState = .starting
+        let handoff = PictureInPictureHandoff(player: pip.avPlayer) { [weak self] id in self?.stopPiPTranscode(id) }
+        pipHandoff = handoff
+        let sources = pipSources(item: item)
+        Task { [weak self] in
+            let source = await handoff.start(at: time, sources: sources)
+            guard let self else { return }
+            guard source != nil else {
+                self.pipState = .off
+                self.pipHandoff = nil
+                if wasPlaying { self.mpv.setPaused(false) }
+                self.showOSD("Picture in Picture isn't available for this video")
+                return
+            }
+            self.pip.onStart = { [weak self] in
+                guard let self else { return }
+                self.pipState = .on
+                self.notePiPSubtitles()
+            }
+            self.pip.onFailure = { [weak self] in self?.endPictureInPicture(restored: true, failed: true) }
+            self.pip.onStop = { [weak self] restored in self?.endPictureInPicture(restored: restored, failed: false) }
+            self.pip.avPlayer.onEnd = { [weak self] in
+                // The episode ended in the small window: close it, mpv at the end (Up Next shows).
+                guard let self else { return }
+                self.pip.stop()
+            }
+            // Playing already as it opens (iOS won't open the small window on a paused player).
+            if wasPlaying { handoff.player.play(rate: rate) }
+            self.pip.start()
+        }
+    }
+
+    /// Back to the app (or the small window closed): mpv takes over where picture in picture
+    /// got to, playing if it was and the window wasn't closed with its ×.
+    private func endPictureInPicture(restored: Bool, failed: Bool) {
+        guard pipState != .off, let pipHandoff else { return }
+        let (time, wasPlaying) = pipHandoff.finish()
+        self.pipHandoff = nil
+        pipState = .off
+        mpv.seek(to: time)
+        if restored && wasPlaying { mpv.setPaused(false) }
+        if failed { showOSD("Picture in Picture couldn't start") }
+        saveProgress(.progress)
+    }
+
+    func stopPictureInPicture() { pip.stop() }
+
+    /// The direct stream first (when the file suits AVPlayer), then Jellyfin's transcode with
+    /// the audio mpv plays and the Japanese track (a Jellyfin text track) in the playlist.
+    private func pipSources(item: JellyfinItem) -> [PictureInPictureHandoff.SourceMaker] {
+        if mediaSourceId == "local" {
+            return [{ PiPSource(kind: .direct, url: URL(filePath: self.session.itemId)) }]
+        }
+        if let localFile { return [{ PiPSource(kind: .direct, url: localFile) }] }
+        guard let client, let sourceId = mediaSourceId else { return [] }
+        let codecs = playingCodecs
+        let direct = PictureInPictureHandoff.playsDirectly(container: mediaContainer, videoCodec: codecs.video, audioCodec: codecs.audio)
+            && transcodeBitrate == nil
+        let audio = audioStreamIndex
+        let subtitle = subtitleStreamIndex.flatMap { index in mediaStreams.first { $0.index == index && $0.isTextSubtitleStream == true } }?.index
+        let bitrate = transcodeBitrate ?? 20_000_000
+        return [
+            { direct ? PiPSource(kind: .direct, url: client.streamURL(itemId: item.id, mediaSourceId: sourceId), headers: client.playbackHeaders) : nil },
+            {
+                guard let info = try? await client.transcodingInfo(itemId: item.id, mediaSourceId: sourceId, maxBitrate: bitrate,
+                                                                   audioStreamIndex: audio, subtitleStreamIndex: subtitle),
+                      let path = info.mediaSources.first?.transcodingUrl, let url = client.transcodeURL(path, maxBitrate: bitrate) else { return nil }
+                // Kept until stopped, so a kill doesn't leave it running (stopped at the next launch).
+                if let id = info.playSessionId { UserDefaults.standard.set(id, forKey: Self.pendingPiPTranscodeKey) }
+                return PiPSource(kind: .transcode, url: url, headers: client.playbackHeaders, playSessionId: info.playSessionId)
+            },
+        ]
+    }
+
+    private func stopPiPTranscode(_ id: String) {
+        if UserDefaults.standard.string(forKey: Self.pendingPiPTranscodeKey) == id {
+            UserDefaults.standard.removeObject(forKey: Self.pendingPiPTranscodeKey)
+        }
+        guard let client else { return }
+        Task { try? await client.stopTranscoding(playSessionId: id) }
+    }
+
+    /// What picture in picture can't show, said once a video.
+    @ObservationIgnored private var notedPiPSubtitles = false
+    private func notePiPSubtitles() {
+        guard !notedPiPSubtitles else { return }
+        if usesLocalSubtitle {
+            notedPiPSubtitles = true
+            showOSD("Picture in Picture plays without your Jimaku subtitles")
+        } else if subtitleOffset != 0, subtitleStreamIndex != nil {
+            notedPiPSubtitles = true
+            showOSD("Picture in Picture shows the subtitles with Jellyfin's timing")
+        }
+    }
+    #endif
+
     /// Pause at the end of every Japanese line, until play is pressed (Settings keeps it).
     private(set) var pausesAfterLines = false
     /// The line last paused for, so pressing play doesn't pause on it again.
@@ -369,6 +504,18 @@ final class PlaybackModel {
             NowPlaying.prepareAudioSession()
             mpv.load(session.itemId, start: firstOpen ? ProcessInfo.processInfo.environment["UITEST_PLAYER_START"].flatMap(Double.init) ?? 0 : 0)
             mpv.setPaused(false)
+            #if os(iOS)
+            // UITEST_PLAYER_PIP=<seconds>: picture in picture that far in (the menu's items can't be
+            // reached by a UI test); says why when it isn't offered.
+            if let after = ProcessInfo.processInfo.environment["UITEST_PLAYER_PIP"].flatMap(Double.init) {
+                Task {
+                    for _ in 0..<100 where mpv.timePosition < after { try? await Task.sleep(for: .milliseconds(100)) }
+                    if canPictureInPicture { startPictureInPicture() } else {
+                        showOSD(PictureInPicture.isSupported ? "PiP not offered" : "PiP not supported here")
+                    }
+                }
+            }
+            #endif
             // UITEST_PLAYER_ENGLISH=<path>: an English subtitle file mpv draws (once the video is loaded).
             if let english = ProcessInfo.processInfo.environment["UITEST_PLAYER_ENGLISH"] {
                 Task {
@@ -421,6 +568,7 @@ final class PlaybackModel {
             error = "Jellyfin has no playable file for this item."
             return
         }
+        mediaContainer = source?.container
         // A lower streaming quality (Settings, or the player's menu): the server transcodes when
         // the file is over the limit. If it can't, the original plays.
         var transcode: URL?
@@ -704,6 +852,13 @@ final class PlaybackModel {
                 if self.item != nil, Date().timeIntervalSince(self.lastSaved) >= Self.saveInterval {
                     self.saveProgress(.progress)
                 }
+                #if os(iOS)
+                // Stats while picture in picture plays (mpv's clock is stopped then).
+                if self.pipState == .on, self.pipHandoff?.player.isPlaying == true {
+                    self.unloggedSeconds += Self.saveInterval
+                    self.logWatching()
+                }
+                #endif
             }
         }
     }
@@ -1615,7 +1770,11 @@ final class PlaybackModel {
             return
         }
         let duration = mpv.duration > 0 ? mpv.duration : item.duration ?? 0
-        let position = mpv.reachedEnd ? duration : mpv.timePosition
+        var position = mpv.reachedEnd ? duration : mpv.timePosition
+        #if os(iOS)
+        // In picture in picture, AVPlayer is the one playing.
+        if pipState == .on, let pipHandoff { position = pipHandoff.player.currentTime }
+        #endif
         try? environment.watchProgress.save(LocalWatchProgress(
             itemId: item.id, seriesId: item.seriesId, position: position, duration: duration, updatedAt: Date()))
         report(event, position: position)
@@ -1718,12 +1877,19 @@ final class PlaybackModel {
             : String(format: "%d:%02d", total / 60, total % 60)
     }
 
+    private var reportsPaused: Bool {
+        #if os(iOS)
+        if pipState == .on { return !(pipHandoff?.player.isPlaying ?? false) }
+        #endif
+        return mpv.isPaused
+    }
+
     private func report(_ event: JellyfinProgressPayload.Event, position: Double) {
         guard let item, let mediaSourceId else { return }
         let now = Date()
         let report = JellyfinProgressPayload(
             itemId: item.id, mediaSourceId: mediaSourceId, playSessionId: playSessionId,
-            positionTicks: JellyfinTicks.ticks(position), isPaused: mpv.isPaused, event: event,
+            positionTicks: JellyfinTicks.ticks(position), isPaused: reportsPaused, event: event,
             audioStreamIndex: audioStreamIndex, subtitleStreamIndex: subtitleStreamIndex, reportedAt: now,
             isTranscoding: transcodeBitrate != nil ? true : nil)
         sessionStarted = event != .stopped

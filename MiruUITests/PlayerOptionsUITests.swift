@@ -121,6 +121,47 @@ final class PlayerOptionsUITests: XCTestCase {
         add(shot)
     }
 
+    /// Picture in picture: the button hands the video to AVPlayer in the small window (the
+    /// player says so); back here, mpv plays on from where it got to.
+    func testPictureInPictureAndBack() throws {
+        guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file.")
+        }
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        // Started 3 s in by UITEST_PLAYER_PIP (the options menu's item can't be reached here).
+        app.launchEnvironment = ["UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video, "UITEST_PLAYER_PIP": "3"]
+        app.launch()
+        let player = app.descendants(matching: .any)["player.video"].firstMatch
+        XCTAssertTrue(player.waitForExistence(timeout: 10))
+        func time() -> Double { Double((player.value as? String ?? "").split(separator: " ").first ?? "") ?? -1 }
+        let before = 3.0
+        // (Inside the picture's area, found by its words.)
+        let playing = app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Playing in Picture in Picture'")).firstMatch
+        let unsupported = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'PiP not supported here'")).firstMatch
+        var sawUnsupported = false
+        let either = NSPredicate { _, _ in
+            if unsupported.exists { sawUnsupported = true }
+            return sawUnsupported || playing.exists
+        }
+        _ = XCTWaiter().wait(for: [expectation(for: either, evaluatedWith: nil)], timeout: 15)
+        if sawUnsupported { throw XCTSkip("This simulator has no picture in picture (the iPad ones do).") }
+        XCTAssertTrue(playing.exists, "handed to picture in picture")
+        let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        shot.name = "picture in picture"
+        shot.lifetime = .keepAlways
+        add(shot)
+        sleep(3)
+        let back = app.buttons.matching(NSPredicate(format: "label == 'Back Here'")).firstMatch
+        XCTAssertTrue(back.waitForExistence(timeout: 5))
+        back.tap()
+        XCTAssertTrue(playing.waitForNonExistence(timeout: 10), "back to the player")
+        // mpv picked up where picture in picture got to (it played on there).
+        let after = NSPredicate { _, _ in time() >= before + 2 && (player.value as? String ?? "").contains("playing") }
+        XCTAssertEqual(XCTWaiter().wait(for: [expectation(for: after, evaluatedWith: nil)], timeout: 10), .completed,
+                       "from \(before) to \(time()): \(player.value ?? "")")
+    }
+
     /// Holding the picture plays at 2× until it's let go.
     func testHoldingThePicturePlaysFaster() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {

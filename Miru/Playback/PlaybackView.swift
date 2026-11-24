@@ -115,6 +115,10 @@ struct PlaybackView: View {
                     .accessibilityAction(named: model.fillsScreen ? "Fit to Screen" : "Zoom to Fill") {
                         if screen.layout.canFill { model.setFillsScreen(!model.fillsScreen) }
                     }
+                    #if os(iOS)
+                    // Over the gestures, so its button gets the tap.
+                    .overlay { if model.pipState != .off { pipNote } }
+                    #endif
             }
         }
         // Everything over the video is an overlay, so however tall it gets it can never
@@ -712,9 +716,33 @@ struct PlaybackView: View {
     /// Close, the title, and the Subtitles button.
     /// The video, or, with it on a connected screen (`ExternalDisplay`), a note where it was:
     /// the lines, controls and lookups stay here.
+    #if os(iOS)
+    /// Over the picture while picture in picture plays it.
+    private var pipNote: some View {
+        VStack(spacing: 12) {
+            Label(model.pipState == .starting ? "Starting Picture in Picture…" : "Playing in Picture in Picture", systemImage: "pip")
+                .font(.headline)
+                .foregroundStyle(.white.opacity(0.7))
+            if model.pipState == .on {
+                Button("Back Here") { model.stopPictureInPicture() }
+                    .buttonStyle(.bordered)
+                    .tint(.white)
+                    .accessibilityIdentifier("player.pipBack")
+            }
+        }
+    }
+    #endif
+
     @ViewBuilder private func videoOrElsewhere(_ screen: PlayerScreen) -> some View {
         #if os(iOS)
-        if external.showsVideo {
+        if model.pipState != .off {
+            // AVPlayer's layer (picture in picture shows it), and a note over it here.
+            // AVPlayer's layer (picture in picture starts from it), black once the small window has it.
+            ZStack {
+                PiPLayerHost(layer: model.pip.avPlayer.layer)
+                if model.pipState == .on { Color.black }
+            }
+        } else if external.showsVideo {
             ZStack {
                 Color.black
                 Label("Playing on \(external.screenName)", systemImage: "tv")
@@ -839,6 +867,11 @@ struct PlaybackView: View {
             }
             subtitleLookMenu
             sleepMenu
+            #if os(iOS)
+            if model.canPictureInPicture {
+                Button("Picture in Picture", systemImage: "pip.enter") { model.startPictureInPicture() }
+            }
+            #endif
             // Skips the stretches with no Japanese line (this show's setting).
             Toggle("Condensed", isOn: Binding(get: { model.condensed }, set: { model.setCondensed($0) }))
                 .disabled(model.subtitles == nil)

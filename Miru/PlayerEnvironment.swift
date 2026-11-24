@@ -209,6 +209,9 @@ final class PlayerEnvironment {
     func start() async {
         guard !started else { return }
         started = true
+        #if os(iOS)
+        stopLeftoverPiPTranscode()
+        #endif
         async let common: Void = common.start()
         async let hidden: Void = observeHiddenLibraries()
         async let japaneseOnly: Void = observeJapaneseOnlyLibraries()
@@ -273,6 +276,17 @@ final class PlayerEnvironment {
         // The lists read this device's progress again now, and Jellyfin's once it has the mark.
         NotificationCenter.default.post(name: .playbackDidClose, object: item.id)
     }
+
+    #if os(iOS)
+    /// The app was killed while picture in picture played a transcode: stop it now (best
+    /// effort; Jellyfin also ends a transcode nobody fetches from, after a while).
+    private func stopLeftoverPiPTranscode() {
+        guard let id = UserDefaults.standard.string(forKey: PlaybackModel.pendingPiPTranscodeKey) else { return }
+        UserDefaults.standard.removeObject(forKey: PlaybackModel.pendingPiPTranscodeKey)
+        guard let client = jellyfinClient() else { return }
+        Task { try? await client.stopTranscoding(playSessionId: id) }
+    }
+    #endif
 
     func jellyfinClient() -> JellyfinClient? {
         try? Self.jellyfinClientFactory(accounts: common.accounts, secrets: common.secrets, identity: identity, http: common.http)()
