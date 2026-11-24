@@ -253,8 +253,12 @@ extension JellyfinClient {
     /// answer's media source has `transcodingUrl` (see `transcodeURL`) and its own play session.
     /// Checked against Jellyfin 10.11: a profile with no direct-play entries and
     /// `EnableDirectPlay`/`EnableDirectStream` off always gets a transcode.
+    ///
+    /// `subtitleStreamIndex` (picture in picture, which plays through AVPlayer): that text track
+    /// goes into the HLS playlist as WebVTT, which AVPlayer shows; without it nothing is burnt
+    /// into the picture.
     public func transcodingInfo(itemId: String, mediaSourceId: String, maxBitrate: Int,
-                                audioStreamIndex: Int?) async throws(ConnectionError) -> JellyfinPlaybackInfo {
+                                audioStreamIndex: Int?, subtitleStreamIndex: Int? = nil) async throws(ConnectionError) -> JellyfinPlaybackInfo {
         struct Transcoding: Encodable {
             var Container = "ts"
             var `Type` = "Video"
@@ -266,12 +270,16 @@ extension JellyfinClient {
             var MinSegments = 1
             var BreakOnNonKeyFrames = true
         }
+        struct SubtitleProfile: Encodable {
+            var Format = "vtt"
+            var Method = "Hls"
+        }
         struct Profile: Encodable {
             var MaxStreamingBitrate: Int
             var MaxStaticBitrate: Int
             var DirectPlayProfiles: [String] = []
             var TranscodingProfiles = [Transcoding()]
-            var SubtitleProfiles: [String] = []
+            var SubtitleProfiles: [SubtitleProfile] = []
             var CodecProfiles: [String] = []
             var ContainerProfiles: [String] = []
             var ResponseProfiles: [String] = []
@@ -296,8 +304,9 @@ extension JellyfinClient {
         do {
             request = try .json("POST", url("Items/\(itemId)/PlaybackInfo", ["userId": userId]),
                                 body: Body(UserId: userId, MediaSourceId: mediaSourceId, MaxStreamingBitrate: maxBitrate,
-                                           AudioStreamIndex: audioStreamIndex,
-                                           DeviceProfile: Profile(MaxStreamingBitrate: maxBitrate, MaxStaticBitrate: maxBitrate)))
+                                           AudioStreamIndex: audioStreamIndex, SubtitleStreamIndex: subtitleStreamIndex ?? -1,
+                                           DeviceProfile: Profile(MaxStreamingBitrate: maxBitrate, MaxStaticBitrate: maxBitrate,
+                                                                  SubtitleProfiles: subtitleStreamIndex == nil ? [] : [SubtitleProfile()])))
         } catch {
             throw .message(error.localizedDescription)
         }
@@ -394,6 +403,14 @@ extension JellyfinClient {
         } catch {
             throw .message(error.localizedDescription)
         }
+        _ = try await http.send(authorize(request))
+    }
+
+    /// Stops the server's transcode for a play session (`DELETE /Videos/ActiveEncodings`), so it
+    /// doesn't run on until Jellyfin notices nobody is fetching it.
+    public func stopTranscoding(playSessionId: String) async throws(ConnectionError) {
+        var request = URLRequest(url: url("Videos/ActiveEncodings", ["deviceId": identity.deviceId, "playSessionId": playSessionId]))
+        request.httpMethod = "DELETE"
         _ = try await http.send(authorize(request))
     }
 

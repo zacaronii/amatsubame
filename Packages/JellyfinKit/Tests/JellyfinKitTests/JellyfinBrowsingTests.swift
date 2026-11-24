@@ -128,6 +128,24 @@ import Testing
         #expect(JellyfinClient.audioBitrate(for: 500_000) == 96_000 && JellyfinClient.audioBitrate(for: 8_000_000) == 192_000)
     }
 
+    /// Picture in picture: the Japanese track in the HLS playlist (WebVTT), the audio pinned,
+    /// and the transcode stopped afterwards.
+    @Test func picturesInPictureTranscodeCarriesTheSubtitleAndStops() async throws {
+        let transport = StubTransport(routes: ["/Items/E/PlaybackInfo": (200, try fixture("playback-info-transcoding.json")),
+                                               "/Videos/ActiveEncodings": (204, Data())])
+        let jellyfin = client(transport)
+        _ = try await jellyfin.transcodingInfo(itemId: "E", mediaSourceId: "M", maxBitrate: 8_000_000, audioStreamIndex: 1, subtitleStreamIndex: 3)
+        let body = try transport.requests[0].jsonBody()
+        #expect(body["AudioStreamIndex"] as? Int == 1 && body["SubtitleStreamIndex"] as? Int == 3)
+        let profile = try #require(body["DeviceProfile"] as? [String: Any])
+        let subtitles = try #require(profile["SubtitleProfiles"] as? [[String: Any]])
+        #expect(subtitles.first?["Format"] as? String == "vtt" && subtitles.first?["Method"] as? String == "Hls")
+        try await jellyfin.stopTranscoding(playSessionId: "PS")
+        let stop = transport.requests[1]
+        #expect(stop.httpMethod == "DELETE" && stop.url?.path().hasSuffix("/Videos/ActiveEncodings") == true)
+        #expect(query(stop)["playSessionId"] == "PS" && query(stop)["deviceId"]?.isEmpty == false)
+    }
+
     @Test func playbackInfoStreamAndSubtitles() async throws {
         let transport = StubTransport(routes: [
             "/Items/E/PlaybackInfo": (200, try fixture("playback-info.json")),

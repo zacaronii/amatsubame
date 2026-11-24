@@ -71,6 +71,22 @@ device shows "Playing on the Other Screen" where the picture was, with the contr
 lines to read, tap and look up there. Stop mirroring and the picture comes back. The **AirPlay**
 button in the player's top bar sends just the sound to AirPlay speakers or a TV.
 
+**Picture in Picture** (iPhone and iPad): choose it in the sliders menu and the episode carries on
+in a small window while you use other apps; the player shows "Playing in Picture in Picture".
+**Back Here**, or the small window's button, brings it back to the player at the same moment. Closing
+the small window with its × stops there, paused. The small window is iOS's own player, so it plays
+the episode as Jellyfin sends it, and some things stay in Miru:
+- No tappable lines or lookups, no Lines list and no word marks. Jellyfin's Japanese subtitles show
+  as plain text (when the episode has them as text, not pictures).
+- Subtitles from Jimaku or Kaku that aren't uploaded to Jellyfin aren't there: it plays without them
+  and says so. A timing fix you haven't uploaded isn't applied either: the subtitles keep Jellyfin's
+  timing.
+- No condensed playback, auto-pause, intro skipping, English subtitles or sync changes.
+- An MKV download can't go to Picture in Picture (the option isn't shown); other downloads can.
+
+Files iOS can't play as they are (MKV, for example) are converted by Jellyfin while the small window
+plays, as with a lower streaming quality, keeping the audio track you chose.
+
 On the Mac, click to show the controls and double-click for full screen. The video plays in the main
 window; Escape closes it.
 
