@@ -69,12 +69,14 @@ public struct TextMiningContext: MiningContext {
 }
 
 nonisolated public enum CardSource {
-    /// "Star Captain — S1E1 · 12:34" for the card's MiscInfo.
+    /// "Star Captain — S1E1 · 12:34" for the card's MiscInfo; "Star Captain — 12:34" without an
+    /// episode (a film, a book position before its first chapter).
     public static func miscInfo(show: String, episode: String?, time: Double) -> String {
         let total = Int(max(time, 0))
         let stamp = total >= 3600
             ? String(format: "%d:%02d:%02d", total / 3600, total / 60 % 60, total % 60)
             : String(format: "%d:%02d", total / 60, total % 60)
+        let episode = episode?.trimmingCharacters(in: .whitespaces).isEmpty == false ? episode : nil
         return [show, [episode, stamp].compactMap(\.self).joined(separator: " · ")].joined(separator: " — ")
     }
 }

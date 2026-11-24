@@ -44,4 +44,12 @@ import Testing
         lines.close()
         #expect(lines.highlight == nil)
     }
+
+    /// A card's source: show, episode and time; without an episode (a film, or a book position
+    /// before its first chapter) just the show and time, never an empty " · ".
+    @Test func cardSourceSkipsAnEmptyEpisode() {
+        #expect(CardSource.miscInfo(show: "Star Captain", episode: "S2E11", time: 1116) == "Star Captain — S2E11 · 18:36")
+        #expect(CardSource.miscInfo(show: "Star Captain", episode: nil, time: 1116) == "Star Captain — 18:36")
+        #expect(CardSource.miscInfo(show: "本", episode: "", time: 4399) == "本 — 1:13:19")
+    }
 }
