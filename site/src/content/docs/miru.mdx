@@ -68,8 +68,10 @@ On iPhone and iPad:
 **On a TV:** with your iPhone or iPad mirrored to a TV over AirPlay (Control Center → Screen
 Mirroring), or connected to a monitor with a cable, the video plays full screen on the TV and your
 device shows "Playing on the Other Screen" where the picture was, with the controls and the Japanese
-lines to read, tap and look up there. Stop mirroring and the picture comes back. The **AirPlay**
-button in the player's top bar sends just the sound to AirPlay speakers or a TV.
+lines to read, tap and look up there. Stop mirroring and the picture comes back.
+
+The **AirPlay** button in the player's top bar sends **only the sound** to AirPlay speakers or a TV;
+the picture stays on your device. To see the picture on the TV, use Screen Mirroring as above.
 
 **Picture in Picture** (iPhone and iPad): choose it in the sliders menu and the episode carries on
 in a small window while you use other apps; the player shows "Playing in Picture in Picture".
@@ -85,7 +87,8 @@ the episode as Jellyfin sends it, and some things stay in Miru:
 - An MKV download can't go to Picture in Picture (the option isn't shown); other downloads can.
 
 Files iOS can't play as they are (MKV, for example) are converted by Jellyfin while the small window
-plays, as with a lower streaming quality, keeping the audio track you chose.
+plays, at a quality that suits the small window (4 Mbps at most), keeping the audio track you chose.
+Starting takes a few seconds while Jellyfin gets ready.
 
 On the Mac, click to show the controls and double-click for full screen. The video plays in the main
 window; Escape closes it.

@@ -23,25 +23,21 @@ final class AVPiPPlayer: NSObject, PiPPlayer {
 
     func prepare(_ source: PiPSource, at time: Double) async -> Bool {
         let asset = AVURLAsset(url: source.url, options: source.headers.isEmpty ? nil : ["AVURLAssetHTTPHeaderFieldsKey": source.headers])
+        // The asset's playability first (for a stream: its playlist), as Apple recommends.
+        guard (try? await asset.load(.isPlayable)) == true, !Task.isCancelled else {
+            asset.cancelLoading()
+            return false
+        }
         let item = AVPlayerItem(asset: asset)
         player.replaceCurrentItem(with: item)
-        // Ready or failed, whichever comes first (a cancelled start ends the wait too).
-        let ready = await withTaskCancellationHandler {
-            await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
-                var observation: NSKeyValueObservation?
-                var done = false
-                observation = item.observe(\.status, options: [.initial, .new]) { item, _ in
-                    guard !done, item.status != .unknown else { return }
-                    done = true
-                    observation?.invalidate()
-                    continuation.resume(returning: item.status == .readyToPlay)
-                }
-                _ = observation
-            }
-        } onCancel: { [weak item] in
-            // Fails the item, which ends the wait above.
-            Task { @MainActor in item?.cancelPendingSeeks(); item?.asset.cancelLoading() }
+        // Ready or failed, whichever comes first; a cancelled start (the hand-off's time is up)
+        // stops loading. (Checked every tenth of a second: a KVO observation held only by this
+        // wait could go before the item was ready, which a local file hid by being ready at once.)
+        while item.status == .unknown, !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(100))
         }
+        if Task.isCancelled { item.asset.cancelLoading() }
+        let ready = item.status == .readyToPlay
         guard ready, !Task.isCancelled else { return false }
         await item.seek(to: CMTime(seconds: time, preferredTimescale: 600), toleranceBefore: .zero,
                         toleranceAfter: CMTime(seconds: 0.5, preferredTimescale: 600))

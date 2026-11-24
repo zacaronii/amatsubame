@@ -1,4 +1,7 @@
 import AppCommon
+#if os(iOS)
+import AVFoundation
+#endif
 import Core
 import Lookup
 import PlayerKit
@@ -45,6 +48,8 @@ struct PlaybackView: View {
     #if os(iOS)
     /// A connected screen (AirPlay mirroring, a cable) shows the video instead.
     @State private var external = ExternalDisplay.shared
+    /// The note that AirPlay is the sound only, said once a player.
+    @State private var notedAirPlaySound = false
     #endif
 
     var body: some View {
@@ -177,6 +182,16 @@ struct PlaybackView: View {
         .onChange(of: model.mpv.isBuffering) { model.bufferingChanged() }
         // Keys go back to the video once the cheat sheet closes.
         .onChange(of: model.showsShortcuts) { _, shows in if !shows { focused = true } }
+        #if os(iOS)
+        // The AirPlay button sends only the sound (mpv's picture can't go over AirPlay): say once
+        // how the picture gets to the TV.
+        .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification)) { _ in
+            guard !notedAirPlaySound, !external.showsVideo,
+                  AVAudioSession.sharedInstance().currentRoute.outputs.contains(where: { $0.portType == .airPlay }) else { return }
+            notedAirPlaySound = true
+            model.showOSD("AirPlay plays the sound. For the picture on the TV, use Screen Mirroring")
+        }
+        #endif
         #if os(macOS)
         // Quitting skips onDisappear: end the session (the stop is queued and kept if it can't go now).
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
@@ -772,7 +787,7 @@ struct PlaybackView: View {
                 .frame(width: 30, height: 30)
                 .frame(width: 48, height: 48)
                 .glassEffect(in: .circle)
-                .accessibilityLabel("AirPlay")
+                .accessibilityLabel("AirPlay Sound")
                 .accessibilityIdentifier("player.airplay")
             #endif
             optionsMenu
