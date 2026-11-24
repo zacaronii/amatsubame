@@ -149,6 +149,24 @@ show **Auto**.
 - Imported dictionaries don't update unless their own files say they can and where from.
 - If you delete a recommended dictionary, the apps remember and don't pick it again by themselves.
 
+### Character names
+
+While you read a series in Yomu (and, soon, watch a show in Miru), the names of its characters are
+looked up too: a tap on a character's full name or just their given name shows who it is, with their picture, the romaji
+name and whether they're a main or supporting character. They come from AniList, for the series
+you have open only, and appear as the **Character Names** dictionary, just above JMnedict.
+
+- The apps find the series on AniList from what Kavita knows (its AniList or MyAnimeList link), from
+  MangaBaka by title, or from AniList's own search when exactly one title matches. If they can't
+  tell, the series page shows **Pick the Series for Character Names**; you choose it once, and it's
+  remembered. **More ▸ Character Names…** on the series page changes it (or says it has none).
+- A cast is kept on the device for 30 days, so opening the series again works offline. Closing the
+  book takes its names out again.
+- Readings come from the romaji AniList gives, checked against JMnedict. When a reading can't be
+  told for sure (Ōno: おおの or おうの?), the name has none rather than a guess.
+- **Settings ▸ Dictionaries ▸ Character Names** turns it off, and lists the series it holds now.
+- With Hachidori linked, the Mac adds these names to the results it gets from Hachidori.
+
 ## Hachidori
 
 If you use [Hachidori](https://github.com/bee-san/hachidori) in your browser and share it from a

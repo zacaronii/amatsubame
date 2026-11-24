@@ -1,6 +1,7 @@
 import AppCommon
 import Core
 import KavitaKit
+import Names
 import Readers
 import SwiftUI
 
@@ -20,6 +21,9 @@ struct SeriesDetailView: View {
     /// This device's reading of each volume (with the reader's character count, for books).
     @State private var localProgress: [Int: LocalReadingProgress] = [:]
     @State private var confirmsDownloadAll = false
+    /// Which AniList series this is, for its character names.
+    @State private var showsNamePicker = false
+    @State private var needsNamePick = false
 
     /// Volumes and chapters not downloaded or downloading, with their row titles.
     private var notDownloadedWithTitles: [(KavitaChapter, String)] {
@@ -91,6 +95,18 @@ struct SeriesDetailView: View {
         #if os(macOS)
         .pinnable(id: String(series.id), kind: series.isEpub ? "book" : "series", title: series.displayName)
         #endif
+        .sheet(isPresented: $showsNamePicker) {
+            CharacterNamePicker(series: environment.namedSeries(series))
+        }
+        .task(id: series.id) {
+            // Whether the names dictionary is waiting for a pick (the reader asked and couldn't tell).
+            let key = environment.namedSeries(series).key
+            do {
+                for try await match in environment.common.dictionaries.database.values({ try CharacterNameMatch.fetchOne($0, key: key) }) {
+                    needsNamePick = match.map { $0.mediaKey == nil && $0.source != .picked } ?? false
+                }
+            } catch {}
+        }
         .toolbar {
             if contents != nil {
                 ToolbarItem(placement: .primaryAction) {
@@ -113,6 +129,8 @@ struct SeriesDetailView: View {
                             Button("Mark Series as Unread…", systemImage: "circle") { confirmsSeriesRead = false }
                                 .accessibilityIdentifier("series.markUnread")
                         }
+                        Button("Character Names…", systemImage: "person.2") { showsNamePicker = true }
+                            .accessibilityIdentifier("series.characterNames")
                         Button("Download \(notDownloaded.count) Volumes", systemImage: "arrow.down.circle") {
                             confirmsDownloadAll = true
                         }
@@ -234,6 +252,12 @@ struct SeriesDetailView: View {
             Label(error, systemImage: "wifi.exclamationmark")
                 .font(.callout)
                 .foregroundStyle(.secondary)
+        }
+        if needsNamePick {
+            // Opening it couldn't tell which AniList series it is: asked once, remembered.
+            Button("Pick the Series for Character Names", systemImage: "person.2") { showsNamePicker = true }
+                .font(.callout)
+                .accessibilityIdentifier("series.pickCharacterNames")
         }
         if let summary = metadata?.plainSummary {
             ExpandableText(summary)

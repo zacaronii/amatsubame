@@ -1,0 +1,9 @@
+{"data":{"Media":{"id":900001,"idMal":800001,"type":"MANGA","format":"MANGA","seasonYear":null,"startDate":{"year":2020},"episodes":null,
+"title":{"native":"架空の物語","romaji":"Kakuu no Monogatari","english":"A Made-Up Story"},"synonyms":[],"coverImage":{"medium":"https://img.example/cover.jpg"},
+"characters":{"pageInfo":{"hasNextPage":false},"edges":[
+{"role":"MAIN","node":{"id":1001,"name":{"native":"架空 太郎","full":"Tarou Kakuu","first":"Tarou","last":"Kakuu","alternative":["Taro-kun (たろくん)"]},"image":{"medium":"https://img.example/1001.png"}}},
+{"role":"MAIN","node":{"id":1002,"name":{"native":"夢見ひかり","full":"Hikari Yumemi","first":"Hikari","last":"Yumemi","alternative":[]},"image":{"medium":null}}},
+{"role":"SUPPORTING","node":{"id":1003,"name":{"native":"ミラ・ソーン","full":"Mira Thorn","first":"Mira","last":"Thorn","alternative":[]},"image":{"medium":null}}},
+{"role":"SUPPORTING","node":{"id":1004,"name":{"native":"王様","full":"Ou-sama","first":"Ou-sama","last":null,"alternative":[]},"image":null}},
+{"role":"BACKGROUND","node":{"id":1005,"name":{"native":"通行人","full":"Tsuukounin","first":null,"last":null,"alternative":[]},"image":null}}
+]}}}}

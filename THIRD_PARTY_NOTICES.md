@@ -42,5 +42,8 @@ They include or use the following. Each keeps its own license; the full texts ar
 - Recommended dictionaries (Hachidori's defaults: Jitendex, JMnedict, Bee's Ultimate Kanji Dictionary, Jiten,
   Bee's Ultimate Grammar Dictionary; and Kanjium, optional), each under its own license
   shown in the apps' About screens.
+- Character names: casts (names and pictures) from [AniList](https://anilist.co)'s public API under its terms of use, for
+  the series open in Yomu and Miru only; which AniList series a manga or light novel is, from
+  [MangaBaka](https://mangabaka.org) (its data CC BY-NC-SA 4.0). Credited in the apps' About screens.
 - Kaku: [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (MIT) and the Whisper large-v3
   weights (MIT), plus its Python dependencies listed in `Server/kaku/Dockerfile`.

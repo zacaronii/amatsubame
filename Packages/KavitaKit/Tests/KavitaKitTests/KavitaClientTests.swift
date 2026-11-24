@@ -51,6 +51,22 @@ import Testing
         #expect(series.pages == 101 && series.libraryId == 4)
     }
 
+    /// Kavita's AniList and MAL ids (for the names dictionary); 0 when it has none.
+    @Test func seriesCarriesItsAniListAndMALIds() async throws {
+        var json = try #require(JSONSerialization.jsonObject(with: try fixture("series.json")) as? [String: Any])
+        json["aniListId"] = 900001
+        json["malId"] = 800001
+        let stub = StubTransport(routes: [
+            "/api/Series/359": (200, try fixture("series.json")),
+            "/api/Series/360": (200, try JSONSerialization.data(withJSONObject: json)),
+        ])
+        let client = KavitaClient(baseURL: base, authKey: "k", http: HTTPClient(transport: stub))
+        let none = try await client.series(id: 359)
+        #expect(none.aniListId == 0 && none.malId == 0)
+        let series = try await client.series(id: 360)
+        #expect(series.aniListId == 900001 && series.malId == 800001)
+    }
+
     @Test func recentlyAddedSortsByCreatedNewestFirst() async throws {
         let stub = StubTransport(routes: ["/api/Series/v2": (200, try fixture("series-v2.json"))])
         _ = try await KavitaClient(baseURL: base, authKey: "k", http: HTTPClient(transport: stub)).recentlyAdded(libraryId: 3, limit: 12)

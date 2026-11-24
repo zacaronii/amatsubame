@@ -45,9 +45,14 @@ public struct KavitaSeries: Codable, Equatable, Identifiable, Hashable, Sendable
     public var latestReadDate: Date?
     /// When the series was added to Kavita.
     public var created: Date?
+    /// The series on AniList and MyAnimeList, when Kavita knows (Kavita+ or ComicInfo links);
+    /// 0 or nil when it doesn't.
+    public var aniListId: Int?
+    public var malId: Int?
 
     public init(id: Int, name: String, localizedName: String? = nil, sortName: String? = nil, libraryId: Int,
-                format: Int, pages: Int, pagesRead: Int, latestReadDate: Date? = nil, created: Date? = nil) {
+                format: Int, pages: Int, pagesRead: Int, latestReadDate: Date? = nil, created: Date? = nil,
+                aniListId: Int? = nil, malId: Int? = nil) {
         self.id = id
         self.name = name
         self.localizedName = localizedName
@@ -58,6 +63,8 @@ public struct KavitaSeries: Codable, Equatable, Identifiable, Hashable, Sendable
         self.pagesRead = pagesRead
         self.latestReadDate = latestReadDate
         self.created = created
+        self.aniListId = aniListId
+        self.malId = malId
     }
 
     public var isEpub: Bool { format == KavitaFormat.epub }
@@ -293,7 +300,7 @@ extension KavitaServerProgress {
 
 extension KavitaSeries {
     enum CodingKeys: String, CodingKey {
-        case id, name, localizedName, sortName, libraryId, format, pages, pagesRead, latestReadDate, created
+        case id, name, localizedName, sortName, libraryId, format, pages, pagesRead, latestReadDate, created, aniListId, malId
     }
 
     public init(from decoder: any Decoder) throws {
@@ -308,6 +315,8 @@ extension KavitaSeries {
         pagesRead = try container.decode(Int.self, forKey: .pagesRead)
         latestReadDate = try container.decodeIfPresent(Date.self, forKey: .latestReadDate)?.nilIfUnset
         created = try container.decodeIfPresent(Date.self, forKey: .created)?.nilIfUnset
+        aniListId = try container.decodeIfPresent(Int.self, forKey: .aniListId)
+        malId = try container.decodeIfPresent(Int.self, forKey: .malId)
     }
 }
 

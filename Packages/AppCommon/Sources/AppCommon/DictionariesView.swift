@@ -58,6 +58,7 @@ public struct DictionariesView: View {
                     }
                 }
             }
+            CharacterNamesSection()
             DictionaryUpdatesSection()
             if let hachidori = environment.hachidori {
                 Section {

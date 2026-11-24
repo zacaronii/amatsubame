@@ -5,6 +5,7 @@ import Core
 import Dictionary
 import Foundation
 import KavitaKit
+import Names
 import Lookup
 import OCR
 import Observation
@@ -359,6 +360,8 @@ final class AppEnvironment {
     func start() async {
         guard !started else { return }
         started = true
+        // A book left open when Yomu last stopped takes its characters out of the names.
+        await self.common.characterNames.launched(app: "yomu")
         async let common: Void = common.start()
         async let hidden: Void = observeHiddenLibraries()
         async let downloads: Void = downloader.start()
@@ -472,6 +475,15 @@ final class AppEnvironment {
     // MARK: Bookmarks and highlights
 
     /// Whose marks are shown: the Kavita account signed in.
+    /// A Kavita series for the character names dictionary: its AniList or MAL id when Kavita
+    /// has one, its titles, and whether it's a light novel or a manga.
+    func namedSeries(_ series: KavitaSeries) -> NamedSeries {
+        let server = (try? common.accounts.account(.kavita))??.baseURL
+        return NamedSeries(key: NamedSeries.key(service: "kavita", server: server, id: String(series.id)), title: series.name,
+                           otherTitles: [series.localizedName].compactMap(\.self).filter { !$0.isEmpty }, type: .manga,
+                           kind: series.isEpub ? .novel : .manga, aniListId: series.aniListId, malId: series.malId)
+    }
+
     func readerMarkAccount() -> String? {
         (try? accounts.account(.kavita)).flatMap { $0 }.map(ReaderMarkStore.accountKey)
     }
