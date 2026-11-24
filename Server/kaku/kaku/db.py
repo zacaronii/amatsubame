@@ -5,6 +5,8 @@ import sqlite3
 import threading
 import time
 
+from . import is_current
+
 # Job priorities, highest first.
 NOW, NEW, BACKLOG = 0, 1, 2
 PRIORITY_NAMES = {NOW: 'now', NEW: 'new', BACKLOG: 'backlog'}
@@ -74,8 +76,9 @@ class Database:
     # Jobs
 
     def offer(self, episode, priority, model, now=None, force=False):
-        """Queues `episode` unless it already has a transcript of this audio by this model (`force`
-        queues it anyway: Transcribe Again), or is already queued or running. A queued job only ever
+        """Queues `episode` unless it already has a current transcript (`is_current`: this audio, this
+        pipeline, by whichever model; `force` queues it anyway: Transcribe Again), or is already
+        queued or running. A queued job only ever
         moves up in priority; a failed one is tried again only when asked for (`NOW`) or when its
         audio changed. True if queued or moved up."""
         now = now or time.time()
@@ -83,7 +86,7 @@ class Database:
         with self.lock:
             done = self.connection.execute('SELECT fingerprint, model FROM transcript WHERE item_id = ? AND episode_id = ?',
                                            key).fetchone()
-            if not force and done and (done['fingerprint'], done['model']) == (episode.fingerprint, model):
+            if not force and done and is_current(done['model'], done['fingerprint'], episode.fingerprint):
                 return False
             job = self.connection.execute('SELECT * FROM job WHERE item_id = ? AND episode_id = ?', key).fetchone()
             if job and job['fingerprint'] == episode.fingerprint:

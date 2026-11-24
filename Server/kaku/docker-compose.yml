@@ -18,6 +18,11 @@ services:
       - AUDIOBOOKSHELF_URL=${AUDIOBOOKSHELF_URL}
       - AUDIOBOOKSHELF_API_KEY=${AUDIOBOOKSHELF_API_KEY}
       - KAKU_API_TOKEN=${KAKU_API_TOKEN}
+      # The model (docs/kaku.md ▸ Model): anime-whisper, converted once by ./convert-model.sh.
+      - KAKU_MODEL=${KAKU_MODEL:-anime-whisper}
+      - KAKU_CHUNK_LENGTH=${KAKU_CHUNK_LENGTH:-15}
+      # Empty: the model's own default (none for anime-whisper); "none": no prompt; else that text.
+      - KAKU_PROMPT=${KAKU_PROMPT:-}
       # Optional: Jellyfin episodes transcribed on request, for Miru's subtitles.
       - JELLYFIN_URL=${JELLYFIN_URL:-}
       - JELLYFIN_API_KEY=${JELLYFIN_API_KEY:-}

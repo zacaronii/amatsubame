@@ -12,7 +12,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
 
-from . import VERSION, model_key
+from . import VERSION, is_current, model_key
 from .db import NOW, PRIORITY_NAMES
 from .jellyfin import NoJapaneseAudio, kaku_id
 from .transcript import srt
@@ -86,6 +86,7 @@ def create_app(service):
         last_poll = db.meta('last_poll')
         return {
             'version': VERSION, 'model': service.transcriber.name, 'modelLoaded': service.transcriber.loaded,
+            'modelError': service.worker.model_error,
             'gpu': {'usedMB': memory[0], 'totalMB': memory[1]} if memory else None,
             'jobs': db.counts(), 'lastPoll': float(last_poll) if last_poll else None,
             'lastPollError': db.meta('last_poll_error') or None,
@@ -130,7 +131,7 @@ def create_app(service):
         episode = service.audiobookshelf.episode(request.itemId, request.episodeId)
         if episode is None:
             raise HTTPException(404, f'Audiobookshelf has no such {"book" if not request.episodeId else "episode"}.')
-        current = saved and saved['fingerprint'] == episode.fingerprint and saved['model'] == model_key(service.transcriber.name)
+        current = saved and is_current(saved['model'], saved['fingerprint'], episode.fingerprint)
         if current and not request.force:
             return JSONResponse({'itemId': request.itemId, 'episodeId': request.episodeId, 'state': 'done'})
         # Forced: the old transcript keeps serving until the new one replaces it.
@@ -258,7 +259,7 @@ def create_app(service):
                 answers.append({'itemId': jellyfin_id, 'state': 'unavailable', 'error': 'Jellyfin has no such episode.'})
                 continue
             saved = db.transcript(episode.item_id, '')
-            if not (saved and saved['fingerprint'] == episode.fingerprint and saved['model'] == model):
+            if not (saved and is_current(saved['model'], saved['fingerprint'], episode.fingerprint)):
                 db.offer(episode, NOW, model, now=now + index / 1000)
             answers.append(jellyfin_state(jellyfin_id))
         service.worker.wake.set()

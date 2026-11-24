@@ -12,11 +12,10 @@ import time
 
 from . import PIPELINE, VERSION, model_key
 from .jellyfin import PREFIX, NoJapaneseAudio, is_jellyfin
+from .pipeline import ModelNotReady
 from .transcript import document, sentences, write
 
 log = logging.getLogger('kaku.worker')
-# Punctuated like the podcast prompt (so 。、 come out), without its topic.
-JELLYFIN_PROMPT = 'こんにちは。元気？うん、元気だよ。そうか、よかった！'
 
 
 class Gone(Exception):
@@ -43,12 +42,23 @@ class Worker:
         self.wake = threading.Event()
         self.last_work = time.monotonic()
         self.current = None
+        # Why no job can run (the model isn't converted yet), for /health; None when ready.
+        self.model_error = None
 
     def transcript_folder(self, item_id):
         return os.path.join(self.data_dir, 'transcripts', item_id)
 
     def run_once(self):
-        """Runs the next job; False when there was none."""
+        """Runs the next job; False when there was none (or the model isn't ready: the queue waits
+        rather than failing every job)."""
+        try:
+            getattr(self.transcriber, 'check', lambda: None)()
+        except ModelNotReady as error:
+            if str(error) != self.model_error:
+                log.error('%s', error)
+            self.model_error = str(error)
+            return False
+        self.model_error = None
         job = self.db.claim()
         if job is None:
             return False
@@ -99,8 +109,8 @@ class Worker:
                 if episode.duration > 0:
                     self.db.set_progress(job, round(0.05 + 0.95 * min(seconds / episode.duration, 1), 3))
 
-            # Podcasts and books get the podcast prompt; Jellyfin's episodes (drama, anime) a plain one.
-            prompt = JELLYFIN_PROMPT if is_jellyfin(episode.item_id) else getattr(self.transcriber, 'prompt', '')
+            # The model's prompt, if it takes one (pipeline.default_prompt; KAKU_PROMPT overrides).
+            prompt = self.transcriber.prompt_for(jellyfin=is_jellyfin(episode.item_id))
             segments = self.transcriber.transcribe(wav, progress, prompt=prompt)
             transcript = document(
                 item={'libraryItemId': episode.item_id, 'episodeId': episode.episode_id, 'libraryId': episode.library_id},
