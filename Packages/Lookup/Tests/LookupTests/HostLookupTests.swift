@@ -127,7 +127,8 @@ final class ScriptedHost: SharingTransport {
     }
 
     /// The Mac's lookups go to the host, which hasn't the names of the series open here: the
-    /// local names dictionary's hits join in, a longer one first, a tie after the host's word.
+    /// local names dictionary's hits join in, a longer one first, and the open series' name ahead
+    /// of the host's word of the same length.
     @Test func linkedLookupsKeepTheLocalCharacterNames() async throws {
         let service = try await LookupServiceTests().makeService()
         var names = TestDictionaryBuilder(title: NameRanking.characterNamesTitle)
@@ -136,7 +137,7 @@ final class ScriptedHost: SharingTransport {
         let host = try await linked(service)
         let page = await service.lookup(text: "映画太郎です", utf16Offset: 0)
         #expect(page.results.map { "\($0.expression) \($0.glossaries.first?.dictionary ?? "")" }
-            == ["映画太郎 Character Names", "映画 Host Dictionary", "映画 Character Names"])
+            == ["映画太郎 Character Names", "映画 Character Names", "映画 Host Dictionary"])
         #expect(host.lookups.withLock { $0 } == 1)
         service.host = nil
     }

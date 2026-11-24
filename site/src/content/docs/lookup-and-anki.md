@@ -154,7 +154,9 @@ show **Auto**.
 While you read a series in Yomu (and, soon, watch a show in Miru), the names of its characters are
 looked up too: a tap on a character's full name or just their given name shows who it is, with their picture, the romaji
 name and whether they're a main or supporting character. They come from AniList, for the series
-you have open only, and appear as the **Character Names** dictionary, just above JMnedict.
+you have open only, and appear as the **Character Names** dictionary. When a tap matches a name and
+an ordinary word of the same length, the name comes first: in that series it's almost always who's
+meant. A longer match still comes first.
 
 - The apps find the series on AniList from what Kavita knows (its AniList or MyAnimeList link), from
   MangaBaka by title, or from AniList's own search when exactly one title matches. If they can't

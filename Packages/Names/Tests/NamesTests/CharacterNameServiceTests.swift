@@ -36,7 +36,7 @@ import Testing
         try await library.importDictionary(at: TestDictionaryBuilder(title: "Jitendex").adding("太郎", "たろう").write(to: folder))
         try await library.importDictionary(at: TestDictionaryBuilder(title: "JMnedict").adding("夢見", "ゆめみ").write(to: folder))
 
-        #expect(await service.open(series(aniList: 900001), app: "yomu") == .ready(characters: 4))
+        #expect(await service.open(series(aniList: 900001), app: "yomu") == .ready(characters: 6))
         #expect(try library.dictionaries().map(\.title) == ["Jitendex", "Character Names", "JMnedict"])
 
         let found = await library.engine.lookup("架空太郎は")
@@ -52,6 +52,18 @@ import Testing
         #expect(await library.engine.lookup("通行人").allSatisfy { !$0.glossaries.contains { $0.dictionary == "Character Names" } })
     }
 
+    /// A name in kana alone (one word, with ー) and one mixing kanji and kana are found as
+    /// written, read as their own kana.
+    @Test func kanaNamesAreFound() async throws {
+        let (service, library, _) = try makeService(try NamesFixtures.transport())
+        _ = await service.open(series(aniList: 900001), app: "yomu")
+        for (text, expression, reading) in [("エルリーネは", "エルリーネ", "えるりーね"), ("灰原ユーリが", "灰原ユーリ", "はいばらゆーり"), ("ユーリ", "ユーリ", "ゆーり")] {
+            let found = await library.engine.lookup(text)
+            let name = found.first { $0.glossaries.contains { $0.dictionary == "Character Names" } }
+            #expect(name?.expression == expression && name?.reading == reading, "\(text): \(found.map { "\($0.expression)/\($0.reading)" })")
+        }
+    }
+
     /// Kept for 30 days: opening the series again asks AniList nothing.
     @Test func castsAreKept() async throws {
         let transport = try NamesFixtures.transport()
@@ -59,7 +71,7 @@ import Testing
         _ = await service.open(series(aniList: 900001), app: "yomu")
         let asked = transport.requests.filter { $0.url?.host() == "graphql.anilist.co" }.count
         await service.close(app: "yomu")
-        #expect(await service.open(series(aniList: 900001), app: "yomu") == .ready(characters: 4))
+        #expect(await service.open(series(aniList: 900001), app: "yomu") == .ready(characters: 6))
         #expect(transport.requests.filter { $0.url?.host() == "graphql.anilist.co" }.count == asked)
     }
 
@@ -76,8 +88,8 @@ import Testing
 
     @Test func malIdAndMangaBakaFindTheSeries() async throws {
         let (service, _, database) = try makeService(try NamesFixtures.transport())
-        #expect(await service.open(series(1, mal: 800001), app: "yomu") == .ready(characters: 4))
-        #expect(await service.open(series(2), app: "yomu") == .ready(characters: 4))
+        #expect(await service.open(series(1, mal: 800001), app: "yomu") == .ready(characters: 6))
+        #expect(await service.open(series(2), app: "yomu") == .ready(characters: 6))
         let matches = try await database.reader.read { try CharacterNameMatch.fetchAll($0) }
         #expect(matches.map(\.source) == [.linked, .linked] && matches.allSatisfy { $0.mediaKey == "MANGA:900001" })
     }
@@ -87,8 +99,8 @@ import Testing
     @Test func searchTakesOnlyAStrictMatch() async throws {
         let none = try NamesFixtures.transport(mangaBaka: Data(#"{"status":200,"data":[]}"#.utf8))
         let (service, _, database) = try makeService(none)
-        #expect(await service.open(series(1, kind: .manga), app: "yomu") == .ready(characters: 4))
-        #expect(await service.open(series(2, kind: .novel), app: "yomu") == .ready(characters: 4))
+        #expect(await service.open(series(1, kind: .manga), app: "yomu") == .ready(characters: 6))
+        #expect(await service.open(series(2, kind: .novel), app: "yomu") == .ready(characters: 6))
         let matches = try await database.reader.read { try CharacterNameMatch.fetchAll($0) }.sorted { $0.seriesKey < $1.seriesKey }
         #expect(matches.map(\.mediaKey) == ["MANGA:900001", "MANGA:900002"] && matches.allSatisfy { $0.source == .search })
         // A title that's only part of another's (外伝) isn't a match.
@@ -166,7 +178,7 @@ import Testing
         let limiter = RequestLimiter(spacing: .zero) { waits.add($0) }
         let client = AniListClient(http: HTTPClient(transport: transport), limiter: limiter)
         let (_, characters) = try await client.cast(mediaId: 900001, type: .manga)
-        #expect(characters.count == 4 && calls.value == 2)
+        #expect(characters.count == 6 && calls.value == 2)
         #expect(waits.values.contains { $0 >= .seconds(59) }, "no Retry-After header: a minute, as AniList's timeout")
     }
 }
