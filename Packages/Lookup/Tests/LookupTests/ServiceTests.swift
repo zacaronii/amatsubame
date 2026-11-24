@@ -107,6 +107,7 @@ import Testing
         builder.terms = [
             .init("食べる", "たべる", rules: "v1", glossary: ["to eat"]),
             .init("映画", "えいが", glossary: ["movie"]),
+            .init("コーヒー", "コーヒー", glossary: ["coffee"]),
         ]
         builder.styles = "span { color: red; }"
         try await library.importDictionary(at: try builder.write())
@@ -123,6 +124,17 @@ import Testing
         #expect(page.query == "食べさせられなかった")
         #expect(page.sentence == "そして寿司を食べさせられなかった。")
         #expect(service.styles["Terms"] == "span { color: red; }")
+    }
+
+    /// Manga OCR gives a vertical ー as 一: the word is still found, and the sentence and the
+    /// highlight keep the text as written.
+    @Test func aLongVowelLookalikeAfterKatakanaFindsTheWord() async throws {
+        let service = try await makeService()
+        let text = "熱いコ一ヒ一を。"
+        let page = await service.lookup(text: text, utf16Offset: 2, showSource: true)
+        #expect(page.results.first?.expression == "コーヒー")
+        #expect(page.source?.utf16Length == 4)
+        #expect(page.sentence == text)
     }
 
     @Test func lookupsWithResultsAreCountedForStats() async throws {

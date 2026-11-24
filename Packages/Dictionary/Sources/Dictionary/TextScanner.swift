@@ -16,7 +16,29 @@ public enum TextScanner {
             if character.isNewline || scanned.count >= maxLength { break }
             scanned.append(character)
         }
-        return scanned
+        return longVowelsRestored(scanned)
+    }
+
+    /// Lettering and OCR often give the long-vowel mark as a look-alike: manga OCR reads a
+    /// vertical ー as 一, and fonts use ―, －, — or ─. The engine only maps ｰ (NFKC), so
+    /// フリ一レン found nothing longer than フリ. A dash right after katakana becomes ー, and so
+    /// does 一 unless a kanji follows (カード一枚 keeps its 一). Same length, so offsets and the
+    /// highlight still line up; the text shown and mined keeps what was written.
+    static func longVowelsRestored(_ text: String) -> String {
+        var characters = Array(text)
+        for index in characters.indices.dropFirst() where longVowelLookalikes.contains(characters[index]) {
+            guard isKatakana(characters[index - 1]) else { continue }
+            if characters[index] == "一", index + 1 < characters.count,
+               characters[index + 1].unicodeScalars.first?.properties.isIdeographic == true { continue }
+            characters[index] = "ー"
+        }
+        return String(characters)
+    }
+
+    static let longVowelLookalikes: Set<Character> = ["一", "―", "－", "—", "─", "‐"]
+
+    static func isKatakana(_ character: Character) -> Bool {
+        character.unicodeScalars.allSatisfy { (0x30A1...0x30FA).contains($0.value) || $0 == "ー" || (0xFF66...0xFF9F).contains($0.value) }
     }
 
     /// The sentence containing the tapped character, trimmed, with a closing quote kept
