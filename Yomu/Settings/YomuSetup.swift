@@ -40,23 +40,28 @@ struct YomuServerStep: View {
                       action: {
                           if connected { flow.advance(from: .server) } else { Task { await connect(model) } }
                       }) {
-                SetupCard {
-                    TextField("Server URL", text: $model.urlText, prompt: Text(verbatim: "https://kavita.example.ts.net"))
-                        .urlEntry()
-                        .padding(.horizontal, 16).padding(.vertical, 10)
-                        .accessibilityIdentifier("setup.server.url")
-                    Divider().padding(.leading, 16)
-                    SecureField("Auth Key", text: $model.authKey)
-                        .credentialEntry()
-                        .padding(.horizontal, 16).padding(.vertical, 10)
-                        .accessibilityIdentifier("setup.server.key")
+                if model.isDemo {
+                    SetupDemoServerCard(serverName: "Kavita") { useOwnServer(model) }
+                } else {
+                    SetupCard {
+                        TextField("Server URL", text: $model.urlText, prompt: Text(verbatim: "https://kavita.example.ts.net"))
+                            .urlEntry()
+                            .padding(.horizontal, 16).padding(.vertical, 10)
+                            .accessibilityIdentifier("setup.server.url")
+                        Divider().padding(.leading, 16)
+                        SecureField("Auth Key", text: $model.authKey)
+                            .credentialEntry()
+                            .padding(.horizontal, 16).padding(.vertical, 10)
+                            .accessibilityIdentifier("setup.server.key")
+                    }
+                    Text("In Kavita, open User Settings → Auth Keys and create a key.")
+                        .font(.footnote).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
                 }
-                Text("In Kavita, open User Settings → Auth Keys and create a key.")
-                    .font(.footnote).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
                 status(model)
             }
             .onChange(of: model.urlText) { found = nil }
             .onChange(of: model.authKey) { found = nil }
+            .task { await signInToDemo(model) }
         } else {
             Color.clear.onAppear {
                 model = KavitaSettingsModel(environment: environment.common)
@@ -80,6 +85,24 @@ struct YomuServerStep: View {
 
     private func isFailed(_ status: ConnectionStatus) -> Bool {
         if case .failed = status { true } else { false }
+    }
+
+    /// Try It with the Demo Servers: signs in to the demo Kavita once, as a demo account.
+    private func signInToDemo(_ model: KavitaSettingsModel) async {
+        guard let demo = flow.demo?.kavita, !model.isConfigured, !model.isDemo else { return }
+        model.isDemo = true
+        model.urlText = demo.url.absoluteString
+        model.authKey = demo.apiKey
+        await connect(model)
+    }
+
+    private func useOwnServer(_ model: KavitaSettingsModel) {
+        if model.isConfigured { model.remove() }
+        model.isDemo = false
+        model.urlText = ""
+        model.authKey = ""
+        flow.demo = nil
+        found = nil
     }
 
     private func connect(_ model: KavitaSettingsModel) async {

@@ -183,3 +183,24 @@ public extension ServerKind {
         }
     }
 }
+
+/// A server page signed in to the public demo: what it is, and the way to your own server
+/// (signing out of the demo, which discards what it held on this device).
+public struct DemoServerSection: View {
+    let useOwnServer: () -> Void
+
+    public init(useOwnServer: @escaping () -> Void) {
+        self.useOwnServer = useOwnServer
+    }
+
+    public var body: some View {
+        Section {
+            Label("Demo server", systemImage: "sparkles")
+                .accessibilityIdentifier("server.demo")
+            Button("Use My Own Server…", action: useOwnServer)
+                .accessibilityIdentifier("server.demo.ownServer")
+        } footer: {
+            Text("Nothing you do is saved to it. Your places and marks stay on this \(StorageSummary.deviceName) until you leave the demo.")
+        }
+    }
+}
