@@ -44,7 +44,7 @@ public struct AnkiSettingsPage<CardExtras: View>: View {
             } header: {
                 Text("Connection")
             } footer: {
-                Text("AnkiConnect runs next to Anki on a computer or server you can reach. Your cards are added there. The API key matches `apiKey` in AnkiConnect's config; leave it blank if none is set.")
+                Text("AnkiConnect runs next to Anki, on a computer or server you can reach. Leave the API key blank unless AnkiConnect has one set.")
             }
 
             if connection.isConfigured {
@@ -55,6 +55,7 @@ public struct AnkiSettingsPage<CardExtras: View>: View {
                     Picker("Deck", selection: $cards.settings.deck) {
                         ForEach(cards.options(cards.decks, current: cards.settings.deck), id: \.self) { Text($0).tag($0) }
                     }
+                    .accessibilityIdentifier("anki.deck")
                     Picker("Note Type", selection: $cards.settings.noteType) {
                         ForEach(cards.options(cards.noteTypes, current: cards.settings.noteType), id: \.self) { Text($0).tag($0) }
                     }
@@ -67,13 +68,13 @@ public struct AnkiSettingsPage<CardExtras: View>: View {
                     TextField("Tags", text: $cards.tagsText, prompt: Text("amatsubame"))
                         .autocorrectionDisabled()
                     if showsPictureSize {
-                        Stepper("Picture size: \(cards.settings.pictureMaxPixels) px", value: $cards.settings.pictureMaxPixels, in: 400...3000, step: 200)
+                        Stepper("Picture Size: \(cards.settings.pictureMaxPixels) px", value: $cards.settings.pictureMaxPixels, in: 400...3000, step: 200)
                     }
                     cardExtras
                 } header: {
                     Text("Cards")
                 } footer: {
-                    Text("Tags are separated by spaces. The picture is the page or video frame the word came from.")
+                    Text("Separate tags with spaces. The picture is the page or video frame the word came from.")
                 }
 
                 Section {
@@ -82,11 +83,12 @@ public struct AnkiSettingsPage<CardExtras: View>: View {
                         Task { await cards.syncNow() }
                     } label: {
                         HStack {
-                            Text("Sync Anki Now")
+                            Text("Sync Anki Collection")
                             if cards.syncing { Spacer(); ProgressView() }
                         }
                     }
                     .disabled(cards.syncing || environment.ankiClient() == nil)
+                    .accessibilityIdentifier("anki.syncCollection")
                     switch cards.lastSync {
                     case .synced(let date):
                         Label("Synced \(date.formatted(date: .omitted, time: .shortened))", systemImage: "checkmark.circle.fill")
@@ -99,7 +101,7 @@ public struct AnkiSettingsPage<CardExtras: View>: View {
                 } header: {
                     Text("Sync")
                 } footer: {
-                    Text("Asks Anki to sync with its sync server (AnkiWeb or your own) about 10 seconds after new cards arrive, once for a batch, so they reach your other devices. Leave it off if your AnkiConnect server already syncs after each card.")
+                    Text("Runs Anki's sync: AnkiWeb or your own sync server. Sync After Adding runs it about 10 seconds after new cards arrive; leave it off if your AnkiConnect server already syncs.")
                 }
 
                 Section {
@@ -202,7 +204,7 @@ public struct WordMarksPage: View {
                 } label: {
                     LabeledContent("Known and Ignored Words", value: environment.lookup.wordStatuses.count.formatted())
                 }
-                .accessibilityIdentifier("anki.knownWords")
+                .accessibilityIdentifier("wordMarks.knownWords")
             }
         }
         .formStyle(.grouped)

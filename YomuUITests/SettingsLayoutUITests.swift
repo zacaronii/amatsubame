@@ -29,7 +29,7 @@ final class SettingsLayoutUITests: XCTestCase {
         open(app, "settings.wordMarks")
         XCTAssertTrue(app.navigationBars["Word Marks"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.switches["lookup.marksWords"].exists, "Mark Words by Anki State")
-        XCTAssertTrue(app.descendants(matching: .any)["anki.knownWords"].firstMatch.exists, "Known and Ignored Words")
+        XCTAssertTrue(app.descendants(matching: .any)["wordMarks.knownWords"].firstMatch.exists, "Known and Ignored Words")
         app.navigationBars.buttons.firstMatch.tap()
 
         open(app, "settings.popup")
