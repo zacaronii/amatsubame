@@ -127,7 +127,8 @@ When:
 - TestFlight builds expire after 90 days, so never go more than about two months between releases.
 - Bigger features use a GitHub milestone (for example "v0.4.0") and ship once its issues are closed.
 
-The checklist (the script checks all but the third and last, and asks about those):
+The checklist (the script checks the first, second, fourth and fifth, and asks about the third and sixth;
+the last is a script of its own):
 
 - All four apps build for iOS and macOS.
 - The tests pass: the packages, the apps' unit tests and Kaku's.
@@ -135,6 +136,8 @@ The checklist (the script checks all but the third and last, and asks about thos
 - No open issue has the "blocks release" label.
 - The version fits: the middle number for a release with features, the last for fixes only.
 - The build has been in use in the Dev group for a day or two.
+- Every app and extension has a privacy manifest: `scripts/check-privacy-manifests.sh
+  build.noindex/testflight/<build number>/*.xcarchive` lists each bundle and fails on one without.
 
 ## Acknowledgements
 
