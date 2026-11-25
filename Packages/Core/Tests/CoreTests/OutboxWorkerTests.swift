@@ -45,24 +45,41 @@ struct HangingHandler: OutboxHandler {
     }
 
     /// A demo server's kinds are held: their jobs stay queued and unsent (so the device's place
-    /// keeps winning), while other servers' jobs go as usual; letting go sends them.
-    @Test func heldKindsStayQueued() async throws {
+    /// keeps winning) while other servers' jobs go as usual. Letting go discards them: they
+    /// name the demo server's items and are never sent, to it or to another server.
+    @Test func heldKindsStayQueuedAndAreDiscardedOnRelease() async throws {
         let sent = Mutex<[OutboxJobKind]>([])
-        let progress = try store.enqueue(Progress(chapterId: 1, page: 3), kind: .kavitaProgress, coalesceKey: "c1")
-        try store.enqueue(Card(expression: "a"), kind: .ankiNote)
         let worker = OutboxWorker(store: store, mediaStorage: media, handlers: [
             RecordingHandler(kind: .kavitaProgress) { _ in sent.withLock { $0.append(.kavitaProgress) } },
+            RecordingHandler(kind: .kavitaReadingList) { _ in sent.withLock { $0.append(.kavitaReadingList) } },
             RecordingHandler(kind: .ankiNote) { _ in sent.withLock { $0.append(.ankiNote) } },
         ])
-        await worker.hold([.kavitaProgress])
-        let report = await worker.drain()
-        #expect(report.sent == 1)
+        try store.setHeld([.kavitaProgress, .kavitaReadingList])
+        let progress = try store.enqueue(Progress(chapterId: 1, page: 3), kind: .kavitaProgress, coalesceKey: "c1")
+        try store.enqueue(Progress(chapterId: 2, page: 1), kind: .kavitaReadingList, coalesceKey: "l1")
+        try store.enqueue(Card(expression: "a"), kind: .ankiNote)
+        #expect(await worker.drain().sent == 1)
         #expect(sent.withLock { $0 } == [.ankiNote])
-        #expect(try store.jobs(states: [.pending]).map(\.id) == [progress])
+        #expect(try store.jobs(states: [.pending]).map(\.kind).sorted { $0.rawValue < $1.rawValue } == [.kavitaProgress, .kavitaReadingList])
+        #expect(try store.jobs(states: [.pending]).contains { $0.id == progress })
 
-        await worker.hold([])
-        await worker.drain()
-        #expect(sent.withLock { $0 } == [.ankiNote, .kavitaProgress])
+        #expect(try store.setHeld([]) == 2, "both held jobs discarded")
+        #expect(await worker.drain().sent == 0)
+        #expect(sent.withLock { $0 } == [.ankiNote], "nothing held was ever sent")
+        #expect(try store.jobs(states: [.pending, .failed, .inFlight]).isEmpty)
+        #expect(try store.heldKinds().isEmpty)
+    }
+
+    /// The hold is kept in the database: a new launch holds from the start, before the
+    /// accounts are read.
+    @Test func theHoldOutlastsALaunch() async throws {
+        let dir = FileManager.default.temporaryDirectory.appending(path: "held-\(UUID().uuidString)")
+        try OutboxStore(database: try AppDatabase.onDisk(directory: dir)).setHeld([.jellyfinProgress])
+        let store = OutboxStore(database: try AppDatabase.onDisk(directory: dir))
+        #expect(try store.heldKinds() == [.jellyfinProgress])
+        try store.enqueue(Progress(chapterId: 1, page: 1), kind: .jellyfinProgress, coalesceKey: "e1")
+        let worker = OutboxWorker(store: store, mediaStorage: media, handlers: [RecordingHandler(kind: .jellyfinProgress) { _ in }])
+        #expect(await worker.drain().sent == 0)
     }
 
     /// Every kind names the server it writes to, so a demo server's are all held.

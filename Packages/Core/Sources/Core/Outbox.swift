@@ -529,6 +529,30 @@ public struct OutboxStore: Sendable {
         }
     }
 
+    /// The kinds kept on the device, unsent: writes to a demo server. Kept in the database so
+    /// they're held from launch, before the accounts are read.
+    public func heldKinds() throws -> Set<OutboxJobKind> {
+        try database.reader.read { db in
+            Set(try String.fetchAll(db, sql: "SELECT kind FROM outboxHeld").compactMap(OutboxJobKind.init(rawValue:)))
+        }
+    }
+
+    /// Holds `kinds` from now on. Kinds held until now and not any more are a demo server left
+    /// behind: their jobs are deleted, never sent (they name the demo server's items, which
+    /// would be wrong on any other). Returns how many were discarded.
+    @discardableResult
+    public func setHeld(_ kinds: Set<OutboxJobKind>) throws -> Int {
+        try database.writer.write { db in
+            let before = Set(try String.fetchAll(db, sql: "SELECT kind FROM outboxHeld").compactMap(OutboxJobKind.init(rawValue:)))
+            let released = before.subtracting(kinds)
+            let discarded = released.isEmpty ? 0
+                : try OutboxJob.filter(released.map(\.rawValue).contains(Column("kind"))).deleteAll(db)
+            try db.execute(sql: "DELETE FROM outboxHeld")
+            for kind in kinds { try db.execute(sql: "INSERT INTO outboxHeld (kind) VALUES (?)", arguments: [kind.rawValue]) }
+            return discarded
+        }
+    }
+
     public func summary() throws -> OutboxSummary {
         try database.reader.read(Self.fetchSummary)
     }

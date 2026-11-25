@@ -11,7 +11,7 @@ import Testing
         }
         // FTS5's own shadow tables (transcriptLine_data, audioSentenceSearch_idx, …) aren't ours to list.
         #expect(Set(tables.filter { !$0.hasPrefix("transcriptLine_") && !$0.hasPrefix("audioSentenceSearch_") }) == [
-            "serverAccount", "outboxJob", "outboxMedia",
+            "serverAccount", "outboxJob", "outboxMedia", "outboxHeld",
             "kavitaLibrary", "kavitaSeries", "kavitaVolume", "kavitaChapter", "jellyfinItem",
             "kavitaReadingProgress", "mangaReaderSettings", "pageCache",
             "dictionary", "audioSource", "lookupHistory", "dictionarySettings", "dictionarySource",

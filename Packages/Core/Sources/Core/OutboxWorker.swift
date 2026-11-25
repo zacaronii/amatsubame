@@ -48,8 +48,6 @@ public actor OutboxWorker {
     public let store: OutboxStore
     public let mediaStorage: OutboxMediaStorage
     private var handlers: [OutboxJobKind: any OutboxHandler] = [:]
-    /// Kinds kept on the device, unsent: writes to a demo server (`ServerAccount.isDemo`).
-    public private(set) var held: Set<OutboxJobKind> = []
     private var isDraining = false
     private var drainRequested = false
     private var retryTask: Task<Void, Never>?
@@ -64,12 +62,6 @@ public actor OutboxWorker {
 
     public func register(_ handler: any OutboxHandler) {
         handlers[handler.kind] = handler
-    }
-
-    /// Keeps `kinds` queued without sending them. Their jobs stay, so the device's own unsent
-    /// places still win over the server's as they do offline.
-    public func hold(_ kinds: Set<OutboxJobKind>) {
-        held = kinds
     }
 
     /// Call once at launch, before the first drain.
@@ -94,6 +86,8 @@ public actor OutboxWorker {
         defer { isDraining = false }
         repeat {
             drainRequested = false
+            // A demo server's kinds stay queued (`OutboxStore.heldKinds`).
+            let held = (try? store.heldKinds()) ?? []
             await withTaskGroup(of: OutboxDrainReport.self) { group in
                 for kind in handlers.keys where !held.contains(kind) {
                     group.addTask { await self.drainLane(kind) }
@@ -123,7 +117,7 @@ public actor OutboxWorker {
     private func scheduleRetry() {
         retryTask?.cancel()
         retryTask = nil
-        guard let date = try? store.nextAttemptDate(kinds: Set(handlers.keys).subtracting(held)) else {
+        guard let date = try? store.nextAttemptDate(kinds: Set(handlers.keys).subtracting((try? store.heldKinds()) ?? [])) else {
             scheduledRetry = nil
             return
         }
