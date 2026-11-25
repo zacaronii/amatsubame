@@ -33,5 +33,10 @@ final class EmptyStatesUITests: XCTestCase {
         button.tap()
         XCTAssertTrue(app.navigationBars["Recommended"].waitForExistence(timeout: 10), "and it lists them")
         XCTAssertTrue(app.buttons["recommended.download"].exists)
+        app.navigationBars.buttons.firstMatch.tap()
+        let importButton = app.descendants(matching: .any)["search.importDictionaries"].firstMatch
+        XCTAssertTrue(importButton.waitForExistence(timeout: 10), "and Import…")
+        importButton.tap()
+        XCTAssertTrue(app.navigationBars["Dictionaries"].waitForExistence(timeout: 10), "which opens the dictionaries page")
     }
 }

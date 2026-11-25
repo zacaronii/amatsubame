@@ -45,11 +45,14 @@ public struct SearchView: View {
                     ContentUnavailableView {
                         Label("No Dictionaries", systemImage: "character.book.closed.ja")
                     } description: {
-                        Text("Lookups need at least one dictionary. Add the recommended ones, or import your own in Settings → Lookup and Mining → Dictionaries.")
+                        Text("Lookups need a dictionary. Add the recommended ones, or import your own.")
                     } actions: {
                         NavigationLink("Add Recommended…") { AddRecommendedView() }
                             .buttonStyle(.borderedProminent)
                             .accessibilityIdentifier("search.addRecommended")
+                        // The dictionaries page, where Import from Files shows its progress.
+                        NavigationLink("Import…") { DictionariesView() }
+                            .accessibilityIdentifier("search.importDictionaries")
                     }
                 } else {
                     switch mode {
