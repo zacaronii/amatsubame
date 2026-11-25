@@ -48,6 +48,9 @@ public struct ReadAlongPairCollection: SyncedCollection {
             pair.cues = nil
             pair.matchedSentences = nil
             pair.totalSentences = nil
+            pair.transcriptModel = nil
+            pair.transcriptKaku = nil
+            pair.transcribedAt = nil
         }
         pair.bookTitle = new.bookTitle
         pair.createdAt = Date(timeIntervalSince1970: new.createdAt)

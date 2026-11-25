@@ -1138,6 +1138,15 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v70_read_along_source") { db in
+            // Yomu: what made the transcript a read-along was aligned with (#149).
+            try db.alter(table: "readAlongPair") { t in
+                t.add(column: "transcriptModel", .text)
+                t.add(column: "transcriptKaku", .text)
+                t.add(column: "transcribedAt", .datetime)
+            }
+        }
+
         return migrator
     }
 }

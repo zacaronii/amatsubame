@@ -253,6 +253,12 @@ private struct ReadAlongRow: View {
                     Button("Get Ready", systemImage: "waveform.badge.magnifyingglass") { Task { await prepare(pair) } }
                 } else {
                     Button("Match Again", systemImage: "arrow.clockwise") { Task { await prepare(pair, again: true) } }
+                    // What made the transcript it's matched with, and asking Kaku for a fresh one (#149).
+                    Section(KakuTranscriptSource.text(model: pair.transcriptModel, kaku: pair.transcriptKaku,
+                                                      made: pair.transcribedAt, saved: pair.alignedAt)) {
+                        Button("Transcribe Again", systemImage: "text.badge.checkmark") { Task { await transcribeAgain(pair) } }
+                            .accessibilityIdentifier("readAlong.transcribeAgain")
+                    }
                 }
                 if downloads.isRunning(pair.itemId) {
                     Button("Cancel Audio Download", systemImage: "xmark.circle") { Task { await downloads.cancel(itemId: pair.itemId) } }
@@ -314,6 +320,16 @@ private struct ReadAlongRow: View {
         if ReadAlongDownloads.deletesAudio(unpairing: chapter.id, pairs: pairs) { await downloads.delete(itemId: itemId) }
     }
 
+    /// Asks Kaku for a fresh transcript of the audiobook; the matched one stays until Match Again.
+    private func transcribeAgain(_ pair: ReadAlongPair) async {
+        guard let kaku = environment.kakuClient() else {
+            message = "Set up Kaku in Settings: it has the audiobook's transcript."
+            return
+        }
+        message = await KakuTranscriptSource.requestAgain(kaku, itemId: pair.itemId, episodeId: "",
+                                                          whenDone: "Match Again when it's done.")
+    }
+
     /// Reads the book's text, fetches Kaku's transcript and matches them (asking Kaku for the
     /// transcript first when it has none).
     private func prepare(_ pair: ReadAlongPair, again: Bool = false) async {
@@ -349,7 +365,8 @@ private struct ReadAlongRow: View {
             let total = runs.reduce(0) { $0 + TextScanner.sentences(in: $1.text).count }
             try environment.readAlongPairs.saveAlignment(
                 chapterId: chapter.id, cues: ReadAlongCues(cues).data, version: ReadAlongCues.version,
-                fingerprint: document.source.fingerprint, matched: cues.count, total: total, at: .now)
+                fingerprint: document.source.fingerprint, matched: cues.count, total: total, at: .now,
+                model: document.source.model, kaku: document.source.kaku, transcribedAt: document.source.created)
             if cues.isEmpty { message = "The book and the audiobook didn't match. Is it the same edition?" }
         } catch {
             message = error.localizedDescription
