@@ -268,7 +268,7 @@ import Testing
         var onB = try #require(try b.database.reader.read { try ReadAlongPair.fetchOne($0, key: 9) })
         #expect(onB.itemId == "book-1" && onB.cues == nil, "the choice, aligned again here")
         // b aligns it; that's b's own and isn't sent.
-        onB.cues = Data([1, 2]); onB.alignedAt = start
+        onB.cues = Data([1, 2]); onB.alignedAt = start; onB.transcriptModel = "anime-whisper"
         try b.database.writer.write { try onB.save($0) }
         #expect(try !b.sync(folder, at: start.addingTimeInterval(20)))
         // Paired with another audiobook on a: b's alignment for the old one goes.
@@ -276,7 +276,7 @@ import Testing
         try a.sync(folder, at: start.addingTimeInterval(30))
         try b.sync(folder, at: start.addingTimeInterval(40))
         onB = try #require(try b.database.reader.read { try ReadAlongPair.fetchOne($0, key: 9) })
-        #expect(onB.itemId == "book-2" && onB.cues == nil && onB.alignedAt == nil)
+        #expect(onB.itemId == "book-2" && onB.cues == nil && onB.alignedAt == nil && onB.transcriptModel == nil)
     }
 
     @Test func subtitleTimingOnlyForTheSameFileAndNeverRemovesOne() throws {

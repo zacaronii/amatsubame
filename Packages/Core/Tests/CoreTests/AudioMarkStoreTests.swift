@@ -61,12 +61,15 @@ import Testing
         let store = ReadAlongStore(database: try AppDatabase.inMemory())
         #expect(try store.pair(chapterId: 7) == nil)
         try store.pair(ReadAlongPair(chapterId: 7, itemId: "book", bookTitle: "森の灯り", createdAt: Date(timeIntervalSince1970: 0)))
-        try store.saveAlignment(chapterId: 7, cues: Data("[]".utf8), version: 1, fingerprint: "f", matched: 9, total: 10, at: Date(timeIntervalSince1970: 5))
+        try store.saveAlignment(chapterId: 7, cues: Data("[]".utf8), version: 1, fingerprint: "f", matched: 9, total: 10, at: Date(timeIntervalSince1970: 5),
+                                model: "anime-whisper", kaku: "1.7.0", transcribedAt: Date(timeIntervalSince1970: 3))
         let pair = try #require(try store.pair(chapterId: 7))
         #expect(pair.itemId == "book" && pair.cues == Data("[]".utf8) && pair.matchedSentences == 9 && pair.alignmentVersion == 1)
+        #expect(pair.transcriptModel == "anime-whisper" && pair.transcriptKaku == "1.7.0" && pair.transcribedAt == Date(timeIntervalSince1970: 3))
         // Pairing again (another book) starts without an alignment.
         try store.pair(ReadAlongPair(chapterId: 7, itemId: "other", bookTitle: "別", createdAt: .now))
         #expect(try store.pair(chapterId: 7)?.cues == nil)
+        #expect(try store.pair(chapterId: 7)?.transcriptModel == nil, "nor the old transcript's source")
         try store.unpair(chapterId: 7)
         #expect(try store.pair(chapterId: 7) == nil)
     }

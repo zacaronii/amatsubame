@@ -17,6 +17,11 @@ public struct ReadAlongPair: Codable, Equatable, Sendable, FetchableRecord, Pers
     public var cues: Data?
     public var matchedSentences: Int?
     public var totalSentences: Int?
+    /// What made the transcript it was aligned with (Kaku's `source`): model, Kaku's version and
+    /// when. On this device only, like the alignment.
+    public var transcriptModel: String?
+    public var transcriptKaku: String?
+    public var transcribedAt: Date?
     /// Read along when the volume opens; off is plain reading (the reader's headphones button).
     public var readsAlong = true
 
@@ -55,12 +60,13 @@ public struct ReadAlongStore: Sendable {
         try database.writer.write { try pair.save($0) }
     }
 
-    public func saveAlignment(chapterId: Int, cues: Data, version: Int, fingerprint: String?, matched: Int, total: Int, at date: Date) throws {
+    public func saveAlignment(chapterId: Int, cues: Data, version: Int, fingerprint: String?, matched: Int, total: Int, at date: Date,
+                              model: String? = nil, kaku: String? = nil, transcribedAt: Date? = nil) throws {
         try database.writer.write { db in
             try db.execute(sql: """
                 UPDATE readAlongPair SET cues = ?, alignmentVersion = ?, transcriptFingerprint = ?, matchedSentences = ?,
-                totalSentences = ?, alignedAt = ? WHERE chapterId = ?
-                """, arguments: [cues, version, fingerprint, matched, total, date, chapterId])
+                totalSentences = ?, alignedAt = ?, transcriptModel = ?, transcriptKaku = ?, transcribedAt = ? WHERE chapterId = ?
+                """, arguments: [cues, version, fingerprint, matched, total, date, model, kaku, transcribedAt, chapterId])
         }
     }
 
