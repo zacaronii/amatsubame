@@ -24,6 +24,19 @@ public enum OutboxJobKind: String, Codable, CaseIterable, Sendable, DatabaseValu
     case audiobookshelfUpNext
 }
 
+extension OutboxJobKind {
+    /// The server a job writes to (nil: a Hachidori host, linked rather than signed in).
+    public var server: ServerKind? {
+        switch self {
+        case .ankiNote: .anki
+        case .kavitaProgress, .kavitaReaderMark, .kavitaWantToRead, .kavitaCollection, .kavitaReadingList: .kavita
+        case .jellyfinProgress, .jellyfinSubtitle, .jellyfinPlayed: .jellyfin
+        case .audiobookshelfProgress, .audiobookshelfSession, .audiobookshelfUpNext: .audiobookshelf
+        case .hachidoriLookupCount, .hachidoriWordStatus: nil
+        }
+    }
+}
+
 public enum OutboxJobState: String, Codable, Sendable, DatabaseValueConvertible {
     /// Waiting to be sent (possibly backing off until `nextAttemptAt`).
     case pending
@@ -513,6 +526,40 @@ public struct OutboxStore: Sendable {
                 .filter(Column("kind") == kind)
                 .filter([OutboxJobState.pending.rawValue, OutboxJobState.failed.rawValue].contains(Column("state")))
                 .deleteAll(db)
+        }
+    }
+
+    /// The kinds kept on the device, unsent: writes to a demo server. Kept in the database so
+    /// they're held from launch, before the accounts are read.
+    public func heldKinds() throws -> Set<OutboxJobKind> {
+        try database.reader.read { db in
+            Set(try String.fetchAll(db, sql: "SELECT kind FROM outboxHeld").compactMap(OutboxJobKind.init(rawValue:)))
+        }
+    }
+
+    /// Holds `kinds` from now on (a kind already held keeps its start). Kinds held until now and
+    /// not any more are a demo server left behind: the jobs written while it was held are
+    /// deleted, never sent (they name the demo server's items, which would be wrong on any
+    /// other). Jobs from before, for the user's own server, stay queued. Returns how many were
+    /// discarded.
+    @discardableResult
+    public func setHeld(_ kinds: Set<OutboxJobKind>) throws -> Int {
+        let now = now()
+        return try database.writer.write { db in
+            var since: [OutboxJobKind: Date] = [:]
+            for row in try Row.fetchAll(db, sql: "SELECT kind, since FROM outboxHeld") {
+                if let kind = OutboxJobKind(rawValue: row["kind"]) { since[kind] = row["since"] }
+            }
+            var discarded = 0
+            for (kind, start) in since where !kinds.contains(kind) {
+                // Written or rewritten (coalesced) since the hold began.
+                discarded += try OutboxJob.filter(Column("kind") == kind && Column("updatedAt") >= start).deleteAll(db)
+            }
+            try db.execute(sql: "DELETE FROM outboxHeld")
+            for kind in kinds {
+                try db.execute(sql: "INSERT INTO outboxHeld (kind, since) VALUES (?, ?)", arguments: [kind.rawValue, since[kind] ?? now])
+            }
+            return discarded
         }
     }
 

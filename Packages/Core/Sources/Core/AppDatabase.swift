@@ -1147,6 +1147,19 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v71_demo_server") { db in
+            // The public demo servers: nothing is written to them. Their jobs' kinds are held
+            // (kept, unsent) while signed in, and discarded on leaving.
+            try db.alter(table: "serverAccount") { t in
+                t.add(column: "isDemo", .boolean).notNull().defaults(to: false)
+            }
+            try db.create(table: "outboxHeld") { t in
+                t.primaryKey("kind", .text)
+                // When the hold began: only jobs written since are the demo's.
+                t.column("since", .datetime).notNull()
+            }
+        }
+
         return migrator
     }
 }

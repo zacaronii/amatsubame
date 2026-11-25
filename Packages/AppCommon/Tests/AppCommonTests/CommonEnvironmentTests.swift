@@ -29,6 +29,33 @@ struct RecordingHandler: OutboxHandler {
         #expect(common.lookup.mining === common.mining, "lookups offer mining")
     }
 
+    /// Signed in to a demo server, its writes stay on the device (and aren't "waiting to
+    /// sync"). Leaving it, by signing out or by signing in to your own server in its place,
+    /// discards them: none is ever sent, to the demo or to your server.
+    @Test(arguments: [false, true]) func aDemoServersWritesAreHeldThenDiscarded(switchesToOwnServer: Bool) async throws {
+        let common = try environment(sendsCards: true, handlers: [RecordingHandler()])
+        // Its clean-up empties the downloads folder DictionaryUpdaterTests use meanwhile.
+        common.dictionaryUpdater.isEnabled = false
+        let started = Task { await common.start() }
+        defer { started.cancel() }
+        try common.accounts.save(ServerAccount(kind: .kavita, baseURL: URL(string: "https://kavita-demo.example.com")!, isDemo: true))
+        for _ in 0..<50 where common.heldKinds.isEmpty { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(common.heldKinds.contains(.kavitaProgress) && common.heldKinds.contains(.kavitaReadingList))
+        #expect(!common.heldKinds.contains(.ankiNote) && !common.heldKinds.contains(.jellyfinProgress))
+        try common.outbox.enqueue(Data("{}".utf8), kind: .kavitaProgress)
+        #expect(await common.worker.drain().sent == 0, "held on the device")
+
+        if switchesToOwnServer {
+            try common.accounts.save(ServerAccount(kind: .kavita, baseURL: URL(string: "https://kavita.example.ts.net")!))
+        } else {
+            try common.accounts.delete(.kavita)
+        }
+        for _ in 0..<50 where !common.heldKinds.isEmpty { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(common.heldKinds.isEmpty)
+        #expect(try common.outbox.jobs(states: [.pending, .failed, .inFlight]).isEmpty, "the demo's jobs are gone")
+        #expect(await common.worker.drain().sent == 0, "and never sent")
+    }
+
     @Test func statsReadTheSeriesFromOlderCardsSources() {
         #expect(StatsModel.title(miscInfo: "鉄の時計 — Volume 1, p. 9") == "鉄の時計")
         #expect(StatsModel.title(miscInfo: "&quot;Midnight Bridge&quot; — S1E6 · 6:21") == "\"Midnight Bridge\"")

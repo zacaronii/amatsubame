@@ -44,6 +44,75 @@ struct HangingHandler: OutboxHandler {
         #expect(try store.summary() == .empty)
     }
 
+    /// A demo server's kinds are held: their jobs stay queued and unsent (so the device's place
+    /// keeps winning) while other servers' jobs go as usual. Letting go discards them: they
+    /// name the demo server's items and are never sent, to it or to another server.
+    @Test func heldKindsStayQueuedAndAreDiscardedOnRelease() async throws {
+        let sent = Mutex<[OutboxJobKind]>([])
+        let worker = OutboxWorker(store: store, mediaStorage: media, handlers: [
+            RecordingHandler(kind: .kavitaProgress) { _ in sent.withLock { $0.append(.kavitaProgress) } },
+            RecordingHandler(kind: .kavitaReadingList) { _ in sent.withLock { $0.append(.kavitaReadingList) } },
+            RecordingHandler(kind: .ankiNote) { _ in sent.withLock { $0.append(.ankiNote) } },
+        ])
+        try store.setHeld([.kavitaProgress, .kavitaReadingList])
+        let progress = try store.enqueue(Progress(chapterId: 1, page: 3), kind: .kavitaProgress, coalesceKey: "c1")
+        try store.enqueue(Progress(chapterId: 2, page: 1), kind: .kavitaReadingList, coalesceKey: "l1")
+        try store.enqueue(Card(expression: "a"), kind: .ankiNote)
+        #expect(await worker.drain().sent == 1)
+        #expect(sent.withLock { $0 } == [.ankiNote])
+        #expect(try store.jobs(states: [.pending]).map(\.kind).sorted { $0.rawValue < $1.rawValue } == [.kavitaProgress, .kavitaReadingList])
+        #expect(try store.jobs(states: [.pending]).contains { $0.id == progress })
+
+        #expect(try store.setHeld([]) == 2, "both held jobs discarded")
+        #expect(await worker.drain().sent == 0)
+        #expect(sent.withLock { $0 } == [.ankiNote], "nothing held was ever sent")
+        #expect(try store.jobs(states: [.pending, .failed, .inFlight]).isEmpty)
+        #expect(try store.heldKinds().isEmpty)
+    }
+
+    /// Jobs for the user's own server from before the demo was joined are held with it (never
+    /// sent to the demo) but not discarded on leaving: they stay queued for their own server.
+    /// A job rewritten during the demo (coalesced) is the demo's and goes.
+    @Test func leavingKeepsWhatWasQueuedBeforeTheDemo() async throws {
+        let clock = TestClock()
+        let store = OutboxStore(database: try AppDatabase.inMemory()) { clock.now }
+        let own = try store.enqueue(Progress(chapterId: 7, page: 2), kind: .kavitaProgress, coalesceKey: "own")
+        try store.enqueue(Progress(chapterId: 8, page: 1), kind: .kavitaProgress, coalesceKey: "shared-key")
+        clock.advance(60)
+        try store.setHeld([.kavitaProgress])
+        clock.advance(60)
+        try store.enqueue(Progress(chapterId: 900, page: 5), kind: .kavitaProgress, coalesceKey: "demo")
+        try store.enqueue(Progress(chapterId: 901, page: 9), kind: .kavitaProgress, coalesceKey: "shared-key")
+        let sent = Mutex<[Int64]>([])
+        let worker = OutboxWorker(store: store, mediaStorage: media, handlers: [RecordingHandler(kind: .kavitaProgress) { job in sent.withLock { $0.append(job.id!) } }])
+        #expect(await worker.drain().sent == 0, "nothing goes while held, the user's own included")
+
+        clock.advance(60)
+        #expect(try store.setHeld([]) == 2, "the demo's job and the one it rewrote")
+        #expect(await worker.drain().sent == 1)
+        #expect(sent.withLock { $0 } == [own], "the user's own goes to their server")
+    }
+
+    /// The hold is kept in the database: a new launch holds from the start, before the
+    /// accounts are read.
+    @Test func theHoldOutlastsALaunch() async throws {
+        let dir = FileManager.default.temporaryDirectory.appending(path: "held-\(UUID().uuidString)")
+        try OutboxStore(database: try AppDatabase.onDisk(directory: dir)).setHeld([.jellyfinProgress])
+        let store = OutboxStore(database: try AppDatabase.onDisk(directory: dir))
+        #expect(try store.heldKinds() == [.jellyfinProgress])
+        try store.enqueue(Progress(chapterId: 1, page: 1), kind: .jellyfinProgress, coalesceKey: "e1")
+        let worker = OutboxWorker(store: store, mediaStorage: media, handlers: [RecordingHandler(kind: .jellyfinProgress) { _ in }])
+        #expect(await worker.drain().sent == 0)
+    }
+
+    /// Every kind names the server it writes to, so a demo server's are all held.
+    @Test func eachKindNamesItsServer() {
+        #expect(OutboxJobKind.allCases.filter { $0.server == .kavita }.count == 5)
+        #expect(OutboxJobKind.kavitaProgress.server == .kavita && OutboxJobKind.jellyfinPlayed.server == .jellyfin)
+        #expect(OutboxJobKind.audiobookshelfUpNext.server == .audiobookshelf && OutboxJobKind.ankiNote.server == .anki)
+        #expect(OutboxJobKind.hachidoriWordStatus.server == nil)
+    }
+
     @Test func transientErrorsRetryAndPermanentErrorsFail() async throws {
         let retryId = try store.enqueue(Card(expression: "retry"), kind: .ankiNote)
         let failId = try store.enqueue(Card(expression: "fail"), kind: .ankiNote)
