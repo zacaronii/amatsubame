@@ -63,11 +63,13 @@ public final class StatsCloudSync {
     @discardableResult
     public func sync(force: Bool = false) async -> Bool {
         guard isOn, !running, force || Date.now.timeIntervalSince(lastRun) > 60 else { return false }
+        #if DEBUG
         // UI tests run on made-up data.
         guard !ProcessInfo.processInfo.environment.keys.contains(where: { $0.hasPrefix("UITEST_") }) else {
             state = .unavailable
             return false
         }
+        #endif
         running = true
         defer { running = false }
         lastRun = .now
