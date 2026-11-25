@@ -70,8 +70,9 @@ struct LongStripReaderView: View {
             .manualSelectionGesture(model)
             .scrollDisabled(model.isSelecting)
         }
-        // Not the sides: the iPhone Duo's outer screen has its status column there.
-        .ignoresSafeArea(edges: .bottom)
+        // The sides too: the page runs under the iPhone Duo outer screen's camera column, as in
+        // the paged reader (the status bar is hidden while reading).
+        .ignoresSafeArea(edges: [.bottom, .horizontal])
         .onAppear { position.scrollTo(id: model.currentPage, anchor: .top) }
         .onChange(of: model.jumpTarget) { _, target in
             guard target != nil, let page = model.consumeJump() else { return }
