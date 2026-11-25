@@ -151,11 +151,6 @@ body {
 .gloss-image { display: block; }
 [data-appearance="monochrome"] .gloss-image { filter: grayscale(1); }
 @media (prefers-color-scheme: dark) { [data-appearance="monochrome"] .gloss-image { filter: invert(1); } }
-.source {
-  font-size: 1.25em; line-height: 1.7; padding: 10px 12px; margin-bottom: 4px;
-  border-radius: 10px; background: var(--badge-background);
-}
-.source mark { background: color-mix(in srgb, var(--accent) 30%, transparent); color: inherit; border-radius: 3px; }
 /* A numbered sense: its glosses on one line ("why? · what for?"), indented under the number. */
 .glossary:has(.sense-number) .gloss-content { margin-left: 2.1em; }
 [data-sc-content="glossary"] { list-style: none !important; padding-left: 0 !important; }

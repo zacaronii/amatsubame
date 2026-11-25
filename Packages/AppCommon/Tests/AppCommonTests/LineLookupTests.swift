@@ -17,8 +17,8 @@ import Testing
         return LookupService(library: library, audio: AudioService(database: library.database, http: HTTPClient(), secrets: InMemorySecretStore()))
     }
 
-    /// The highlight follows the word the popup shows: taps in its sentence move it, Back
-    /// moves it back, a word from a definition leaves it, and closing clears it.
+    /// The highlight follows the word the popup shows: a word from a definition (which has no
+    /// place in the line) leaves it, Back keeps it, and closing clears it.
     @Test func theHighlightFollowsThePopup() async throws {
         let service = try await service()
         let lines = LineLookup(service: service)
@@ -28,16 +28,11 @@ import Testing
         #expect(lines.highlightedRange(for: "cue-1") == 3..<5, "無き")
         #expect(lines.highlightedRange(for: "cue-2") == nil)
 
-        // 罪無き, tapped in the popup's sentence.
+        // A word from a definition: the highlight stays on the line's word.
         let popup = try #require(lines.popup)
-        popup.push(await service.lookup(text: "その罪無き人", utf16Offset: 2, showSource: true))
-        #expect(lines.highlightedRange(for: "cue-1") == 2..<5)
-
-        // A word from a definition has no sentence: the highlight stays.
         popup.push(await service.lookup(text: "罪", utf16Offset: 0))
-        #expect(lines.highlightedRange(for: "cue-1") == 2..<5)
+        #expect(lines.highlightedRange(for: "cue-1") == 3..<5)
 
-        popup.back()
         popup.back()
         #expect(lines.highlightedRange(for: "cue-1") == 3..<5)
 

@@ -55,15 +55,6 @@ public enum EntryRenderer {
         "Looked up \(count) \(count == 1 ? "time" : "times")"
     }
 
-    /// The source text with the matched span highlighted; tapping another word in it looks that up.
-    public static func source(_ source: LookupSource) -> String {
-        let text = source.text as NSString
-        let start = min(max(source.utf16Offset, 0), text.length)
-        let end = min(start + max(source.utf16Length, 0), text.length)
-        let before = text.substring(to: start), match = text.substring(with: NSRange(location: start, length: end - start))
-        let after = text.substring(from: end)
-        return "<div class=\"source\" lang=\"ja\">\(HTML.escape(before))<mark>\(HTML.escape(match))</mark>\(HTML.escape(after))</div>"
-    }
 
     /// `status`: nil leaves out the Known and Ignore buttons; `.some(nil)` shows them unpressed.
     static func entry(_ result: TermLookupResult, index: Int, mined: Bool? = nil, status: WordStatus?? = nil,

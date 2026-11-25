@@ -23,7 +23,7 @@ public final class LineLookup {
         let anchor = TappableLine.lastTap
         TappableLine.lastTap = nil
         Task {
-            let page = await service.lookup(text: sentence, utf16Offset: offset, showSource: true)
+            let page = await service.lookup(text: sentence, utf16Offset: offset, keepsSource: true)
             self.key = key
             let popup = LookupPopupModel(page: page, context: context)
             popup.anchor = anchor
@@ -31,9 +31,8 @@ public final class LineLookup {
         }
     }
 
-    /// The looked-up characters: which line and the character range. It follows the popup:
-    /// a word tapped in the popup's sentence moves it, Back moves it back, and a word from a
-    /// definition (no sentence) leaves it on the sentence's last word.
+    /// The looked-up characters: which line and the character range. It follows the popup: a
+    /// word from a definition (no place in the line) leaves it on the line's word, and Back keeps it.
     public var highlight: (key: String, range: Range<Int>)? {
         guard let key, let page = popup?.pages.last(where: { $0.source != nil && !$0.results.isEmpty }),
               let source = page.source else { return nil }

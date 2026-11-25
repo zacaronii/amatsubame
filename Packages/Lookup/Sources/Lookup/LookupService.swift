@@ -4,7 +4,8 @@ import Foundation
 import GRDB
 import HachidoriKit
 
-/// The text a lookup came from, with the matched span (UTF-16 offsets).
+/// The text a lookup came from, with the matched span (UTF-16 offsets): where the word sits, for
+/// the readers' and lines' marks. The popup doesn't show it.
 public struct LookupSource: Equatable, Sendable {
     public var text: String
     public var utf16Offset: Int
@@ -24,7 +25,7 @@ public struct LookupResultPage: Identifiable, Equatable, Sendable {
     public var query: String
     /// The sentence around a tap, for mining (phase 4); nil for searches.
     public var sentence: String?
-    /// Shown above the results so another word can be tapped (readers, OCR blocks).
+    /// Where the word sits in the tapped text (lines, OCR blocks), so the reader or line can mark it.
     public var source: LookupSource?
     public var results: [TermLookupResult]
     /// How often the first result's headword has been looked up, counting this visit; nil
@@ -202,16 +203,16 @@ public final class LookupService {
         reloadPopupSettings()
     }
 
-    /// Looks up from the tapped character of `text` onward. With `showSource`, the
-    /// popup shows `text` above the results with the match highlighted.
-    public func lookup(text: String, utf16Offset: Int, showSource: Bool = false) async -> LookupResultPage {
+    /// Looks up from the tapped character of `text` onward. With `keepsSource`, the page keeps
+    /// where the match sits in `text` (`source`), for the line's or the page's mark.
+    public func lookup(text: String, utf16Offset: Int, keepsSource: Bool = false) async -> LookupResultPage {
         let scanned = TextScanner.scanText(text, utf16Offset: utf16Offset)
         let results = NameRanking.forTextTap(await terms(scanned))
         let matched = results.first?.matched ?? ""
         let page = LookupResultPage(
             query: results.first?.matched ?? scanned,
             sentence: TextScanner.sentence(in: text, utf16Offset: utf16Offset),
-            source: showSource ? LookupSource(text: text, utf16Offset: utf16Offset, utf16Length: matched.utf16.count) : nil,
+            source: keepsSource ? LookupSource(text: text, utf16Offset: utf16Offset, utf16Length: matched.utf16.count) : nil,
             results: results
         )
         if !results.isEmpty { try? activity?.recordLookup() }
@@ -313,7 +314,6 @@ public final class LookupService {
     /// The full HTML document for a page of results. With `nativeBackground`, the page stays
     /// transparent and the view showing it draws the background (`LookupPopupView`).
     public func document(for page: LookupResultPage, nativeBackground: Bool = false) -> String {
-        let source = page.source.map(EntryRenderer.source) ?? ""
         let mined = mining.map { mining in page.results.map(mining.isMined) }
         // Known and Ignore while words are marked, as in Hachidori (they're about the marks).
         let statuses = mining?.marksWords == true ? page.results.map { wordStatus(of: $0.expression) } : nil
@@ -327,7 +327,7 @@ public final class LookupService {
             ? .init(dictionary: popupSettings.compactDefinitionSummaryDictionary, count: popupSettings.compactDefinitionSummaryCount)
             : nil
         let dictionaryStyles = looksUpOnHost && followsHost ? styles.merging(host?.styles ?? [:]) { $1 } : styles
-        return LookupPage.document(body: source + EntryRenderer.entries(page.results, mined: mined, statuses: statuses, lookupCount: count, summary: summary),
+        return LookupPage.document(body: EntryRenderer.entries(page.results, mined: mined, statuses: statuses, lookupCount: count, summary: summary),
                                    dictionaryStyles: dictionaryStyles, extraCSS: accentCSS)
     }
 

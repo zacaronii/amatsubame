@@ -6,7 +6,7 @@
   const post = (message) => window.lookupBridgePost
     ? window.lookupBridgePost(message)
     : window.webkit?.messageHandlers?.lookup?.postMessage(message);
-  const blockSelector = '.source, p, li, td, th, dd, dt, h1, h2, h3, h4, h5, h6, blockquote, figcaption, ' +
+  const blockSelector = 'p, li, td, th, dd, dt, h1, h2, h3, h4, h5, h6, blockquote, figcaption, ' +
     '[data-sc-content], .gloss-content, .expression, .entry, body';
 
   function caretAt(x, y) {
