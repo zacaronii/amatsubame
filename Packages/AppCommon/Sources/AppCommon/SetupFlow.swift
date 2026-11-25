@@ -239,11 +239,31 @@ public struct SetupPage<Content: View, Footer: View>: View {
                 footer
             }
             .padding(.horizontal, 20)
+            .padding(.top, 12)
             .padding(.bottom, 8)
             .frame(maxWidth: 560)
+            .frame(maxWidth: .infinity)
+            // The page scrolls under this bar: without a background, a long list (the
+            // dictionaries) showed through the footer's text and the disabled button.
+            .background {
+                LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: Self.pageBackground, location: 0.25)],
+                               startPoint: .top, endPoint: .bottom)
+                    .ignoresSafeArea()
+            }
         }
         .scrollDismissesKeyboard(.interactively)
         .navigationBarTitleDisplayModeInline()
+    }
+}
+
+extension SetupPage {
+    /// The page's own background, for the button bar to cover what scrolls under it.
+    static var pageBackground: Color {
+        #if canImport(UIKit)
+        Color(uiColor: .systemBackground)
+        #else
+        Color(nsColor: .windowBackgroundColor)
+        #endif
     }
 }
 
