@@ -70,6 +70,29 @@ struct HangingHandler: OutboxHandler {
         #expect(try store.heldKinds().isEmpty)
     }
 
+    /// Jobs for the user's own server from before the demo was joined are held with it (never
+    /// sent to the demo) but not discarded on leaving: they stay queued for their own server.
+    /// A job rewritten during the demo (coalesced) is the demo's and goes.
+    @Test func leavingKeepsWhatWasQueuedBeforeTheDemo() async throws {
+        let clock = TestClock()
+        let store = OutboxStore(database: try AppDatabase.inMemory()) { clock.now }
+        let own = try store.enqueue(Progress(chapterId: 7, page: 2), kind: .kavitaProgress, coalesceKey: "own")
+        try store.enqueue(Progress(chapterId: 8, page: 1), kind: .kavitaProgress, coalesceKey: "shared-key")
+        clock.advance(60)
+        try store.setHeld([.kavitaProgress])
+        clock.advance(60)
+        try store.enqueue(Progress(chapterId: 900, page: 5), kind: .kavitaProgress, coalesceKey: "demo")
+        try store.enqueue(Progress(chapterId: 901, page: 9), kind: .kavitaProgress, coalesceKey: "shared-key")
+        let sent = Mutex<[Int64]>([])
+        let worker = OutboxWorker(store: store, mediaStorage: media, handlers: [RecordingHandler(kind: .kavitaProgress) { job in sent.withLock { $0.append(job.id!) } }])
+        #expect(await worker.drain().sent == 0, "nothing goes while held, the user's own included")
+
+        clock.advance(60)
+        #expect(try store.setHeld([]) == 2, "the demo's job and the one it rewrote")
+        #expect(await worker.drain().sent == 1)
+        #expect(sent.withLock { $0 } == [own], "the user's own goes to their server")
+    }
+
     /// The hold is kept in the database: a new launch holds from the start, before the
     /// accounts are read.
     @Test func theHoldOutlastsALaunch() async throws {

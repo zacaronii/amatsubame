@@ -1155,6 +1155,8 @@ public final class AppDatabase: Sendable {
             }
             try db.create(table: "outboxHeld") { t in
                 t.primaryKey("kind", .text)
+                // When the hold began: only jobs written since are the demo's.
+                t.column("since", .datetime).notNull()
             }
         }
 

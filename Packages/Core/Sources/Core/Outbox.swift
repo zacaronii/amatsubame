@@ -537,18 +537,28 @@ public struct OutboxStore: Sendable {
         }
     }
 
-    /// Holds `kinds` from now on. Kinds held until now and not any more are a demo server left
-    /// behind: their jobs are deleted, never sent (they name the demo server's items, which
-    /// would be wrong on any other). Returns how many were discarded.
+    /// Holds `kinds` from now on (a kind already held keeps its start). Kinds held until now and
+    /// not any more are a demo server left behind: the jobs written while it was held are
+    /// deleted, never sent (they name the demo server's items, which would be wrong on any
+    /// other). Jobs from before, for the user's own server, stay queued. Returns how many were
+    /// discarded.
     @discardableResult
     public func setHeld(_ kinds: Set<OutboxJobKind>) throws -> Int {
-        try database.writer.write { db in
-            let before = Set(try String.fetchAll(db, sql: "SELECT kind FROM outboxHeld").compactMap(OutboxJobKind.init(rawValue:)))
-            let released = before.subtracting(kinds)
-            let discarded = released.isEmpty ? 0
-                : try OutboxJob.filter(released.map(\.rawValue).contains(Column("kind"))).deleteAll(db)
+        let now = now()
+        return try database.writer.write { db in
+            var since: [OutboxJobKind: Date] = [:]
+            for row in try Row.fetchAll(db, sql: "SELECT kind, since FROM outboxHeld") {
+                if let kind = OutboxJobKind(rawValue: row["kind"]) { since[kind] = row["since"] }
+            }
+            var discarded = 0
+            for (kind, start) in since where !kinds.contains(kind) {
+                // Written or rewritten (coalesced) since the hold began.
+                discarded += try OutboxJob.filter(Column("kind") == kind && Column("updatedAt") >= start).deleteAll(db)
+            }
             try db.execute(sql: "DELETE FROM outboxHeld")
-            for kind in kinds { try db.execute(sql: "INSERT INTO outboxHeld (kind) VALUES (?)", arguments: [kind.rawValue]) }
+            for kind in kinds {
+                try db.execute(sql: "INSERT INTO outboxHeld (kind, since) VALUES (?, ?)", arguments: [kind.rawValue, since[kind] ?? now])
+            }
             return discarded
         }
     }
