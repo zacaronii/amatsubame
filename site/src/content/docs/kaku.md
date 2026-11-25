@@ -226,7 +226,8 @@ app always works, whatever the rules say.
 Since 1.11 the page's **Settings** change the model, the chunk length, the prompt, how long an
 episode counts as new, how often Kaku checks Audiobookshelf and when it unloads the model. A
 setting changed there wins over the compose file's (also after a restart) until you choose **Use the
-environment's**. A new model is used from the next job on; nothing already transcribed is redone. A cancelled episode
+environment's**: changing `KAKU_MODEL` in `.env` does nothing while the page has a model saved, so
+choose **Use the environment's** there first. A new model is used from the next job on; nothing already transcribed is redone. A cancelled episode
 isn't queued again by itself; asking for it from an app queues it again.
 
 It's off unless you set `KAKU_UI_SECRET` (in the compose file) to a long random string, and it only
