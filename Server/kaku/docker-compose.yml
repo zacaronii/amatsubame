@@ -26,6 +26,8 @@ services:
       # Optional: Jellyfin episodes transcribed on request, for Miru's subtitles.
       - JELLYFIN_URL=${JELLYFIN_URL:-}
       - JELLYFIN_API_KEY=${JELLYFIN_API_KEY:-}
+      # Optional: the web page at /ui, only behind a proxy that logs you in and adds this as X-Kaku-UI.
+      - KAKU_UI_SECRET=${KAKU_UI_SECRET:-}
     volumes:
       - ./data:/data
       - ./models:/models

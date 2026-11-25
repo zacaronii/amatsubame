@@ -208,6 +208,17 @@ These aren't in the compose file; add them under `environment:` to use them:
 | `KAKU_POLL_SECONDS` | `300` | How often Kaku looks for new episodes |
 | `KAKU_IDLE_UNLOAD_SECONDS` | `600` | How long the model stays loaded with nothing to do |
 
+## Web page
+
+Since Kaku 1.8 there's a page for your browser at `/ui`: what Kaku is doing now, the queue, recent
+problems and your libraries, refreshing itself every few seconds. It only shows things so far.
+
+It's off unless you set `KAKU_UI_SECRET` (in the compose file) to a long random string, and it only
+opens through a reverse proxy that signs you in and adds the header `X-Kaku-UI` with that string to
+requests for `/ui` (with Authentik and Traefik: a forward-auth middleware and a headers middleware on
+a router for the `/ui` paths). Opened any other way it answers 403, so it isn't reachable around the
+sign-in. The apps' requests are unchanged, and the page never sees `KAKU_API_TOKEN`.
+
 ## Known limits
 
 - Some shows' transcripts get speaker names written into the text without punctuation. Those lines are

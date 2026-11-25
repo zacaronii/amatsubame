@@ -287,4 +287,6 @@ def create_app(service):
             return JSONResponse(jellyfin_state(jellyfin_id), status_code=202)
         raise HTTPException(404, 'Kaku has no transcript or job for this episode. POST /jellyfin/jobs to ask for one.')
 
+    from .ui import add_ui
+    add_ui(app, service)
     return app

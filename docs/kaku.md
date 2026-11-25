@@ -69,6 +69,20 @@ Everything except `/health` needs `Authorization: Bearer <KAKU_API_TOKEN>`.
 - `source`: `fingerprint`, `duration`, `model`, `modelVersion`, `kaku`, `createdAt`.
 - `sentences[]`: `start`, `end`, `text`, `confidence` and `words[]` (`text`, `start`, `end`, `confidence`), with times in seconds on the episode's timeline.
 
+## Web page
+Since 1.8, Kaku can serve a page at `/ui` for a browser: its status (model, GPU memory, the last
+Audiobookshelf check, Jellyfin), the job being transcribed and the queue, recent problems, and the
+libraries with their counts. It's read only for now and refreshes itself every few seconds.
+
+It's meant for a reverse proxy that signs you in (Authentik, say) and is off by default:
+- Set `KAKU_UI_SECRET` to a long random string. Without it, `/ui` answers 404.
+- Route the address's `/ui` paths through the sign-in, and have the proxy add the header
+  `X-Kaku-UI: <KAKU_UI_SECRET>` to those requests. Without that header the page answers 403, so going
+  around the proxy to Kaku's port doesn't open it.
+- The rest of the address keeps the API as it is (bearer token, for the apps).
+- The page never sees `KAKU_API_TOKEN`: it reads Kaku's database itself. Who's signed in comes from
+  the proxy's `X-authentik-username`.
+
 ## Running it
 Kaku needs a machine with an NVIDIA GPU and Docker with the NVIDIA Container Toolkit (the `nvidia` runtime). anime-whisper, with large-v3's encoder, needs about as much GPU memory as large-v3 did (about 3.7 GB loaded, 5 GB at peak) or a little less. The image is built on `nvidia/cuda:12.8.1-cudnn-runtime` (RTX 50-series, Blackwell, cards need CUDA 12.8 or later), so the host's NVIDIA driver must support CUDA 12.8. It needs Audiobookshelf 2.26.0 or later (API keys).
 
