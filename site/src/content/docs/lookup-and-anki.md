@@ -172,7 +172,7 @@ meant. A longer match still comes first.
 ## Hachidori
 
 If you use [Hachidori](https://github.com/bee-san/hachidori) in your browser and share it from a
-computer or a Docker host, the apps can link to it: Settings ▸ Lookup and Mining ▸ **Hachidori**. Turn
+computer or a Docker host, the apps can link to it: Settings ▸ Connections ▸ **Hachidori**. Turn
 on **Use Hachidori** and enter the address of the computer sharing it (port 8771 unless you changed
 it). **Test Connection** checks an address before you link to it: it shows the host's name, its
 Hachidori version and how many dictionaries it has. While linked, the Status section shows the same.
@@ -206,7 +206,7 @@ On every device:
 
 - Lookup counts are Hachidori's, so a word you look up in the browser and in Yomu counts in the same
   place. Lookups made while Hachidori can't be reached are counted there once it's back (at that
-  time: Hachidori keeps no other time for them). Settings ▸ Hachidori shows how many words are
+  time: Hachidori keeps no other time for them). Settings ▸ Connections ▸ Hachidori shows how many words are
   waiting, when the apps last heard from Hachidori, and **Sync Now**.
 - The popup follows Hachidori's settings (brief definitions, lookup counts, background opacity), and
   keeps them while Hachidori can't be reached. The Popup page shows them; you change them in

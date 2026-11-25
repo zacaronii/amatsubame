@@ -12,12 +12,12 @@ enum YomuSetup {
 
     @MainActor static func checklist(_ environment: AppEnvironment) -> [SetupChecklistItem] {
         return [
-            SetupChecklistItem.server("Kavita", account: environment.serverAccounts[.kavita], settings: "Settings → Reading"),
+            SetupChecklistItem.server("Kavita", account: environment.serverAccounts[.kavita], settings: "Settings → Connections"),
             SetupChecklistItem("Manga text recognition", detail: environment.ocrModels.state == .installed ? "Models installed" : "In Settings → Reading",
                                isDone: environment.ocrModels.state == .installed),
             SetupChecklistItem("Read-Along", detail: environment.serverAccounts[.audiobookshelf] != nil ? "Audiobookshelf connected" : "Optional · In Settings → Reading",
                                isDone: environment.serverAccounts[.audiobookshelf] != nil),
-            SetupChecklistItem("kechimochi", detail: ((try? environment.common.activity.kechimochiURL()) ?? nil) != nil ? "Linked from Stats" : "Optional · In Settings → Stats",
+            SetupChecklistItem("kechimochi", detail: ((try? environment.common.activity.kechimochiURL()) ?? nil) != nil ? "Linked from Stats" : "Optional · In Settings → Connections",
                                isDone: ((try? environment.common.activity.kechimochiURL()) ?? nil) != nil),
         ]
     }

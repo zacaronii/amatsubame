@@ -445,7 +445,7 @@ public final class CommonEnvironment {
         _ = try await kechimochiClient()?.version()
     }
 
-    /// kechimochi's API, on the same host as the page set in Settings ▸ Stats.
+    /// kechimochi's API, on the same host as the page set in Settings ▸ Connections ▸ kechimochi.
     func kechimochiClient() -> KechimochiClient? {
         guard let address = (try? activity.kechimochiURL()) ?? nil, let webURL = URL(string: address),
               var components = URLComponents(url: webURL, resolvingAgainstBaseURL: false) else { return nil }

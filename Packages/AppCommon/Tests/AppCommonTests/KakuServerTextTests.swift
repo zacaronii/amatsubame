@@ -27,9 +27,9 @@ import Testing
             try JSONDecoder().decode(KakuHealth.self, from: Data(#"{"version": "1.5.0", "jobs": \#(jobs)}"#.utf8))
         }
         func summary(_ host: String?, _ health: KakuHealth? = nil, unreachable: Bool = false) -> String {
-            KakuSettingsRow.summary(purpose: "Transcripts", host: host, health: health, unreachable: unreachable)
+            KakuSettingsRow.summary(host: host, health: health, unreachable: unreachable)
         }
-        #expect(summary(nil) == "Transcripts · not set up")
+        #expect(summary(nil) == "Optional · your own transcription server")
         #expect(summary("kaku.example") == "kaku.example")
         #expect(summary("kaku.example", unreachable: true) == "Can't reach kaku.example")
         #expect(summary("kaku.example", try health(#"{"done": 155}"#)) == "Idle · 155 transcribed")

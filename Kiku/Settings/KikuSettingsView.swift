@@ -14,21 +14,12 @@ struct KikuSettingsView: View {
                 SettingsStatusCard(items: statusItems)
 
                 Section {
-                    NavigationLink(value: ServerKind.audiobookshelf) {
-                        SettingsRowLabel("Audiobookshelf", subtitle: accounts[.audiobookshelf]?.hostAndAccount ?? "Not set up",
-                                         systemImage: "server.rack", color: .indigo, dot: accounts[.audiobookshelf]?.dotColor)
-                    }
-                    .accessibilityIdentifier("settings.audiobookshelf")
                     NavigationLink {
                         KikuLibrariesSettingsView()
                     } label: {
                         SettingsRowLabel("Libraries", systemImage: "books.vertical.fill", color: .orange)
                     }
                     .accessibilityIdentifier("settings.libraries")
-                    NavigationLink(value: ServerKind.kaku) {
-                        KakuSettingsRow(purpose: "Transcripts")
-                    }
-                    .accessibilityIdentifier("settings.kaku")
                     NavigationLink {
                         Self.playback
                     } label: {
@@ -43,15 +34,23 @@ struct KikuSettingsView: View {
                     .accessibilityIdentifier("settings.downloads")
                 } header: {
                     Text("Listening")
-                } footer: {
-                    Text("Transcripts come from Kaku. Without it, episodes play without their text.")
                 }
 
                 LookupAndMiningSection {
                     AnkiSettingsPage(environment: environment.common)
                 }
 
-                StatsSettingsLink()
+                ConnectionsSection {
+                    NavigationLink(value: ServerKind.audiobookshelf) {
+                        SettingsRowLabel("Audiobookshelf", subtitle: accounts[.audiobookshelf]?.hostAndAccount ?? "Not set up",
+                                         systemImage: "server.rack", color: .indigo, dot: accounts[.audiobookshelf]?.dotColor)
+                    }
+                    .accessibilityIdentifier("settings.audiobookshelf")
+                    NavigationLink(value: ServerKind.kaku) {
+                        KakuSettingsRow()
+                    }
+                    .accessibilityIdentifier("settings.kaku")
+                }
 
                 SettingsFooterSection(storageTotal: storageTotal) {
                     StorageView()
@@ -184,15 +183,16 @@ struct MacSettingsView: View {
         MacSettingsWindow(groups: [
             MacSettingsGroup(pages: [.overview(KikuSettingsView.statusItems(environment))]),
             MacSettingsGroup("Listening", pages: [
-                MacSettingsPage("audiobookshelf", title: "Audiobookshelf", systemImage: "server.rack") {
-                    KikuSettingsView.serverPage(.audiobookshelf, environment: environment)
-                },
                 MacSettingsPage("libraries", title: "Libraries", systemImage: "books.vertical") { KikuLibrariesSettingsView() },
-                MacSettingsPage("kaku", title: "Kaku", systemImage: "text.quote") { KakuSettingsView(environment: environment.common) },
                 MacSettingsPage("playback", title: "Playback", systemImage: "play.circle") { KikuSettingsView.playback },
                 MacSettingsPage("downloads", title: "Downloads", systemImage: "arrow.down.circle") { KikuDownloadSettingsView() },
             ]),
-        ] + MacSettingsGroup.shared {
+        ] + MacSettingsGroup.shared(servers: [
+            MacSettingsPage("audiobookshelf", title: "Audiobookshelf", systemImage: "server.rack") {
+                KikuSettingsView.serverPage(.audiobookshelf, environment: environment)
+            },
+            MacSettingsPage("kaku", title: "Kaku", systemImage: "text.quote") { KakuSettingsView(environment: environment.common) },
+        ]) {
             AnkiSettingsPage(environment: environment.common)
         } + [
             .footer {

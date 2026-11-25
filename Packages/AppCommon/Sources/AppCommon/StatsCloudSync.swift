@@ -26,7 +26,7 @@ public final class StatsCloudSync {
 
     static let key = "stats.iCloudSync.off"
     public private(set) var state: State
-    /// On unless it's been turned off (Settings ▸ Stats).
+    /// On unless it's been turned off (Settings ▸ Connections ▸ Sync with iCloud).
     public var isOn: Bool {
         didSet {
             guard isOn != oldValue else { return }

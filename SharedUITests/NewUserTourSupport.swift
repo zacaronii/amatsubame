@@ -24,9 +24,13 @@ extension XCTestCase {
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
         // The list is lazy: rows below the fold only exist once scrolled to.
         var rows: [String] = []
+        let settingsRows = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'settings.'"))
         for _ in 0..<8 {
-            let seen = app.descendants(matching: .any).allElementsBoundByIndex.map { $0.identifier }
-                .filter { $0.hasPrefix("settings.") && !rows.contains($0) }
+            // Only the rows, once the list has settled: a snapshot of everything on screen could
+            // change while it was read.
+            sleep(1)
+            let seen = settingsRows.allElementsBoundByIndex.map { $0.identifier }
+                .filter { !rows.contains($0) }
             rows += Set(seen).sorted()
             app.swipeUp(velocity: .fast)
         }

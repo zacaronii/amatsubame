@@ -10,8 +10,10 @@ final class PlayerUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         XCTAssertTrue(app.descendants(matching: .any)["watch.placeholder"].waitForExistence(timeout: 10), "Watch tab")
         app.tabBars.buttons["Settings"].tap()
-        for row in ["settings.jellyfin", "settings.libraries", "settings.subtitles", "settings.playback", "settings.downloads",
-                    "settings.dictionaries", "settings.audioSources", "settings.anki", "settings.kechimochi", "settings.advanced"] {
+        // In order down the screen: Watching, Lookup and Mining, Connections, then Advanced.
+        for row in ["settings.libraries", "settings.subtitles", "settings.playback", "settings.downloads",
+                    "settings.dictionaries", "settings.audioSources", "settings.anki",
+                    "settings.jellyfin", "settings.jimaku", "settings.kaku", "settings.hachidori", "settings.kechimochi", "settings.advanced"] {
             // Lower rows only exist once scrolled to.
             let element = app.descendants(matching: .any)[row].firstMatch
             for _ in 0..<4 where !element.waitForExistence(timeout: 2) {
@@ -19,7 +21,7 @@ final class PlayerUITests: XCTestCase {
             }
             XCTAssertTrue(element.exists, "\(row) in Settings")
         }
-        // Stats: the iCloud switch, under kechimochi (it says why it can't sync here).
+        // Connections: the iCloud switch, under kechimochi (it says why it can't sync here).
         let cloud = app.switches["stats.iCloud"].firstMatch
         for _ in 0..<4 where !cloud.waitForExistence(timeout: 2) { app.swipeUp() }
         XCTAssertTrue(cloud.exists, "Sync with iCloud in Settings")

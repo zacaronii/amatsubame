@@ -3,7 +3,7 @@ import HachidoriKit
 import Lookup
 import SwiftUI
 
-/// Settings ▸ Lookup and Mining ▸ Hachidori: link to a Hachidori host like a linked browser
+/// Settings ▸ Connections ▸ Hachidori: link to a Hachidori host like a linked browser
 /// (docs/hachidori.md); shared with the other apps. The Mac apps look words up on it; on every
 /// platform its dictionaries can be copied, and yours sent to it (Settings ▸ Dictionaries).
 public struct HachidoriSettingsPage: View {

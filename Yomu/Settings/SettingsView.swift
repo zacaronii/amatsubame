@@ -3,8 +3,8 @@ import Core
 import OCR
 import SwiftUI
 
-/// Settings in the shape every app shares: status, Reading, Lookup
-/// and Mining, Stats, then Storage, Advanced and About.
+/// Settings in the shape every app shares: status, Reading, Lookup and Mining, Connections,
+/// then Storage, Advanced and About.
 struct SettingsView: View {
     @Environment(AppEnvironment.self) private var environment
     @State private var storageTotal: String?
@@ -15,11 +15,6 @@ struct SettingsView: View {
                 SettingsStatusCard(items: statusItems)
 
                 Section {
-                    NavigationLink(value: ServerKind.kavita) {
-                        SettingsRowLabel("Kavita", subtitle: environment.serverAccounts[.kavita]?.hostAndAccount ?? "Not set up",
-                                         systemImage: "server.rack", color: .indigo, dot: environment.serverAccounts[.kavita]?.dotColor)
-                    }
-                    .accessibilityIdentifier("settings.kavita")
                     NavigationLink {
                         LibrariesSettingsView()
                     } label: {
@@ -46,10 +41,6 @@ struct SettingsView: View {
                                          dot: environment.serverAccounts[.audiobookshelf]?.dotColor)
                     }
                     .accessibilityIdentifier("settings.readAlong")
-                    NavigationLink(value: ServerKind.kaku) {
-                        KakuSettingsRow(purpose: "Read-along transcripts")
-                    }
-                    .accessibilityIdentifier("settings.kaku")
                 } header: {
                     Text("Reading")
                 } footer: {
@@ -60,7 +51,22 @@ struct SettingsView: View {
                     Self.anki(environment)
                 }
 
-                StatsSettingsLink()
+                ConnectionsSection {
+                    NavigationLink(value: ServerKind.kavita) {
+                        SettingsRowLabel("Kavita", subtitle: environment.serverAccounts[.kavita]?.hostAndAccount ?? "Not set up",
+                                         systemImage: "server.rack", color: .indigo, dot: environment.serverAccounts[.kavita]?.dotColor)
+                    }
+                    .accessibilityIdentifier("settings.kavita")
+                    NavigationLink(value: ServerKind.audiobookshelf) {
+                        SettingsRowLabel("Audiobookshelf", subtitle: environment.serverAccounts[.audiobookshelf]?.hostAndAccount ?? "Optional · for read-along",
+                                         systemImage: "headphones", color: .orange, dot: environment.serverAccounts[.audiobookshelf]?.dotColor)
+                    }
+                    .accessibilityIdentifier("settings.audiobookshelf")
+                    NavigationLink(value: ServerKind.kaku) {
+                        KakuSettingsRow()
+                    }
+                    .accessibilityIdentifier("settings.kaku")
+                }
 
                 SettingsFooterSection(storageTotal: storageTotal) {
                     StorageView()
@@ -163,14 +169,18 @@ struct MacSettingsView: View {
         MacSettingsWindow(groups: [
             MacSettingsGroup(pages: [.overview(SettingsView.statusItems(environment))]),
             MacSettingsGroup("Reading", pages: [
-                MacSettingsPage("kavita", title: "Kavita", systemImage: "server.rack") { KavitaSettingsView(environment: environment.common) },
                 MacSettingsPage("libraries", title: "Libraries", systemImage: "books.vertical") { LibrariesSettingsView() },
                 MacSettingsPage("downloads", title: "Downloads", systemImage: "arrow.down.circle") { ReadingDownloadsView() },
                 MacSettingsPage("ocr", title: "Manga Text Recognition", systemImage: "text.viewfinder") { OCRSettingsView() },
                 MacSettingsPage("readAlong", title: "Read-Along", systemImage: "headphones") { ReadAlongSettingsView() },
-                MacSettingsPage("kaku", title: "Kaku", systemImage: "text.quote") { KakuSettingsView(environment: environment.common) },
             ]),
-        ] + MacSettingsGroup.shared {
+        ] + MacSettingsGroup.shared(servers: [
+            MacSettingsPage("kavita", title: "Kavita", systemImage: "server.rack") { KavitaSettingsView(environment: environment.common) },
+            MacSettingsPage("audiobookshelf", title: "Audiobookshelf", systemImage: "headphones") {
+                AudiobookshelfSettingsView(environment: environment.common, tokens: environment.audiobookshelfTokens, appName: "Yomu")
+            },
+            MacSettingsPage("kaku", title: "Kaku", systemImage: "text.quote") { KakuSettingsView(environment: environment.common) },
+        ]) {
             SettingsView.anki(environment)
         } + [
             .footer {

@@ -126,22 +126,21 @@ public extension MacSettingsPage {
             MacSettingsPage("dictionaries", title: "Dictionaries", systemImage: "character.book.closed.ja") { DictionariesView() },
             MacSettingsPage("audioSources", title: "Audio Sources", systemImage: "speaker.wave.2") { AudioSourcesView() },
             MacSettingsPage("popup", title: "Popup", systemImage: "text.bubble") { PopupSettingsPage() },
-            MacSettingsPage("hachidori", title: "Hachidori", systemImage: "bird") { HachidoriSettingsPage() },
             MacSettingsPage("anki", title: "Anki", systemImage: "rectangle.stack") { anki() },
         ]
     }
 
     /// Stats: the same on every device, through iCloud.
     static var statsCloud: MacSettingsPage {
-        MacSettingsPage("statsCloud", title: "iCloud", systemImage: "icloud") {
+        MacSettingsPage("statsCloud", title: "Sync with iCloud", systemImage: "icloud") {
             Form {
                 Section {
                     StatsCloudRow()
                 } footer: {
-                    Text("Keeps this app's Stats the same on all your devices signed in to the same iCloud account.")
+                    Text("Keeps this app's Stats, goals and settings the same on your devices signed in to the same iCloud account.")
                 }
             }
-            .navigationTitle("iCloud")
+            .navigationTitle("Sync with iCloud")
         }
     }
 
@@ -155,11 +154,15 @@ public extension MacSettingsPage {
 }
 
 public extension MacSettingsGroup {
-    /// Lookup and Mining, then Stats: the groups every app has after its own.
-    static func shared<Anki: View>(@ViewBuilder anki: @escaping () -> Anki) -> [MacSettingsGroup] {
+    /// Lookup and Mining, then Connections (the app's `servers` first): the groups every app
+    /// has after its own.
+    static func shared<Anki: View>(servers: [MacSettingsPage], @ViewBuilder anki: @escaping () -> Anki) -> [MacSettingsGroup] {
         [
             MacSettingsGroup("Lookup and Mining", pages: MacSettingsPage.lookupAndMining(anki: anki)),
-            MacSettingsGroup("Stats", pages: [.kechimochi, .statsCloud]),
+            MacSettingsGroup("Connections", pages: servers + [
+                MacSettingsPage("hachidori", title: "Hachidori", systemImage: "bird") { HachidoriSettingsPage() },
+                .kechimochi, .statsCloud,
+            ]),
         ]
     }
 

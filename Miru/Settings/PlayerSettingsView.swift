@@ -33,11 +33,6 @@ struct PlayerSettingsView: View {
                 SettingsStatusCard(items: statusItems)
 
                 Section {
-                    NavigationLink(value: ServerKind.jellyfin) {
-                        SettingsRowLabel("Jellyfin", subtitle: accounts[.jellyfin]?.hostAndAccount ?? "Not set up",
-                                         systemImage: "server.rack", color: .indigo, dot: accounts[.jellyfin]?.dotColor)
-                    }
-                    .accessibilityIdentifier("settings.jellyfin")
                     NavigationLink {
                         JellyfinLibrariesSettingsView()
                     } label: {
@@ -50,10 +45,6 @@ struct PlayerSettingsView: View {
                         SettingsRowLabel("Subtitles", subtitle: subtitlesSummary, systemImage: "captions.bubble.fill", color: .indigo)
                     }
                     .accessibilityIdentifier("settings.subtitles")
-                    NavigationLink(value: ServerKind.kaku) {
-                        KakuSettingsRow(purpose: "Subtitles when Jimaku has none")
-                    }
-                    .accessibilityIdentifier("settings.kaku")
                     NavigationLink {
                         PlaybackSettingsView()
                     } label: {
@@ -82,7 +73,23 @@ struct PlayerSettingsView: View {
                     Self.anki(environment)
                 }
 
-                StatsSettingsLink()
+                ConnectionsSection {
+                    NavigationLink(value: ServerKind.jellyfin) {
+                        SettingsRowLabel("Jellyfin", subtitle: accounts[.jellyfin]?.hostAndAccount ?? "Not set up",
+                                         systemImage: "server.rack", color: .indigo, dot: accounts[.jellyfin]?.dotColor)
+                    }
+                    .accessibilityIdentifier("settings.jellyfin")
+                    NavigationLink {
+                        JimakuSettingsView()
+                    } label: {
+                        JimakuRow()
+                    }
+                    .accessibilityIdentifier("settings.jimaku")
+                    NavigationLink(value: ServerKind.kaku) {
+                        KakuSettingsRow()
+                    }
+                    .accessibilityIdentifier("settings.kaku")
+                }
 
                 SettingsFooterSection(storageTotal: storageTotal) {
                     StorageView()
@@ -183,15 +190,17 @@ struct MacSettingsView: View {
         MacSettingsWindow(groups: [
             MacSettingsGroup(pages: [.overview(PlayerSettingsView.statusItems(environment))]),
             MacSettingsGroup("Watching", pages: [
-                MacSettingsPage("jellyfin", title: "Jellyfin", systemImage: "server.rack") { JellyfinSettingsView(environment: environment.common) },
                 MacSettingsPage("libraries", title: "Libraries", systemImage: "books.vertical") { JellyfinLibrariesSettingsView() },
                 MacSettingsPage("subtitles", title: "Subtitles", systemImage: "captions.bubble") { SubtitlesSettingsView() },
-                MacSettingsPage("kaku", title: "Kaku", systemImage: "text.quote") { KakuSettingsView(environment: environment.common) },
                 MacSettingsPage("playback", title: "Playback", systemImage: "play.rectangle") { PlaybackSettingsView() },
                 MacSettingsPage("downloads", title: "Downloads", systemImage: "arrow.down.circle") { PlayerSettingsView.downloads },
                 MacSettingsPage("shortcuts", title: "Keyboard Shortcuts", systemImage: "keyboard") { PlayerShortcutsView() },
             ]),
-        ] + MacSettingsGroup.shared {
+        ] + MacSettingsGroup.shared(servers: [
+            MacSettingsPage("jellyfin", title: "Jellyfin", systemImage: "server.rack") { JellyfinSettingsView(environment: environment.common) },
+            MacSettingsPage("jimaku", title: "Jimaku", systemImage: "captions.bubble") { JimakuSettingsView() },
+            MacSettingsPage("kaku", title: "Kaku", systemImage: "text.quote") { KakuSettingsView(environment: environment.common) },
+        ]) {
             PlayerSettingsView.anki(environment)
         } + [
             .footer {

@@ -14,11 +14,11 @@ enum MiruSetup {
         let jimaku = ((try? common.secrets.secret(for: .jimakuAPIKey)) ?? nil) != nil
         let kechimochi = ((try? common.activity.kechimochiURL()) ?? nil) != nil
         return [
-            SetupChecklistItem.server("Jellyfin", account: common.serverAccounts[.jellyfin], settings: "Settings → Watching"),
-            SetupChecklistItem("Jimaku subtitles", detail: jimaku ? "Key set" : "In Settings → Watching → Kaku", isDone: jimaku),
-            SetupChecklistItem("Kaku subtitles", detail: common.serverAccounts[.kaku] != nil ? "Connected" : "In Settings → Watching → Kaku",
+            SetupChecklistItem.server("Jellyfin", account: common.serverAccounts[.jellyfin], settings: "Settings → Connections"),
+            SetupChecklistItem("Jimaku subtitles", detail: jimaku ? "Key set" : "In Settings → Connections → Jimaku", isDone: jimaku),
+            SetupChecklistItem("Kaku subtitles", detail: common.serverAccounts[.kaku] != nil ? "Connected" : "In Settings → Connections → Kaku",
                                isDone: common.serverAccounts[.kaku] != nil),
-            SetupChecklistItem("kechimochi", detail: kechimochi ? "Linked from Stats" : "Optional · In Settings → Stats", isDone: kechimochi),
+            SetupChecklistItem("kechimochi", detail: kechimochi ? "Linked from Stats" : "Optional · In Settings → Connections", isDone: kechimochi),
         ]
     }
 }
