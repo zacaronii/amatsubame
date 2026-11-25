@@ -400,6 +400,7 @@ final class PlaybackModel {
     /// UITEST_PLAYER_PIP=<seconds>: picture in picture that many seconds after `start` (the
     /// menu's items can't be reached by a UI test); says why when it isn't offered.
     private func startPictureInPictureForTests(at start: Double) {
+        #if DEBUG
         guard let after = ProcessInfo.processInfo.environment["UITEST_PLAYER_PIP"].flatMap(Double.init) else { return }
         Task {
             for _ in 0..<300 where mpv.timePosition < start + after { try? await Task.sleep(for: .milliseconds(100)) }
@@ -407,6 +408,7 @@ final class PlaybackModel {
                 showOSD(PictureInPicture.isSupported ? "PiP not offered" : "PiP not supported here")
             }
         }
+        #endif
     }
 
     /// Picture in picture's sources. Small window, small stream: a 1080p remux's own bitrate

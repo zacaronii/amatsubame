@@ -10,8 +10,10 @@ struct PlayerSettingsView: View {
     private var showsKeyboardShortcuts: Bool {
         #if os(macOS)
         true
-        #else
+        #elseif DEBUG
         UIDevice.current.userInterfaceIdiom == .pad || ProcessInfo.processInfo.environment["UITEST_PLAYER"] != nil
+        #else
+        UIDevice.current.userInterfaceIdiom == .pad
         #endif
     }
 
