@@ -24,7 +24,7 @@ struct SettingsView: View {
                     NavigationLink {
                         ReadingDownloadsView()
                     } label: {
-                        SettingsRowLabel("Downloads", subtitle: "Automatic downloads, cellular, text read ahead",
+                        SettingsRowLabel("Download Rules", subtitle: "Automatic, over cellular, text read ahead",
                                          systemImage: "arrow.down.circle.fill", color: .blue)
                     }
                     .accessibilityIdentifier("settings.downloads")
@@ -37,14 +37,13 @@ struct SettingsView: View {
                     NavigationLink {
                         ReadAlongSettingsView()
                     } label: {
-                        SettingsRowLabel("Read-Along", subtitle: "Audiobookshelf and Kaku", systemImage: "headphones", color: .orange,
+                        SettingsRowLabel("Read-Along", subtitle: environment.serverAccounts[.audiobookshelf] == nil ? "Optional" : "Audiobookshelf connected",
+                                         systemImage: "headphones", color: .orange,
                                          dot: environment.serverAccounts[.audiobookshelf]?.dotColor)
                     }
                     .accessibilityIdentifier("settings.readAlong")
                 } header: {
                     Text("Reading")
-                } footer: {
-                    Text("Read-Along plays a matching audiobook with the text. It's optional.")
                 }
 
                 LookupSection(wordMarksNote: Self.wordMarksNote, popupExtras: AnyView(LookupTimingsToggle()))
@@ -173,7 +172,7 @@ struct MacSettingsView: View {
             MacSettingsGroup(pages: [.overview(SettingsView.statusItems(environment))]),
             MacSettingsGroup("Reading", pages: [
                 MacSettingsPage("libraries", title: "Libraries", systemImage: "books.vertical") { LibrariesSettingsView() },
-                MacSettingsPage("downloads", title: "Downloads", systemImage: "arrow.down.circle") { ReadingDownloadsView() },
+                MacSettingsPage("downloads", title: "Download Rules", systemImage: "arrow.down.circle") { ReadingDownloadsView() },
                 MacSettingsPage("ocr", title: "Manga Text Recognition", systemImage: "text.viewfinder") { OCRSettingsView() },
                 MacSettingsPage("readAlong", title: "Read-Along", systemImage: "headphones") { ReadAlongSettingsView() },
             ]),

@@ -44,4 +44,16 @@ final class SettingsLayoutUITests: XCTestCase {
         for _ in 0..<4 { app.swipeUp() }
         XCTAssertFalse(app.switches["advanced.lookupTimings"].exists, "not in Advanced any more")
     }
+
+    /// Reading ▸ Download Rules: automatic downloads and reading downloaded pages' text ahead.
+    func testReadingHasDownloadRules() {
+        let app = settings()
+        let rules = app.descendants(matching: .any)["settings.downloads"].firstMatch
+        XCTAssertTrue(rules.waitForExistence(timeout: 10))
+        XCTAssertTrue(rules.label.contains("Download Rules"), rules.label)
+        rules.tap()
+        XCTAssertTrue(app.navigationBars["Download Rules"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["downloads.automatic"].firstMatch.exists, "Automatic Downloads")
+        XCTAssertTrue(app.switches["downloads.readText"].exists, "Read Text on Downloaded Pages")
+    }
 }
