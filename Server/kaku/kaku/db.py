@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS library (
 CREATE TABLE IF NOT EXISTS job (
     item_id TEXT NOT NULL, episode_id TEXT NOT NULL, library_id TEXT NOT NULL, title TEXT NOT NULL,
     priority INTEGER NOT NULL, added_at REAL NOT NULL, queued_at REAL NOT NULL,
-    state TEXT NOT NULL,              -- queued, running, done, failed
+    state TEXT NOT NULL,              -- queued, running, done, failed, cancelled (1.9: on the web page)
     progress REAL NOT NULL DEFAULT 0, -- 0…1 while running
     error TEXT, fingerprint TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0,
     not_before REAL NOT NULL DEFAULT 0, started_at REAL, finished_at REAL,
@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS transcript (
     item_id TEXT NOT NULL, episode_id TEXT NOT NULL, path TEXT NOT NULL, fingerprint TEXT NOT NULL,
     model TEXT NOT NULL, created_at REAL NOT NULL, PRIMARY KEY (item_id, episode_id));
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+-- Changes made on the web page (/ui): who, what and when (1.9).
+CREATE TABLE IF NOT EXISTS audit (at REAL NOT NULL, user TEXT NOT NULL, action TEXT NOT NULL, detail TEXT NOT NULL);
 '''
 
 # Claim order: "now" first in the order asked; "new" oldest first; the backlog newest first.
@@ -90,7 +92,8 @@ class Database:
                 return False
             job = self.connection.execute('SELECT * FROM job WHERE item_id = ? AND episode_id = ?', key).fetchone()
             if job and job['fingerprint'] == episode.fingerprint:
-                if job['state'] == 'running' or (job['state'] == 'failed' and priority != NOW):
+                # Failed or cancelled: only when asked for again (the apps, Transcribe Again, the page).
+                if job['state'] == 'running' or (job['state'] in ('failed', 'cancelled') and priority != NOW):
                     return False
                 if job['state'] == 'queued':
                     if priority >= job['priority']:
@@ -138,6 +141,42 @@ class Database:
         self.execute(
             'UPDATE job SET state = ?, error = ?, progress = 0, not_before = ?, finished_at = ? WHERE item_id = ? AND episode_id = ?',
             ('failed' if final else 'queued', str(error)[:500], now + 600 * job['attempts'], now, job['item_id'], job['episode_id']))
+
+    # The web page's queue actions (1.9). Each returns whether it changed anything.
+
+    def move_to_front(self, item_id, episode_id, now=None):
+        """A queued job goes next: asked-for priority, after the ones already asked for."""
+        return bool(self.execute(
+            "UPDATE job SET priority = ?, queued_at = ?, not_before = 0 WHERE item_id = ? AND episode_id = ? "
+            "AND state = 'queued' RETURNING item_id", (NOW, now or time.time(), item_id, episode_id)))
+
+    def requeue(self, item_id, episode_id, now=None):
+        """A failed or cancelled job is queued again, next, with its tries counted afresh."""
+        return bool(self.execute(
+            "UPDATE job SET state = 'queued', priority = ?, queued_at = ?, not_before = 0, attempts = 0, error = NULL, "
+            "progress = 0 WHERE item_id = ? AND episode_id = ? AND state IN ('failed', 'cancelled') RETURNING item_id",
+            (NOW, now or time.time(), item_id, episode_id)))
+
+    def cancel(self, item_id, episode_id, now=None):
+        """A queued job leaves the queue; the poller doesn't queue it again until its audio changes."""
+        return bool(self.execute(
+            "UPDATE job SET state = 'cancelled', finished_at = ? WHERE item_id = ? AND episode_id = ? AND state = 'queued' "
+            'RETURNING item_id', (now or time.time(), item_id, episode_id)))
+
+    def record(self, user, action, detail, now=None):
+        self.execute('INSERT INTO audit (at, user, action, detail) VALUES (?, ?, ?, ?)',
+                     (now or time.time(), user, action, detail))
+
+    def changes(self, limit=10):
+        return [dict(row) for row in self.execute('SELECT * FROM audit ORDER BY at DESC LIMIT ?', (limit,))]
+
+    @property
+    def paused(self):
+        """Stop after this one: no new job starts; the running one finishes."""
+        return self.meta('paused') == '1'
+
+    def set_paused(self, paused):
+        self.set_meta('paused', '1' if paused else '0')
 
     def job(self, item_id, episode_id):
         rows = self.execute('SELECT * FROM job WHERE item_id = ? AND episode_id = ?', (item_id, episode_id))

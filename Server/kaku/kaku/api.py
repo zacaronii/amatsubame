@@ -90,6 +90,8 @@ def create_app(service):
             'gpu': {'usedMB': memory[0], 'totalMB': memory[1]} if memory else None,
             'jobs': db.counts(), 'lastPoll': float(last_poll) if last_poll else None,
             'lastPollError': db.meta('last_poll_error') or None,
+            # Stopped after the current job on the web page (1.9): nothing new starts until resumed.
+            'paused': db.paused,
             'jellyfin': service.jellyfin is not None,
         }
 
@@ -105,7 +107,8 @@ def create_app(service):
         if saved:
             path = saved['path'] if format == 'json' else saved['path'][:-len('json')] + 'vtt'
             return FileResponse(path, media_type='application/json' if format == 'json' else 'text/vtt; charset=utf-8')
-        if job:
+        # A job cancelled on the web page counts as none: asking for it (POST /jobs) queues it again.
+        if job and job['state'] != 'cancelled':
             return JSONResponse(waiting(item_id, episode_id), status_code=202)
         raise HTTPException(404, f'Kaku has no transcript or job for this {"book" if not episode_id else "episode"}. POST /jobs to ask for one.')
 
@@ -235,7 +238,7 @@ def create_app(service):
         if db.transcript(item_id, ''):
             return {'itemId': jellyfin_id, 'state': 'done'}
         job = db.job(item_id, '')
-        if job is None:
+        if job is None or job['state'] == 'cancelled':
             return {'itemId': jellyfin_id, 'state': 'missing'}
         position = db.position(item_id, '')
         return {'itemId': jellyfin_id, 'state': job['state'], 'progress': job['progress'], 'error': job['error'],
@@ -283,7 +286,7 @@ def create_app(service):
                     return Response(srt(json.load(file)), media_type='application/x-subrip; charset=utf-8')
             path = saved['path'] if format == 'json' else saved['path'][:-len('json')] + 'vtt'
             return FileResponse(path, media_type='application/json' if format == 'json' else 'text/vtt; charset=utf-8')
-        if db.job(kaku_id(jellyfin_id), ''):
+        if jellyfin_state(jellyfin_id)['state'] != 'missing':
             return JSONResponse(jellyfin_state(jellyfin_id), status_code=202)
         raise HTTPException(404, 'Kaku has no transcript or job for this episode. POST /jellyfin/jobs to ask for one.')
 
