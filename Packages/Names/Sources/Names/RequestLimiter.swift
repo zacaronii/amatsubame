@@ -8,7 +8,9 @@ public actor RequestLimiter {
     public static let userAgent = "Amatsubame (+https://amatsubame.com)"
     /// AniList's degraded limit (30 a minute): a request every 2 s.
     public static let aniList = RequestLimiter(spacing: .seconds(2))
-    public static let mangaBaka = RequestLimiter(spacing: .milliseconds(400))
+    /// MangaBaka's search endpoints allow 30 a minute (others 180): a request every 2 s, safe
+    /// whichever its title match counts under.
+    public static let mangaBaka = RequestLimiter(spacing: .seconds(2))
 
     let spacing: Duration
     /// How many 429s in a row are waited out before giving up.
