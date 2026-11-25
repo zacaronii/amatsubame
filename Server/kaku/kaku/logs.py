@@ -6,6 +6,7 @@ from __future__ import annotations
 import collections
 import logging
 import threading
+import urllib.parse
 
 FORMAT = '%(asctime)s %(name)s %(levelname)s %(message)s'
 # The page's log tail.
@@ -15,10 +16,19 @@ JOB_LINES = 50
 
 
 class Redactor:
-    """Replaces each secret (the API token, server keys, the UI secret) with •••."""
+    """Replaces each secret (the API token, server keys, the UI secret) with •••, also as a URL
+    carries it (percent-encoded, or with + for spaces): a request's error can print its URL."""
 
     def __init__(self, secrets=()):
-        self.secrets = [secret for secret in secrets if secret and len(secret) >= 4]
+        forms = []
+        for secret in secrets:
+            if not secret or len(secret) < 4:
+                continue
+            for form in (secret, urllib.parse.quote(secret, safe=''), urllib.parse.quote(secret), urllib.parse.quote_plus(secret)):
+                if form not in forms:
+                    forms.append(form)
+        # Longest first, so a secret inside another's encoded form is still replaced whole.
+        self.secrets = sorted(forms, key=len, reverse=True)
 
     def __call__(self, text):
         for secret in self.secrets:

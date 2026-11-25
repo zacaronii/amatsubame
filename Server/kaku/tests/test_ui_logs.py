@@ -124,3 +124,11 @@ def test_a_jobs_log_has_only_its_own_threads_lines():
 def test_redactor_ignores_short_or_empty_values():
     redact = Redactor(['', 'key', 'long-secret'])
     assert redact('key long-secret') == 'key •••'
+
+
+def test_redactor_catches_a_secret_in_a_url():
+    redact = Redactor(['a/b+c d=e&f'])
+    assert redact('GET https://abs.example/api?token=a%2Fb%2Bc%20d%3De%26f failed') == 'GET https://abs.example/api?token=••• failed'
+    assert redact('token=a%2Fb%2Bc+d%3De%26f') == 'token=•••'
+    assert redact('raw a/b+c d=e&f') == 'raw •••'
+    assert redact('/items/a/b%2Bc%20d%3De%26f') == '/items/•••', 'quoted as a path, / kept'
