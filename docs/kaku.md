@@ -83,6 +83,12 @@ Since 1.9 it changes things too:
   transcribed), is marked cancelled, and what it had done is dropped.
 - **Check Audiobookshelf now**, and **Stop after this one**: the running job finishes and nothing new
   starts until Resume (`/health` says `paused`).
+- **Rules (1.10):** each library's **Shows** (or **Books**) page sets a mode per show or book:
+  **High** (first among new episodes, and its backlog too), **Low** (with the backlog), **Pause** (its
+  jobs wait until it's back to Normal; one asked for still runs) or **Skip** (never queued; its
+  waiting jobs go; an app asking for an episode still queues it). A library can be **New only**:
+  episodes older than `new_days` aren't queued and its waiting backlog goes. The show list comes from
+  Audiobookshelf's listing at each check (the `show` table); the modes are in `rule`.
 - **Logs:** a failed job keeps its last 50 lines and traceback for 14 days (the `job_log` table, a
   **Log** button on the problem), and **Kaku's log** shows the last 500 lines since it started
   (kept in memory). The API token, the server keys and the UI secret are taken out of both.

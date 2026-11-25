@@ -72,6 +72,14 @@ class Action(BaseModel):
     itemId: str = ''
     episodeId: str = ''
     libraryId: str = ''
+    # A rule's mode (normal, high, low, pause, skip) or a library's backlog (on, off).
+    value: str = ''
+    # The page the change came from ('library:<id>' for a library's shows): which sections to answer with.
+    view: str = ''
+
+
+MODE_NAMES = {None: 'normal', 'high': 'high priority', 'low': 'low priority', 'pause': 'paused', 'skip': 'skipped'}
+MODE_BUTTONS = (('normal', 'Normal'), ('high', 'High'), ('low', 'Low'), ('pause', 'Pause'), ('skip', 'Skip'))
 
 
 def button(label, action, confirm=None, **target):
@@ -133,8 +141,10 @@ def add_ui(app: FastAPI, service):
         return (f'<section id="status"><h2>Status</h2><dl>{html}</dl>{problems}'
                 f'<p class="controls">{controls}</p>{recent}</section>')
 
-    def job_row(job, now, position=None):
+    def job_row(job, now, position=None, paused=frozenset()):
         progress = f' · {round(job["progress"] * 100)}%' if job['state'] == 'running' else ''
+        if job['state'] == 'queued' and job['item_id'] in paused and job['priority'] != 0:
+            progress += ' · show paused'
         target = {'item': job['item_id'], 'episode': job['episode_id']}
         actions = ''
         if job['state'] == 'queued':
@@ -158,7 +168,8 @@ def add_ui(app: FastAPI, service):
         now_html = f'<ul class="jobs">{job_row(running, now)}</ul>' if running else '<p class="quiet">Nothing is being transcribed.</p>'
         shown = queued[:50]
         rest = f'<p class="quiet">and {len(queued) - len(shown)} more</p>' if len(queued) > len(shown) else ''
-        queued_html = (f'<ol class="jobs">{"".join(job_row(job, now, index) for index, job in enumerate(shown))}</ol>{rest}'
+        paused = db.paused_items()
+        queued_html = (f'<ol class="jobs">{"".join(job_row(job, now, index, paused) for index, job in enumerate(shown))}</ol>{rest}'
                        if queued else '<p class="quiet">The queue is empty.</p>')
         return (f'<section id="queue"><h2>Now transcribing</h2>{now_html}'
                 f'<h2>Queue ({len(queued)}{escape(estimate)})</h2>{queued_html}</section>')
@@ -194,12 +205,18 @@ def add_ui(app: FastAPI, service):
             entry = stats.get(library_id, {'counts': {}, 'last': None})
             counts = entry['counts']
             done, waiting = counts.get('done', 0), counts.get('queued', 0) + counts.get('running', 0)
-            state = 'on' if enabled else 'off'
+            new_only = switchable and db.rules(library_id).get('') == 'new-only'
+            state = ('on, new only' if new_only else 'on') if enabled else 'off'
             switch = ''
             if switchable:
-                switch = (button('Turn off', 'library-off', library=library_id,
-                                 confirm=f'Turn off “{name}”? Its waiting and failed jobs are removed; transcripts stay.')
-                          if enabled else button('Turn on', 'library-on', library=library_id))
+                shows = 'Books' if kind == 'book' else 'Shows'
+                switch = (f'<a class="button" href="/ui/library?id={quote(library_id, safe="")}">{shows}</a>'
+                          + (button('Include backlog', 'library-backlog', library=library_id, value='on') if new_only else
+                             button('New only', 'library-backlog', library=library_id, value='off',
+                                    confirm=f'Only new episodes in “{name}”? Its waiting backlog is removed; transcripts stay.'))
+                          + (button('Turn off', 'library-off', library=library_id,
+                                    confirm=f'Turn off “{name}”? Its waiting and failed jobs are removed; transcripts stay.')
+                             if enabled else button('Turn on', 'library-on', library=library_id)))
             return (f'<li><span class="title">{escape(name)}</span><span class="detail">{escape(kind)} · {state} · '
                     f'{done} transcribed · {waiting} waiting · {counts.get("failed", 0)} failed · '
                     f'last {escape(ago(entry["last"], now))}</span><span class="actions">{switch}</span></li>')
@@ -212,23 +229,67 @@ def add_ui(app: FastAPI, service):
         now = time.time()
         return status_section(now) + queue_section(now) + failures_section(now) + libraries_section(now)
 
+    def library_or_404(library_id):
+        library = next((l for l in db.libraries() if l['id'] == library_id), None)
+        if library is None:
+            raise HTTPException(404, 'No such library.')
+        return library
+
+    def library_sections(library_id):
+        """A library's shows or books, each with its counts and mode (1.10)."""
+        library = library_or_404(library_id)
+        shows = db.shows(library_id)
+        kind = 'books' if library['media_type'] == 'book' else 'shows'
+        new_only = db.rules(library_id).get('') == 'new-only'
+        note = (f'<p class="quiet">{"New episodes only" if new_only else "New episodes first, then the backlog"}'
+                f'{"" if library["enabled"] else " · this library is off"}. High: first among new ones (and its backlog '
+                f'even when new only). Low: with the backlog. Pause: waits until resumed. Skip: never transcribed.</p>')
+        if not shows:
+            body = f'<p class="quiet">No {kind} yet: they appear after Kaku next checks Audiobookshelf.</p>'
+        else:
+            def show_row(show):
+                mode = show['mode']
+                buttons = ''.join(button(label, 'rule', library=library_id, item=show['item_id'], value=value,
+                                         **({'confirm': f'Skip “{show["title"]}”? Its waiting jobs are removed; transcripts stay.'}
+                                            if value == 'skip' else {}))
+                                  for value, label in MODE_BUTTONS if value != (mode or 'normal'))
+                return (f'<li><span class="title">{escape(show["title"])}</span>'
+                        f'<span class="detail">{escape(MODE_NAMES.get(mode, mode))} · {show["done"]} transcribed · '
+                        f'{show["waiting"]} waiting · {show["failed"]} failed</span><span class="actions">{buttons}</span></li>')
+            body = f'<ul class="jobs">{"".join(show_row(show) for show in shows)}</ul>'
+        return f'<section id="shows"><h2>{escape(library["name"])}: {kind}</h2>{note}{body}</section>'
+
+    def view_sections(view):
+        return library_sections(view.split(':', 1)[1]) if view.startswith('library:') else sections()
+
     # Routes (no OpenAPI: they're the page's own)
 
-    @app.get('/ui', include_in_schema=False)
-    def ui(user: str = Depends(gate)):
+    def shell(user, content, view='', title='Kaku', back=None):
+        """A page whose `#sections` the script refreshes (from `view`) and redraws after a change."""
         token = csrf_token(config.ui_secret, user)
+        link = f'<a href="{back}">Back</a>' if back else f'<span class="quiet">{escape(user)}</span>'
         body = f'''<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="csrf-token" content="{token}"><title>Kaku</title><link rel="stylesheet" href="/ui/static/ui.css"></head>
-<body><header><h1>Kaku <span class="quiet">書く</span></h1><span class="quiet">{escape(user)}</span></header>
-<main id="sections">{sections()}</main>
+<meta name="csrf-token" content="{token}"><title>{escape(title)}</title><link rel="stylesheet" href="/ui/static/ui.css"></head>
+<body><header><h1>Kaku <span class="quiet">書く</span></h1>{link}</header>
+<main id="sections" data-view="{escape(view)}">{content}</main>
 <script src="/ui/static/ui.js"></script></body></html>'''
         return page(body)
 
+    @app.get('/ui', include_in_schema=False)
+    def ui(user: str = Depends(gate)):
+        return shell(user, sections())
+
+    @app.get('/ui/library', include_in_schema=False)
+    def ui_library(id: str, user: str = Depends(gate)):
+        """A library's shows or books and their rules."""
+        library = library_or_404(id)
+        return shell(user, library_sections(id), view=f'library:{id}', title=f'{library["name"]} · Kaku', back='/ui')
+
     @app.get('/ui/sections', include_in_schema=False)
-    def ui_sections(user: str = Depends(gate)):
+    def ui_sections(view: str = '', user: str = Depends(gate)):
         """The page's sections again, for its refresh every few seconds."""
-        return page(sections())
+        return page(view_sections(view))
 
     def same_origin(request: Request):
         """Changes come only from the page itself: its Origin is this address (behind the proxy,
@@ -270,6 +331,23 @@ def add_ui(app: FastAPI, service):
             db.set_enabled(library['id'], change.action == 'library-on')
             service.poller.wake.set()
             title = library['name']
+        elif change.action == 'rule':
+            library_or_404(change.libraryId)
+            if change.value not in ('normal', *db.MODES):
+                raise HTTPException(400, 'Unknown mode.')
+            show = next((show for show in db.shows(change.libraryId) if show['item_id'] == change.itemId), None)
+            if show is None:
+                raise HTTPException(404, 'No such show or book in this library.')
+            db.set_rule(change.libraryId, change.itemId, None if change.value == 'normal' else change.value)
+            title = f'{show["title"]}: {change.value}'
+            service.worker.wake.set()
+        elif change.action == 'library-backlog':
+            library = library_or_404(change.libraryId)
+            if change.value not in ('on', 'off'):
+                raise HTTPException(400, 'Backlog is on or off.')
+            db.set_new_only(library['id'], change.value == 'off')
+            service.poller.wake.set()
+            title = f'{library["name"]}: backlog {change.value}'
         elif change.action == 'poll':
             service.poller.wake.set()
         elif change.action in ('pause', 'resume'):
@@ -279,7 +357,7 @@ def add_ui(app: FastAPI, service):
         else:
             raise HTTPException(400, 'Unknown action.')
         db.record(user, change.action, title, now)
-        return page(sections())
+        return page(view_sections(change.view))
 
     def text_page(title, text, user, back='/ui'):
         body = f'''<!doctype html>

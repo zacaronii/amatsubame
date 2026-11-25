@@ -32,6 +32,12 @@ CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS job_log (
     item_id TEXT NOT NULL, episode_id TEXT NOT NULL, at REAL NOT NULL, text TEXT NOT NULL,
     PRIMARY KEY (item_id, episode_id));
+-- Each library's shows (podcasts) or books, as Audiobookshelf lists them (1.10, the web page).
+CREATE TABLE IF NOT EXISTS show (item_id TEXT PRIMARY KEY, library_id TEXT NOT NULL, title TEXT NOT NULL);
+-- The web page's rules (1.10): a show's or book's mode (skip, pause, high, low), or a library's
+-- default (item_id '': new-only, no backlog).
+CREATE TABLE IF NOT EXISTS rule (
+    library_id TEXT NOT NULL, item_id TEXT NOT NULL, mode TEXT NOT NULL, PRIMARY KEY (library_id, item_id));
 -- Changes made on the web page (/ui): who, what and when (1.9).
 CREATE TABLE IF NOT EXISTS audit (at REAL NOT NULL, user TEXT NOT NULL, action TEXT NOT NULL, detail TEXT NOT NULL);
 '''
@@ -112,11 +118,13 @@ class Database:
             return True
 
     def claim(self, now=None):
-        """The next job to run, marked running; None when nothing is due."""
+        """The next job to run, marked running; None when nothing is due. A paused show's jobs
+        wait, unless one was asked for."""
         now = now or time.time()
         with self.lock:
             row = self.connection.execute(
-                f"SELECT * FROM job WHERE state = 'queued' AND not_before <= ? ORDER BY {ORDER} LIMIT 1", (now,)).fetchone()
+                f"SELECT * FROM job WHERE state = 'queued' AND not_before <= ? AND (priority = {NOW} OR item_id NOT IN "
+                f"(SELECT item_id FROM rule WHERE mode = 'pause')) ORDER BY {ORDER} LIMIT 1", (now,)).fetchone()
             if row is None:
                 return None
             self.connection.execute(
@@ -171,6 +179,65 @@ class Database:
         """The running job, stopped on the web page: cancelled like a queued one."""
         self.execute("UPDATE job SET state = 'cancelled', progress = 0, finished_at = ? "
                      "WHERE item_id = ? AND episode_id = ? AND state = 'running'", (now or time.time(), item_id, episode_id))
+
+    # Shows and rules (1.10)
+
+    MODES = ('skip', 'pause', 'high', 'low')
+
+    def sync_shows(self, library_id, titles):
+        """A library's shows or books as its last listing had them ({item id: title})."""
+        with self.lock:
+            for item_id, title in titles.items():
+                self.connection.execute(
+                    'INSERT INTO show (item_id, library_id, title) VALUES (?, ?, ?) '
+                    'ON CONFLICT(item_id) DO UPDATE SET library_id = excluded.library_id, title = excluded.title',
+                    (item_id, library_id, title))
+            marks = ','.join('?' * len(titles))
+            self.connection.execute(f'DELETE FROM show WHERE library_id = ? AND item_id NOT IN ({marks})',
+                                    (library_id, *titles))
+
+    def shows(self, library_id):
+        """A library's shows or books by title, each with its job counts and rule."""
+        rows = self.execute(
+            "SELECT show.item_id, show.title, rule.mode, "
+            "SUM(job.state = 'done') AS done, SUM(job.state IN ('queued', 'running')) AS waiting, "
+            "SUM(job.state = 'failed') AS failed FROM show "
+            "LEFT JOIN rule ON rule.library_id = show.library_id AND rule.item_id = show.item_id "
+            "LEFT JOIN job ON job.item_id = show.item_id "
+            "WHERE show.library_id = ? GROUP BY show.item_id ORDER BY show.title COLLATE NOCASE", (library_id,))
+        return [dict(row) | {key: row[key] or 0 for key in ('done', 'waiting', 'failed')} for row in rows]
+
+    def rules(self, library_id):
+        """{item id: mode} for a library; '' holds its default ('new-only')."""
+        return {row['item_id']: row['mode'] for row in self.execute('SELECT * FROM rule WHERE library_id = ?', (library_id,))}
+
+    def paused_items(self):
+        return {row['item_id'] for row in self.execute("SELECT item_id FROM rule WHERE mode = 'pause'")}
+
+    def set_rule(self, library_id, item_id, mode):
+        """A show's or book's mode (None: as the library does), applied to what's already queued:
+        skip removes its waiting and failed jobs; high and low move its queued jobs between new and
+        backlog (asked-for jobs stay first)."""
+        if mode is None:
+            self.execute('DELETE FROM rule WHERE library_id = ? AND item_id = ?', (library_id, item_id))
+        else:
+            self.execute('INSERT OR REPLACE INTO rule (library_id, item_id, mode) VALUES (?, ?, ?)', (library_id, item_id, mode))
+        if mode == 'skip':
+            self.execute(f"DELETE FROM job WHERE item_id = ? AND state IN ('queued', 'failed') AND priority != {NOW}", (item_id,))
+        elif mode in ('high', 'low'):
+            old, new = (BACKLOG, NEW) if mode == 'high' else (NEW, BACKLOG)
+            self.execute("UPDATE job SET priority = ? WHERE item_id = ? AND state = 'queued' AND priority = ?", (new, item_id, old))
+
+    def set_new_only(self, library_id, new_only):
+        """A library without its backlog: only new episodes are queued (a high-priority show's too);
+        its backlog jobs already waiting go."""
+        if new_only:
+            self.execute("INSERT OR REPLACE INTO rule (library_id, item_id, mode) VALUES (?, '', 'new-only')", (library_id,))
+            self.execute(
+                f"DELETE FROM job WHERE library_id = ? AND state = 'queued' AND priority = {BACKLOG} AND item_id NOT IN "
+                "(SELECT item_id FROM rule WHERE library_id = ? AND mode = 'high')", (library_id, library_id))
+        else:
+            self.execute("DELETE FROM rule WHERE library_id = ? AND item_id = ''", (library_id,))
 
     # A failed job's log
 

@@ -70,6 +70,8 @@ class Audiobookshelf:
         self.timeout = timeout
         # Item id → (updatedAt, episodes), so a poll only refetches podcasts that changed.
         self._items = {}
+        # Library id → {item id: title} from its last listing: the web page's shows and books (1.10).
+        self.shows = {}
 
     def _open(self, path, timeout=None):
         request = urllib.request.Request(self.url + path, headers={'Authorization': f'Bearer {self.key}'})
@@ -85,12 +87,13 @@ class Audiobookshelf:
     def episodes(self, library_id):
         """Every episode with an audio file in a podcast library, or every book with audio in a
         book library."""
-        found, page, seen = [], 0, set()
+        found, page, seen, titles = [], 0, set(), {}
         while True:
             listing = self.get(f'/api/libraries/{urllib.parse.quote(library_id)}/items?limit=100&page={page}')
             results = listing.get('results', [])
             for item in results:
                 seen.add(item['id'])
+                titles[item['id']] = ((item.get('media') or {}).get('metadata') or {}).get('title') or item['id']
                 cached = self._items.get(item['id'])
                 if cached is None or cached[0] != item.get('updatedAt'):
                     cached = (item.get('updatedAt'), self._item_episodes(item['id'], library_id))
@@ -99,6 +102,7 @@ class Audiobookshelf:
             page += 1
             if not results or page * 100 >= listing.get('total', 0):
                 break
+        self.shows[library_id] = titles
         for gone in set(self._items) - seen:
             if all(e.library_id == library_id for e in self._items[gone][1]):
                 del self._items[gone]

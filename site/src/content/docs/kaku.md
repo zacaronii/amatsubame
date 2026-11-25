@@ -215,7 +215,13 @@ problems and your libraries, refreshing itself every few seconds. Since 1.9 you 
 to the front of the queue, cancel one (or the one running, at once), try a problem again, turn
 libraries on and off, have Kaku check Audiobookshelf now, and stop after the current job (until you
 resume). A problem has a **Log** button (its last lines, kept 14 days), and **Kaku's log** shows what
-it has written since it started. Keys and tokens are taken out of both. A cancelled episode
+it has written since it started. Keys and tokens are taken out of both.
+
+Since 1.10 each library has a **Shows** (or **Books**) page where you can give each one a mode:
+**High** puts it first among new episodes (and brings its backlog along), **Low** leaves it with the
+backlog, **Pause** holds its jobs until you set it back to Normal, and **Skip** never transcribes it.
+A library can also be set to **New only**, so Kaku skips its backlog. Asking for an episode from an
+app always works, whatever the rules say. A cancelled episode
 isn't queued again by itself; asking for it from an app queues it again.
 
 It's off unless you set `KAKU_UI_SECRET` (in the compose file) to a long random string, and it only
