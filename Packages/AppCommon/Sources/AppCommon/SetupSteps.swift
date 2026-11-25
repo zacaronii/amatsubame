@@ -6,6 +6,8 @@ import SwiftUI
 struct SetupWelcome: View {
     @Environment(SetupFlow.self) private var flow
     @State private var asksToSkip = false
+    @State private var fetchingDemo = false
+    @State private var demoProblem: String?
 
     var body: some View {
         let info = flow.info
@@ -38,6 +40,20 @@ struct SetupWelcome: View {
                 }
                 .buttonStyle(.glassProminent)
                 .accessibilityIdentifier("setup.getStarted")
+                if !flow.common.setup.isRerun {
+                    // No server of your own: the public demo servers, which nothing is saved to.
+                    Button {
+                        Task { await tryDemo() }
+                    } label: {
+                        if fetchingDemo { ProgressView() } else { Text("Try It with the Demo Servers") }
+                    }
+                    .disabled(fetchingDemo)
+                    .accessibilityIdentifier("setup.demo")
+                    if let demoProblem {
+                        Text(demoProblem).font(.footnote).foregroundStyle(.secondary)
+                            .accessibilityIdentifier("setup.demo.problem")
+                    }
+                }
                 Button(flow.common.setup.isRerun ? "Close" : "I'll set it up later") {
                     if flow.common.setup.isRerun { flow.finish() } else { asksToSkip = true }
                 }
@@ -52,6 +68,18 @@ struct SetupWelcome: View {
             Button("Continue Setup", role: .cancel) {}
         } message: {
             Text("\(info.name) shows nothing until \(info.serverName) is connected. You can set it up any time in Settings → Advanced → Run Setup Again.")
+        }
+    }
+
+    private func tryDemo() async {
+        fetchingDemo = true
+        defer { fetchingDemo = false }
+        do {
+            flow.demo = try await DemoConfig.fetch(http: flow.common.http)
+            demoProblem = nil
+            flow.advance(from: nil)
+        } catch {
+            demoProblem = error.localizedDescription
         }
     }
 
@@ -608,3 +636,32 @@ struct SetupPresentation<Flow: View>: ViewModifier {
     }
 }
 #endif
+
+/// The server step while trying the demo: what it is instead of an address to type, and a way
+/// back to your own server.
+public struct SetupDemoServerCard: View {
+    let serverName: String
+    let ownServer: () -> Void
+
+    public init(serverName: String, ownServer: @escaping () -> Void) {
+        self.serverName = serverName
+        self.ownServer = ownServer
+    }
+
+    public var body: some View {
+        SetupCard {
+            VStack(alignment: .leading, spacing: 6) {
+                Label("Demo \(serverName)", systemImage: "sparkles").font(.headline)
+                Text("Sample books, videos and audio that are free to share. Nothing you do is saved to it: your places and marks stay on this \(StorageSummary.deviceName).")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("setup.demo.card")
+        Button("Use My Own Server Instead", action: ownServer)
+            .font(.footnote)
+            .accessibilityIdentifier("setup.demo.ownServer")
+    }
+}

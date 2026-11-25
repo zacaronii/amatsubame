@@ -55,6 +55,8 @@ public struct SetupChecklistItem: Identifiable, Sendable {
 @Observable
 public final class SetupFlow {
     public var path: [SetupStep] = []
+    /// Try It with the Demo Servers: the demo's details, for the app's server step to sign in with.
+    public var demo: DemoConfig?
     /// Set Up Separately was chosen: the app's own setup starts with the next launch.
     public private(set) var needsRelaunch = false
     @ObservationIgnored public let common: CommonEnvironment
