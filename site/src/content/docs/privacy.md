@@ -36,7 +36,7 @@ posting it anywhere public.
 
 ## iCloud
 
-With **Sync with iCloud** on (in Stats; on by default), Yomu, Miru and Kiku keep a copy of your Stats,
+With **Sync with iCloud** on (in Settings ▸ Connections; on by default), Yomu, Miru and Kiku keep a copy of your Stats,
 daily goals, reader and player settings and a few choices (hidden libraries, read-along pairings,
 subtitle timings) in the app's own folder in **your** iCloud, so your other devices show the same.
 It goes between your devices through Apple's iCloud; the developers can't see it. Turn the switch off

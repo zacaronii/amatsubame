@@ -319,13 +319,6 @@ public struct LookupAndMiningSection<AnkiPage: View>: View {
             }
             .accessibilityIdentifier("settings.popup")
             NavigationLink {
-                HachidoriSettingsPage()
-            } label: {
-                SettingsRowLabel("Hachidori", subtitle: HachidoriSettingsPage.summary(environment),
-                                 systemImage: "bird.fill", color: .teal)
-            }
-            .accessibilityIdentifier("settings.hachidori")
-            NavigationLink {
                 ankiPage()
             } label: {
                 SettingsRowLabel("Anki", subtitle: ankiSummary, systemImage: "rectangle.stack.fill", color: .green,
@@ -375,27 +368,44 @@ public struct LookupAndMiningSection<AnkiPage: View>: View {
     }
 }
 
-// MARK: Stats
+// MARK: Connections
 
-/// Settings ▸ Stats: kechimochi.
-public struct StatsSettingsLink: View {
+/// Settings ▸ Connections: every server and account in one place. The app's own come first
+/// (`servers`), then the ones every app shares: Hachidori, and (with Stats) kechimochi and iCloud.
+public struct ConnectionsSection<Servers: View>: View {
     @Environment(CommonEnvironment.self) private var environment
     @State private var address: String?
+    let includesStats: Bool
+    let servers: () -> Servers
 
-    public init() {}
+    /// `includesStats`: kechimochi and Sync with iCloud (not in Hiku, which has no Stats).
+    public init(includesStats: Bool = true, @ViewBuilder servers: @escaping () -> Servers) {
+        self.includesStats = includesStats
+        self.servers = servers
+    }
 
     public var body: some View {
-        Section("Stats") {
+        Section("Connections") {
+            servers()
             NavigationLink {
-                Form { StatsSettingsSection() }
-                    .formStyle(.grouped)
-                    .navigationTitle("kechimochi")
+                HachidoriSettingsPage()
             } label: {
-                SettingsRowLabel("kechimochi", subtitle: address == nil ? "Not set up" : "Connected · links from the Stats tab",
-                                 systemImage: "chart.bar.fill", color: .orange)
+                SettingsRowLabel("Hachidori", subtitle: HachidoriSettingsPage.summary(environment),
+                                 systemImage: "bird.fill", color: .teal)
             }
-            .accessibilityIdentifier("settings.kechimochi")
-            StatsCloudRow()
+            .accessibilityIdentifier("settings.hachidori")
+            if includesStats {
+                NavigationLink {
+                    Form { StatsSettingsSection() }
+                        .formStyle(.grouped)
+                        .navigationTitle("kechimochi")
+                } label: {
+                    SettingsRowLabel("kechimochi", subtitle: address == nil ? "Not set up" : "Connected",
+                                     systemImage: "chart.bar.fill", color: .orange)
+                }
+                .accessibilityIdentifier("settings.kechimochi")
+                StatsCloudRow()
+            }
         }
         .onAppear { address = (try? environment.activity.kechimochiURL()) ?? nil }
     }

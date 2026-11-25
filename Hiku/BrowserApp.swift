@@ -51,6 +51,8 @@ struct SetupView: View {
                     LookupAndMiningSection {
                         AnkiSettingsPage(environment: environment)
                     }
+                    // No Stats in Hiku: only Hachidori.
+                    ConnectionsSection(includesStats: false) {}
                     Section {
                         NavigationLink {
                             Form { SetupSharingSection() }

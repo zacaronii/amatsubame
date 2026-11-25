@@ -127,7 +127,7 @@ The list you send replaces the old one: libraries left out are switched off.
 ## Connecting the apps
 
 Each app signs in to Kaku on its own, with Kaku's address and the token (`KAKU_API_TOKEN`),
-in **Settings ▸ Kaku** in Kiku, Yomu and Miru. Kiku and Miru also offer it in the Extras step of
+in **Settings ▸ Connections ▸ Kaku** in Kiku, Yomu and Miru. Kiku and Miru also offer it in the Extras step of
 their first-launch setup.
 
 Once connected, the Kaku row in Settings says in a few words what Kaku is doing ("Idle · 155

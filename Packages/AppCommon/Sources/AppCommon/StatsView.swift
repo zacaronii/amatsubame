@@ -186,7 +186,7 @@ public struct StatsView<Cover: View>: View {
                             case .app: appStats
                             case .all:
                                 AllImmersionView(model: immersion, appName: Self.appName(kind))
-                                    // Each time it shows (back from Settings ▸ Stats with a new address too).
+                                    // Each time it shows (back from Settings ▸ Connections with a new address too).
                                     .task { await immersion.load() }
                             }
                         }
@@ -449,7 +449,7 @@ public struct StatsView<Cover: View>: View {
     }
 }
 
-/// Settings ▸ Stats: where the Stats tab's kechimochi row goes.
+/// Settings ▸ Connections ▸ kechimochi: where the Stats tab's kechimochi row goes.
 public struct StatsSettingsSection: View {
     @Environment(CommonEnvironment.self) private var environment
     @State private var url = ""
@@ -472,8 +472,6 @@ public struct StatsSettingsSection: View {
                     .onSubmit(save)
                     .accessibilityIdentifier("stats.kechimochiURL")
             }
-        } header: {
-            Text("Stats")
         } footer: {
             Text("The Stats tab links to kechimochi for everything you read, watch and listen to. Nothing is sent there from this app.")
         }
@@ -493,7 +491,7 @@ public struct StatsSettingsSection: View {
 }
 
 extension Notification.Name {
-    /// Settings ▸ Stats has a new kechimochi address: All immersion loads again.
+    /// Settings ▸ Connections has a new kechimochi address: All immersion loads again.
     static let kechimochiAddressDidChange = Notification.Name("kechimochiAddressDidChange")
 }
 
@@ -819,7 +817,7 @@ public struct ChipRow<Item: Hashable, Label: View>: View {
     }
 }
 
-/// Settings ▸ Stats ▸ iCloud: this app's Stats and daily goals on all your devices.
+/// Settings ▸ Connections ▸ Sync with iCloud: this app's Stats and daily goals on all your devices.
 struct StatsCloudRow: View {
     @Environment(CommonEnvironment.self) private var environment
 
