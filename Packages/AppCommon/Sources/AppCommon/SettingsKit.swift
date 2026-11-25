@@ -474,13 +474,21 @@ public struct AdvancedSettingsView<Troubleshooting: View>: View {
             } footer: {
                 Text("Walks through the first-launch setup. Nothing is deleted.")
             }
-            Section("Troubleshooting") {
+            Section {
                 troubleshooting
                 if let logFile {
                     ShareLink(item: logFile) {
                         Label("Export Logs", systemImage: "square.and.arrow.up")
                     }
                     .accessibilityIdentifier("advanced.exportLogs")
+                }
+            } header: {
+                Text("Troubleshooting")
+            } footer: {
+                if logFile != nil {
+                    // Testers attach logs to public issues: keys are blanked, titles aren't.
+                    Text("Logs leave out keys and passwords, but they list the titles you've read, watched or listened to. Look through one before posting it anywhere public.")
+                        .accessibilityIdentifier("advanced.exportLogs.note")
                 }
             }
         }

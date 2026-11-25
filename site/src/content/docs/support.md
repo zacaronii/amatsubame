@@ -9,8 +9,12 @@ guaranteed support or response time.
 ## Reporting a bug
 
 Open an issue at
-[github.com/zacaronii/amatsubame/issues](https://github.com/zacaronii/amatsubame/issues). Search the
-open issues first, in case someone has already reported it.
+[github.com/zacaronii/amatsubame/issues](https://github.com/zacaronii/amatsubame/issues) and pick
+**Bug report**: its form asks for everything below. Search the open issues first, in case someone has
+already reported it.
+
+Testing a TestFlight beta? You can also take a screenshot in the app and send it with TestFlight's
+**Share Beta Feedback**, or send feedback from the TestFlight app. It reaches the developer privately.
 
 A good report includes:
 
@@ -29,7 +33,7 @@ it:
 1. Open **Settings ▸ Advanced**.
 2. Under **Troubleshooting**, tap **Export Logs** and save or share the file.
 3. **Read it before you attach it.** Tokens, keys and passwords are blanked out, but the log can still
-   show your servers' addresses and the names of things in your libraries. Remove anything you'd rather
+   show your servers' addresses and the titles you've read, watched or listened to. Remove anything you'd rather
    not post publicly.
 
 GitHub issues are public, so the same goes for screenshots: crop or cover anything private, such as
