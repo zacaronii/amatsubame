@@ -30,6 +30,9 @@ class Config:
     # Optional: Jellyfin episodes transcribed on request (Miru's subtitles when Jimaku has none).
     jellyfin_url: str = ''
     jellyfin_key: str = ''
+    # The web page at /ui (docs/kaku.md ▸ Web page): only behind a proxy that logs you in and adds
+    # `X-Kaku-UI: <this>` to the request. Empty: no page (/ui answers 404).
+    ui_secret: str = ''
 
     @staticmethod
     def prompt_setting(value):
@@ -54,4 +57,5 @@ class Config:
             idle_unload_seconds=int(env.get('KAKU_IDLE_UNLOAD_SECONDS', '600')),
             jellyfin_url=env.get('JELLYFIN_URL', '').rstrip('/'),
             jellyfin_key=env.get('JELLYFIN_API_KEY', ''),
+            ui_secret=env.get('KAKU_UI_SECRET', ''),
         )

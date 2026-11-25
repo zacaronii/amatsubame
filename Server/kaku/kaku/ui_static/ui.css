@@ -1,0 +1,16 @@
+:root { color-scheme: light dark; --quiet: #777; --problem: #c0392b; --line: rgba(127, 127, 127, 0.25); }
+body { font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Segoe UI", sans-serif; margin: 0 auto; max-width: 760px; padding: 16px; }
+header { display: flex; align-items: baseline; justify-content: space-between; border-bottom: 1px solid var(--line); }
+h1 { font-size: 1.4em; margin: 0 0 8px; }
+h2 { font-size: 1.05em; margin: 20px 0 6px; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 16px; margin: 0; }
+dt { color: var(--quiet); }
+dd { margin: 0; }
+.jobs { list-style: none; padding: 0; margin: 0; }
+ol.jobs { counter-reset: none; }
+.jobs li { display: flex; flex-wrap: wrap; gap: 0 12px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.title { flex: 1 1 60%; overflow-wrap: anywhere; }
+.detail { color: var(--quiet); font-size: 0.9em; }
+.error { flex-basis: 100%; color: var(--problem); font-size: 0.85em; white-space: pre-wrap; overflow-wrap: anywhere; }
+.quiet { color: var(--quiet); }
+.problem { color: var(--problem); }
