@@ -1,4 +1,4 @@
-import Anki
+@testable import Anki
 import Core
 import CoreTestSupport
 import Foundation
@@ -52,10 +52,23 @@ import Testing
         }
     }
 
-    @Test func invalidKeyIsUnauthorized() async {
+    /// AnkiConnect's own key check (a 200 with an error) says whether a key was sent at all.
+    @Test func aMissingOrWrongKeyIsSaidSo() async {
         let stub = StubTransport { _ in (200, Data(#"{"result":null,"error":"valid api key must be provided"}"#.utf8)) }
-        await #expect(throws: ConnectionError.unauthorized) {
+        await #expect(throws: ConnectionError.message(AnkiConnectClient.wrongKey)) {
             try await AnkiConnectClient(baseURL: base, apiKey: "wrong", http: HTTPClient(transport: stub)).version()
+        }
+        await #expect(throws: ConnectionError.message(AnkiConnectClient.needsKey)) {
+            try await AnkiConnectClient(baseURL: base, apiKey: nil, http: HTTPClient(transport: stub)).version()
+        }
+    }
+
+    /// A 403 comes from something in front of AnkiConnect (a proxy limited to the home network),
+    /// not from a wrong key.
+    @Test func aRefusalByTheServerIsntBlamedOnTheKey() async {
+        let stub = StubTransport { _ in (403, Data("Forbidden".utf8)) }
+        await #expect(throws: ConnectionError.message(AnkiConnectClient.refusedByProxy)) {
+            try await AnkiConnectClient(baseURL: base, apiKey: "key", http: HTTPClient(transport: stub)).version()
         }
     }
 

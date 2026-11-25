@@ -94,10 +94,13 @@ public enum HachidoriError: Error, Equatable, Sendable, LocalizedError {
     /// The host answered `ok: false`.
     case host(message: String, code: String?)
     case malformed(String)
+    /// Test Connection: no link, and why (`HachidoriLink.lastFailure`).
+    case unanswered(String)
 
     public var errorDescription: String? {
         switch self {
         case .notLinked: "Hachidori isn't reachable."
+        case .unanswered(let reason): reason
         case .timedOut: "Hachidori didn't answer in time."
         case .outcomeUnknown: "The link to Hachidori dropped before it answered."
         case .host(let message, _): message
