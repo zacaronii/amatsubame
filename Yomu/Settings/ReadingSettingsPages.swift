@@ -16,13 +16,13 @@ struct ReadingDownloadsView: View {
                 .accessibilityIdentifier("downloads.automatic")
                 Toggle("Read Text on Downloaded Pages", isOn: settings.readsDownloadedPages)
                     .accessibilityIdentifier("downloads.readText")
-                Text("Downloaded manga pages are read by OCR ahead of time (when the models are installed), so lookups are instant offline.")
+                Text("Finds the text on downloaded manga pages ahead of time, so lookups are instant offline.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
-        .navigationTitle("Downloads")
+        .navigationTitle("Download Rules")
     }
 }
 
@@ -48,7 +48,7 @@ struct ReadAlongSettingsView: View {
                 }
                 .accessibilityIdentifier("readAlong.kaku")
             } footer: {
-                Text("Read-Along plays a matching audiobook with the text, highlighting each line as it's read. It needs both: Audiobookshelf has the audiobook and Kaku its transcript. It's optional.")
+                Text("Plays a matching audiobook with the text, highlighting each line. It needs Audiobookshelf for the audiobook and Kaku for its transcript.")
             }
         }
         .formStyle(.grouped)

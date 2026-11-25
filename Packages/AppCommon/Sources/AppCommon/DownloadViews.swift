@@ -206,8 +206,6 @@ public struct DownloadSettingsSection<Extra: View>: View {
                 .accessibilityIdentifier("downloads.cellular")
             #endif
             extra(Binding(get: { settings }, set: { settings = $0; try? $0.save(environment.database) }))
-        } header: {
-            Text("Downloads")
         }
         .onAppear { settings = DownloadSettings.load(environment.database) }
     }
