@@ -238,6 +238,28 @@ final class ReaderUITests: XCTestCase {
         snapshot("ocr-lookup")
     }
 
+    /// A lookup leaves the page as it was: on the iPhone Duo's outer screen (a side safe area)
+    /// the page shrank as the popup opened. Run it there, or on an iPhone in landscape.
+    func testLookupKeepsThePageSize() throws {
+        try enableOCR()
+        app.launch()
+        openReader()
+        let block = app.descendants(matching: .any).matching(identifier: "ocr.block").firstMatch
+        XCTAssertTrue(block.waitForExistence(timeout: 90), "OCR found text on the page")
+        // Accessibility already has the new layout while the stale one is on screen, so this
+        // looks at the screen: the right edge above the popup is page or black, and stays so.
+        let before = rightEdgeIsBlack()
+        snapshot("page-before-lookup")
+        block.tap()
+        XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 15), "lookup popup opened")
+        sleep(1)
+        snapshot("page-with-popup")
+        XCTAssertEqual(rightEdgeIsBlack(), before, "the page changed size with the popup open")
+        app.closeLookup()
+        sleep(1)
+        XCTAssertEqual(rightEdgeIsBlack(), before, "the page changed size after the popup closed")
+    }
+
     /// A lookup marks the word on the page's own lettering (nothing else is drawn over it).
     func testLookupMarksTheWordOnThePage() throws {
         try enableOCR()
@@ -1156,6 +1178,23 @@ final class ReaderUITests: XCTestCase {
         let value = reader.value as? String ?? ""
         let number = value.split(separator: " ").dropFirst().first.flatMap { Int($0) }
         return try XCTUnwrap(number, "reader value: \(value)")
+    }
+
+    /// Whether a strip down the screen's right edge, in its upper third (above the popup's
+    /// panel), is all black: no page drawn there.
+    private func rightEdgeIsBlack() -> Bool {
+        guard let image = app.screenshot().image.cgImage,
+              let data = image.dataProvider?.data, let bytes = CFDataGetBytePtr(data) else { return false }
+        let perPixel = image.bitsPerPixel / 8
+        let scale = CGFloat(image.width) / app.windows.firstMatch.frame.width
+        let x0 = image.width - Int(40 * scale), y0 = image.height / 6, y1 = image.height / 3
+        for y in stride(from: y0, to: y1, by: 4) {
+            for x in stride(from: x0, to: image.width - Int(4 * scale), by: 4) {
+                let pixel = bytes + y * image.bytesPerRow + x * perPixel
+                if max(pixel[0], pixel[1], pixel[2]) > 40 { return false }
+            }
+        }
+        return true
     }
 
     private func snapshot(_ name: String) {

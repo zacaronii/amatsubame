@@ -4,7 +4,6 @@ import SwiftUI
 struct PagedReaderView: View {
     let model: MangaReaderModel
     /// Pages stay out of these (the pager itself runs edge to edge, so paging lines up).
-    var sideInsets = SideInsets()
     let onOpenChapter: (ReaderChapter) -> Void
     @State private var position: Int?
     @State private var lastSlots: [ReaderSlot] = []
@@ -44,7 +43,7 @@ struct PagedReaderView: View {
                                     ZoomablePage(doubleTapZooms: model.settings.doubleTapZooms) { tap in
                                         // Taps are handled inside the zoomable content: the native
                                         // zoom view receives touches/clicks before outer gestures.
-                                        SpreadView(model: model, slot: slot, sideInsets: sideInsets)
+                                        SpreadView(model: model, slot: slot)
                                             .contentShape(.rect)
                                             .gesture(tap { globalX in
                                                 let frame = geometry.frame(in: .global)
@@ -212,8 +211,6 @@ struct PagedReaderView: View {
 private struct SpreadView: View {
     let model: MangaReaderModel
     let slot: ReaderSlot
-    let sideInsets: SideInsets
-    @Environment(\.layoutDirection) private var layoutDirection
 
     var body: some View {
         HStack(spacing: 0) {
@@ -223,9 +220,6 @@ private struct SpreadView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // The insets are the screen's left and right; this view may be mirrored (right to left).
-        .padding(.leading, layoutDirection == .rightToLeft ? sideInsets.right : sideInsets.left)
-        .padding(.trailing, layoutDirection == .rightToLeft ? sideInsets.left : sideInsets.right)
         // A little room above the progress bar along the screen's bottom edge.
         .padding(.bottom, 10)
     }
@@ -261,20 +255,6 @@ private struct PartPageView: View {
         .accessibilityLabel("Page \(page + 1)")
         // Offsets are physical positions on the page, even in a right-to-left reader.
         .environment(\.layoutDirection, .leftToRight)
-    }
-}
-
-/// The screen's left and right safe areas, in screen terms.
-struct SideInsets: Equatable {
-    var left: CGFloat = 0
-    var right: CGFloat = 0
-
-    init() {}
-
-    /// From a geometry's insets (laid out left to right).
-    init(_ insets: EdgeInsets) {
-        left = insets.leading
-        right = insets.trailing
     }
 }
 

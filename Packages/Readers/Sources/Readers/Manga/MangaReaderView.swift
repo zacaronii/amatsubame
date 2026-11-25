@@ -9,8 +9,6 @@ public struct MangaReaderView: View {
     let onOpenChapter: (ReaderChapter) -> Void
     @Environment(\.scenePhase) private var scenePhase
     @State private var showsSettings = false
-    /// The screen's side safe areas: on the iPhone Duo's outer screen, the status column.
-    @State private var sideInsets = SideInsets()
     /// Debug: show how long the last tap-to-popup took (Settings → OCR).
     @AppStorage("showLookupTimings") private var showsTimings = false
 
@@ -80,12 +78,10 @@ public struct MangaReaderView: View {
             }
             .onAppear {
                 updateSpreadFit(geometry.size)
-                sideInsets = SideInsets(geometry.safeAreaInsets)
             }
             .onChange(of: geometry.size) { _, size in
                 updateSpreadFit(size)
             }
-            .onChange(of: SideInsets(geometry.safeAreaInsets)) { _, insets in sideInsets = insets }
         }
         .readerLookupOverlay(model.popup, lookup: model.lookup, anchor: model.popupAnchor, in: .global,
                              beside: true, onClose: { model.popup = nil }) { popup, lookup in
@@ -133,7 +129,7 @@ public struct MangaReaderView: View {
     @ViewBuilder private var content: some View {
         switch model.settings.mode {
         case .paged:
-            PagedReaderView(model: model, sideInsets: sideInsets, onOpenChapter: openNext)
+            PagedReaderView(model: model, onOpenChapter: openNext)
         case .longStrip:
             LongStripReaderView(model: model, onOpenChapter: openNext)
         }
