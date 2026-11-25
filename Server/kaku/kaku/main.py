@@ -49,6 +49,8 @@ def build(config, transcriber=None, audiobookshelf=None, jellyfin=None):
     service = Service(config, db, audiobookshelf, transcriber, worker, poller, jellyfin)
     # What was set on the web page (1.11) wins over the environment.
     settings.apply_stored(service)
+    # Transcripts from before 1.12 count in the stats too (once).
+    db.backfill_history()
     return service
 
 

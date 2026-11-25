@@ -227,7 +227,10 @@ Since 1.11 the page's **Settings** change the model, the chunk length, the promp
 episode counts as new, how often Kaku checks Audiobookshelf and when it unloads the model. A
 setting changed there wins over the compose file's (also after a restart) until you choose **Use the
 environment's**: changing `KAKU_MODEL` in `.env` does nothing while the page has a model saved, so
-choose **Use the environment's** there first. A new model is used from the next job on; nothing already transcribed is redone. A cancelled episode
+choose **Use the environment's** there first.
+
+Since 1.12 the page has **Stats**: hours of audio transcribed per day and per library, and how fast
+each model goes. Opening Kaku's bare address in a browser also takes you to the page. A new model is used from the next job on; nothing already transcribed is redone. A cancelled episode
 isn't queued again by itself; asking for it from an app queues it again.
 
 It's off unless you set `KAKU_UI_SECRET` (in the compose file) to a long random string, and it only

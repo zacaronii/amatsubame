@@ -9,7 +9,7 @@ import tempfile
 import time
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel
 
 from . import VERSION, is_current, model_key
@@ -78,6 +78,14 @@ def create_app(service):
     def waiting(item_id, episode_id):
         job = db.job(item_id, episode_id)
         return job_view(job, db.position(item_id, episode_id))
+
+    @app.api_route('/', methods=['GET', 'HEAD'], include_in_schema=False)
+    def root(request: Request):
+        """A browser opening the bare address goes to the web page (1.12; relative, so it works under
+        any proxy path). Anything else, and with no page set up, answers 404 as before."""
+        if request.method == 'GET' and service.config.ui_secret and 'text/html' in request.headers.get('accept', ''):
+            return RedirectResponse('ui', status_code=302)
+        raise HTTPException(404, 'Not Found')
 
     @app.get('/health')
     def health():
