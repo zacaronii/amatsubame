@@ -41,6 +41,12 @@ server addresses or titles.
 
 For Kaku, the output of `docker compose logs kaku` (checked the same way) usually shows what went wrong.
 
+### The demo servers
+
+If you're trying the apps with **Try It with the Demo Servers**, say so in your report instead of
+giving server versions. The demo resets every night, so it may be unavailable for a moment, and other
+people use the same samples at the same time.
+
 ## Questions and feature requests
 
 Questions and ideas are welcome as issues too. For a feature request, say what you'd like to do and

@@ -15,7 +15,8 @@ libraries and getting dictionaries.
 - **A Mac with Xcode 26 or later**, to build the apps.
 - **[XcodeGen](https://github.com/yonaskolb/XcodeGen)**, which makes the Xcode project. The easiest way
   to install it is with [Homebrew](https://brew.sh).
-- **At least one of your own servers**, for the apps you want to use:
+- **Your own servers**, for the apps you want to use. To look around first, you don't need any: see
+  [Try it without a server](#try-it-without-a-server).
 
   | App | Server |
   | --- | --- |
@@ -102,7 +103,8 @@ screens you'll find in Settings later, so nothing here is final. Hiku has no set
 how to turn the extension on in Safari (see [Hiku](/hiku/)).
 
 1. **Welcome.** What the app does and the three things ahead: connecting your server, getting
-   dictionaries and (optionally) connecting Anki. Tap **Get Started**.
+   dictionaries and (optionally) connecting Anki. Tap **Get Started**, or **Try It with the Demo
+   Servers** if you have no server yet.
 2. **Connect your server.**
    - Yomu: your Kavita address and an auth key (in Kavita, User Settings ▸ Auth Keys).
    - Miru: your Jellyfin address, username and password. Only a sign-in token is kept, never the
@@ -115,9 +117,10 @@ how to turn the extension on in Safari (see [Hiku](/hiku/)).
    already shared its setup. **Use This Setup** reuses its dictionaries, Anki and word audio sources,
    and skips ahead to the extras. **Set Up Separately** gives this app its own; setup then asks you to
    close and reopen the app and carries on with dictionaries.
-5. **Get dictionaries.** The recommended dictionaries start downloading straight away. You can continue
-   once Jitendex (or another dictionary with definitions) is in. **Keep Them Up to Date** checks for
-   new versions weekly on Wi-Fi. You can also import your own Yomitan dictionaries here.
+5. **Get dictionaries.** Lookups need at least one. **Download 5 Dictionaries** gets the recommended
+   set (the download size is shown; use Wi-Fi if you can). They finish in the background, so you can go
+   on at once. **Import My Own…** takes Yomitan dictionaries from Files, and **Skip for Now** leaves it
+   for later, in Settings. **Keep Them Up to Date** checks for new versions weekly on Wi-Fi.
 6. **Connect Anki.** Your AnkiConnect address and, if you set one in AnkiConnect, its API key. Tap
    **Test** to check it. Choose **Skip, I don't use Anki** or **Later** to move on without it.
 7. **Where should cards go?** Shown once Anki is connected: the deck, the note type and tags. The fields
@@ -135,6 +138,20 @@ how to turn the extension on in Safari (see [Hiku](/hiku/)).
    Tap **Start Reading**, **Start Watching** or **Start Listening**.
 
 If you leave setup part-way, it opens again where you were next time.
+
+### Try it without a server
+
+On the Welcome screen, **Try It with the Demo Servers** connects the app to Amatsubame's public demo
+servers instead of your own. They hold a few samples that are free to share: novels from Aozora Bunko,
+the Pepper&Carrot comic in Japanese, the Sintel short film with Japanese subtitles and a LibriVox
+recording of 坊っちゃん. Setup carries on as usual from there: dictionaries, and Anki if you like.
+
+- **Nothing is saved to the demo.** Your reading, watching and listening places, marks and lists stay
+  on your device. Cards still go to your own Anki.
+- **It's shared and reset every night,** so other people use the same samples, and the demo may be
+  unavailable for a moment while it resets. The app signs in again on its own afterwards.
+- **To use your own server later,** open the server in Settings and choose **Use My Own Server…**.
+  What you did on the demo is cleared from the device; your dictionaries, Anki and settings stay.
 
 ### Skipping setup, and running it again
 
