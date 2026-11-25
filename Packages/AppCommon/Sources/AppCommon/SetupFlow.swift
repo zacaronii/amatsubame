@@ -229,7 +229,14 @@ public struct SetupPage<Content: View, Footer: View>: View {
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 10) {
                 if let buttonTitle {
-                    Button(action: action) {
+                    Button {
+                        // Connect's result shows under the fields: with the keyboard up it
+                        // landed under this button, half hidden.
+                        #if canImport(UIKit)
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                        #endif
+                        action()
+                    } label: {
                         Text(buttonTitle).font(.headline).frame(maxWidth: .infinity).padding(.vertical, 6)
                     }
                     .buttonStyle(.glassProminent)
