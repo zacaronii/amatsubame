@@ -172,6 +172,21 @@ import Testing
         #expect(html.contains("movie"), "the results are")
     }
 
+    /// With no dictionary at all, a tap says so instead of "No results"; with dictionaries, a word
+    /// they don't have still gets "No results".
+    @Test func aLookupWithNoDictionariesSaysHowToGetOne() async throws {
+        let database = try AppDatabase.inMemory()
+        let library = DictionaryLibrary(database: database, directory: FileManager.default.temporaryDirectory.appending(path: "none-\(UUID().uuidString)"))
+        let empty = LookupService(library: library, audio: AudioService(database: database))
+        try await empty.reload()
+        let none = empty.document(for: await empty.lookup(text: "映画を見た", utf16Offset: 0))
+        #expect(none.contains("No dictionaries yet") && !none.contains("No results"))
+
+        let service = try await makeService()
+        let missing = service.document(for: await service.lookup(text: "犬が", utf16Offset: 0))
+        #expect(missing.contains("No results") && !missing.contains("No dictionaries yet"))
+    }
+
     @Test func lookupsWithResultsAreCountedForStats() async throws {
         let service = try await makeService()
         let log = ActivityLog(database: try AppDatabase.inMemory())

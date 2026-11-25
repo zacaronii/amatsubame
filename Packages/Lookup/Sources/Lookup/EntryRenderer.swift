@@ -24,10 +24,13 @@ public enum EntryRenderer {
     }
 
     /// `statuses` (one per result) adds the Known and Ignore buttons, pressed for the word's mark.
+    /// `noDictionaries`: nothing to look in yet, said as such rather than "No results".
     public static func entries(_ results: [TermLookupResult], mined: [Bool]? = nil, statuses: [WordStatus?]? = nil,
-                               lookupCount: LookupCount? = nil, summary: SummaryOptions? = nil) -> String {
+                               lookupCount: LookupCount? = nil, summary: SummaryOptions? = nil, noDictionaries: Bool = false) -> String {
         if results.isEmpty {
-            return "<div class=\"no-results\">No results</div>"
+            return noDictionaries
+                ? "<div class=\"no-results\">No dictionaries yet. Add one in the app's settings to look words up.</div>"
+                : "<div class=\"no-results\">No results</div>"
         }
         return results.enumerated().map { index, result in
             entry(result, index: index, mined: mined.map { index < $0.count && $0[index] },

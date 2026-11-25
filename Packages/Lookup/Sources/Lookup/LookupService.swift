@@ -311,6 +311,12 @@ public final class LookupService {
         max(0, 1 - Double(min(max(opacityPercent, 0), 100)) / 70)
     }
 
+    /// Nothing to look words up in: no dictionary with terms is on, and no Hachidori host
+    /// answers instead of this device's.
+    public var lacksDictionaries: Bool {
+        !looksUpOnHost && !((try? library.dictionaries()) ?? []).contains { $0.enabled && $0.hasTerms }
+    }
+
     /// The full HTML document for a page of results. With `nativeBackground`, the page stays
     /// transparent and the view showing it draws the background (`LookupPopupView`).
     public func document(for page: LookupResultPage, nativeBackground: Bool = false) -> String {
@@ -327,7 +333,9 @@ public final class LookupService {
             ? .init(dictionary: popupSettings.compactDefinitionSummaryDictionary, count: popupSettings.compactDefinitionSummaryCount)
             : nil
         let dictionaryStyles = looksUpOnHost && followsHost ? styles.merging(host?.styles ?? [:]) { $1 } : styles
-        return LookupPage.document(body: EntryRenderer.entries(page.results, mined: mined, statuses: statuses, lookupCount: count, summary: summary),
+        let noDictionaries = page.results.isEmpty && lacksDictionaries
+        return LookupPage.document(body: EntryRenderer.entries(page.results, mined: mined, statuses: statuses, lookupCount: count,
+                                                               summary: summary, noDictionaries: noDictionaries),
                                    dictionaryStyles: dictionaryStyles, extraCSS: accentCSS)
     }
 

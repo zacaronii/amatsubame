@@ -95,6 +95,24 @@ import Testing
         #expect(status["anki"] == nil)
     }
 
+    /// A tap that finds nothing shows nothing, unless there's no dictionary at all: then the
+    /// popup opens to say how to get one.
+    @Test func withNoDictionaryTheLookupSaysHowToGetOne() async throws {
+        let withTerms = try makeService(dictionary: Self.eat)
+        let missing = await withTerms.handle(["action": "lookup", "text": "犬が来た", "offset": 0])
+        #expect(missing["found"] as? Bool == false)
+
+        let root = FileManager.default.temporaryDirectory.appending(path: "browser-\(UUID().uuidString)")
+        let common = CommonEnvironment(database: try AppDatabase.onDisk(directory: root.appending(path: "Database")),
+                                       secrets: InMemorySecretStore(), mediaDirectory: root.appending(path: "Media"),
+                                       dictionaryDirectory: root.appending(path: "Dictionaries"),
+                                       http: HTTPClient(transport: Self.anki(nil)))
+        let empty = BrowserService(common: common, bundledDictionaries: [], defaults: UserDefaults(suiteName: "browser-\(UUID().uuidString)")!)
+        let none = await empty.handle(["action": "lookup", "text": "犬が来た", "offset": 0])
+        #expect(none["found"] as? Bool == true)
+        #expect((none["html"] as? String)?.contains("No dictionaries yet") == true)
+    }
+
     @Test func bilingualDictionariesComeFirst() {
         let names = ["[Pitch] アクセント辞典v2.zip", "[Freq] JPDB.zip", "[Bilingual] 新和英.zip", "[Grammar] 文法.zip",
                      "[Bilingual] JMdict (Recommended).zip", "[Kanji] KANJIDIC.zip"]
