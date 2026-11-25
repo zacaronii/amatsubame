@@ -69,7 +69,9 @@ struct PlayerSettingsView: View {
                     Text("Watching")
                 }
 
-                LookupAndMiningSection {
+                LookupSection()
+
+                AnkiSection {
                     Self.anki(environment)
                 }
 

@@ -36,7 +36,9 @@ struct KikuSettingsView: View {
                     Text("Listening")
                 }
 
-                LookupAndMiningSection {
+                LookupSection()
+
+                AnkiSection {
                     AnkiSettingsPage(environment: environment.common)
                 }
 

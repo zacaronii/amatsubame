@@ -3,8 +3,8 @@ import Core
 import OCR
 import SwiftUI
 
-/// Settings in the shape every app shares: status, Reading, Lookup and Mining, Connections,
-/// then Storage, Advanced and About.
+/// Settings in the shape every app shares: status, Reading, Lookup, Anki, Connections, then
+/// Storage, Advanced and About.
 struct SettingsView: View {
     @Environment(AppEnvironment.self) private var environment
     @State private var storageTotal: String?
@@ -47,7 +47,9 @@ struct SettingsView: View {
                     Text("Read-Along plays a matching audiobook with the text. It's optional.")
                 }
 
-                LookupAndMiningSection {
+                LookupSection(wordMarksNote: Self.wordMarksNote, popupExtras: AnyView(LookupTimingsToggle()))
+
+                AnkiSection {
                     Self.anki(environment)
                 }
 
@@ -85,9 +87,7 @@ struct SettingsView: View {
 
     static var advanced: some View {
         AdvancedSettingsView(kinds: [.ankiNote, .kavitaProgress, .audiobookshelfProgress, .audiobookshelfSession],
-                             extraLogs: [URL.applicationSupportDirectory.appending(path: "dev-setup.log")]) {
-            LookupTimingsToggle()
-        }
+                             extraLogs: [URL.applicationSupportDirectory.appending(path: "dev-setup.log")])
     }
 
     static let credits = [
@@ -99,8 +99,11 @@ struct SettingsView: View {
     }
 
     static func anki(_ environment: AppEnvironment) -> some View {
-        AnkiSettingsPage(environment: environment.common, wordMarksNote: "Books only; manga pages aren\u{2019}t marked.")
+        AnkiSettingsPage(environment: environment.common)
     }
+
+    /// Word marks are drawn in books only.
+    static let wordMarksNote = "Books only; manga pages aren\u{2019}t marked."
 
     /// What a link to a server opens.
     @ViewBuilder static func serverPage(_ kind: ServerKind, environment: AppEnvironment) -> some View {
@@ -174,7 +177,7 @@ struct MacSettingsView: View {
                 MacSettingsPage("ocr", title: "Manga Text Recognition", systemImage: "text.viewfinder") { OCRSettingsView() },
                 MacSettingsPage("readAlong", title: "Read-Along", systemImage: "headphones") { ReadAlongSettingsView() },
             ]),
-        ] + MacSettingsGroup.shared(servers: [
+        ] + MacSettingsGroup.shared(wordMarksNote: SettingsView.wordMarksNote, popupExtras: AnyView(LookupTimingsToggle()), servers: [
             MacSettingsPage("kavita", title: "Kavita", systemImage: "server.rack") { KavitaSettingsView(environment: environment.common) },
             MacSettingsPage("audiobookshelf", title: "Audiobookshelf", systemImage: "headphones") {
                 AudiobookshelfSettingsView(environment: environment.common, tokens: environment.audiobookshelfTokens, appName: "Yomu")

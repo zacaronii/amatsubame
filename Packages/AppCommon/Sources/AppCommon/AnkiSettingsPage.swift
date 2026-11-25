@@ -2,9 +2,8 @@ import Anki
 import Core
 import SwiftUI
 
-/// Settings ▸ Lookup and Mining ▸ Anki: the AnkiConnect connection, how cards are made, and
-/// word marks, on one page. `cardExtras`: the app's own rows in Cards (Miru's Card Picture).
-/// `wordMarksNote`: what the marks cover in this app.
+/// Settings ▸ Anki: the AnkiConnect connection and how cards are made. `cardExtras`: the app's
+/// own rows in Cards (Miru's Card Picture).
 public struct AnkiSettingsPage<CardExtras: View>: View {
     @Environment(CommonEnvironment.self) private var environment
     @State private var connection: AnkiSettingsModel
@@ -12,15 +11,13 @@ public struct AnkiSettingsPage<CardExtras: View>: View {
     private let cardExtras: CardExtras
     /// Shows the picture size (pages): Miru's picture setting replaces it.
     private let showsPictureSize: Bool
-    private let wordMarksNote: String?
 
-    public init(environment: CommonEnvironment, showsPictureSize: Bool = true, wordMarksNote: String? = nil,
+    public init(environment: CommonEnvironment, showsPictureSize: Bool = true,
                 @ViewBuilder cardExtras: () -> CardExtras = { EmptyView() }) {
         _connection = State(initialValue: AnkiSettingsModel(environment: environment))
         _cards = State(initialValue: CardSettingsModel(environment: environment))
         self.cardExtras = cardExtras()
         self.showsPictureSize = showsPictureSize
-        self.wordMarksNote = wordMarksNote
     }
 
     public var body: some View {
@@ -80,27 +77,6 @@ public struct AnkiSettingsPage<CardExtras: View>: View {
                 }
 
                 Section {
-                    WordMarksToggle()
-                    if showsMarkDecks {
-                        NavigationLink {
-                            MarkDecksView(model: cards)
-                        } label: {
-                            LabeledContent("Also Mark Words From", value: cards.settings.markDecks.isEmpty ? "None" : cards.settings.markDecks.joined(separator: ", "))
-                        }
-                    }
-                    NavigationLink {
-                        KnownWordsView()
-                    } label: {
-                        LabeledContent("Known and Ignored Words", value: environment.lookup.wordStatuses.count.formatted())
-                    }
-                    .accessibilityIdentifier("anki.knownWords")
-                } header: {
-                    Text("Word Marks")
-                } footer: {
-                    Text(wordMarksFooter)
-                }
-
-                Section {
                     Toggle("Sync After Adding", isOn: $cards.settings.syncAfterAdding)
                     Button {
                         Task { await cards.syncNow() }
@@ -134,15 +110,6 @@ public struct AnkiSettingsPage<CardExtras: View>: View {
         .formStyle(.grouped)
         .navigationTitle("Anki")
         .task { await cards.load() }
-    }
-
-    private var showsMarkDecks: Bool {
-        cards.decks.contains { $0 != cards.settings.deck }
-    }
-
-    private var wordMarksFooter: String {
-        [WordMarksToggle.footer, wordMarksNote, showsMarkDecks ? "Words already studied in the other decks show as known." : nil]
-            .compactMap { $0 }.joined(separator: " ")
     }
 }
 
@@ -199,5 +166,60 @@ struct MarkDecksView: View {
         }
         .formStyle(.grouped)
         .navigationTitle("Also Mark Words From")
+    }
+}
+
+/// Settings ▸ Lookup ▸ Word Marks: words marked by their state in Anki, the other decks that
+/// count, and the words marked known or ignored by hand. `note`: what the marks cover in this
+/// app (Yomu: books only).
+public struct WordMarksPage: View {
+    @Environment(CommonEnvironment.self) private var environment
+    /// Made when the page opens (from the environment, so the Mac's sidebar can build it).
+    @State private var cards: CardSettingsModel?
+    private let note: String?
+
+    public init(note: String? = nil) {
+        self.note = note
+    }
+
+    public var body: some View {
+        Form {
+            Section {
+                WordMarksToggle()
+                if let cards, showsMarkDecks(cards) {
+                    NavigationLink {
+                        MarkDecksView(model: cards)
+                    } label: {
+                        LabeledContent("Also Mark Words From", value: cards.settings.markDecks.isEmpty ? "None" : cards.settings.markDecks.joined(separator: ", "))
+                    }
+                }
+            } footer: {
+                Text(footer)
+            }
+            Section {
+                NavigationLink {
+                    KnownWordsView()
+                } label: {
+                    LabeledContent("Known and Ignored Words", value: environment.lookup.wordStatuses.count.formatted())
+                }
+                .accessibilityIdentifier("anki.knownWords")
+            }
+        }
+        .formStyle(.grouped)
+        .navigationTitle("Word Marks")
+        .task {
+            let model = CardSettingsModel(environment: environment)
+            cards = model
+            if environment.mining.ankiConnected { await model.load() }
+        }
+    }
+
+    private func showsMarkDecks(_ cards: CardSettingsModel) -> Bool {
+        cards.decks.contains { $0 != cards.settings.deck }
+    }
+
+    private var footer: String {
+        [WordMarksToggle.footer, note, cards.map(showsMarkDecks) == true ? "Words already studied in the other decks show as known." : nil]
+            .compactMap { $0 }.joined(separator: " ")
     }
 }

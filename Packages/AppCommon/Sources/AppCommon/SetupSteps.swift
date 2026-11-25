@@ -521,7 +521,7 @@ struct SetupDoneStep: View {
         let dictionary = SetupChecklistItem("Dictionaries", detail: common.dictionaryUpdater.isInstalling
             ? "Downloading · finishing in the background"
             : dictionaries.isEmpty
-            ? "None yet · In Settings → Lookup and Mining → Dictionaries"
+            ? "None yet · In Settings → Lookup → Dictionaries"
             : "\(dictionaries.count) installed\(common.dictionaryUpdater.autoUpdate ? " · kept up to date" : "")",
             isDone: !dictionaries.isEmpty)
         let settings = try? common.ankiSettings.settings()
@@ -529,7 +529,7 @@ struct SetupDoneStep: View {
         let reused = common.setupMode == .shared && flow.sharedOrigin.available
         let anki = SetupChecklistItem("Anki", detail: common.serverAccounts[.anki] != nil
             ? [settings?.deck, settings?.noteType].compactMap { $0 }.joined(separator: " · ")
-            : "\(reused ? "Not set up" : "Later") · In Settings → Lookup and Mining → Anki",
+            : "\(reused ? "Not set up" : "Later") · In Settings → Anki",
             isDone: common.serverAccounts[.anki] != nil)
         return Array(app.prefix(1)) + [dictionary, anki] + Array(app.dropFirst())
     }
