@@ -8,7 +8,8 @@
   async function refresh() {
     if (document.hidden || busy) return;
     try {
-      const response = await fetch('/ui/sections', { credentials: 'same-origin', cache: 'no-store' });
+      const view = encodeURIComponent(sections.dataset.view || '');
+      const response = await fetch(`/ui/sections?view=${view}`, { credentials: 'same-origin', cache: 'no-store' });
       if (response.ok) sections.innerHTML = await response.text();
     } catch (error) {
       // Offline for a moment: the next refresh tries again.
@@ -27,6 +28,7 @@
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': token },
         body: JSON.stringify({
           action: data.action, itemId: data.item || '', episodeId: data.episode || '', libraryId: data.library || '',
+          value: data.value || '', view: sections.dataset.view || '',
         }),
       });
       if (response.ok) {
