@@ -421,7 +421,7 @@ final class WatchBridge: NSObject, WCSessionDelegate {
     private func lookUp(_ line: AudioSentence, character: Int) async -> LookupResultPage {
         let text = TappableLine.sentence(line.text)
         let offset = String(text.prefix(character)).utf16.count
-        return await environment.common.lookup.lookup(text: text, utf16Offset: offset, showSource: true)
+        return await environment.common.lookup.lookup(text: text, utf16Offset: offset, keepsSource: true)
     }
 
     /// The line's clip on the phone (the transcript's clip path). The episode pauses for it and

@@ -154,10 +154,22 @@ import Testing
     @Test func aLongVowelLookalikeAfterKatakanaFindsTheWord() async throws {
         let service = try await makeService()
         let text = "熱いコ一ヒ一を。"
-        let page = await service.lookup(text: text, utf16Offset: 2, showSource: true)
+        let page = await service.lookup(text: text, utf16Offset: 2, keepsSource: true)
         #expect(page.results.first?.expression == "コーヒー")
         #expect(page.source?.utf16Length == 4)
         #expect(page.sentence == text)
+    }
+
+    /// The popup shows the results only: the tapped sentence stays with the page (for the line's
+    /// or manga page's mark, and for mining) but isn't drawn above them.
+    @Test func thePopupDoesntShowTheSentence() async throws {
+        let service = try await makeService()
+        let page = await service.lookup(text: "昨日映画を見た", utf16Offset: 2, keepsSource: true)
+        #expect(page.source?.text == "昨日映画を見た" && page.sentence == "昨日映画を見た")
+        let html = service.document(for: page)
+        #expect(!html.contains(#"class="source""#) && !html.contains("<mark>"))
+        #expect(!html.contains("昨日映画を見た"), "the sentence isn't drawn anywhere in the popup")
+        #expect(html.contains("movie"), "the results are")
     }
 
     @Test func lookupsWithResultsAreCountedForStats() async throws {

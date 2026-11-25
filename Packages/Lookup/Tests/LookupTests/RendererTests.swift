@@ -154,17 +154,6 @@ import Testing
     }
 }
 
-@Suite struct SourceHeaderTests {
-    @Test func highlightsTheMatchedSpan() {
-        let html = EntryRenderer.source(LookupSource(text: "今日は<映画>を見た", utf16Offset: 4, utf16Length: 2))
-        #expect(html == #"<div class="source" lang="ja">今日は&lt;<mark>映画</mark>&gt;を見た</div>"#)
-    }
-
-    @Test func outOfRangeOffsetsAreClamped() {
-        let html = EntryRenderer.source(LookupSource(text: "あい", utf16Offset: 5, utf16Length: 3))
-        #expect(html == #"<div class="source" lang="ja">あい<mark></mark></div>"#)
-    }
-}
 
 @Suite struct PopupEntryTests {
     static let examples = #"[{"type":"structured-content","content":[{"tag":"ul","data":{"content":"glossary"},"content":[{"tag":"li","content":"why?"}]},{"tag":"ul","lang":"ja","data":{"content":"examples"},"content":[{"tag":"li","content":"ここになんで来たの？"},{"tag":"li","lang":"en","content":"Why did you come here?"}]}]}]"#

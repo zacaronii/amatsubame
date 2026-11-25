@@ -22,16 +22,13 @@ struct RealPopupRenderTests {
         }
         try await library.reloadEngine()
         let styles = await library.engine.styles()
-        let samples: [(name: String, text: String, sentence: String?)] = [
-            ("nande", "なんでんな遅くまで起きてるんです？", "なんでんな遅くまで起きてるんです？"),
-            ("machini", "待ちに待った", nil), ("nihongo", "日本語", nil), ("taberu", "食べさせられなかった", nil),
-        ] + (env["POPUP_RENDER_WORDS"] ?? "").split(separator: "|").enumerated().map { ("word\($0.offset)", String($0.element), nil) }
+        let samples: [(name: String, text: String)] = [
+            ("nande", "なんでんな遅くまで起きてるんです？"),
+            ("machini", "待ちに待った"), ("nihongo", "日本語"), ("taberu", "食べさせられなかった"),
+        ] + (env["POPUP_RENDER_WORDS"] ?? "").split(separator: "|").enumerated().map { ("word\($0.offset)", String($0.element)) }
         for sample in samples {
             let results = await library.engine.lookup(String(sample.text.prefix(16)))
-            let source = sample.sentence.map {
-                EntryRenderer.source(LookupSource(text: $0, utf16Offset: 0, utf16Length: results.first?.matched.utf16.count ?? 0))
-            } ?? ""
-            let html = LookupPage.document(body: source + EntryRenderer.entries(Array(results.prefix(2)), mined: results.prefix(2).map { _ in false }, lookupCount: .init(3), summary: .init()),
+            let html = LookupPage.document(body: EntryRenderer.entries(Array(results.prefix(2)), mined: results.prefix(2).map { _ in false }, lookupCount: .init(3), summary: .init()),
                                            dictionaryStyles: styles, extraCSS: ":root { --accent: #3FC98F; --on-accent: #04261A; }")
             try html.write(to: folder.appending(path: "\(sample.name).html"), atomically: true, encoding: .utf8)
             try await Self.snapshot(html, to: folder.appending(path: "\(sample.name).png"))
