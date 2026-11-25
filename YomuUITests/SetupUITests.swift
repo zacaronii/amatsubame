@@ -55,9 +55,9 @@ final class SetupUITests: XCTestCase {
 
     /// The bar with Continue covers what scrolls under it: on the dictionaries step the list
     /// showed through the footer's text and the button. Connects the demo Kavita
-    /// (`DEMO_SERVER_KAVITA_*` in `.env`) to get there.
+    /// (its config.json) to get there.
     func testButtonBarCoversTheList() throws {
-        let v = try TestAccounts.require("DEMO_SERVER_KAVITA_URL", "DEMO_SERVER_KAVITA_KEY")
+        let v = try DemoServers.kavita()
         let app = fresh()
         app.launch()
         app.buttons["setup.getStarted"].tap()
@@ -101,9 +101,9 @@ final class SetupUITests: XCTestCase {
 
     /// The dictionaries step is a choice and nothing downloads by itself: skip (lookups then say
     /// how to get one), import your own, or download the recommended ones, which finish in the
-    /// background while setup goes on. Connects the demo Kavita (`DEMO_SERVER_KAVITA_*`).
+    /// background while setup goes on. Connects the demo Kavita (its config.json).
     func testDictionariesAreAChoice() throws {
-        let v = try TestAccounts.require("DEMO_SERVER_KAVITA_URL", "DEMO_SERVER_KAVITA_KEY")
+        let v = try DemoServers.kavita()
         func reachDictionaries() -> XCUIApplication {
             let app = fresh()
             app.launch()
