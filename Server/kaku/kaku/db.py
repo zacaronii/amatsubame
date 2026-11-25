@@ -40,6 +40,11 @@ CREATE TABLE IF NOT EXISTS rule (
     library_id TEXT NOT NULL, item_id TEXT NOT NULL, mode TEXT NOT NULL, PRIMARY KEY (library_id, item_id));
 -- Settings changed on the web page (1.11), over the environment's.
 CREATE TABLE IF NOT EXISTS setting (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+-- Every transcript made, for the web page's stats (1.12): when, which library, how much audio, how
+-- long it took (seconds; null for ones backfilled without a run) and by which model.
+CREATE TABLE IF NOT EXISTS history (
+    at REAL NOT NULL, item_id TEXT NOT NULL, episode_id TEXT NOT NULL, library_id TEXT NOT NULL,
+    duration REAL NOT NULL, seconds REAL, model TEXT NOT NULL);
 -- Changes made on the web page (/ui): who, what and when (1.9).
 CREATE TABLE IF NOT EXISTS audit (at REAL NOT NULL, user TEXT NOT NULL, action TEXT NOT NULL, detail TEXT NOT NULL);
 '''
@@ -138,9 +143,15 @@ class Database:
         self.execute('UPDATE job SET progress = ? WHERE item_id = ? AND episode_id = ?',
                      (progress, job['item_id'], job['episode_id']))
 
-    def finish(self, job, path, model, now=None):
+    def finish(self, job, path, model, now=None, duration=None, seconds=None):
+        """Done: the transcript recorded, and (with the audio's `duration`) a line of history with
+        how long it took."""
         now = now or time.time()
         with self.lock:
+            if duration is not None:
+                self.connection.execute(
+                    'INSERT INTO history (at, item_id, episode_id, library_id, duration, seconds, model) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                    (now, job['item_id'], job['episode_id'], job['library_id'], duration, seconds, model))
             self.connection.execute(
                 "UPDATE job SET state = 'done', progress = 1, error = NULL, finished_at = ? WHERE item_id = ? AND episode_id = ?",
                 (now, job['item_id'], job['episode_id']))
@@ -240,6 +251,50 @@ class Database:
                 "(SELECT item_id FROM rule WHERE library_id = ? AND mode = 'high')", (library_id, library_id))
         else:
             self.execute("DELETE FROM rule WHERE library_id = ? AND item_id = ''", (library_id,))
+
+    # Stats (1.12)
+
+    def history(self, since=0):
+        return [dict(row) for row in self.execute('SELECT * FROM history WHERE at >= ? ORDER BY at', (since,))]
+
+    def library_totals(self):
+        """Each library's transcripts so far: {library_id: (hours of audio, count)}."""
+        return {row['library_id']: (row['audio'] / 3600, row['n']) for row in self.execute(
+            'SELECT library_id, SUM(duration) AS audio, COUNT(*) AS n FROM history GROUP BY library_id')}
+
+    def speed(self, limit=20):
+        """How much faster than real time the last `limit` timed transcripts went, per model:
+        {model: (times real time, count)}."""
+        rows = self.execute('SELECT model, duration, seconds FROM history WHERE seconds > 0 ORDER BY at DESC LIMIT ?', (limit,))
+        totals = {}
+        for row in rows:
+            audio, taken, count = totals.get(row['model'], (0, 0, 0))
+            totals[row['model']] = (audio + row['duration'], taken + row['seconds'], count + 1)
+        return {model: (audio / taken, count) for model, (audio, taken, count) in totals.items() if taken}
+
+    def backfill_history(self):
+        """Once (1.12): transcripts made before history was kept get a line each, from their JSON's
+        duration and their job's times when it still has them."""
+        if self.meta('history_backfilled'):
+            return 0
+        import json
+        added = 0
+        for row in self.execute('SELECT t.*, j.library_id, j.started_at, j.finished_at, j.state FROM transcript t '
+                                'LEFT JOIN job j ON j.item_id = t.item_id AND j.episode_id = t.episode_id'):
+            try:
+                with open(row['path'], encoding='utf-8') as file:
+                    document = json.load(file)
+                duration = float((document.get('source') or {}).get('duration') or 0)
+            except (OSError, ValueError, AttributeError):
+                continue
+            library = row['library_id'] or (document.get('item') or {}).get('libraryId') or ''
+            seconds = (row['finished_at'] - row['started_at']
+                       if row['state'] == 'done' and row['started_at'] and row['finished_at'] else None)
+            self.execute('INSERT INTO history (at, item_id, episode_id, library_id, duration, seconds, model) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                         (row['created_at'], row['item_id'], row['episode_id'], library, duration, seconds, row['model']))
+            added += 1
+        self.set_meta('history_backfilled', '1')
+        return added
 
     # Settings (1.11)
 

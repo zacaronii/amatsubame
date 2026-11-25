@@ -98,6 +98,11 @@ Since 1.9 it changes things too:
   use the new one). **Check** says whether a model can be used (anime-whisper needs its conversion;
   large-v3 and large-v3-turbo download on first use). Addresses, keys and folders stay in the
   environment.
+- **Stats (1.12):** hours of audio transcribed per day for the last 30 days, per library (all time and
+  the last 30 days), and speed per model (times real time, and minutes per hour of audio, over the last
+  20 timed transcripts). From the `history` table: a line per transcript made (when, library, audio
+  duration, seconds taken, model). Transcripts made before 1.12 are added once at start from their
+  JSON (without times, so they don't count for speed). Days follow the container's time zone (`TZ`).
 - **Logs:** a failed job keeps its last 50 lines and traceback for 14 days (the `job_log` table, a
   **Log** button on the problem), and **Kaku's log** shows the last 500 lines since it started
   (kept in memory). The API token, the server keys and the UI secret are taken out of both.
@@ -110,6 +115,9 @@ It's meant for a reverse proxy that signs you in (Authentik, say) and is off by 
   `X-Kaku-UI: <KAKU_UI_SECRET>` to those requests. Without that header the page answers 403, so going
   around the proxy to Kaku's port doesn't open it.
 - The rest of the address keeps the API as it is (bearer token, for the apps).
+- Since 1.12 a browser opening the bare address (`GET /` asking for `text/html`) is sent to the page
+  (`302` to the relative `ui`). Without `KAKU_UI_SECRET`, for other `Accept` values (the apps, `curl`)
+  and for `HEAD`, `/` answers `404` as before.
 - The page never sees `KAKU_API_TOKEN`: it reads Kaku's database itself. Who's signed in comes from
   the proxy's `X-authentik-username`.
 

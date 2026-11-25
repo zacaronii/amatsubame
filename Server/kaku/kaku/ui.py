@@ -135,7 +135,7 @@ def add_ui(app: FastAPI, service):
         controls = button('Check Audiobookshelf now', 'poll') + (
             button('Resume the queue', 'resume') if db.paused else
             button('Stop after this one', 'pause', confirm='Let the current job finish, then start nothing new?')
-        ) + '<a class="button" href="/ui/logs">Kaku’s log</a><a class="button" href="/ui/settings">Settings</a>'
+        ) + '<a class="button" href="/ui/logs">Kaku’s log</a><a class="button" href="/ui/settings">Settings</a><a class="button" href="/ui/stats">Stats</a>'
         changes = db.changes(5)
         recent = ''.join(f'<li><span class="title">{escape(change["action"])} · {escape(change["detail"])}</span>'
                          f'<span class="detail">{escape(change["user"])} · {escape(ago(change["at"], now))}</span></li>'
@@ -301,7 +301,48 @@ def add_ui(app: FastAPI, service):
         return (f'<section id="settings"><h2>Settings</h2>{pending}{checked}<ul class="jobs settings">{rows}</ul>'
                 f'<p class="quiet">Addresses, keys and folders stay in the environment (the compose file).</p></section>')
 
+    # Stats (1.12)
+
+    def stats_sections(now=None):
+        now = now or time.time()
+        days = 30
+        start = time.mktime(time.localtime(now)[:3] + (0, 0, 0, 0, 0, -1)) - (days - 1) * 86400
+        history = db.history(since=start)
+        by_day = {}
+        for row in history:
+            day = time.strftime('%Y-%m-%d', time.localtime(row['at']))
+            hours, count = by_day.get(day, (0.0, 0))
+            by_day[day] = (hours + row['duration'] / 3600, count + 1)
+        top = max([hours for hours, _ in by_day.values()] or [0]) or 1
+        day_rows = ''
+        for index in range(days):
+            day = time.strftime('%Y-%m-%d', time.localtime(start + index * 86400 + 43200))
+            hours, count = by_day.get(day, (0.0, 0))
+            day_rows += (f'<tr><td>{escape(day[5:])}</td><td><meter min="0" max="{top:.3f}" value="{hours:.3f}"></meter></td>'
+                         f'<td>{hours:.1f} h</td><td class="quiet">{count}</td></tr>')
+        total_hours = sum(hours for hours, _ in by_day.values())
+        names = {l['id']: l['name'] for l in db.libraries()} | {'jellyfin': 'Jellyfin (asked for in Miru)'}
+        recent = {}
+        for row in history:
+            recent[row['library_id']] = recent.get(row['library_id'], 0) + row['duration'] / 3600
+        library_rows = ''.join(
+            f'<tr><td>{escape(names.get(library_id, library_id or "—"))}</td><td>{hours:.1f} h</td>'
+            f'<td class="quiet">{count}</td><td>{recent.get(library_id, 0):.1f} h</td></tr>'
+            for library_id, (hours, count) in sorted(db.library_totals().items(), key=lambda item: -item[1][0]))
+        speed_rows = ''.join(
+            f'<li><span class="title">{escape(model.split("/")[0])}</span><span class="detail">{factor:.0f}× real time · '
+            f'about {duration(3600 / factor)} per hour of audio · last {count} timed</span></li>'
+            for model, (factor, count) in db.speed().items())
+        return (f'<section id="stats"><h2>Last {days} days: {total_hours:.1f} h of audio</h2>'
+                f'<table class="days"><tr><th>Day</th><th></th><th>Audio</th><th>Jobs</th></tr>{day_rows}</table>'
+                f'<h2>Libraries</h2>' + (f'<table><tr><th>Library</th><th>All</th><th>Transcripts</th><th>Last {days} days</th></tr>'
+                                          f'{library_rows}</table>' if library_rows else '<p class="quiet">Nothing transcribed yet.</p>')
+                + f'<h2>Speed</h2>' + (f'<ul class="jobs">{speed_rows}</ul>' if speed_rows else '<p class="quiet">Not timed yet.</p>')
+                + '</section>')
+
     def view_sections(view):
+        if view == 'stats':
+            return stats_sections()
         if view == 'settings':
             return settings_sections()
         return library_sections(view.split(':', 1)[1]) if view.startswith('library:') else sections()
@@ -323,6 +364,10 @@ def add_ui(app: FastAPI, service):
     @app.get('/ui', include_in_schema=False)
     def ui(user: str = Depends(gate)):
         return shell(user, sections())
+
+    @app.get('/ui/stats', include_in_schema=False)
+    def ui_stats(user: str = Depends(gate)):
+        return shell(user, stats_sections(), view='stats', title='Stats · Kaku', back='/ui')
 
     @app.get('/ui/settings', include_in_schema=False)
     def ui_settings(user: str = Depends(gate)):

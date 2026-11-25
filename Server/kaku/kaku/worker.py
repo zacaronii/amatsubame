@@ -92,7 +92,8 @@ class Worker:
         with JobLog(self.redact) as lines:
             try:
                 path = self.process(job)
-                self.db.finish(job, path, model_key(self.transcriber.name))
+                self.db.finish(job, path, model_key(self.transcriber.name), duration=job.get('duration'),
+                               seconds=time.monotonic() - started)
                 log.info('transcribed %s/%s in %.0f s', job['item_id'], job['episode_id'], time.monotonic() - started)
             except Cancelled:
                 log.info('cancelled %s/%s', job['item_id'], job['episode_id'])
@@ -143,6 +144,7 @@ class Worker:
         episode = self.episode(job)
         # The file may have been replaced since it was queued: the transcript is of what's there now.
         job['fingerprint'] = episode.fingerprint
+        job['duration'] = episode.duration
         work = os.path.join(self.data_dir, 'tmp', f"{job['item_id']}-{job['episode_id']}")
         os.makedirs(work, exist_ok=True)
         try:
