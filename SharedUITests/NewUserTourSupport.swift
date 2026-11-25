@@ -80,6 +80,8 @@ extension XCTestCase {
         XCTAssertLessThanOrEqual(status.frame.maxY, button.frame.minY, "the result shows above Continue, not under it")
         keepScreenshot(app, "\(prefix)-3-server-connected")
         app.tapContinue()
+        // Never Save: a saved password's AutoFill then gets in the way of the next app's fields.
+        app.dismissSavePassword()
         if app.waitForTitle("Which libraries are Japanese?", timeout: 30) {
             sleep(3)
             keepScreenshot(app, "\(prefix)-4-libraries")
@@ -88,8 +90,11 @@ extension XCTestCase {
         if app.waitForTitle("Get dictionaries", timeout: 20) {
             sleep(3)
             keepScreenshot(app, "\(prefix)-5-dictionaries")
-            // The recommended set downloads on its own: several minutes on a simulator.
-            app.tapContinue(timeout: 900)
+            // The recommended set: it finishes in the background, so setup goes on at once.
+            app.buttons["setup.continue"].tap()
+            XCTAssertTrue(app.element("setup.dictionaries.progress").waitForExistence(timeout: 10))
+            keepScreenshot(app, "\(prefix)-5b-dictionaries-downloading")
+            app.tapContinue()
         }
         if app.waitForTitle("Connect Anki", timeout: 20) {
             keepScreenshot(app, "\(prefix)-6-anki")

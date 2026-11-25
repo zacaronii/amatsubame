@@ -131,7 +131,8 @@ struct SetupSharedStep: View {
     }
 }
 
-/// Step 5: the recommended dictionaries download, with Keep Them Up to Date.
+/// Step 5: dictionaries. Download the recommended ones (they finish in the background), import
+/// your own, or skip for now: nothing downloads until it's asked for.
 struct SetupDictionariesStep: View {
     @Environment(SetupFlow.self) private var flow
     @State private var selection: Set<String> = []
@@ -139,16 +140,17 @@ struct SetupDictionariesStep: View {
     @State private var removed: Set<String> = []
     @State private var autoUpdate = true
     @State private var started = false
+    @State private var hasDictionaries = false
 
     var body: some View {
         let updater = flow.common.dictionaryUpdater
         SetupPage(step: .dictionaries, systemImage: "character.book.closed.ja", title: "Get dictionaries",
-                  subtitle: "Word lookups use these. They're stored on this \(StorageSummary.deviceName) and work offline.",
-                  buttonTitle: buttonTitle, canContinue: hasRequired && !updater.isInstalling,
-                  action: { flow.advance(from: .dictionaries) }) {
+                  subtitle: "Lookups use these. They're stored on this \(StorageSummary.deviceName) and work offline.",
+                  buttonTitle: offersDownload ? "Download \(selection.count == 1 ? "1 Dictionary" : "\(selection.count) Dictionaries")" : "Continue",
+                  action: { offersDownload ? install() : flow.advance(from: .dictionaries) }) {
             SetupHachidoriCard(onCopied: refresh)
             VStack(alignment: .leading, spacing: 6) {
-                Text(rememberedHachidori ? "Or Download the Recommended Ones" : "Recommended")
+                Text(rememberedHachidori ? "Or Download the Recommended Ones" : "Download the Recommended Ones")
                     .font(.footnote).foregroundStyle(.secondary).padding(.leading, 16)
                 SetupCard {
                     RecommendedDictionaryRows(selection: $selection, installed: installed, removed: removed)
@@ -156,12 +158,18 @@ struct SetupDictionariesStep: View {
                         .padding(.vertical, 8)
                 }
             }
-            if !selection.isEmpty, !updater.isInstalling {
-                Button("Download \(selection.count == 1 ? "1 Dictionary" : "\(selection.count) Dictionaries")") { install() }
-                    .accessibilityIdentifier("setup.downloadDictionaries")
+            if updater.isInstalling {
+                Label("\(progress) They finish in the background, so you can go on.", systemImage: "arrow.down.circle")
+                    .font(.callout).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("setup.dictionaries.progress")
             }
             if let failure = failure {
                 Label(failure, systemImage: "exclamationmark.triangle").foregroundStyle(.orange).font(.callout)
+            }
+            if !hasDictionaries, !updater.isInstalling {
+                Text("Lookups need at least one dictionary. You can add them later in Settings → Lookup and Mining → Dictionaries.")
+                    .font(.footnote).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("setup.dictionaries.later")
             }
             SetupCard {
                 Toggle(isOn: $autoUpdate) {
@@ -176,14 +184,24 @@ struct SetupDictionariesStep: View {
                 .accessibilityIdentifier("setup.autoUpdate")
             }
         } footer: {
-            // Under the button, so it stays in view however long the page gets (an error line
-            // used to push it under Continue).
-            NavigationLink("Have your own dictionaries? Import Yomitan zips from Files.") {
-                DictionariesView()
+            // Under the button, so they stay in view however long the page gets (an error line
+            // used to push them under Continue).
+            VStack(spacing: 8) {
+                if offersDownload {
+                    Text("About \(Self.size(of: selection)). Use Wi-Fi if you can.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                        .accessibilityIdentifier("setup.dictionaries.size")
+                }
+                HStack(spacing: 24) {
+                    NavigationLink("Import My Own…") { DictionariesView() }
+                        .accessibilityIdentifier("setup.importDictionaries")
+                    if !hasDictionaries, !updater.isInstalling {
+                        Button("Skip for Now") { flow.advance(from: .dictionaries) }
+                            .accessibilityIdentifier("setup.dictionaries.skip")
+                    }
+                }
+                .font(.footnote)
             }
-            .font(.footnote)
-            .multilineTextAlignment(.center)
-            .accessibilityIdentifier("setup.importDictionaries")
         }
         .onAppear {
             refresh()
@@ -191,26 +209,38 @@ struct SetupDictionariesStep: View {
             guard !started else { return }
             started = true
             selection = RecommendedDictionaries.defaultSelection.subtracting(installed).subtracting(removed)
-            // With a Hachidori address already known (another app's setup), its copy is the
-            // likely choice: nothing downloads until one is picked.
-            if !selection.isEmpty, !rememberedHachidori { install() }
         }
+        // An import from the Dictionaries page counts too.
+        .task {
+            do {
+                for try await records in flow.common.dictionaries.observeDictionaries() {
+                    hasDictionaries = records.contains(where: \.hasTerms)
+                    refresh()
+                }
+            } catch {}
+        }
+    }
+
+    /// Nothing yet and nothing downloading: the main button downloads the picked ones.
+    private var offersDownload: Bool {
+        !hasDictionaries && !flow.common.dictionaryUpdater.isInstalling && !selection.isEmpty
+    }
+
+    /// "About 390 MB": what the picked recommended dictionaries download.
+    static func size(of ids: Set<String>) -> String {
+        let bytes = ids.compactMap { RecommendedDictionaries.entry($0)?.approximateBytes }.reduce(0, +)
+        return ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
     }
 
     private var rememberedHachidori: Bool {
         !flow.common.hachidoriSettings.address.isEmpty
     }
 
-    private var hasRequired: Bool {
-        installed.contains(RecommendedDictionaries.required) || !((try? flow.common.dictionaries.dictionaries()) ?? []).filter(\.hasTerms).isEmpty
-    }
-
-    private var buttonTitle: String {
+    private var progress: String {
         let updater = flow.common.dictionaryUpdater
-        guard updater.isInstalling else { return "Continue" }
         let total = updater.items.count
         let done = updater.items.values.filter { $0 == .installed }.count
-        return "Downloading… \(min(done + 1, total)) of \(total)"
+        return "Downloading \(min(done + 1, total)) of \(total)."
     }
 
     private var failure: String? {
@@ -460,7 +490,9 @@ struct SetupDoneStep: View {
     private func checklist(_ common: CommonEnvironment) -> [SetupChecklistItem] {
         let app = items()
         let dictionaries = (try? common.dictionaries.dictionaries()) ?? []
-        let dictionary = SetupChecklistItem("Dictionaries", detail: dictionaries.isEmpty
+        let dictionary = SetupChecklistItem("Dictionaries", detail: common.dictionaryUpdater.isInstalling
+            ? "Downloading · finishing in the background"
+            : dictionaries.isEmpty
             ? "None yet · In Settings → Lookup and Mining → Dictionaries"
             : "\(dictionaries.count) installed\(common.dictionaryUpdater.autoUpdate ? " · kept up to date" : "")",
             isDone: !dictionaries.isEmpty)
