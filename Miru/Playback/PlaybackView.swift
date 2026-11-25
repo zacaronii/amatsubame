@@ -1110,6 +1110,10 @@ struct PlaybackView: View {
                 Label("Find Subtitles", systemImage: "captions.bubble")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.orange)
+                    // As tall as the round buttons beside it: the caption alone is a 14 pt target
+                    // (with the plain style, taps on the iPad's picture-above-lines layout missed it).
+                    .frame(minHeight: 48)
+                    .contentShape(.rect)
             }
             .accessibilityIdentifier("player.noSubtitles")
         case .failed(let message):
