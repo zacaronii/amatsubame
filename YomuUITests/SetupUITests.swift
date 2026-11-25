@@ -53,6 +53,49 @@ final class SetupUITests: XCTestCase {
         _ = key
     }
 
+    /// The bar with Continue covers what scrolls under it: on the dictionaries step the list
+    /// showed through the footer's text and the button. Connects the demo Kavita
+    /// (`DEMO_SERVER_KAVITA_*` in `.env`) to get there.
+    func testButtonBarCoversTheList() throws {
+        let v = try TestAccounts.require("DEMO_SERVER_KAVITA_URL", "DEMO_SERVER_KAVITA_KEY")
+        let app = fresh()
+        app.launch()
+        app.buttons["setup.getStarted"].tap()
+        XCTAssertTrue(app.waitForTitle("Connect Kavita"))
+        app.type(v[0], into: "setup.server.url")
+        app.type(v[1], into: "setup.server.key")
+        app.buttons["setup.continue"].tap()
+        let connected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS 'found'"),
+                                                  object: app.element("setup.server.status"))
+        XCTAssertEqual(XCTWaiter.wait(for: [connected], timeout: 60), .completed)
+        app.tapContinue()
+        app.dismissSavePassword()
+        XCTAssertTrue(app.waitForTitle("Which libraries are Japanese?"))
+        app.tapContinue()
+        XCTAssertTrue(app.waitForTitle("Get dictionaries"))
+        sleep(2)
+        let button = app.buttons["setup.continue"].frame, link = app.element("setup.importDictionaries").frame
+        XCTAssertLessThan(button.maxY, link.minY)
+        let shot = app.screenshot()
+        let attachment = XCTAttachment(screenshot: shot)
+        attachment.name = "dictionaries-bar"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        // Between the button and the link: the page's own background only, no list rows.
+        guard let image = shot.image.cgImage, let data = image.dataProvider?.data, let bytes = CFDataGetBytePtr(data) else {
+            return XCTFail("no screenshot")
+        }
+        let scale = CGFloat(image.width) / app.windows.firstMatch.frame.width
+        let y = Int(((button.maxY + link.minY) / 2) * scale), perPixel = image.bitsPerPixel / 8
+        let first = bytes + y * image.bytesPerRow
+        var odd = 0
+        for x in stride(from: 0, to: image.width, by: 3) {
+            let pixel = first + x * perPixel
+            if (0..<3).contains(where: { abs(Int(pixel[$0]) - Int(first[$0])) > 12 }) { odd += 1 }
+        }
+        XCTAssertEqual(odd, 0, "the list shows through the bar under Continue")
+    }
+
     /// Dictionaries from Hachidori (#40): the test host's address from `HACHIDORI_LINK_URL`, its
     /// dictionaries copied (after the recommended downloads that start on their own), then Done
     /// lists them. Several minutes: Hachidori's copies are a few hundred MB.
