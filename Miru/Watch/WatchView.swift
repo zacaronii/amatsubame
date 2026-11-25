@@ -81,12 +81,16 @@ struct WatchView: View {
         NavigationStack(path: $path) {
             Group {
                 if common.serverAccounts[.jellyfin]?.userId == nil {
-                    ContentUnavailableView(
-                        "Connect Jellyfin",
-                        systemImage: "play.rectangle",
-                        description: Text("Sign in to your Jellyfin server in Settings.")
-                    )
-                    .accessibilityIdentifier("watch.placeholder")
+                    ContentUnavailableView {
+                        Label("Connect Jellyfin", systemImage: "play.rectangle")
+                            .accessibilityIdentifier("watch.placeholder")
+                    } description: {
+                        Text("Sign in to your Jellyfin server in Settings to see your anime and films.")
+                    } actions: {
+                        Button("Open Settings") { environment.selectedTab = .settings }
+                            .buttonStyle(.borderedProminent)
+                            .accessibilityIdentifier("watch.openSettings")
+                    }
                 } else {
                     home
                 }

@@ -76,6 +76,7 @@ struct ListenView: View {
                     } actions: {
                         Button("Open Settings") { environment.selectedTab = .settings }
                             .buttonStyle(.borderedProminent)
+                            .accessibilityIdentifier("listen.openSettings")
                     }
                 } else if !query.isEmpty {
                     SearchResults(query: query)

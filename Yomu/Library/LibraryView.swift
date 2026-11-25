@@ -130,11 +130,15 @@ struct LibraryView: View {
                     // The server details are still being read: not "no server" yet.
                     ProgressView()
                 } else if environment.serverAccounts[.kavita] == nil {
-                    ContentUnavailableView(
-                        "Connect Kavita",
-                        systemImage: "books.vertical",
-                        description: Text("Add your Kavita server in Settings to browse your manga and books.")
-                    )
+                    ContentUnavailableView {
+                        Label("Connect Kavita", systemImage: "books.vertical")
+                    } description: {
+                        Text("Add your Kavita server in Settings to browse your manga and books.")
+                    } actions: {
+                        Button("Open Settings") { environment.selectedTab = .settings }
+                            .buttonStyle(.borderedProminent)
+                            .accessibilityIdentifier("library.openSettings")
+                    }
                 } else {
                     content
                 }
