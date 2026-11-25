@@ -376,6 +376,8 @@ public struct LookupSection: View {
 /// Settings ▸ Anki: the AnkiConnect connection and how cards are made (`ankiPage`, the app's).
 public struct AnkiSection<AnkiPage: View>: View {
     @Environment(CommonEnvironment.self) private var environment
+    /// Read again each time the row shows: the deck or note type may have changed on its page.
+    @State private var settings: AnkiSettings?
     let ankiPage: () -> AnkiPage
 
     public init(@ViewBuilder ankiPage: @escaping () -> AnkiPage) {
@@ -391,12 +393,12 @@ public struct AnkiSection<AnkiPage: View>: View {
                                  dot: environment.serverAccounts[.anki]?.dotColor)
             }
             .accessibilityIdentifier("settings.anki")
+            .onAppear { settings = try? environment.ankiSettings.settings() }
         }
     }
 
     private var ankiSummary: String {
         guard environment.serverAccounts[.anki] != nil else { return "Not set up" }
-        let settings = try? environment.ankiSettings.settings()
         return ["Connected", settings.map { "Deck: \($0.deck)" }, settings?.noteType].compactMap { $0 }.joined(separator: " · ")
     }
 }

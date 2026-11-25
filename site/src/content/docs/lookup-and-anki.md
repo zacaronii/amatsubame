@@ -285,7 +285,7 @@ Once connected, the same page has the **Cards** section:
 - **Fields**: what goes into each field of the note type. Each field can hold nothing, one of the
   pieces below, or fixed text. **Reset to Default** puts the preset back.
 - **Tags**, separated by spaces. The default is `amatsubame`.
-- **Picture size**, the longest side of the card's picture (not in Miru, which has its own Card
+- **Picture Size**, the longest side of the card's picture (not in Miru, which has its own Card
   Picture setting).
 
 The pieces a field can hold are: Word, Word with furigana, Reading, Word audio, Main definition, Short
@@ -350,7 +350,7 @@ Now**; **Settings ▸ Advanced ▸ Waiting to Sync** lists them by kind.
 
 In the Anki settings, **Sync After Adding** asks the Anki behind AnkiConnect to sync about 10 seconds
 after new cards arrive (once for a batch), so they reach AnkiMobile and your other devices. It syncs
-with whatever sync server that Anki uses: AnkiWeb, or your own. **Sync Anki Now** syncs straight away.
+with whatever sync server that Anki uses: AnkiWeb, or your own. **Sync Anki Collection** runs it straight away.
 
 - **Anki on a computer:** sign in to sync in Anki first (**Sync** in the main window).
 - **A headless AnkiConnect server** that syncs after every change on its own (Hachidori's does) needs
