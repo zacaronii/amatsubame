@@ -256,6 +256,9 @@ public struct SetupPage<Content: View, Footer: View>: View {
                 LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: Self.pageBackground, location: 0.25)],
                                startPoint: .top, endPoint: .bottom)
                     .ignoresSafeArea()
+                    // Only a look: with the keyboard up the bar rises over the last field
+                    // (Audiobookshelf's password), and the background took its taps.
+                    .allowsHitTesting(false)
             }
         }
         .scrollDismissesKeyboard(.interactively)
