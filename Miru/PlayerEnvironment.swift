@@ -316,3 +316,24 @@ private struct UITestJimakuTransport: HTTPTransport {
     }
 }
 #endif
+
+extension PlayerEnvironment {
+    /// The demo Jellyfin's sign-in, after its nightly reset (`DemoRenewal`).
+    func renewDemo() async {
+        await DemoRenewal.renew(common, kind: .jellyfin) {
+            guard let client = jellyfinClient() else { return .unknown }
+            var signedIn = true
+            let check = await DemoRenewal.check { signedIn = try await client.testConnection().user != nil }
+            return check == .fine && !signedIn ? .refused : check
+        } signIn: { config in
+            guard let demo = config.jellyfin else { return false }
+            let model = JellyfinSettingsModel(environment: common)
+            model.isDemo = true
+            model.urlText = demo.url.absoluteString
+            model.username = demo.user
+            model.password = demo.password
+            await model.signIn()
+            if case .ok = model.status { return true } else { return false }
+        }
+    }
+}

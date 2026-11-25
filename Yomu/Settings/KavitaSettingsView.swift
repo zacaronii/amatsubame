@@ -10,6 +10,12 @@ struct KavitaSettingsView: View {
 
     var body: some View {
         Form {
+            if model.isDemo {
+                DemoServerSection {
+                    model.remove()
+                    model.isDemo = false
+                }
+            }
             Section {
                 TextField("Server URL", text: $model.urlText, prompt: Text(verbatim: "https://kavita.example.ts.net"))
                     .urlEntry()

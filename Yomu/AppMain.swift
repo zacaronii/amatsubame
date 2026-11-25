@@ -32,6 +32,7 @@ struct YomuApp: App {
                 .environment(environment)
                 .environment(environment.common)
                 .task { await environment.start() }
+                .task { await environment.renewDemo() }
         }
         .commands { ReaderMenus(environment: environment) }
         .onChange(of: scenePhase) { _, phase in
@@ -39,6 +40,7 @@ struct YomuApp: App {
             case .active:
                 environment.syncNow(retryWaiting: true)
                 environment.autoDownloads.schedule()
+                Task { await environment.renewDemo() }
             case .background:
                 scheduleOutboxRefresh()
                 environment.common.statsSync.send()

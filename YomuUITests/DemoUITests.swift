@@ -9,4 +9,8 @@ final class DemoUITests: XCTestCase {
     func testDemoSignsIn() throws {
         try checkDemoSignIn(XCUIApplication.setup(data: "yomu-demo-\(UUID().uuidString.prefix(8))"), server: "Connect Kavita")
     }
+
+    func testDemoInSettingsAndLeavingIt() throws {
+        try checkDemoSettings(XCUIApplication.setup(data: "yomu-demoset-\(UUID().uuidString.prefix(8))"), server: "Connect Kavita", row: "settings.kavita")
+    }
 }

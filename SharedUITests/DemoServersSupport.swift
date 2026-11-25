@@ -91,3 +91,32 @@ extension XCTestCase {
         XCTAssertTrue(app.waitForTitle("Which libraries are Japanese?"), "on to the libraries")
     }
 }
+
+extension XCTestCase {
+    /// After trying the demo: Settings says the server is the demo, its page offers Use My Own
+    /// Server…, and that signs out of the demo (the page's own fields come back). Live; skips
+    /// while config.json can't be read.
+    func checkDemoSettings(_ app: XCUIApplication, server: String, row: String) throws {
+        try checkDemoSignIn(app, server: server)
+        app.tapContinue()
+        XCTAssertTrue(app.waitForTitle("Get dictionaries"))
+        app.buttons["setup.dictionaries.skip"].tap()
+        if app.waitForTitle("Connect Anki", timeout: 20) { app.buttons["setup.anki.skip"].tap() }
+        if app.waitForTitle("Extras", timeout: 20) { app.tapContinue() }
+        XCTAssertTrue(app.buttons["setup.start"].waitForExistence(timeout: 20))
+        app.buttons["setup.start"].tap()
+        sleep(2)
+        app.tabBars.buttons["Settings"].tap()
+        let serverRow = app.descendants(matching: .any)[row].firstMatch
+        XCTAssertTrue(serverRow.waitForExistence(timeout: 10))
+        XCTAssertTrue(serverRow.label.contains("Demo server"), "the row says it's the demo: \(serverRow.label)")
+        serverRow.tap()
+        let section = app.descendants(matching: .any)["server.demo"].firstMatch
+        XCTAssertTrue(section.waitForExistence(timeout: 10), "the page says it's the demo")
+        keepScreenshot(app, "demo-settings")
+        app.buttons["server.demo.ownServer"].tap()
+        XCTAssertTrue(section.waitForNonExistence(timeout: 10), "signed out of the demo")
+        XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 5), "the page's own fields are back")
+        keepScreenshot(app, "demo-left")
+    }
+}

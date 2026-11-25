@@ -23,11 +23,14 @@ struct MiruApp: App {
                 .environment(environment)
                 .environment(environment.common)
                 .task { await environment.start() }
+                .task { await environment.renewDemo() }
         }
         .commands { PlayerMenus(environment: environment) }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
-            case .active: environment.common.syncNow(retryWaiting: true)
+            case .active:
+                environment.common.syncNow(retryWaiting: true)
+                Task { await environment.renewDemo() }
             case .background:
                 scheduleOutboxRefresh()
                 environment.common.statsSync.send()

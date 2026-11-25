@@ -711,3 +711,21 @@ enum ReadingListSkip {
         return "skipped " + parts.joined(separator: " · ")
     }
 }
+
+extension AppEnvironment {
+    /// The demo Kavita's sign-in, if its key changed with a reset (`DemoRenewal`).
+    func renewDemo() async {
+        await DemoRenewal.renew(common, kind: .kavita) {
+            guard let client = kavitaClient() else { return .unknown }
+            return await DemoRenewal.check { _ = try await client.testConnection() }
+        } signIn: { config in
+            guard let demo = config.kavita else { return false }
+            let model = KavitaSettingsModel(environment: common)
+            model.isDemo = true
+            model.urlText = demo.url.absoluteString
+            model.authKey = demo.apiKey
+            await model.testAndSave()
+            if case .ok = model.status { return true } else { return false }
+        }
+    }
+}
