@@ -9,4 +9,8 @@ final class DemoUITests: XCTestCase {
     func testDemoSignsIn() throws {
         try checkDemoSignIn(XCUIApplication.setup(data: "miru-demo-\(UUID().uuidString.prefix(8))"), server: "Connect Jellyfin")
     }
+
+    func testDemoInSettingsAndLeavingIt() throws {
+        try checkDemoSettings(XCUIApplication.setup(data: "miru-demoset-\(UUID().uuidString.prefix(8))"), server: "Connect Jellyfin", row: "settings.jellyfin")
+    }
 }

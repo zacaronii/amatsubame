@@ -36,6 +36,7 @@ struct KikuApp: App {
                 .environment(environment)
                 .environment(environment.common)
                 .task { await environment.start() }
+                .task { await environment.renewDemo() }
                 .onChange(of: environment.common.reachability.reconnections) { environment.retryConnections() }
         }
         .commands { KikuMenus(environment: environment) }
@@ -44,6 +45,7 @@ struct KikuApp: App {
             case .active:
                 environment.common.syncNow(retryWaiting: true)
                 environment.retryConnections()
+                Task { await environment.renewDemo() }
             case .background:
                 scheduleOutboxRefresh()
                 environment.common.statsSync.send()

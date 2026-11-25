@@ -13,6 +13,13 @@ public struct AudiobookshelfSettingsView: View {
 
     public var body: some View {
         Form {
+            if model.isDemo {
+                DemoServerSection {
+                    model.signOut()
+                    model.isDemo = false
+                    model.urlText = ""
+                }
+            }
             Section {
                 TextField("Server URL", text: $model.urlText, prompt: Text(verbatim: "https://audiobookshelf.example.ts.net"))
                     .urlEntry()

@@ -84,7 +84,8 @@ public extension View {
 public extension ServerAccount {
     /// "kavita.example.ts.net · reader": where it is and who's signed in.
     var hostAndAccount: String {
-        [baseURL.host(percentEncoded: false) ?? baseURL.absoluteString, username].compactMap { $0 }.joined(separator: " · ")
+        if isDemo { return "Demo server · nothing is saved to it" }
+        return [baseURL.host(percentEncoded: false) ?? baseURL.absoluteString, username].compactMap { $0 }.joined(separator: " · ")
     }
 
     /// Green once tested, orange if never tested.
@@ -460,7 +461,10 @@ public struct AdvancedSettingsView<Troubleshooting: View>: View {
                     NavigationLink {
                         OutboxView(kind: kind)
                     } label: {
-                        LabeledContent(kind.waitingTitle, value: waiting[kind].map { "\($0) waiting" } ?? "None")
+                        // A demo server's: kept here, never sent (signing out discards them).
+                        LabeledContent(kind.waitingTitle, value: waiting[kind].map {
+                            environment.heldKinds.contains(kind) ? "\($0) kept on this device" : "\($0) waiting"
+                        } ?? "None")
                     }
                     .accessibilityIdentifier("advanced.waiting.\(kind.rawValue)")
                 }

@@ -471,3 +471,23 @@ final class KikuEnvironment {
     /// Nil until Kaku's URL and token are saved in Settings.
     func kakuClient() -> KakuClient? { AudioServers.kakuClient(common) }
 }
+
+extension KikuEnvironment {
+    /// The demo Audiobookshelf's sign-in, after its nightly reset (`DemoRenewal`).
+    func renewDemo() async {
+        await DemoRenewal.renew(common, kind: .audiobookshelf) {
+            guard let client = audiobookshelfClient() else { return .unknown }
+            return await DemoRenewal.check { _ = try await client.me() }
+        } signIn: { config in
+            guard let demo = config.audiobookshelf else { return false }
+            let model = AudiobookshelfSettingsModel(environment: common, tokens: tokens)
+            model.isDemo = true
+            model.method = .password
+            model.urlText = demo.url.absoluteString
+            model.username = demo.user
+            model.password = demo.password
+            await model.signIn()
+            if case .ok = model.status { return true } else { return false }
+        }
+    }
+}

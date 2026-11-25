@@ -9,4 +9,8 @@ final class DemoUITests: XCTestCase {
     func testDemoSignsIn() throws {
         try checkDemoSignIn(XCUIApplication.setup(data: "kiku-demo-\(UUID().uuidString.prefix(8))"), server: "Connect Audiobookshelf")
     }
+
+    func testDemoInSettingsAndLeavingIt() throws {
+        try checkDemoSettings(XCUIApplication.setup(data: "kiku-demoset-\(UUID().uuidString.prefix(8))"), server: "Connect Audiobookshelf", row: "settings.audiobookshelf")
+    }
 }
