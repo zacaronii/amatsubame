@@ -60,11 +60,11 @@ definition and a search you settle on each count once; going **Back**, or search
 doesn't. The counts work like [Hachidori](https://github.com/bee-san/hachidori)'s, and apps that share
 their setup add to the same counts.
 
-Settings ▸ Lookup and Mining ▸ **Popup** turns them off (your past counts are kept) or resets them.
+Settings ▸ Lookup ▸ **Popup** turns them off (your past counts are kept) or resets them.
 
 ### Background opacity
 
-The popup is like frosted glass: what's behind it is always blurred. Settings ▸ Lookup and Mining ▸
+The popup is like frosted glass: what's behind it is always blurred. Settings ▸ Lookup ▸
 **Popup** ▸ **Background Opacity** sets how much of the popup's colour lies over that blur, from 0 to
 100% (85% by default, as in Hachidori): the lower it is, the more of the page, video or transcript
 shows through. The text always stays solid, and at low opacity it gets a soft halo (dark in dark mode,
@@ -72,7 +72,7 @@ light in light mode) so it stays readable over anything; the halo fades out as t
 
 ### Brief definitions
 
-Settings ▸ Lookup and Mining ▸ **Popup** ▸ **Show Brief Definitions Beside the Headword** puts a
+Settings ▸ Lookup ▸ **Popup** ▸ **Show Brief Definitions Beside the Headword** puts a
 word's first few meanings next to it, so several results are quick to scan; the full definitions
 stay below. As in Hachidori, a new installation starts with it on and two snippets (1–6 under
 **Snippets**); setups from before version 0.3.0 keep it off until you turn it on. The snippets come
@@ -81,7 +81,7 @@ the same way as Hachidori's.
 
 ### Word audio
 
-Word audio comes from the sources in **Settings ▸ Lookup and Mining ▸ Audio Sources**. JapanesePod101
+Word audio comes from the sources in **Settings ▸ Lookup ▸ Audio Sources**. JapanesePod101
 is built in. You can add your own, of two types:
 
 - **Audio file URL**: an address that returns an audio file, with `{term}` and `{reading}` filled in
@@ -117,7 +117,7 @@ Each keeps its own licence; they're listed in **Settings ▸ About**.
 
 ### Managing dictionaries
 
-Open **Settings ▸ Lookup and Mining ▸ Dictionaries**:
+Open **Settings ▸ Lookup ▸ Dictionaries**:
 
 - **Installed** lists each dictionary with what it holds (Terms, Frequency, Pitch, Kanji), its size,
   and a switch to turn it off without deleting it. Results follow this order: on iPhone and iPad tap
@@ -184,7 +184,7 @@ Hachidori** to link to it and copy its dictionaries there and then. Setup starts
 recommended dictionaries by itself unless an address is already known (from another app's setup); the
 copy waits for those to finish and then only fetches what differs.
 
-While linked, Settings ▸ Lookup and Mining ▸ **Dictionaries** ▸ **Copy from Hachidori** lists
+While linked, Settings ▸ Lookup ▸ **Dictionaries** ▸ **Copy from Hachidori** lists
 Hachidori's dictionaries and whether each is new to this device, newer than the copy here, or the
 same. Tap **Copy** to download what's new or newer, at exactly Hachidori's versions (a dictionary you
 pinned to an older release stays on that release), then match Hachidori's order and which ones are
@@ -226,7 +226,7 @@ Tailscale, never over the internet. The setting is shared by the apps that share
 
 ## Word marks
 
-With **Mark Words by Anki State** on (in Settings ▸ Anki, under Word Marks), the apps underline words by
+With **Mark Words by Anki State** on (in Settings ▸ Lookup ▸ Word Marks), the apps underline words by
 where they stand in your Anki mining deck: words you haven't mined, and words you're still learning,
 are underlined; words you know stay plain. A word counts as known once its card's interval is 21 days
 or more, and stops counting while you relearn it after forgetting it. Cards waiting to be sent count as
@@ -238,7 +238,7 @@ Marks show in Yomu's books (not on manga pages), Miru's subtitles, Kiku's transc
 in Hiku. The apps refresh them from Anki when they open and every 30 minutes after that.
 
 If you also study from other decks (a premade vocabulary deck, say), add them in the Anki settings
-under **Word Marks ▸ Also Mark Words From**. Words you've started studying in those decks show as
+under **Settings ▸ Lookup ▸ Word Marks ▸ Also Mark Words From**. Words you've started studying in those decks show as
 known.
 
 ### Known and ignored words
@@ -252,7 +252,7 @@ Hachidori's **Mark as known** and **Ignore**:
 Tap the pressed one again to clear it. Known and ignored words are never underlined, whatever their
 Anki cards say. The list is shared by every app that shares a setup (Hiku's popup has the buttons
 too), and you can see it, remove words from it, or paste in a list of words you know (one per line,
-in dictionary form) in Settings ▸ Anki ▸ **Known and Ignored Words**.
+in dictionary form) in Settings ▸ Lookup ▸ Word Marks ▸ **Known and Ignored Words**.
 
 With Hachidori on, the list is Hachidori's as well. A word you mark in the apps goes to Hachidori (or
 waits until it's reachable), and words marked in Hachidori come to the apps. When you turn Hachidori
@@ -271,7 +271,7 @@ By default AnkiConnect only accepts connections from the computer it runs on. It
 setting (in the add-on's config in Anki) controls which addresses it listens on.
 :::
 
-Open **Settings ▸ Lookup and Mining ▸ Anki** (or the Connect Anki step in setup):
+Open **Settings ▸ Anki** (or the Connect Anki step in setup):
 
 1. Enter the **Server URL**, for example `http://anki.example.com:8765`.
 2. If you set an `apiKey` in AnkiConnect's config, enter the same key. Otherwise leave it blank.

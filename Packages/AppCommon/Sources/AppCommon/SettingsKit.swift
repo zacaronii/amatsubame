@@ -6,7 +6,7 @@ import UIKit
 #endif
 
 // The pieces every app's Settings is built from, in one order:
-// the status card, the app's own section, Lookup and Mining, Stats, then Storage, Advanced
+// the status card, the app's own section, Lookup, Anki, Connections, then Storage, Advanced
 // and About.
 
 /// A row's icon: a symbol on a rounded colour square, like the system Settings.
@@ -281,19 +281,22 @@ struct ChipFlow: Layout {
     }
 }
 
-// MARK: Lookup and Mining
+// MARK: Lookup
 
 /// Dictionaries, Audio Sources, Popup, Hachidori and Anki: the same in every app, and shared
 /// between them when sharing is on. `ankiPage`: the app's Anki page (Miru adds Card Picture).
-public struct LookupAndMiningSection<AnkiPage: View>: View {
+public struct LookupSection: View {
     @Environment(CommonEnvironment.self) private var environment
     @State private var dictionaries: [DictionaryRecord] = []
     @State private var sourceCount = 0
-    @State private var deck: String?
-    let ankiPage: () -> AnkiPage
+    let wordMarksNote: String?
+    let popupExtras: AnyView?
 
-    public init(@ViewBuilder ankiPage: @escaping () -> AnkiPage) {
-        self.ankiPage = ankiPage
+    /// `wordMarksNote`: what the marks cover in this app; `popupExtras`: the app's own rows at the
+    /// end of the Popup page.
+    public init(wordMarksNote: String? = nil, popupExtras: AnyView? = nil) {
+        self.wordMarksNote = wordMarksNote
+        self.popupExtras = popupExtras
     }
 
     public var body: some View {
@@ -305,6 +308,13 @@ public struct LookupAndMiningSection<AnkiPage: View>: View {
             }
             .accessibilityIdentifier("settings.dictionaries")
             NavigationLink {
+                PopupSettingsPage(extras: popupExtras)
+            } label: {
+                SettingsRowLabel("Popup", subtitle: popupSummary,
+                                 systemImage: "text.bubble.fill", color: .indigo)
+            }
+            .accessibilityIdentifier("settings.popup")
+            NavigationLink {
                 AudioSourcesView()
             } label: {
                 SettingsRowLabel("Audio Sources", subtitle: sourceCount == 1 ? "1 source" : "\(sourceCount) sources",
@@ -312,21 +322,13 @@ public struct LookupAndMiningSection<AnkiPage: View>: View {
             }
             .accessibilityIdentifier("settings.audioSources")
             NavigationLink {
-                PopupSettingsPage()
+                WordMarksPage(note: wordMarksNote)
             } label: {
-                SettingsRowLabel("Popup", subtitle: popupSummary,
-                                 systemImage: "text.bubble.fill", color: .indigo)
+                SettingsRowLabel("Word Marks", subtitle: wordMarksSummary, systemImage: "underline", color: .green)
             }
-            .accessibilityIdentifier("settings.popup")
-            NavigationLink {
-                ankiPage()
-            } label: {
-                SettingsRowLabel("Anki", subtitle: ankiSummary, systemImage: "rectangle.stack.fill", color: .green,
-                                 dot: environment.serverAccounts[.anki]?.dotColor)
-            }
-            .accessibilityIdentifier("settings.anki")
+            .accessibilityIdentifier("settings.wordMarks")
         } header: {
-            Text("Lookup and Mining")
+            Text("Lookup")
         } footer: {
             if let footer { Text(footer) }
         }
@@ -337,8 +339,14 @@ public struct LookupAndMiningSection<AnkiPage: View>: View {
         }
         .onAppear {
             sourceCount = ((try? environment.lookup.audio.sources()) ?? []).filter(\.enabled).count
-            deck = (try? environment.ankiSettings.settings())?.deck
         }
+    }
+
+    private var wordMarksSummary: String {
+        let mining = environment.mining
+        _ = mining.revision
+        guard mining.ankiConnected else { return "Needs Anki" }
+        return mining.marksWords ? "On" : "Off"
     }
 
     private var dictionarySummary: String {
@@ -355,16 +363,41 @@ public struct LookupAndMiningSection<AnkiPage: View>: View {
         return parts.isEmpty ? nil : parts.joined(separator: ", ")
     }
 
-    private var ankiSummary: String {
-        guard environment.serverAccounts[.anki] != nil else { return "Not set up" }
-        let settings = try? environment.ankiSettings.settings()
-        return ["Connected", settings.map { "Deck: \($0.deck)" }, settings?.noteType].compactMap { $0 }.joined(separator: " · ")
-    }
 
     private var footer: String? {
         let others = environment.appsSharingSetup
         guard !others.isEmpty else { return nil }
         return "Shared with \(others.formatted(.list(type: .and))). \(others.count == 1 ? "A change here shows there too." : "A change here shows in all of them.")"
+    }
+}
+
+// MARK: Anki
+
+/// Settings ▸ Anki: the AnkiConnect connection and how cards are made (`ankiPage`, the app's).
+public struct AnkiSection<AnkiPage: View>: View {
+    @Environment(CommonEnvironment.self) private var environment
+    let ankiPage: () -> AnkiPage
+
+    public init(@ViewBuilder ankiPage: @escaping () -> AnkiPage) {
+        self.ankiPage = ankiPage
+    }
+
+    public var body: some View {
+        Section("Anki") {
+            NavigationLink {
+                ankiPage()
+            } label: {
+                SettingsRowLabel("Anki", subtitle: ankiSummary, systemImage: "rectangle.stack.fill", color: .green,
+                                 dot: environment.serverAccounts[.anki]?.dotColor)
+            }
+            .accessibilityIdentifier("settings.anki")
+        }
+    }
+
+    private var ankiSummary: String {
+        guard environment.serverAccounts[.anki] != nil else { return "Not set up" }
+        let settings = try? environment.ankiSettings.settings()
+        return ["Connected", settings.map { "Deck: \($0.deck)" }, settings?.noteType].compactMap { $0 }.joined(separator: " · ")
     }
 }
 

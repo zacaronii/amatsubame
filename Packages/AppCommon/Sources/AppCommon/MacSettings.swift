@@ -120,13 +120,13 @@ public extension MacSettingsPage {
         }
     }
 
-    /// Lookup and Mining's pages, the same in every app. `anki`: the app's Anki page.
-    static func lookupAndMining<Anki: View>(@ViewBuilder anki: @escaping () -> Anki) -> [MacSettingsPage] {
+    /// Lookup's pages, the same in every app.
+    static func lookup(wordMarksNote: String?, popupExtras: AnyView?) -> [MacSettingsPage] {
         [
             MacSettingsPage("dictionaries", title: "Dictionaries", systemImage: "character.book.closed.ja") { DictionariesView() },
+            MacSettingsPage("popup", title: "Popup", systemImage: "text.bubble") { PopupSettingsPage(extras: popupExtras) },
             MacSettingsPage("audioSources", title: "Audio Sources", systemImage: "speaker.wave.2") { AudioSourcesView() },
-            MacSettingsPage("popup", title: "Popup", systemImage: "text.bubble") { PopupSettingsPage() },
-            MacSettingsPage("anki", title: "Anki", systemImage: "rectangle.stack") { anki() },
+            MacSettingsPage("wordMarks", title: "Word Marks", systemImage: "underline") { WordMarksPage(note: wordMarksNote) },
         ]
     }
 
@@ -154,11 +154,13 @@ public extension MacSettingsPage {
 }
 
 public extension MacSettingsGroup {
-    /// Lookup and Mining, then Connections (the app's `servers` first): the groups every app
-    /// has after its own.
-    static func shared<Anki: View>(servers: [MacSettingsPage], @ViewBuilder anki: @escaping () -> Anki) -> [MacSettingsGroup] {
+    /// Lookup, Anki, then Connections (the app's `servers` first): the groups every app has
+    /// after its own. `wordMarksNote` and `popupExtras` as in `LookupSection`.
+    static func shared<Anki: View>(wordMarksNote: String? = nil, popupExtras: AnyView? = nil, servers: [MacSettingsPage],
+                                   @ViewBuilder anki: @escaping () -> Anki) -> [MacSettingsGroup] {
         [
-            MacSettingsGroup("Lookup and Mining", pages: MacSettingsPage.lookupAndMining(anki: anki)),
+            MacSettingsGroup("Lookup", pages: MacSettingsPage.lookup(wordMarksNote: wordMarksNote, popupExtras: popupExtras)),
+            MacSettingsGroup("Anki", pages: [MacSettingsPage("anki", title: "Anki", systemImage: "rectangle.stack") { anki() }]),
             MacSettingsGroup("Connections", pages: servers + [
                 MacSettingsPage("hachidori", title: "Hachidori", systemImage: "bird") { HachidoriSettingsPage() },
                 .kechimochi, .statsCloud,

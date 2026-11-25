@@ -48,7 +48,8 @@ struct SetupView: View {
                 ExtensionStatusSection(model: extensionState)
                 SafariSection()
                 if isShared {
-                    LookupAndMiningSection {
+                    LookupSection()
+                    AnkiSection {
                         AnkiSettingsPage(environment: environment)
                     }
                     // No Stats in Hiku: only Hachidori.

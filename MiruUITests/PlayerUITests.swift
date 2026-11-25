@@ -10,9 +10,9 @@ final class PlayerUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         XCTAssertTrue(app.descendants(matching: .any)["watch.placeholder"].waitForExistence(timeout: 10), "Watch tab")
         app.tabBars.buttons["Settings"].tap()
-        // In order down the screen: Watching, Lookup and Mining, Connections, then Advanced.
+        // In order down the screen: Watching, Lookup, Anki, Connections, then Advanced.
         for row in ["settings.libraries", "settings.subtitles", "settings.playback", "settings.downloads",
-                    "settings.dictionaries", "settings.audioSources", "settings.anki",
+                    "settings.dictionaries", "settings.popup", "settings.audioSources", "settings.wordMarks", "settings.anki",
                     "settings.jellyfin", "settings.jimaku", "settings.kaku", "settings.hachidori", "settings.kechimochi", "settings.advanced"] {
             // Lower rows only exist once scrolled to.
             let element = app.descendants(matching: .any)[row].firstMatch
