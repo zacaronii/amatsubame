@@ -52,7 +52,7 @@ Everything except `/health` needs `Authorization: Bearer <KAKU_API_TOKEN>`.
 
 | Method | Path | Answer |
 | --- | --- | --- |
-| GET | `/health` | Version, model, whether it's loaded, why it can't load (`modelError`, 1.7), GPU memory, job counts, last poll and its error, and whether Jellyfin is set up (1.4) |
+| GET | `/health` | Version, model, whether it's loaded, why it can't load (`modelError`, 1.7), GPU memory, job counts, last poll and its error, whether Jellyfin is set up (1.4), and `paused` (1.9: stopped after the current job on the web page) |
 | GET | `/transcripts/{itemId}/{episodeId}` | The transcript JSON (`?format=vtt` for WebVTT); `202` with the job (`state`, `priority`, `position`, `progress`) while waiting; `404` when Kaku knows nothing of it |
 | GET | `/transcripts/{itemId}` | The same for a book (1.3) |
 | POST | `/jobs` `{itemId, episodeId, force?}` | Queues the episode first (`202` with its position), or `200` `{state: "done"}` when its transcript is current; `force: true` (1.6) queues it anyway (Kiku's Transcribe Again), and the old transcript serves until the new one replaces it; `404` if Audiobookshelf has no such episode. Leave out `episodeId` for a book |
@@ -72,7 +72,17 @@ Everything except `/health` needs `Authorization: Bearer <KAKU_API_TOKEN>`.
 ## Web page
 Since 1.8, Kaku can serve a page at `/ui` for a browser: its status (model, GPU memory, the last
 Audiobookshelf check, Jellyfin), the job being transcribed and the queue, recent problems, and the
-libraries with their counts. It's read only for now and refreshes itself every few seconds.
+libraries with their counts. It refreshes itself every few seconds.
+
+Since 1.9 it changes things too:
+- **Queue:** Next (a queued job goes to the front), Cancel (out of the queue; the poller doesn't
+  queue it again until its audio changes, and the apps see it as missing, so asking for it from an
+  app queues it again), and Try Again for a problem.
+- **Libraries:** turn each on or off (off removes its waiting and failed jobs; transcripts stay).
+- **Check Audiobookshelf now**, and **Stop after this one**: the running job finishes and nothing new
+  starts until Resume (`/health` says `paused`).
+- Each change needs the page's own CSRF token and Origin, and is listed under Recent changes with
+  who made it (the `audit` table).
 
 It's meant for a reverse proxy that signs you in (Authentik, say) and is off by default:
 - Set `KAKU_UI_SECRET` to a long random string. Without it, `/ui` answers 404.

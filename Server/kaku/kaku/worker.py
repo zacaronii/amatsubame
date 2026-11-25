@@ -59,6 +59,8 @@ class Worker:
             self.model_error = str(error)
             return False
         self.model_error = None
+        if self.db.paused:
+            return False
         job = self.db.claim()
         if job is None:
             return False

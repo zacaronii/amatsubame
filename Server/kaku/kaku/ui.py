@@ -1,7 +1,8 @@
-"""Kaku's web page (docs/kaku.md ▸ Web page): status, queue, failures and libraries, read only
-for now. It's served only behind a proxy that logs you in and adds `X-Kaku-UI: <KAKU_UI_SECRET>`;
-the page never sees the API token, and its own routes (/ui, /ui/sections, /ui/static/…) call the
-database directly instead of the bearer API."""
+"""Kaku's web page (docs/kaku.md ▸ Web page): status, queue, failures and libraries, with the queue's
+actions (1.9). It's served only behind a proxy that logs you in and adds `X-Kaku-UI: <KAKU_UI_SECRET>`;
+the page never sees the API token, and its own routes (/ui, /ui/sections, /ui/api/action,
+/ui/static/…) call the database directly instead of the bearer API. Changes need the page's CSRF
+token and its own Origin, and each is recorded with who made it."""
 from __future__ import annotations
 
 import hashlib
@@ -10,8 +11,11 @@ import os
 import time
 from html import escape
 
+from urllib.parse import urlsplit
+
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import Response
+from pydantic import BaseModel
 
 from . import VERSION
 from .db import PRIORITY_NAMES
@@ -61,6 +65,21 @@ def duration(seconds):
     return f'{minutes // 60} h {minutes % 60} min' if minutes >= 60 else f'{minutes} min'
 
 
+class Action(BaseModel):
+    """A button on the page: what to do, and to which job or library."""
+    action: str
+    itemId: str = ''
+    episodeId: str = ''
+    libraryId: str = ''
+
+
+def button(label, action, confirm=None, **target):
+    """A form-less button the page's script sends (`data-…` attributes, no inline handlers)."""
+    data = ''.join(f' data-{name}="{escape(value)}"' for name, value in target.items())
+    ask = f' data-confirm="{escape(confirm)}"' if confirm else ''
+    return f'<button type="button" data-action="{action}"{data}{ask}>{escape(label)}</button>'
+
+
 def add_ui(app: FastAPI, service):
     config = service.config
     db = service.db
@@ -99,13 +118,30 @@ def add_ui(app: FastAPI, service):
             problems += f'<p class="problem">Model: {escape(worker.model_error)}</p>'
         if poll_error:
             problems += f'<p class="problem">Last Audiobookshelf check: {escape(poll_error)}</p>'
-        return f'<section id="status"><h2>Status</h2><dl>{html}</dl>{problems}</section>'
+        if db.paused:
+            problems += '<p class="problem">Stopped: no new job starts until you resume.</p>'
+        controls = button('Check Audiobookshelf now', 'poll') + (
+            button('Resume the queue', 'resume') if db.paused else
+            button('Stop after this one', 'pause', confirm='Let the current job finish, then start nothing new?'))
+        changes = db.changes(5)
+        recent = ''.join(f'<li><span class="title">{escape(change["action"])} · {escape(change["detail"])}</span>'
+                         f'<span class="detail">{escape(change["user"])} · {escape(ago(change["at"], now))}</span></li>'
+                         for change in changes)
+        recent = f'<h3>Recent changes</h3><ul class="jobs">{recent}</ul>' if changes else ''
+        return (f'<section id="status"><h2>Status</h2><dl>{html}</dl>{problems}'
+                f'<p class="controls">{controls}</p>{recent}</section>')
 
     def job_row(job, now, position=None):
         progress = f' · {round(job["progress"] * 100)}%' if job['state'] == 'running' else ''
+        target = {'item': job['item_id'], 'episode': job['episode_id']}
+        actions = ''
+        if job['state'] == 'queued':
+            actions = ((button('Next', 'next', **target) if position else '')
+                       + button('Cancel', 'cancel', confirm=f'Take “{job["title"]}” out of the queue?', **target))
         return (f'<li><span class="title">{escape(job["title"])}</span>'
                 f'<span class="detail">{escape(PRIORITY_NAMES.get(job["priority"], "backlog"))}'
-                f'{"" if position is None else f" · #{position + 1}"}{progress}</span></li>')
+                f'{"" if position is None else f" · #{position + 1}"}{progress}</span>'
+                f'<span class="actions">{actions}</span></li>')
 
     def queue_section(now):
         queue = db.queue()
@@ -130,6 +166,7 @@ def add_ui(app: FastAPI, service):
             f'<li><span class="title">{escape(job["title"])}</span>'
             f'<span class="detail">{escape(ago(job["finished_at"], now))} · {job["attempts"]} '
             f'{"try" if job["attempts"] == 1 else "tries"}</span>'
+            f'<span class="actions">{button("Try again", "retry", item=job["item_id"], episode=job["episode_id"])}</span>'
             f'<span class="error">{escape(job["error"] or "")}</span></li>' for job in failed)
         return f'<section id="failures"><h2>Problems</h2><ul class="jobs">{rows}</ul></section>'
 
@@ -142,17 +179,22 @@ def add_ui(app: FastAPI, service):
                         f'<p class="problem">Couldn’t read Audiobookshelf’s libraries: {escape(str(error))}</p></section>')
         stats = db.library_counts()
 
-        def row(name, library_id, enabled, kind):
+        def row(name, library_id, enabled, kind, switchable=True):
             entry = stats.get(library_id, {'counts': {}, 'last': None})
             counts = entry['counts']
             done, waiting = counts.get('done', 0), counts.get('queued', 0) + counts.get('running', 0)
             state = 'on' if enabled else 'off'
+            switch = ''
+            if switchable:
+                switch = (button('Turn off', 'library-off', library=library_id,
+                                 confirm=f'Turn off “{name}”? Its waiting and failed jobs are removed; transcripts stay.')
+                          if enabled else button('Turn on', 'library-on', library=library_id))
             return (f'<li><span class="title">{escape(name)}</span><span class="detail">{escape(kind)} · {state} · '
                     f'{done} transcribed · {waiting} waiting · {counts.get("failed", 0)} failed · '
-                    f'last {escape(ago(entry["last"], now))}</span></li>')
+                    f'last {escape(ago(entry["last"], now))}</span><span class="actions">{switch}</span></li>')
         rows = ''.join(row(l['name'], l['id'], l['enabled'], l['media_type']) for l in db.libraries())
         if service.jellyfin is not None:
-            rows += row('Jellyfin (asked for in Miru)', 'jellyfin', True, 'episodes')
+            rows += row('Jellyfin (asked for in Miru)', 'jellyfin', True, 'episodes', switchable=False)
         return f'<section id="libraries"><h2>Libraries</h2><ul class="jobs">{rows}</ul></section>'
 
     def sections():
@@ -175,6 +217,53 @@ def add_ui(app: FastAPI, service):
     @app.get('/ui/sections', include_in_schema=False)
     def ui_sections(user: str = Depends(gate)):
         """The page's sections again, for its refresh every few seconds."""
+        return page(sections())
+
+    def same_origin(request: Request):
+        """Changes come only from the page itself: its Origin is this address (behind the proxy,
+        the forwarded host)."""
+        origin = request.headers.get('origin', '')
+        host = request.headers.get('x-forwarded-host') or request.headers.get('host', '')
+        if not origin or urlsplit(origin).netloc != host:
+            raise HTTPException(403, 'Changes come from Kaku’s own page only.')
+
+    def find(item_id, episode_id):
+        job = db.job(item_id, episode_id)
+        if job is None:
+            raise HTTPException(404, 'Kaku has no such job.')
+        return job
+
+    @app.post('/ui/api/action', include_in_schema=False)
+    def ui_action(change: Action, request: Request, user: str = Depends(gate)):
+        same_origin(request)
+        if not csrf_valid(config.ui_secret, user, request.headers.get('x-csrf-token', '')):
+            raise HTTPException(403, 'The page is out of date: reload it.')
+        now = time.time()
+        title = ''
+        if change.action in ('next', 'cancel', 'retry'):
+            title = find(change.itemId, change.episodeId)['title']
+            done = {'next': db.move_to_front, 'cancel': db.cancel, 'retry': db.requeue}[change.action](
+                change.itemId, change.episodeId, now)
+            if not done:
+                raise HTTPException(409, 'That job has moved on: the page shows it as it is now.')
+            if change.action != 'cancel':
+                service.worker.wake.set()
+        elif change.action in ('library-on', 'library-off'):
+            library = next((l for l in db.libraries() if l['id'] == change.libraryId), None)
+            if library is None:
+                raise HTTPException(404, 'No such library.')
+            db.set_enabled(library['id'], change.action == 'library-on')
+            service.poller.wake.set()
+            title = library['name']
+        elif change.action == 'poll':
+            service.poller.wake.set()
+        elif change.action in ('pause', 'resume'):
+            db.set_paused(change.action == 'pause')
+            if change.action == 'resume':
+                service.worker.wake.set()
+        else:
+            raise HTTPException(400, 'Unknown action.')
+        db.record(user, change.action, title, now)
         return page(sections())
 
     @app.get('/ui/static/{name}', include_in_schema=False)
