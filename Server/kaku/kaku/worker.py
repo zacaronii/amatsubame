@@ -53,13 +53,26 @@ class Worker:
         self.cancelling = threading.Event()
         # Takes keys out of a failed job's lines (logs.Redactor; main.build gives it the secrets).
         self.redact = Redactor()
+        # A model chosen on the web page (1.11), loaded from the next job on.
+        self.next_model = None
 
     def transcript_folder(self, item_id):
         return os.path.join(self.data_dir, 'transcripts', item_id)
 
+    def switch_model(self, name):
+        """From the next job on, `name` transcribes (the running job keeps its model)."""
+        self.next_model = name
+        self.wake.set()
+
     def run_once(self):
         """Runs the next job; False when there was none (or the model isn't ready: the queue waits
         rather than failing every job)."""
+        if self.next_model is not None:
+            name, self.next_model = self.next_model, None
+            if name != self.transcriber.name:
+                log.info('switching the model to %s', name)
+                self.transcriber.unload()
+                self.transcriber.name = name
         try:
             getattr(self.transcriber, 'check', lambda: None)()
         except ModelNotReady as error:

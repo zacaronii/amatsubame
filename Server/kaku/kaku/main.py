@@ -13,7 +13,7 @@ from .audiobookshelf import Audiobookshelf
 from .config import Config
 from .db import Database
 from .jellyfin import Jellyfin
-from . import logs
+from . import logs, settings
 from .logs import Redactor
 from .pipeline import WhisperTranscriber
 from .poller import Poller
@@ -46,7 +46,10 @@ def build(config, transcriber=None, audiobookshelf=None, jellyfin=None):
     worker = Worker(db, audiobookshelf, transcriber, config.data_dir, config.idle_unload_seconds, jellyfin)
     worker.redact = Redactor(secrets(config))
     poller = Poller(db, audiobookshelf, config.model, config.poll_seconds, config.new_days, on_queued=worker.wake.set)
-    return Service(config, db, audiobookshelf, transcriber, worker, poller, jellyfin)
+    service = Service(config, db, audiobookshelf, transcriber, worker, poller, jellyfin)
+    # What was set on the web page (1.11) wins over the environment.
+    settings.apply_stored(service)
+    return service
 
 
 def main():
