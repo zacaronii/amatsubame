@@ -18,7 +18,7 @@ public struct HachidoriSettingsPage: View {
     enum TestResult {
         case testing
         case found(HostHello)
-        case failed
+        case failed(String?)
     }
 
     public init() {}
@@ -143,7 +143,7 @@ public struct HachidoriSettingsPage: View {
             do {
                 test = .found(try await environment.testHachidori(address: address))
             } catch {
-                test = .failed
+                test = .failed((error as? HachidoriError).flatMap(\.errorDescription))
             }
         }
     }
@@ -161,11 +161,16 @@ public struct HachidoriSettingsPage: View {
                   systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green)
                 .accessibilityIdentifier("hachidori.testResult")
-        case .failed:
-            Label("No answer from Hachidori at this address. Check that it's running and that this device can reach it (the same network, or Tailscale).",
-                  systemImage: "xmark.circle.fill")
-                .foregroundStyle(.orange)
-                .accessibilityIdentifier("hachidori.testResult")
+        case .failed(let reason):
+            VStack(alignment: .leading, spacing: 4) {
+                Label("No answer from Hachidori at this address. Check that it's running and that this device can reach it (the same network, or Tailscale).",
+                      systemImage: "xmark.circle.fill")
+                    .foregroundStyle(.orange)
+                // What went wrong, as far as this device can tell.
+                if let reason { Text(reason).font(.footnote).foregroundStyle(.secondary) }
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("hachidori.testResult")
         }
     }
 

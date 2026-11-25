@@ -75,9 +75,16 @@ open class ServerSettingsModel {
 public final class AnkiSettingsModel: ServerSettingsModel {
     var apiKey = ""
 
+    /// The saved key couldn't be read (a Keychain error), rather than there being none.
+    private(set) var keyProblem: String?
+
     init(environment: CommonEnvironment) {
         super.init(kind: .anki, environment: environment)
-        apiKey = secret(.ankiAPIKey)
+        do {
+            apiKey = try environment.secrets.secret(for: .ankiAPIKey) ?? ""
+        } catch {
+            keyProblem = "Couldn't read the saved API key: \(error.localizedDescription)"
+        }
     }
 
     var canTest: Bool { !urlText.isEmpty && status != .working }

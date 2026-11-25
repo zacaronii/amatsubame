@@ -50,6 +50,8 @@ public actor HachidoriLink {
     public private(set) var records = SharedRecords()
     /// The host's latest hello: its name, version and dictionary count.
     public private(set) var hello: HostHello?
+    /// Why the last attempt to link failed, in words for Settings (nil once linked).
+    public private(set) var lastFailure: String?
     /// The host engine's generation from its latest engine reply (`hd_media` needs the current one).
     public private(set) var generation: Int?
 
@@ -97,8 +99,9 @@ public actor HachidoriLink {
         await link.start()
         let linked = await link.linkedSocket()
         let hello = await link.hello
+        let failure = await link.failureReason()
         await link.stop()
-        guard case .success = linked, let hello else { throw .notLinked }
+        guard case .success = linked, let hello else { throw .unanswered(failure) }
         return hello
     }
 
@@ -143,7 +146,9 @@ public actor HachidoriLink {
                     let text = try await socket.receive()
                     if try await handle(text, on: socket) { attempt = 0 }
                 }
-            } catch {}
+            } catch {
+                if !Task.isCancelled { lastFailure = Self.reason(error) }
+            }
             socket?.close()
             drop()
             guard !Task.isCancelled else { break }
@@ -158,6 +163,39 @@ public actor HachidoriLink {
                     self.endBackoff(id)
                 }
             }
+        }
+    }
+
+    /// Why there's no link, for Test Connection: the last failure, or that the relay took the
+    /// connection but no Hachidori said hello.
+    func failureReason() -> String {
+        if let lastFailure { return lastFailure }
+        if socket != nil {
+            return "The relay took the connection, but no Hachidori answered. Is the host running and linked to it?"
+        }
+        return "No answer from Hachidori at this address."
+    }
+
+    /// A link error in words: where it failed (the address, the network, the relay).
+    static func reason(_ error: any Error) -> String {
+        if let refused = error as? SharingSocketError, case .refused(let status) = refused {
+            return status == 403
+                ? "The server refused this device (HTTP 403). It may only accept your home network or Tailscale."
+                : "The server answered HTTP \(status) instead of linking. Check the address and port."
+        }
+        if let error = error as? HachidoriError { return error.localizedDescription }
+        guard let error = error as? URLError else { return error.localizedDescription }
+        switch error.code {
+        case .cannotFindHost, .dnsLookupFailed: return "The address wasn't found (DNS)."
+        case .cannotConnectToHost: return "The connection was refused: nothing is listening at this address and port, or this network can't reach it."
+        case .timedOut: return "No reply in time: this network may not reach the address (is it home network or Tailscale only?)."
+        case .notConnectedToInternet: return "This device seems to be offline."
+        case .networkConnectionLost: return "The connection dropped."
+        case .secureConnectionFailed, .serverCertificateUntrusted, .serverCertificateHasBadDate,
+             .serverCertificateHasUnknownRoot, .serverCertificateNotYetValid:
+            return "The secure connection failed (\(error.localizedDescription))"
+        case .badServerResponse: return "The server didn't accept the link (not a Hachidori relay at this address?)."
+        default: return error.localizedDescription
         }
     }
 
@@ -184,10 +222,16 @@ public actor HachidoriLink {
 
     /// Handles one frame; true when it was the host's hello.
     private func handle(_ text: String, on socket: any SharingSocket) async throws -> Bool {
-        guard let frame = try? HostFrame(json: text) else { return false }
+        guard let frame = try? HostFrame(json: text) else {
+            if hello == nil { lastFailure = "The host answered with something this app can't read (a newer Hachidori?)." }
+            return false
+        }
         switch frame {
         case .hello(let hello):
-            guard hello.protocolVersion == ClientFrame.protocolVersion else { throw HachidoriError.malformed("protocol \(hello.protocolVersion)") }
+            guard hello.protocolVersion == ClientFrame.protocolVersion else {
+                throw HachidoriError.unanswered("This Hachidori speaks link protocol \(hello.protocolVersion); this app speaks \(ClientFrame.protocolVersion). One of them needs an update.")
+            }
+            lastFailure = nil
             records.apply(snapshot: hello.snapshot)
             self.hello = hello
             // The records first: whoever sees "linked" can read the host's settings at once.

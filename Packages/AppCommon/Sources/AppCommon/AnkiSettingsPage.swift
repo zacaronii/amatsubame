@@ -30,9 +30,14 @@ public struct AnkiSettingsPage<CardExtras: View>: View {
                 TextField("Server URL", text: $connection.urlText, prompt: Text(verbatim: "http://anki.example.ts.net:8765"))
                     .urlEntry()
                     .accessibilityIdentifier("anki.url")
-                SecureField("API Key (optional)", text: $connection.apiKey)
+                // Saved and empty says so, so a missing key isn't mistaken for a hidden one.
+                SecureField("API Key (optional)", text: $connection.apiKey,
+                            prompt: Text(connection.isConfigured ? "No API key saved" : "API Key (optional)"))
                     .credentialEntry()
                     .accessibilityIdentifier("anki.key")
+                if let problem = connection.keyProblem {
+                    Label(problem, systemImage: "exclamationmark.triangle").font(.footnote).foregroundStyle(.orange)
+                }
                 ConnectionTestRow(status: connection.status, disabled: !connection.canTest, identifier: "anki.test") {
                     Task {
                         await connection.testAndSave()
