@@ -212,8 +212,10 @@ These aren't in the compose file; add them under `environment:` to use them:
 
 Since Kaku 1.8 there's a page for your browser at `/ui`: what Kaku is doing now, the queue, recent
 problems and your libraries, refreshing itself every few seconds. Since 1.9 you can also move a job
-to the front of the queue, cancel one, try a problem again, turn libraries on and off, have Kaku
-check Audiobookshelf now, and stop after the current job (until you resume). A cancelled episode
+to the front of the queue, cancel one (or the one running, at once), try a problem again, turn
+libraries on and off, have Kaku check Audiobookshelf now, and stop after the current job (until you
+resume). A problem has a **Log** button (its last lines, kept 14 days), and **Kaku's log** shows what
+it has written since it started. Keys and tokens are taken out of both. A cancelled episode
 isn't queued again by itself; asking for it from an app queues it again.
 
 It's off unless you set `KAKU_UI_SECRET` (in the compose file) to a long random string, and it only

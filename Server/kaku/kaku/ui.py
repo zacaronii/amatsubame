@@ -11,7 +11,7 @@ import os
 import time
 from html import escape
 
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import Response
@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 from . import VERSION
 from .db import PRIORITY_NAMES
+from .logs import RING
 
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ui_static')
 # Who logged in, as the proxy (Authentik) says; kept with each change once the page makes any.
@@ -122,7 +123,8 @@ def add_ui(app: FastAPI, service):
             problems += '<p class="problem">Stopped: no new job starts until you resume.</p>'
         controls = button('Check Audiobookshelf now', 'poll') + (
             button('Resume the queue', 'resume') if db.paused else
-            button('Stop after this one', 'pause', confirm='Let the current job finish, then start nothing new?'))
+            button('Stop after this one', 'pause', confirm='Let the current job finish, then start nothing new?')
+        ) + '<a class="button" href="/ui/logs">Kaku’s log</a>'
         changes = db.changes(5)
         recent = ''.join(f'<li><span class="title">{escape(change["action"])} · {escape(change["detail"])}</span>'
                          f'<span class="detail">{escape(change["user"])} · {escape(ago(change["at"], now))}</span></li>'
@@ -138,6 +140,9 @@ def add_ui(app: FastAPI, service):
         if job['state'] == 'queued':
             actions = ((button('Next', 'next', **target) if position else '')
                        + button('Cancel', 'cancel', confirm=f'Take “{job["title"]}” out of the queue?', **target))
+        elif job['state'] == 'running':
+            actions = button('Cancel now', 'cancel-now', confirm=f'Stop transcribing “{job["title"]}”? What’s done so far is lost.',
+                             **target)
         return (f'<li><span class="title">{escape(job["title"])}</span>'
                 f'<span class="detail">{escape(PRIORITY_NAMES.get(job["priority"], "backlog"))}'
                 f'{"" if position is None else f" · #{position + 1}"}{progress}</span>'
@@ -158,6 +163,12 @@ def add_ui(app: FastAPI, service):
         return (f'<section id="queue"><h2>Now transcribing</h2>{now_html}'
                 f'<h2>Queue ({len(queued)}{escape(estimate)})</h2>{queued_html}</section>')
 
+    def log_link(job):
+        if not db.job_log(job['item_id'], job['episode_id']):
+            return ''
+        return (f'<a class="button" href="/ui/log?item={quote(job["item_id"], safe="")}'
+                f'&amp;episode={quote(job["episode_id"], safe="")}">Log</a>')
+
     def failures_section(now):
         failed = db.failed()
         if not failed:
@@ -166,7 +177,7 @@ def add_ui(app: FastAPI, service):
             f'<li><span class="title">{escape(job["title"])}</span>'
             f'<span class="detail">{escape(ago(job["finished_at"], now))} · {job["attempts"]} '
             f'{"try" if job["attempts"] == 1 else "tries"}</span>'
-            f'<span class="actions">{button("Try again", "retry", item=job["item_id"], episode=job["episode_id"])}</span>'
+            f'<span class="actions">{log_link(job)}{button("Try again", "retry", item=job["item_id"], episode=job["episode_id"])}</span>'
             f'<span class="error">{escape(job["error"] or "")}</span></li>' for job in failed)
         return f'<section id="failures"><h2>Problems</h2><ul class="jobs">{rows}</ul></section>'
 
@@ -248,6 +259,10 @@ def add_ui(app: FastAPI, service):
                 raise HTTPException(409, 'That job has moved on: the page shows it as it is now.')
             if change.action != 'cancel':
                 service.worker.wake.set()
+        elif change.action == 'cancel-now':
+            title = find(change.itemId, change.episodeId)['title']
+            if not service.worker.cancel_running(change.itemId, change.episodeId):
+                raise HTTPException(409, 'That job isn’t the one running any more.')
         elif change.action in ('library-on', 'library-off'):
             library = next((l for l in db.libraries() if l['id'] == change.libraryId), None)
             if library is None:
@@ -265,6 +280,28 @@ def add_ui(app: FastAPI, service):
             raise HTTPException(400, 'Unknown action.')
         db.record(user, change.action, title, now)
         return page(sections())
+
+    def text_page(title, text, user, back='/ui'):
+        body = f'''<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{escape(title)} · Kaku</title><link rel="stylesheet" href="/ui/static/ui.css"></head>
+<body><header><h1>{escape(title)}</h1><a href="{back}">Back</a></header>
+<pre class="log">{escape(text) or 'Nothing yet.'}</pre></body></html>'''
+        return page(body)
+
+    @app.get('/ui/log', include_in_schema=False)
+    def ui_job_log(item: str, episode: str = '', user: str = Depends(gate)):
+        """A failed job's last lines and traceback (kept 14 days), keys taken out."""
+        saved = db.job_log(item, episode)
+        job = db.job(item, episode)
+        if saved is None:
+            raise HTTPException(404, 'No log kept for this job (they’re kept 14 days).')
+        return text_page(f'Log: {job["title"] if job else item}', saved['text'], user)
+
+    @app.get('/ui/logs', include_in_schema=False)
+    def ui_logs(user: str = Depends(gate)):
+        """Kaku's last lines (in memory: since it started, up to 500), newest last."""
+        return text_page('Kaku’s log', '\n'.join(RING.lines), user)
 
     @app.get('/ui/static/{name}', include_in_schema=False)
     def ui_static(name: str, user: str = Depends(gate)):

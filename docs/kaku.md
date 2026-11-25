@@ -79,8 +79,13 @@ Since 1.9 it changes things too:
   queue it again until its audio changes, and the apps see it as missing, so asking for it from an
   app queues it again), and Try Again for a problem.
 - **Libraries:** turn each on or off (off removes its waiting and failed jobs; transcripts stay).
+- **Cancel now** for the running job: it stops at its next step (between files, or the next stretch
+  transcribed), is marked cancelled, and what it had done is dropped.
 - **Check Audiobookshelf now**, and **Stop after this one**: the running job finishes and nothing new
   starts until Resume (`/health` says `paused`).
+- **Logs:** a failed job keeps its last 50 lines and traceback for 14 days (the `job_log` table, a
+  **Log** button on the problem), and **Kaku's log** shows the last 500 lines since it started
+  (kept in memory). The API token, the server keys and the UI secret are taken out of both.
 - Each change needs the page's own CSRF token and Origin, and is listed under Recent changes with
   who made it (the `audit` table).
 

@@ -12,6 +12,7 @@ import time
 
 from . import PIPELINE, VERSION, model_key
 from .jellyfin import PREFIX, NoJapaneseAudio, is_jellyfin
+from .logs import JobLog, Redactor
 from .pipeline import ModelNotReady
 from .transcript import document, sentences, write
 
@@ -20,6 +21,10 @@ log = logging.getLogger('kaku.worker')
 
 class Gone(Exception):
     """The episode or its file is no longer in Audiobookshelf (or Jellyfin)."""
+
+
+class Cancelled(Exception):
+    """Cancelled on the web page while it ran (1.9)."""
 
 
 def run_quietly(command, server):
@@ -44,6 +49,10 @@ class Worker:
         self.current = None
         # Why no job can run (the model isn't converted yet), for /health; None when ready.
         self.model_error = None
+        # The web page's Cancel Now for the running job: checked between steps and as it transcribes.
+        self.cancelling = threading.Event()
+        # Takes keys out of a failed job's lines (logs.Redactor; main.build gives it the secrets).
+        self.redact = Redactor()
 
     def transcript_folder(self, item_id):
         return os.path.join(self.data_dir, 'transcripts', item_id)
@@ -64,21 +73,42 @@ class Worker:
         job = self.db.claim()
         if job is None:
             return False
+        self.cancelling.clear()
         self.current = job
         started = time.monotonic()
-        try:
-            path = self.process(job)
-            self.db.finish(job, path, model_key(self.transcriber.name))
-            log.info('transcribed %s/%s in %.0f s', job['item_id'], job['episode_id'], time.monotonic() - started)
-        except Gone as error:
-            self.db.fail(job, error, permanent=True)
-        except Exception as error:
-            log.exception('job %s/%s failed', job['item_id'], job['episode_id'])
-            self.db.fail(job, error)
-        finally:
-            self.current = None
-            self.last_work = time.monotonic()
+        with JobLog(self.redact) as lines:
+            try:
+                path = self.process(job)
+                self.db.finish(job, path, model_key(self.transcriber.name))
+                log.info('transcribed %s/%s in %.0f s', job['item_id'], job['episode_id'], time.monotonic() - started)
+            except Cancelled:
+                log.info('cancelled %s/%s', job['item_id'], job['episode_id'])
+                self.db.cancel_running(job['item_id'], job['episode_id'])
+            except Gone as error:
+                log.warning('job %s/%s: %s', job['item_id'], job['episode_id'], error)
+                self.db.fail(job, error, permanent=True)
+                self.db.save_log(job['item_id'], job['episode_id'], lines.text())
+            except Exception as error:
+                log.exception('job %s/%s failed', job['item_id'], job['episode_id'])
+                self.db.fail(job, error)
+                self.db.save_log(job['item_id'], job['episode_id'], lines.text())
+            finally:
+                self.current = None
+                self.cancelling.clear()
+                self.last_work = time.monotonic()
         return True
+
+    def cancel_running(self, item_id, episode_id):
+        """Asks the running job to stop, if it's this one; it stops at its next step."""
+        current = self.current
+        if current is None or (current['item_id'], current['episode_id']) != (item_id, episode_id):
+            return False
+        self.cancelling.set()
+        return True
+
+    def check_cancelled(self):
+        if self.cancelling.is_set():
+            raise Cancelled()
 
     def episode(self, job):
         if is_jellyfin(job['item_id']):
@@ -104,10 +134,13 @@ class Worker:
         os.makedirs(work, exist_ok=True)
         try:
             wav = os.path.join(work, 'audio.wav')
+            self.check_cancelled()
             self.prepare(job, episode, work, wav)
+            self.check_cancelled()
             self.db.set_progress(job, 0.05)
 
             def progress(seconds):
+                self.check_cancelled()
                 if episode.duration > 0:
                     self.db.set_progress(job, round(0.05 + 0.95 * min(seconds / episode.duration, 1), 3))
 
@@ -142,6 +175,7 @@ class Worker:
             return
         parts = []
         for index, track in enumerate(episode.tracks):
+            self.check_cancelled()
             source, part = os.path.join(work, f'source-{index}'), os.path.join(work, f'part-{index:04d}.wav')
             self.audiobookshelf.download(episode, track, source)
             subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', source, '-ac', '1', '-ar', '16000',

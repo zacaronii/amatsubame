@@ -28,6 +28,10 @@ CREATE TABLE IF NOT EXISTS transcript (
     item_id TEXT NOT NULL, episode_id TEXT NOT NULL, path TEXT NOT NULL, fingerprint TEXT NOT NULL,
     model TEXT NOT NULL, created_at REAL NOT NULL, PRIMARY KEY (item_id, episode_id));
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+-- A failed job's last lines and traceback, kept 14 days (1.9, the web page's Problems).
+CREATE TABLE IF NOT EXISTS job_log (
+    item_id TEXT NOT NULL, episode_id TEXT NOT NULL, at REAL NOT NULL, text TEXT NOT NULL,
+    PRIMARY KEY (item_id, episode_id));
 -- Changes made on the web page (/ui): who, what and when (1.9).
 CREATE TABLE IF NOT EXISTS audit (at REAL NOT NULL, user TEXT NOT NULL, action TEXT NOT NULL, detail TEXT NOT NULL);
 '''
@@ -162,6 +166,26 @@ class Database:
         return bool(self.execute(
             "UPDATE job SET state = 'cancelled', finished_at = ? WHERE item_id = ? AND episode_id = ? AND state = 'queued' "
             'RETURNING item_id', (now or time.time(), item_id, episode_id)))
+
+    def cancel_running(self, item_id, episode_id, now=None):
+        """The running job, stopped on the web page: cancelled like a queued one."""
+        self.execute("UPDATE job SET state = 'cancelled', progress = 0, finished_at = ? "
+                     "WHERE item_id = ? AND episode_id = ? AND state = 'running'", (now or time.time(), item_id, episode_id))
+
+    # A failed job's log
+
+    LOG_DAYS = 14
+
+    def save_log(self, item_id, episode_id, text, now=None):
+        now = now or time.time()
+        self.execute('INSERT OR REPLACE INTO job_log (item_id, episode_id, at, text) VALUES (?, ?, ?, ?)',
+                     (item_id, episode_id, now, text))
+        self.execute('DELETE FROM job_log WHERE at < ?', (now - self.LOG_DAYS * 86400,))
+
+    def job_log(self, item_id, episode_id, now=None):
+        rows = self.execute('SELECT * FROM job_log WHERE item_id = ? AND episode_id = ? AND at >= ?',
+                            (item_id, episode_id, (now or time.time()) - self.LOG_DAYS * 86400))
+        return dict(rows[0]) if rows else None
 
     def record(self, user, action, detail, now=None):
         self.execute('INSERT INTO audit (at, user, action, detail) VALUES (?, ?, ?, ?)',

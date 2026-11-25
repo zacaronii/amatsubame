@@ -13,6 +13,8 @@ from .audiobookshelf import Audiobookshelf
 from .config import Config
 from .db import Database
 from .jellyfin import Jellyfin
+from . import logs
+from .logs import Redactor
 from .pipeline import WhisperTranscriber
 from .poller import Poller
 from .worker import Worker
@@ -29,6 +31,11 @@ class Service:
     jellyfin: Jellyfin | None = None
 
 
+def secrets(config):
+    """What the logs the web page shows must never contain."""
+    return (config.api_token, config.audiobookshelf_key, config.jellyfin_key, config.ui_secret)
+
+
 def build(config, transcriber=None, audiobookshelf=None, jellyfin=None):
     os.makedirs(config.data_dir, exist_ok=True)
     db = Database(os.path.join(config.data_dir, 'kaku.db'))
@@ -37,13 +44,17 @@ def build(config, transcriber=None, audiobookshelf=None, jellyfin=None):
     if jellyfin is None and config.jellyfin_url and config.jellyfin_key:
         jellyfin = Jellyfin(config.jellyfin_url, config.jellyfin_key)
     worker = Worker(db, audiobookshelf, transcriber, config.data_dir, config.idle_unload_seconds, jellyfin)
+    worker.redact = Redactor(secrets(config))
     poller = Poller(db, audiobookshelf, config.model, config.poll_seconds, config.new_days, on_queued=worker.wake.set)
     return Service(config, db, audiobookshelf, transcriber, worker, poller, jellyfin)
 
 
 def main():
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s %(levelname)s %(message)s')
-    service = build(Config.from_env())
+    logging.basicConfig(level=logging.INFO, format=logs.FORMAT)
+    config = Config.from_env()
+    # The last lines, for the web page's log tail (keys taken out).
+    logs.install(secrets(config))
+    service = build(config)
     stop = threading.Event()
     threading.Thread(target=service.poller.run, args=(stop,), daemon=True, name='poller').start()
     threading.Thread(target=service.worker.run, args=(stop,), daemon=True, name='worker').start()
