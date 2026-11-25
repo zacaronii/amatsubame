@@ -37,7 +37,7 @@ struct SettingsView: View {
                     NavigationLink {
                         ReadAlongSettingsView()
                     } label: {
-                        SettingsRowLabel("Read-Along", subtitle: environment.serverAccounts[.audiobookshelf] == nil ? "Optional" : "Audiobookshelf connected",
+                        SettingsRowLabel("Read-Along", subtitle: readAlongSummary,
                                          systemImage: "headphones", color: .orange,
                                          dot: environment.serverAccounts[.audiobookshelf]?.dotColor)
                     }
@@ -112,6 +112,16 @@ struct SettingsView: View {
         case .audiobookshelf: AudiobookshelfSettingsView(environment: environment.common, tokens: environment.audiobookshelfTokens, appName: "Yomu")
         case .kaku: KakuSettingsView(environment: environment.common)
         case .jellyfin: EmptyView()
+        }
+    }
+
+    /// Read-Along needs both: Audiobookshelf for the audiobook, Kaku for its transcript.
+    private var readAlongSummary: String {
+        switch (environment.serverAccounts[.audiobookshelf] != nil, environment.serverAccounts[.kaku] != nil) {
+        case (false, false): "Optional"
+        case (true, false): "Needs Kaku"
+        case (false, true): "Needs Audiobookshelf"
+        case (true, true): "Ready"
         }
     }
 
