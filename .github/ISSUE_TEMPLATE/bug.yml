@@ -1,0 +1,57 @@
+name: Bug report
+description: Something in Yomu, Miru, Kiku, Hiku or Kaku is broken or wrong.
+title: "Bug: <App> – "
+labels: [bug, beta]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing. Please don't post server addresses, API keys, passwords or account
+        names: describe your setup instead ("Jellyfin 10.11 over Tailscale").
+  - type: dropdown
+    id: app
+    attributes:
+      label: App
+      options: [Yomu, Miru, Kiku, Hiku, Kaku, All apps]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version and build
+      description: Settings ▸ About (in Hiku, its main screen), e.g. "0.4.0 (202611250439)".
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and system
+      description: e.g. "iPhone 15 Pro, iOS 26.5" or "MacBook Air M2, macOS 26.1".
+    validations:
+      required: true
+  - type: input
+    id: servers
+    attributes:
+      label: Servers involved
+      description: Which ones and their versions (Kavita, Jellyfin, Audiobookshelf, Kaku, AnkiConnect, Hachidori), never their addresses.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open …
+        2. Tap …
+  - type: textarea
+    id: logs
+    attributes:
+      label: Screenshots or logs
+      description: |
+        Drag screenshots here. Settings ▸ Advanced ▸ Export Logs makes a log file: keys and
+        passwords are left out, but it lists the titles you've read, watched or listened to, so
+        look through it before attaching it.

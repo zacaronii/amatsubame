@@ -1,0 +1,19 @@
+name: Feature request
+description: An idea for one of the apps.
+title: "FR: <App> – "
+labels: [idea, beta]
+body:
+  - type: dropdown
+    id: app
+    attributes:
+      label: App
+      options: [Yomu, Miru, Kiku, Hiku, Kaku, All apps]
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+      description: What you'd like, and what it would help with. Another app that does it well is a great reference.
+    validations:
+      required: true
