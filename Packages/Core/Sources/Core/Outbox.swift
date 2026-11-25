@@ -24,6 +24,19 @@ public enum OutboxJobKind: String, Codable, CaseIterable, Sendable, DatabaseValu
     case audiobookshelfUpNext
 }
 
+extension OutboxJobKind {
+    /// The server a job writes to (nil: a Hachidori host, linked rather than signed in).
+    public var server: ServerKind? {
+        switch self {
+        case .ankiNote: .anki
+        case .kavitaProgress, .kavitaReaderMark, .kavitaWantToRead, .kavitaCollection, .kavitaReadingList: .kavita
+        case .jellyfinProgress, .jellyfinSubtitle, .jellyfinPlayed: .jellyfin
+        case .audiobookshelfProgress, .audiobookshelfSession, .audiobookshelfUpNext: .audiobookshelf
+        case .hachidoriLookupCount, .hachidoriWordStatus: nil
+        }
+    }
+}
+
 public enum OutboxJobState: String, Codable, Sendable, DatabaseValueConvertible {
     /// Waiting to be sent (possibly backing off until `nextAttemptAt`).
     case pending

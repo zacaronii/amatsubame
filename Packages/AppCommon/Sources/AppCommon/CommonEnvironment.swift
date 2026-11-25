@@ -56,6 +56,8 @@ public final class CommonEnvironment {
     public private(set) var serverAccounts: [ServerKind: ServerAccount] = [:]
     /// The saved accounts have been read (until then `serverAccounts` is empty, not unset).
     public private(set) var accountsLoaded = false
+    /// Outbox kinds kept on this device: writes to a demo server (`ServerAccount.isDemo`).
+    public private(set) var heldKinds: Set<OutboxJobKind> = []
     /// Sharing the setup with the other apps (nil without the App Group).
     public let setupSharing: SetupSharing?
     /// What this launch uses (nil without the App Group).
@@ -230,6 +232,12 @@ public final class CommonEnvironment {
     private func mergeAccounts() {
         serverAccounts = ownAccounts.merging(sharedAccounts) { _, shared in shared }
         mining.ankiConnected = serverAccounts[.anki] != nil
+        let demo = Set(serverAccounts.values.filter(\.isDemo).map(\.kind))
+        let held = Set(OutboxJobKind.allCases.filter { $0.server.map(demo.contains) == true })
+        if held != heldKinds {
+            heldKinds = held
+            Task { [worker] in await worker.hold(held) }
+        }
     }
 
     // MARK: Shared setup

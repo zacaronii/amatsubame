@@ -29,6 +29,27 @@ struct RecordingHandler: OutboxHandler {
         #expect(common.lookup.mining === common.mining, "lookups offer mining")
     }
 
+    /// Signed in to a demo server, its writes stay on the device (and aren't "waiting to sync");
+    /// signed out of it, they go again.
+    @Test func aDemoServersWritesAreHeld() async throws {
+        let common = try environment(sendsCards: true, handlers: [RecordingHandler()])
+        let started = Task { await common.start() }
+        defer { started.cancel() }
+        try common.accounts.save(ServerAccount(kind: .kavita, baseURL: URL(string: "https://kavita-demo.example.com")!, isDemo: true))
+        for _ in 0..<50 where common.heldKinds.isEmpty { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(common.heldKinds.contains(.kavitaProgress) && common.heldKinds.contains(.kavitaReadingList))
+        #expect(!common.heldKinds.contains(.ankiNote) && !common.heldKinds.contains(.jellyfinProgress))
+        for _ in 0..<50 where await common.worker.held.isEmpty { try await Task.sleep(for: .milliseconds(20)) }
+        try common.outbox.enqueue(Data("{}".utf8), kind: .kavitaProgress)
+        #expect(await common.worker.drain().sent == 0, "held on the device")
+
+        try common.accounts.delete(.kavita)
+        for _ in 0..<50 where !common.heldKinds.isEmpty { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(common.heldKinds.isEmpty)
+        for _ in 0..<50 where await common.worker.held.count > 0 { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(await common.worker.drain().sent == 1, "sent once it's not a demo server")
+    }
+
     @Test func statsReadTheSeriesFromOlderCardsSources() {
         #expect(StatsModel.title(miscInfo: "鉄の時計 — Volume 1, p. 9") == "鉄の時計")
         #expect(StatsModel.title(miscInfo: "&quot;Midnight Bridge&quot; — S1E6 · 6:21") == "\"Midnight Bridge\"")

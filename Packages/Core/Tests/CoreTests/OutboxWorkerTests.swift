@@ -44,6 +44,35 @@ struct HangingHandler: OutboxHandler {
         #expect(try store.summary() == .empty)
     }
 
+    /// A demo server's kinds are held: their jobs stay queued and unsent (so the device's place
+    /// keeps winning), while other servers' jobs go as usual; letting go sends them.
+    @Test func heldKindsStayQueued() async throws {
+        let sent = Mutex<[OutboxJobKind]>([])
+        let progress = try store.enqueue(Progress(chapterId: 1, page: 3), kind: .kavitaProgress, coalesceKey: "c1")
+        try store.enqueue(Card(expression: "a"), kind: .ankiNote)
+        let worker = OutboxWorker(store: store, mediaStorage: media, handlers: [
+            RecordingHandler(kind: .kavitaProgress) { _ in sent.withLock { $0.append(.kavitaProgress) } },
+            RecordingHandler(kind: .ankiNote) { _ in sent.withLock { $0.append(.ankiNote) } },
+        ])
+        await worker.hold([.kavitaProgress])
+        let report = await worker.drain()
+        #expect(report.sent == 1)
+        #expect(sent.withLock { $0 } == [.ankiNote])
+        #expect(try store.jobs(states: [.pending]).map(\.id) == [progress])
+
+        await worker.hold([])
+        await worker.drain()
+        #expect(sent.withLock { $0 } == [.ankiNote, .kavitaProgress])
+    }
+
+    /// Every kind names the server it writes to, so a demo server's are all held.
+    @Test func eachKindNamesItsServer() {
+        #expect(OutboxJobKind.allCases.filter { $0.server == .kavita }.count == 5)
+        #expect(OutboxJobKind.kavitaProgress.server == .kavita && OutboxJobKind.jellyfinPlayed.server == .jellyfin)
+        #expect(OutboxJobKind.audiobookshelfUpNext.server == .audiobookshelf && OutboxJobKind.ankiNote.server == .anki)
+        #expect(OutboxJobKind.hachidoriWordStatus.server == nil)
+    }
+
     @Test func transientErrorsRetryAndPermanentErrorsFail() async throws {
         let retryId = try store.enqueue(Card(expression: "retry"), kind: .ankiNote)
         let failId = try store.enqueue(Card(expression: "fail"), kind: .ankiNote)

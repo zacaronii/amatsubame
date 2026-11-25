@@ -179,7 +179,10 @@ public struct SettingsStatusCard: View {
         .task { await model.refresh(items) }
         .task {
             do {
-                for try await counts in environment.outbox.observeWaitingCounts() { waiting = counts }
+                // A demo server's writes stay on the device: not waiting for anything.
+                for try await counts in environment.outbox.observeWaitingCounts() {
+                    waiting = counts.filter { !environment.heldKinds.contains($0.key) }
+                }
             } catch {}
         }
     }

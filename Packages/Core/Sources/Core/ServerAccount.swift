@@ -16,6 +16,9 @@ public struct ServerAccount: Codable, Equatable, Sendable, FetchableRecord, Pers
     public var serverName: String?
     public var serverVersion: String?
     public var lastCheckedAt: Date?
+    /// A public demo server shared by everyone trying the apps: nothing is written to it
+    /// (reading, watching and listening places, marks, lists stay on this device).
+    public var isDemo = false
 
     public init(
         kind: ServerKind,
@@ -24,7 +27,8 @@ public struct ServerAccount: Codable, Equatable, Sendable, FetchableRecord, Pers
         userId: String? = nil,
         serverName: String? = nil,
         serverVersion: String? = nil,
-        lastCheckedAt: Date? = nil
+        lastCheckedAt: Date? = nil,
+        isDemo: Bool = false
     ) {
         self.kind = kind
         self.baseURL = baseURL
@@ -33,6 +37,7 @@ public struct ServerAccount: Codable, Equatable, Sendable, FetchableRecord, Pers
         self.serverName = serverName
         self.serverVersion = serverVersion
         self.lastCheckedAt = lastCheckedAt
+        self.isDemo = isDemo
     }
 }
 

@@ -1147,6 +1147,13 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v71_demo_server") { db in
+            // The public demo servers: nothing is written to them.
+            try db.alter(table: "serverAccount") { t in
+                t.add(column: "isDemo", .boolean).notNull().defaults(to: false)
+            }
+        }
+
         return migrator
     }
 }
