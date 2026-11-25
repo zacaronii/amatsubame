@@ -18,6 +18,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 
 from . import VERSION
+from . import settings as tunables
 from .db import PRIORITY_NAMES
 from .logs import RING
 
@@ -76,6 +77,8 @@ class Action(BaseModel):
     value: str = ''
     # The page the change came from ('library:<id>' for a library's shows): which sections to answer with.
     view: str = ''
+    # A setting's key (1.11).
+    key: str = ''
 
 
 MODE_NAMES = {None: 'normal', 'high': 'high priority', 'low': 'low priority', 'pause': 'paused', 'skip': 'skipped'}
@@ -132,7 +135,7 @@ def add_ui(app: FastAPI, service):
         controls = button('Check Audiobookshelf now', 'poll') + (
             button('Resume the queue', 'resume') if db.paused else
             button('Stop after this one', 'pause', confirm='Let the current job finish, then start nothing new?')
-        ) + '<a class="button" href="/ui/logs">Kaku’s log</a>'
+        ) + '<a class="button" href="/ui/logs">Kaku’s log</a><a class="button" href="/ui/settings">Settings</a>'
         changes = db.changes(5)
         recent = ''.join(f'<li><span class="title">{escape(change["action"])} · {escape(change["detail"])}</span>'
                          f'<span class="detail">{escape(change["user"])} · {escape(ago(change["at"], now))}</span></li>'
@@ -259,7 +262,48 @@ def add_ui(app: FastAPI, service):
             body = f'<ul class="jobs">{"".join(show_row(show) for show in shows)}</ul>'
         return f'<section id="shows"><h2>{escape(library["name"])}: {kind}</h2>{note}{body}</section>'
 
+    # Settings (1.11)
+
+    last_check = {}
+
+    def settings_sections():
+        stored = db.settings()
+        rows = ''
+        for setting in tunables.SETTINGS:
+            value = tunables.value_of(setting, stored.get(setting.key), config)
+            if setting.key == 'model':
+                value = service.worker.next_model or service.transcriber.name
+            source = 'set here' if setting.key in stored else 'from the environment'
+            field = f'setting-{setting.key}'
+            if setting.kind == 'model':
+                options = ''.join(
+                    f'<option value="{escape(name)}"{" selected" if name == value else ""}>{escape(name)}'
+                    f'{"" if on_disk else " (downloads on first use)"}</option>'
+                    for name, on_disk in tunables.model_choices(config.models_dir, value))
+                control = f'<select id="{field}">{options}</select>'
+                check = button('Check', 'check-model', input=field)
+            else:
+                shown = '' if value is None else ('none' if value == '' and setting.key == 'prompt' else str(value))
+                kind = 'number' if setting.kind == 'int' else 'text'
+                limits = f' min="{setting.minimum}" max="{setting.maximum}"' if setting.kind == 'int' else f' maxlength="{setting.maximum}"'
+                control = f'<input id="{field}" type="{kind}" value="{escape(shown)}"{limits}>'
+                check = ''
+            reset = button('Use the environment’s', 'setting-reset', key=setting.key) if setting.key in stored else ''
+            note = f'<span class="detail">{escape(source)} · takes effect {escape(setting.when)}</span>'
+            help_text = f'<span class="help">{escape(setting.help)}</span>' if setting.help else ''
+            rows += (f'<li><label class="title" for="{field}">{escape(setting.label)}</label>{note}'
+                     f'<span class="actions">{control}{button("Save", "setting", key=setting.key, input=field)}{check}{reset}</span>'
+                     f'{help_text}</li>')
+        pending = (f'<p class="quiet">Switching to {escape(service.worker.next_model)} at the next job.</p>'
+                   if service.worker.next_model and service.worker.next_model != service.transcriber.name else '')
+        checked = (f'<p class="{"quiet" if last_check["ok"] else "problem"}">{escape(last_check["message"])}</p>'
+                   if last_check else '')
+        return (f'<section id="settings"><h2>Settings</h2>{pending}{checked}<ul class="jobs settings">{rows}</ul>'
+                f'<p class="quiet">Addresses, keys and folders stay in the environment (the compose file).</p></section>')
+
     def view_sections(view):
+        if view == 'settings':
+            return settings_sections()
         return library_sections(view.split(':', 1)[1]) if view.startswith('library:') else sections()
 
     # Routes (no OpenAPI: they're the page's own)
@@ -279,6 +323,10 @@ def add_ui(app: FastAPI, service):
     @app.get('/ui', include_in_schema=False)
     def ui(user: str = Depends(gate)):
         return shell(user, sections())
+
+    @app.get('/ui/settings', include_in_schema=False)
+    def ui_settings(user: str = Depends(gate)):
+        return shell(user, settings_sections(), view='settings', title='Settings · Kaku', back='/ui')
 
     @app.get('/ui/library', include_in_schema=False)
     def ui_library(id: str, user: str = Depends(gate)):
@@ -348,6 +396,26 @@ def add_ui(app: FastAPI, service):
             db.set_new_only(library['id'], change.value == 'off')
             service.poller.wake.set()
             title = f'{library["name"]}: backlog {change.value}'
+        elif change.action in ('setting', 'setting-reset'):
+            setting = tunables.BY_KEY.get(change.key)
+            if setting is None:
+                raise HTTPException(400, 'Unknown setting.')
+            if change.action == 'setting':
+                try:
+                    stored = tunables.parse(setting, change.value, config.models_dir, service.transcriber.name)
+                except ValueError as error:
+                    raise HTTPException(400, str(error)) from None
+                db.set_setting(setting.key, stored)
+            else:
+                stored = None
+                db.set_setting(setting.key, None)
+            tunables.apply(service, setting.key, tunables.value_of(setting, stored, config))
+            last_check.clear()
+            title = f'{setting.label}: {stored if stored is not None else "from the environment"}'
+        elif change.action == 'check-model':
+            ok, message = tunables.check_model(change.value.strip(), config.models_dir)
+            last_check.update(ok=ok, message=message)
+            title = change.value.strip()
         elif change.action == 'poll':
             service.poller.wake.set()
         elif change.action in ('pause', 'resume'):

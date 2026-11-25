@@ -89,6 +89,15 @@ Since 1.9 it changes things too:
   waiting jobs go; an app asking for an episode still queues it). A library can be **New only**:
   episodes older than `new_days` aren't queued and its waiting backlog goes. The show list comes from
   Audiobookshelf's listing at each check (the `show` table); the modes are in `rule`.
+- **Settings (1.11):** the model, chunk length, prompt, new-for days, how often Audiobookshelf is
+  checked and the idle unload time can be changed on the Settings page; they're kept in the `setting`
+  table and win over the environment from then on (also after a restart), with **Use the
+  environment's** to go back. The check interval and idle time apply at once, new-for days at the
+  next check, and the model, chunk length and prompt from the next job: a model switch unloads the
+  old one between jobs, and nothing already transcribed is made again (new jobs and Transcribe Again
+  use the new one). **Check** says whether a model can be used (anime-whisper needs its conversion;
+  large-v3 and large-v3-turbo download on first use). Addresses, keys and folders stay in the
+  environment.
 - **Logs:** a failed job keeps its last 50 lines and traceback for 14 days (the `job_log` table, a
   **Log** button on the problem), and **Kaku's log** shows the last 500 lines since it started
   (kept in memory). The API token, the server keys and the UI secret are taken out of both.

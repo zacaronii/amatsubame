@@ -1,7 +1,7 @@
 """Kaku (書く): keeps Japanese Audiobookshelf libraries transcribed, and Jellyfin episodes on
 request. See docs/kaku.md."""
 
-VERSION = '1.10.0'
+VERSION = '1.11.0'
 # Bumped when the pipeline's output changes, so earlier transcripts are made again.
 PIPELINE = 2
 

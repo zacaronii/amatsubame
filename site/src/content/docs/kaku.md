@@ -221,7 +221,12 @@ Since 1.10 each library has a **Shows** (or **Books**) page where you can give e
 **High** puts it first among new episodes (and brings its backlog along), **Low** leaves it with the
 backlog, **Pause** holds its jobs until you set it back to Normal, and **Skip** never transcribes it.
 A library can also be set to **New only**, so Kaku skips its backlog. Asking for an episode from an
-app always works, whatever the rules say. A cancelled episode
+app always works, whatever the rules say.
+
+Since 1.11 the page's **Settings** change the model, the chunk length, the prompt, how long an
+episode counts as new, how often Kaku checks Audiobookshelf and when it unloads the model. A
+setting changed there wins over the compose file's (also after a restart) until you choose **Use the
+environment's**. A new model is used from the next job on; nothing already transcribed is redone. A cancelled episode
 isn't queued again by itself; asking for it from an app queues it again.
 
 It's off unless you set `KAKU_UI_SECRET` (in the compose file) to a long random string, and it only

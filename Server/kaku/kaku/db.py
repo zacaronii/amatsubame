@@ -38,6 +38,8 @@ CREATE TABLE IF NOT EXISTS show (item_id TEXT PRIMARY KEY, library_id TEXT NOT N
 -- default (item_id '': new-only, no backlog).
 CREATE TABLE IF NOT EXISTS rule (
     library_id TEXT NOT NULL, item_id TEXT NOT NULL, mode TEXT NOT NULL, PRIMARY KEY (library_id, item_id));
+-- Settings changed on the web page (1.11), over the environment's.
+CREATE TABLE IF NOT EXISTS setting (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 -- Changes made on the web page (/ui): who, what and when (1.9).
 CREATE TABLE IF NOT EXISTS audit (at REAL NOT NULL, user TEXT NOT NULL, action TEXT NOT NULL, detail TEXT NOT NULL);
 '''
@@ -238,6 +240,18 @@ class Database:
                 "(SELECT item_id FROM rule WHERE library_id = ? AND mode = 'high')", (library_id, library_id))
         else:
             self.execute("DELETE FROM rule WHERE library_id = ? AND item_id = ''", (library_id,))
+
+    # Settings (1.11)
+
+    def settings(self):
+        return {row['key']: row['value'] for row in self.execute('SELECT * FROM setting')}
+
+    def set_setting(self, key, value):
+        """`value` None: back to the environment's."""
+        if value is None:
+            self.execute('DELETE FROM setting WHERE key = ?', (key,))
+        else:
+            self.execute('INSERT OR REPLACE INTO setting (key, value) VALUES (?, ?)', (key, value))
 
     # A failed job's log
 

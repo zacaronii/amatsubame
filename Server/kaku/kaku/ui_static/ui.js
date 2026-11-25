@@ -6,7 +6,8 @@
   let busy = false;
 
   async function refresh() {
-    if (document.hidden || busy) return;
+    // Not while something's being typed: the redraw would lose it.
+    if (document.hidden || busy || sections.contains(document.activeElement) && document.activeElement.matches('input, select')) return;
     try {
       const view = encodeURIComponent(sections.dataset.view || '');
       const response = await fetch(`/ui/sections?view=${view}`, { credentials: 'same-origin', cache: 'no-store' });
@@ -28,7 +29,9 @@
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': token },
         body: JSON.stringify({
           action: data.action, itemId: data.item || '', episodeId: data.episode || '', libraryId: data.library || '',
-          value: data.value || '', view: sections.dataset.view || '',
+          // A setting's field (data-input): its value is what's sent.
+          value: data.input ? document.getElementById(data.input).value : (data.value || ''),
+          key: data.key || '', view: sections.dataset.view || '',
         }),
       });
       if (response.ok) {
