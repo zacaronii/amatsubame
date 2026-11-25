@@ -167,7 +167,7 @@ struct SetupDictionariesStep: View {
                 Label(failure, systemImage: "exclamationmark.triangle").foregroundStyle(.orange).font(.callout)
             }
             if !hasDictionaries, !updater.isInstalling {
-                Text("Lookups need at least one dictionary. You can add them later in Settings → Lookup and Mining → Dictionaries.")
+                Text("Lookups need a dictionary. You can add one later in Settings.")
                     .font(.footnote).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityIdentifier("setup.dictionaries.later")
             }
