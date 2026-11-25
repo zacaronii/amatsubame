@@ -318,7 +318,11 @@ final class AppEnvironment {
             settings.deck = ankiDeck
             settings.tags = ["amatsubame", "amatsubame-test"]
             try? environment.common.ankiSettings.save(settings)
+        } else if let ankiURL {
+            // Settings ▸ Anki's form only: a server saved, nothing sent (no scratch deck).
+            try? environment.accounts.save(ServerAccount(kind: .anki, baseURL: ankiURL, serverName: "AnkiConnect"))
         }
+        if let key = env["UITEST_ANKI_KEY"] { try? environment.secrets.setSecret(key, for: .ankiAPIKey) }
         environment.common.pendingDictionaryImports = dictionaryZips
         if env["UITEST_STATS"] != nil { seedStats(environment.common.activity, kind: .reading) }
         // In-memory UI tests start set up.
