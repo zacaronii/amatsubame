@@ -36,10 +36,11 @@ final class AnkiSettingsUITests: XCTestCase {
     }
 
     /// The Anki row follows a deck changed on its page (it read the settings once and kept the
-    /// old deck). Live: the test AnkiConnect's deck list (`HACHIDORI_ANKICONNECT_*` in `.env`);
-    /// only this app's own setting changes, and no card is sent.
+    /// old deck). Live: AnkiConnect's deck list (`ANKI_URL` and `ANKI_KEY` in `.env`, AnkiConnect's
+    /// own settings: Hachidori is optional, and Anki never depends on it); only this app's own
+    /// setting changes, and no card is sent.
     func testTheRowFollowsANewDeck() throws {
-        let v = try TestAccounts.require("HACHIDORI_ANKICONNECT_URL", "HACHIDORI_ANKICONNECT_KEY")
+        let v = try TestAccounts.require("ANKI_URL", "ANKI_KEY")
         let app = XCUIApplication()
         app.launchEnvironment["UITEST_STATS"] = "1"
         app.launchEnvironment["UITEST_ANKI_URL"] = v[0]
