@@ -59,7 +59,10 @@ struct SetupView: View {
                         NavigationLink {
                             AdvancedSettingsView(kinds: [.ankiNote], offersSetupAgain: false)
                         } label: {
-                            SettingsRowLabel("Advanced", systemImage: "wrench.and.screwdriver.fill", color: .gray)
+                            SettingsRowLabel("Advanced", subtitle: environment.setupMode != .shared ? "Hiku's own setup"
+                                                : environment.appsSharingSetup.isEmpty ? "Setup shared"
+                                                : "Setup shared with \(environment.appsSharingSetup.formatted(.list(type: .and)))",
+                                             systemImage: "wrench.and.screwdriver.fill", color: .gray)
                         }
                         .accessibilityIdentifier("settings.advanced")
                         NavigationLink {
