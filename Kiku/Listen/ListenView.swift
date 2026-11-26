@@ -63,20 +63,29 @@ struct ListenView: View {
 
     private var library: PodcastLibrary { environment.library }
 
+    private var connectAudiobookshelf: some View {
+        ContentUnavailableView {
+            Label("Connect Audiobookshelf", systemImage: "headphones")
+        } description: {
+            Text("Sign in to your Audiobookshelf server in Settings to see your podcasts.")
+        } actions: {
+            Button("Open Settings") { environment.selectedTab = .settings }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("listen.openSettings")
+        }
+    }
+
     var body: some View {
         WideSplitStack(path: $path) {
             Group {
                 if !environment.common.accountsLoaded {
                     ProgressView()
                 } else if environment.common.serverAccounts[.audiobookshelf] == nil {
-                    ContentUnavailableView {
-                        Label("Connect Audiobookshelf", systemImage: "headphones")
-                    } description: {
-                        Text("Sign in to your Audiobookshelf server in Settings to see your podcasts.")
-                    } actions: {
-                        Button("Open Settings") { environment.selectedTab = .settings }
-                            .buttonStyle(.borderedProminent)
-                            .accessibilityIdentifier("listen.openSettings")
+                    // Scrolls when it doesn't fit (the largest text sizes), so Open Settings can
+                    // always be reached above the mini player.
+                    ViewThatFits(in: .vertical) {
+                        connectAudiobookshelf
+                        ScrollView { connectAudiobookshelf }
                     }
                 } else if !query.isEmpty {
                     SearchResults(query: query)

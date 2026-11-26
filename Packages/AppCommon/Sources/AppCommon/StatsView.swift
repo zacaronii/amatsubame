@@ -138,6 +138,8 @@ public final class StatsModel {
 /// (time listened).
 public struct StatsView<Cover: View>: View {
     @Environment(\.openURL) private var openURL
+    /// At the accessibility text sizes the tiles stack, one per row, so their titles fit.
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var model: StatsModel
     let kind: ActivitySession.Kind
     let cover: (StatsSummary.Series) -> Cover
@@ -358,7 +360,19 @@ public struct StatsView<Cover: View>: View {
     }
 
     @ViewBuilder private func tiles(_ summary: StatsSummary) -> some View {
-        if kind == .reading {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: 10) {
+                if kind == .reading {
+                    if summary.measure != .time { tile("Time", Self.duration(summary.seconds)) }
+                    if summary.measure != .characters { tile("Characters", summary.characters.formatted()) }
+                    if summary.measure != .pages { tile("Pages", summary.pages.formatted()) }
+                } else {
+                    tile("Episodes", summary.items.formatted())
+                }
+                tile("Cards mined", summary.cards.formatted())
+                tile("Lookups", summary.lookups.formatted())
+            }
+        } else if kind == .reading {
             // The two measures the chart isn't showing, then cards and lookups.
             Grid(horizontalSpacing: 10, verticalSpacing: 10) {
                 GridRow {
@@ -390,7 +404,8 @@ public struct StatsView<Cover: View>: View {
 
     private func tile(_ title: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.subheadline).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.7)
+            Text(title).font(.subheadline).foregroundStyle(.secondary)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1).minimumScaleFactor(0.7)
             Text(value).font(.title2.bold().monospacedDigit()).lineLimit(1).minimumScaleFactor(0.6)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
