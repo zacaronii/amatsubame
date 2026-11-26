@@ -625,13 +625,18 @@ struct PlayerView: View {
                     Toggle(model.entry.isBook ? "Only for This Book" : "Only for This Show",
                            isOn: Binding(get: { model.usesShowSpeed }, set: { model.setUsesShowSpeed($0) }))
                 } label: {
+                    // A fixed capsule among fixed controls: its text grows only so far (the large
+                    // content viewer shows it bigger when held).
                     Text(Self.speedText(Double(model.audio.rate)))
                         .font(.subheadline.weight(.semibold).monospacedDigit())
+                        .dynamicTypeSize(...DynamicTypeSize.xLarge)
                         .frame(width: 56, height: 36)
                         .background(.quaternary, in: .capsule)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Speed")
+                .accessibilityValue(Self.speedText(Double(model.audio.rate)))
+                .accessibilityShowsLargeContentViewer()
                 Spacer()
                 lineButton(model.sentences.isEmpty ? "gobackward.15" : "backward.end.fill", label: "Previous line") { model.previousLine() }
                     .keyboardShortcut(.leftArrow, modifiers: [])
