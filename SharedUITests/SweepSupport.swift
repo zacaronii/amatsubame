@@ -40,10 +40,16 @@ extension XCTestCase {
     }
 
     /// A tab: in the tab bar on an iPhone, a sidebar cell where the tabs adapt into one (iPad,
-    /// the iPhone Duo's inner screen).
+    /// the iPhone Duo's inner screen), or the rail down the side of the Duo's folded screen.
     func sweepTab(_ app: XCUIApplication, _ name: String) -> XCUIElement {
         let bar = app.tabBars.buttons[name].firstMatch
+        // The folded Duo's rail: a toolbar of buttons named after the tabs (their symbols carry
+        // the identifiers).
+        let folded = app.toolbars.buttons.matching(NSPredicate(format: "label == %@ AND identifier == ''", name)).firstMatch
+        // Whichever shows up first (at launch the tabs take a moment).
+        for _ in 0..<20 where !(bar.exists || folded.exists || app.cells[name].exists || app.buttons["ToggleSidebar"].exists) { sleep(1) }
         if bar.exists { return bar }
+        if folded.exists { return folded }
         // A sidebar collapsed by a page opened from it comes back first.
         let showSidebar = app.buttons["ToggleSidebar"].firstMatch
         if !app.cells[name].exists, showSidebar.exists, showSidebar.label == "Show Sidebar" { showSidebar.tap(); sleep(1) }
@@ -73,11 +79,12 @@ extension XCTestCase {
         // Swipes go to the Settings list itself (on a split layout the screen's middle is another column).
         let list = app.navigationBars["Settings"].exists
             ? app.collectionViews.containing(NSPredicate(format: "identifier BEGINSWITH 'settings.'")).firstMatch : app
-        let surface: XCUIElement = list.exists ? list : app
+        // Looked up for each swipe: coming back from a page, the list can briefly fail to resolve.
+        func surface() -> XCUIElement { list.exists ? list : app }
         for _ in 0..<10 {
             sleep(1)
             rows += Set(settingsRows.allElementsBoundByIndex.map { $0.identifier }.filter { !rows.contains($0) }).sorted()
-            surface.swipeUp(velocity: .fast)
+            surface().swipeUp(velocity: .fast)
         }
         // On screen by its frame: `isHittable` fails the test outright for a row in another column.
         let window = app.windows.firstMatch.frame
@@ -86,13 +93,19 @@ extension XCTestCase {
         }
         for row in rows {
             let element = app.descendants(matching: .any)[row].firstMatch
-            for _ in 0..<10 where !onScreen(element) { surface.swipeDown(velocity: .fast) }
-            for _ in 0..<10 where !onScreen(element) { surface.swipeUp(velocity: .slow) }
+            for _ in 0..<10 where !onScreen(element) { surface().swipeDown(velocity: .fast) }
+            for _ in 0..<10 where !onScreen(element) { surface().swipeUp(velocity: .slow) }
             guard onScreen(element) else { print("SWEEP: \(prefix) · unreachable row \(row)"); continue }
             element.tap()
             sleep(2)
             issues += auditScreen(app, "\(prefix)-settings-\(row.dropFirst("settings.".count))")
-            if app.navigationBars.buttons.firstMatch.exists { app.navigationBars.buttons.firstMatch.tap() }
+            // Back: the system back button (in the navigation bar, or on the folded Duo in the rail
+            // beside the page), else the bar's first button.
+            if app.buttons["BackButton"].firstMatch.exists {
+                app.buttons["BackButton"].firstMatch.tap()
+            } else if app.navigationBars.buttons.firstMatch.exists {
+                app.navigationBars.buttons.firstMatch.tap()
+            }
             sleep(1)
         }
         return issues
