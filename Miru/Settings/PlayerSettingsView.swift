@@ -181,10 +181,13 @@ struct MacSettingsView: View {
         MacSettingsWindow(groups: [
             MacSettingsGroup(pages: [.overview(PlayerSettingsView.statusItems(environment))]),
             MacSettingsGroup("Watching", pages: [
-                MacSettingsPage("libraries", title: "Libraries", systemImage: "books.vertical") { JellyfinLibrariesSettingsView() },
-                MacSettingsPage("subtitles", title: "Subtitles", systemImage: "captions.bubble") { SubtitlesSettingsView() },
-                MacSettingsPage("playback", title: "Playback", systemImage: "play.rectangle") { PlaybackSettingsView() },
-                MacSettingsPage("shortcuts", title: "Keyboard Shortcuts", systemImage: "keyboard") { PlayerShortcutsView() },
+                MacSettingsPage("libraries", title: "Libraries", systemImage: "books.vertical",
+                                keywords: ["Japanese Audio Only"]) { JellyfinLibrariesSettingsView() },
+                MacSettingsPage("subtitles", title: "Subtitles", systemImage: "captions.bubble",
+                                keywords: ["Hide Until Tapped", "Pause Under the Pointer", "Position", "Size"]) { SubtitlesSettingsView() },
+                MacSettingsPage("playback", title: "Playback", systemImage: "play.rectangle",
+                                keywords: ["Skip Intros Automatically", "Streaming Quality"]) { PlaybackSettingsView() },
+                MacSettingsPage("shortcuts", title: "Keyboard Shortcuts", systemImage: "keyboard", keywords: ["Keys"]) { PlayerShortcutsView() },
             ]),
         ] + MacSettingsGroup.shared(servers: [
             MacSettingsPage("jellyfin", title: "Jellyfin", systemImage: "server.rack") { JellyfinSettingsView(environment: environment.common) },
@@ -193,7 +196,7 @@ struct MacSettingsView: View {
         ]) {
             PlayerSettingsView.anki(environment)
         } + [
-            .footer {
+            .footer(storageKeywords: ["Saved Subtitles"]) {
                 StorageView()
             } advanced: {
                 PlayerSettingsView.advanced
