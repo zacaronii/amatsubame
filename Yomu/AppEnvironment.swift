@@ -57,7 +57,7 @@ final class AppEnvironment {
     /// Each EPUB volume's characters, for the library's progress (`BookLengthCounter`).
     let bookLengths: BookLengths
     @ObservationIgnored private var counter: BookLengthCounter?
-    /// Counts Japanese books' characters (Settings ▸ Character Counts).
+    /// Counts Japanese books' characters (Settings ▸ Advanced ▸ Character Counts).
     var bookCounter: BookLengthCounter {
         if let counter { return counter }
         let made = BookLengthCounter(environment: self)

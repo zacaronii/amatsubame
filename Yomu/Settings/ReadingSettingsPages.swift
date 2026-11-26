@@ -56,7 +56,7 @@ struct ReadAlongSettingsView: View {
     }
 }
 
-/// Settings ▸ Storage: what Yomu keeps on this device, and the counts it makes of books.
+/// Settings ▸ Storage: what Yomu keeps on this device.
 struct StorageView: View {
     @Environment(AppEnvironment.self) private var environment
     @State private var cacheBytes: Int64 = 0
@@ -124,18 +124,6 @@ struct StorageView: View {
             } footer: {
                 Text("Clearing the cache only removes books, pages and text recognition results that load again when needed. The oldest are removed automatically past 1 GB each.")
             }
-            Section {
-                NavigationLink {
-                    CharacterCountsView()
-                } label: {
-                    SettingsRowLabel("Character Counts", subtitle: countsSummary, systemImage: "character.textbox", color: .orange)
-                }
-                .accessibilityIdentifier("storage.characterCounts")
-            } header: {
-                Text("Library Data")
-            } footer: {
-                Text("Counts how many characters each book has, for the reading-time estimate and Stats. Reads each book once.")
-            }
         }
         .formStyle(.grouped)
         .navigationTitle("Storage")
@@ -159,12 +147,6 @@ struct StorageView: View {
         }
     }
 
-    private var countsSummary: String {
-        guard let survey = environment.bookCounter.survey else { return "Light novels and Japanese books" }
-        let total = survey.counted + survey.toCount
-        return "Counted for \(survey.counted) of \(total) volumes"
-    }
-
     private func measure() async {
         let books = await environment.books.unpinnedBytes()
         let pages = (try? environment.pageCache.unpinnedBytes()) ?? 0
@@ -180,5 +162,31 @@ struct LookupTimingsToggle: View {
     var body: some View {
         Toggle("Show Lookup Timings", isOn: $showsTimings)
             .accessibilityIdentifier("advanced.lookupTimings")
+    }
+}
+
+/// Settings ▸ Advanced ▸ Library Data: Character Counts.
+struct LibraryDataSection: View {
+    @Environment(AppEnvironment.self) private var environment
+
+    var body: some View {
+        Section {
+            NavigationLink {
+                CharacterCountsView()
+            } label: {
+                SettingsRowLabel("Character Counts", subtitle: countsSummary, systemImage: "character.textbox", color: .orange)
+            }
+            .accessibilityIdentifier("advanced.characterCounts")
+        } header: {
+            Text("Library Data")
+        } footer: {
+            Text("For the reading-time estimate and Stats. Reads each book once.")
+        }
+    }
+
+    private var countsSummary: String {
+        guard let survey = environment.bookCounter.survey else { return "Light novels and Japanese books" }
+        let total = survey.counted + survey.toCount
+        return "Counted for \(survey.counted) of \(total) volumes"
     }
 }
