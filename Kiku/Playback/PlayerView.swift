@@ -430,17 +430,24 @@ struct PlayerView: View {
             ShowCover(itemId: model.entry.itemId, cornerRadius: 24) { image in tint = CoverTint.color(of: image) }
                 .frame(maxWidth: 320)
                 .shadow(color: .black.opacity(0.35), radius: 24, y: 12)
+                .accessibilityIdentifier("player.artwork")
             VStack(spacing: 4) {
                 Text(model.entry.episode.title).font(.title3.bold()).multilineTextAlignment(.center).lineLimit(2)
                 Text(model.currentChapter?.title ?? model.entry.showTitle).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
             }
             if showsLine {
                 Button { model.setShowsTranscript(true) } label: {
+                    // Always two rows high, whatever the line, so the artwork above keeps its size
+                    // as the lines go by (a longer line ends in "…").
                     VStack(spacing: 4) {
                         Text(model.currentIndex.map { model.sentences[$0].text } ?? " ")
-                            .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).lineLimit(2)
-                        Text("current line · tap to open the transcript").font(.caption).foregroundStyle(.tertiary)
+                            .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                            .lineLimit(2, reservesSpace: true)
+                        Text("current line · tap to open the transcript").font(.caption).foregroundStyle(.tertiary).lineLimit(1)
                     }
+                    // A faint preview (the transcript it opens follows the text size): capped, so
+                    // its two rows leave the artwork room on a small screen at the largest sizes.
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                     .padding(.horizontal, 8)
                     .contentShape(.rect)
                 }

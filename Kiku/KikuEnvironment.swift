@@ -217,7 +217,9 @@ final class KikuEnvironment {
         }
         let episode = entry.episode
         // Long enough to scroll; the first lines are the ones the tests look at.
-        let texts = ["ほんとにそうですね。", "駅前の本屋で先に見つけてた", "え、もう読んだんですか？", "雨の日の過ごし方を考えていくと", "みんなで相談して決めるんですけど"]
+        // The sixth is long: three rows or more where the transcript is off, under the artwork.
+        let texts = ["ほんとにそうですね。", "駅前の本屋で先に見つけてた", "え、もう読んだんですか？", "雨の日の過ごし方を考えていくと", "みんなで相談して決めるんですけど",
+                     "雨の日は家で本を読んだり映画を見たりするのもいいけれど、たまには傘をさして近所をゆっくり散歩して、いつもと違う景色を見るのも楽しいんですよね。"]
             + (1...20).map { "家でゆっくりしたい、その\($0)番目の理由です。" }
         let info = AudioTranscriptInfo(itemId: entry.itemId, episodeId: episode.id, showTitle: entry.showTitle, episodeTitle: episode.title,
                                        fingerprint: nil, duration: 60, savedAt: .now, lastPlayedAt: .now)
