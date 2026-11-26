@@ -19,7 +19,7 @@ final class PlayerGestureUITests: XCTestCase {
         XCTAssertTrue(player.waitForExistence(timeout: 10))
         func state() -> (time: Double, paused: Bool) {
             let value = player.value as? String ?? ""
-            return (Double(value.split(separator: " ").first ?? "") ?? -1, value.hasSuffix("paused"))
+            return (Double(value.split(separator: " ").first ?? "") ?? -1, value.contains(" s, paused"))
         }
         let playing = expectation(for: NSPredicate { _, _ in state().time > 2 && !state().paused }, evaluatedWith: nil)
         wait(for: [playing], timeout: 15)
@@ -249,7 +249,7 @@ final class PlayerGestureUITests: XCTestCase {
         XCTAssertTrue(line.waitForExistence(timeout: 10))
         let player = app.descendants(matching: .any)["player.video"].firstMatch
         let playPause = app.buttons["player.playPause"]
-        func isPlaying() -> Bool { (player.value as? String ?? "").hasSuffix("playing") }
+        func isPlaying() -> Bool { (player.value as? String ?? "").contains(" s, playing") }
 
         // Playing, controls hidden.
         if !isPlaying() {

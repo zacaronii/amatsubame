@@ -52,8 +52,10 @@ final class SettingsRetapUITests: XCTestCase {
         }
         tab.tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5), "the top of Settings")
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
-        row.tap()
+        // Kaku is under Connections, below the top: scrolled to again.
+        let again = app.revealSettingsRow("settings.kaku")
+        XCTAssertTrue(again.waitForExistence(timeout: 5))
+        again.tap()
         XCTAssertTrue(app.staticTexts["Now Transcribing"].waitForExistence(timeout: 10), "the next tap opens Kaku")
     }
 }

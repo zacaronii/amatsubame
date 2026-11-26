@@ -483,7 +483,9 @@ final class BookUITests: XCTestCase {
             XCTAssertLessThan(try markedPixels(), markedMinimum, "a mark before any lookup")
             if lookUp(dy: 0.25) { return true }
         }
-        return false
+        // Chapters that open on a full-page picture: a page of body text instead.
+        openPageOfBodyText()
+        return lookUp(dy: 0.25) || lookUp(dy: 0.35)
     }
 
     /// Looks up a word in one of the first body columns at `dy` (vertical text: the first
