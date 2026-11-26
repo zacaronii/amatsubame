@@ -18,14 +18,15 @@ final class KikuUITests: XCTestCase {
         app.tabBars.buttons["Marks"].tap()
         XCTAssertTrue(app.staticTexts["Marks you make while listening show up here."].waitForExistence(timeout: 5))
         app.tabBars.buttons["Settings"].tap()
-        let row = app.descendants(matching: .any)["settings.audiobookshelf"].firstMatch
+        let row = app.revealSettingsRow("settings.audiobookshelf")
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         row.tap()
         XCTAssertTrue(app.buttons["audiobookshelf.signIn"].waitForExistence(timeout: 5))
         // Tapping the tab that's showing goes back to its top screen.
         app.tabBars.buttons["Settings"].tap()
         XCTAssertTrue(app.buttons["audiobookshelf.signIn"].waitForNonExistence(timeout: 5), "back at the top of Settings")
-        XCTAssertTrue(row.exists)
+        XCTAssertTrue(app.navigationBars["Settings"].exists)
+        XCTAssertTrue(app.revealSettingsRow("settings.audiobookshelf").exists, "the row is in Settings' list")
     }
 }
 
