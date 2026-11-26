@@ -24,10 +24,12 @@
 **Kaku** (書く, to write down) is the optional transcription server behind Kiku's transcripts:
 [`Server/kaku`](Server/kaku). No servers of your own? Setup offers demo servers to try the apps with.
 
-<!-- GIFs, two per row, each one app's key moment (docs/media/*.gif, credits in docs/media/CREDITS.md):
-<p align="center"><img src="docs/media/yomu.gif" width="320"> <img src="docs/media/miru.gif" width="320"></p>
-<p align="center"><img src="docs/media/kiku.gif" width="320"> <img src="docs/media/hiku.gif" width="320"></p>
--->
+<p align="center">
+  <img src="docs/media/yomu.gif" width="260" alt="Yomu: tapping a speech bubble in Pepper&amp;Carrot opens the dictionary popup">
+  <img src="docs/media/miru.gif" width="260" alt="Miru: tapping a word in Sintel's Japanese subtitles opens the dictionary popup">
+  <img src="docs/media/hiku.gif" width="260" alt="Hiku: tapping 無鉄砲 on Aozora Bunko in Safari opens the dictionary popup">
+</p>
+<!-- Kiku's GIF (the transcript following the audio) joins these once it's recorded. Credits: docs/media/CREDITS.md -->
 
 ## Get started
 
@@ -70,3 +72,4 @@ the [MIT License](Server/kaku/LICENSE). Third-party components and their license
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 Amatsubame stands on the work of many people: see [docs/ACKNOWLEDGEMENTS.md](docs/ACKNOWLEDGEMENTS.md).
+The GIFs show licence-clean content: [credits](docs/media/CREDITS.md).

@@ -450,6 +450,30 @@ final class ReaderUITests: XCTestCase {
         XCTAssertTrue(playPause.waitForNonExistence(timeout: 5))
     }
 
+    /// The README's GIF (`UITEST_CAPTURE=1`, recorded with `simctl io recordVideo`): a page with
+    /// dialogue, a tap on a bubble, and the popup's results held for a moment.
+    func testReadmeCapture() throws {
+        guard ProcessInfo.processInfo.environment["UITEST_CAPTURE"] != nil else { throw XCTSkip("Set UITEST_CAPTURE=1 to record.") }
+        try enableOCR()
+        app.launch()
+        openReader()
+        let dialogue = app.descendants(matching: .any).matching(identifier: "ocr.block")
+            .matching(NSPredicate(format: "label MATCHES %@", ".*[ぁ-んァ-ヶ一-龠]{6,}.*"))
+        for _ in 0..<12 {
+            reader.swipeRight()
+            if dialogue.firstMatch.waitForExistence(timeout: 30),
+               dialogue.allElementsBoundByIndex.filter({ $0.exists && $0.isHittable }).count >= 2 { break }
+        }
+        sleep(2)
+        // The bubble's second line ("…これで / 出来上がり" on the first such page): its first word.
+        let bubbles = dialogue.allElementsBoundByIndex.filter { $0.exists && $0.isHittable }
+        let bubble = try XCTUnwrap(bubbles.first { $0.label.contains("出来上が") } ?? bubbles.first, "a bubble with dialogue")
+        bubble.coordinate(withNormalizedOffset: CGVector(dx: 0.03, dy: 0.75)).tap()
+        let results = app.webViews.firstMatch.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Jitendex'")).firstMatch
+        XCTAssertTrue(results.waitForExistence(timeout: 20), "dictionary results")
+        sleep(4)
+    }
+
     private func enableOCR() throws {
         let env = ProcessInfo.processInfo.environment
         guard let models = env["UITEST_OCR_MODELS"], let dictionaries = env["UITEST_DICTIONARY_ZIPS"] else {
