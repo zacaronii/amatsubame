@@ -13,6 +13,16 @@ final class HitAreaUITests: XCTestCase {
             XCTAssertGreaterThanOrEqual(frame.width, 44, "\(id) \(frame)")
             XCTAssertGreaterThanOrEqual(frame.height, 44, "\(id) \(frame)")
         }
+        // Down to the mini player: its Play button too (the sweep flagged it on the iPhone Duo).
+        app.buttons["player.close"].firstMatch.tap()
+        let play = app.buttons["mini.playPause"].firstMatch
+        XCTAssertTrue(play.waitForExistence(timeout: 10))
+        XCTAssertGreaterThanOrEqual(play.frame.width, 44, "\(play.frame)")
+        XCTAssertGreaterThanOrEqual(play.frame.height, 44, "\(play.frame)")
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "mini player"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     /// A line's time is 44 pt to tap in its own space above the text, so holding the text still

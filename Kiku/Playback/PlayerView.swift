@@ -883,9 +883,12 @@ struct MiniPlayer: View {
                         Image(systemName: model.audio.isPlaying ? "pause.fill" : "play.fill").font(.title3)
                     }
                 }
-                .frame(width: 36, height: 36)
+                // 44 pt to tap, laid out as the 36 pt it looks.
+                .frame(width: 44, height: 44)
+                .contentShape(.rect)
             }
             .buttonStyle(.plain)
+            .padding(-4)
             .accessibilityLabel(model.audio.isPlaying ? "Pause" : "Play")
             .accessibilityIdentifier("mini.playPause")
         }
