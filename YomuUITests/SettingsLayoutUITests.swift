@@ -67,4 +67,17 @@ final class SettingsLayoutUITests: XCTestCase {
         XCTAssertEqual(app.buttons["storage.removeReadAlongAudio"].label, "Clear")
         XCTAssertEqual(app.buttons["downloads.clearCache"].label, "Clear")
     }
+
+    /// Advanced: Character Counts (from Storage), and no Sync Now (it's on the status card).
+    func testAdvancedHoldsCharacterCounts() {
+        let app = settings()
+        open(app, "settings.advanced")
+        XCTAssertTrue(app.descendants(matching: .any)["advanced.runSetup"].firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["advanced.characterCounts"].firstMatch.exists, "Character Counts in Advanced")
+        XCTAssertFalse(app.buttons["advanced.syncNow"].exists, "Sync Now is on the status card only")
+        app.navigationBars.buttons.firstMatch.tap()
+        open(app, "settings.storage")
+        XCTAssertTrue(app.descendants(matching: .any)["storage.downloads"].firstMatch.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.descendants(matching: .any)["storage.characterCounts"].exists, "not in Storage any more")
+    }
 }

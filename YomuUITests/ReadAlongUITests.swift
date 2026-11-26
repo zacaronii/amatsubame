@@ -183,10 +183,13 @@ final class ReadAlongUITests: XCTestCase {
         XCTAssertEqual(Set(places.dropFirst()).count, 1, log.joined(separator: "\n"))
     }
 
-    /// Settings ▸ Character Counts counts every Japanese book's characters from Kavita's text.
+    /// Settings ▸ Advanced ▸ Character Counts counts every Japanese book's characters from Kavita's text.
     func testCountCharacters() {
         app.launch()
         app.tabBars.buttons["Settings"].firstMatch.tap()
+        let advanced = app.buttons["settings.advanced"].firstMatch
+        for _ in 0..<6 where !advanced.isHittable { app.swipeUp() }
+        advanced.tap()
         let link = app.buttons["Character Counts"].firstMatch
         for _ in 0..<6 where !link.isHittable { app.swipeUp() }
         link.tap()

@@ -482,19 +482,24 @@ public struct SettingsFooterSection<Storage: View, Advanced: View, About: View>:
     }
 }
 
-/// Settings ▸ Advanced: the shared setup, what's waiting to sync, Run Setup Again, and
-/// troubleshooting. `kinds`: what this app sends. `troubleshooting`: the app's own rows.
-public struct AdvancedSettingsView<Troubleshooting: View>: View {
+/// Settings ▸ Advanced: the shared setup, what's waiting to sync, the app's own data,
+/// Run Setup Again, and troubleshooting. `kinds`: what this app sends. `appData`: the app's own
+/// sections (Yomu's Character Counts). `troubleshooting`: the app's own rows. Sync Now is on the
+/// status card.
+public struct AdvancedSettingsView<AppData: View, Troubleshooting: View>: View {
     @Environment(CommonEnvironment.self) private var environment
     @State private var waiting: [OutboxJobKind: Int] = [:]
     @State private var logFile: URL?
     let kinds: [OutboxJobKind]
     let extraLogs: [URL]
+    let appData: AppData
     let troubleshooting: Troubleshooting
 
-    public init(kinds: [OutboxJobKind], extraLogs: [URL] = [], @ViewBuilder troubleshooting: () -> Troubleshooting = { EmptyView() }) {
+    public init(kinds: [OutboxJobKind], extraLogs: [URL] = [], @ViewBuilder appData: () -> AppData = { EmptyView() },
+                @ViewBuilder troubleshooting: () -> Troubleshooting = { EmptyView() }) {
         self.kinds = kinds
         self.extraLogs = extraLogs
+        self.appData = appData()
         self.troubleshooting = troubleshooting()
     }
 
@@ -513,13 +518,12 @@ public struct AdvancedSettingsView<Troubleshooting: View>: View {
                     }
                     .accessibilityIdentifier("advanced.waiting.\(kind.rawValue)")
                 }
-                Button("Sync Now") { environment.syncNow(retryWaiting: true) }
-                    .accessibilityIdentifier("advanced.syncNow")
             } header: {
                 Text("Waiting to Sync")
             } footer: {
-                Text("Things saved while a server was out of reach. They send on their own when it's back; tap one to see or clear it.")
+                Text("Saved while a server was out of reach; they send when it's back. Tap one to see or clear it.")
             }
+            appData
             Section {
                 Button("Run Setup Again") { environment.setup.runAgain() }
                     .accessibilityIdentifier("advanced.runSetup")
