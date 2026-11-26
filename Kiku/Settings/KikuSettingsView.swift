@@ -231,6 +231,7 @@ struct StorageView: View {
     @Environment(KikuEnvironment.self) private var environment
     @State private var dictionaryBytes: Int64 = 0
     @State private var transcriptBytes: Int64 = 0
+    @State private var confirmsClearTranscripts = false
 
     private var downloadBytes: Int64 {
         environment.downloader.records.values.reduce(0) { $0 + ($1.state == .done ? ($1.bytesTotal ?? 0) : $1.bytesDone) }
@@ -240,7 +241,7 @@ struct StorageView: View {
         Form {
             Section {
                 StorageSummary(parts: [
-                    .init("Downloads", bytes: downloadBytes, color: .blue),
+                    .init("Downloaded", bytes: downloadBytes, color: .blue),
                     .init("Dictionaries", bytes: dictionaryBytes, color: .purple),
                     .init("Transcripts", bytes: transcriptBytes, color: .teal),
                 ])
@@ -249,7 +250,7 @@ struct StorageView: View {
                 NavigationLink {
                     DownloadedEpisodesView()
                 } label: {
-                    SettingsRowLabel("Downloads", value: downloadBytes.storageText, systemImage: "arrow.down.circle.fill", color: .blue)
+                    SettingsRowLabel("Downloaded", value: downloadBytes.storageText, systemImage: "arrow.down.circle.fill", color: .blue)
                 }
                 .accessibilityIdentifier("storage.downloads")
                 NavigationLink {
@@ -257,13 +258,29 @@ struct StorageView: View {
                 } label: {
                     SettingsRowLabel("Dictionaries", value: dictionaryBytes.storageText, systemImage: "character.book.closed.ja", color: .purple)
                 }
-                SettingsRowLabel("Saved Transcripts", value: transcriptBytes.storageText, systemImage: "text.quote", color: .teal)
+                HStack {
+                    SettingsRowLabel("Saved Transcripts", value: transcriptBytes.storageText, systemImage: "text.quote", color: .teal)
+                    Button("Clear", role: .destructive) { confirmsClearTranscripts = true }
+                        #if os(iOS)
+                        .buttonStyle(.borderless)
+                        #endif
+                        .disabled(transcriptBytes == 0)
+                        .accessibilityIdentifier("storage.clearTranscripts")
+                }
             } footer: {
                 Text("Transcripts of episodes you've played or downloaded, for the player offline and Marks search.")
             }
         }
         .formStyle(.grouped)
         .navigationTitle("Storage")
+        .confirmationDialog("Clear saved transcripts?", isPresented: $confirmsClearTranscripts, titleVisibility: .visible) {
+            Button("Clear Transcripts", role: .destructive) {
+                try? environment.transcripts.clearAll()
+                transcriptBytes = Int64((try? environment.transcripts.approximateBytes()) ?? 0)
+            }
+        } message: {
+            Text("They download again when you play an episode with your server in reach. Until then, Marks search can't find lines in them.")
+        }
         .onAppear {
             dictionaryBytes = environment.common.dictionaries.totalBytes()
             transcriptBytes = Int64((try? environment.transcripts.approximateBytes()) ?? 0)

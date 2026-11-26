@@ -56,4 +56,15 @@ final class SettingsLayoutUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["downloads.automatic"].firstMatch.exists, "Automatic Downloads")
         XCTAssertTrue(app.switches["downloads.readText"].exists, "Read Text on Downloaded Pages")
     }
+
+    /// Storage: "Downloaded", and a Clear on each kind (read-along audio, cache).
+    func testStorageSaysDownloadedAndClears() {
+        let app = settings()
+        open(app, "settings.storage")
+        let downloaded = app.descendants(matching: .any)["storage.downloads"].firstMatch
+        XCTAssertTrue(downloaded.waitForExistence(timeout: 10))
+        XCTAssertTrue(downloaded.label.contains("Downloaded"), downloaded.label)
+        XCTAssertEqual(app.buttons["storage.removeReadAlongAudio"].label, "Clear")
+        XCTAssertEqual(app.buttons["downloads.clearCache"].label, "Clear")
+    }
 }

@@ -76,7 +76,7 @@ struct StorageView: View {
         Form {
             Section {
                 StorageSummary(parts: [
-                    .init("Downloads", bytes: downloadBytes, color: .blue),
+                    .init("Downloaded", bytes: downloadBytes, color: .blue),
                     .init("Read-along audio", bytes: environment.readAlongDownloads.bytes, color: .teal),
                     .init("Dictionaries", bytes: dictionaryBytes, color: .purple),
                     .init("Text recognition", bytes: modelBytes, color: .cyan),
@@ -87,14 +87,14 @@ struct StorageView: View {
                 NavigationLink {
                     DownloadedVolumesView()
                 } label: {
-                    SettingsRowLabel("Downloads", value: downloadBytes.storageText, systemImage: "arrow.down.circle.fill", color: .blue)
+                    SettingsRowLabel("Downloaded", value: downloadBytes.storageText, systemImage: "arrow.down.circle.fill", color: .blue)
                 }
                 .accessibilityIdentifier("storage.downloads")
                 HStack {
                     let audio = environment.readAlongDownloads
                     SettingsRowLabel("Read-Along Audio", value: audio.fileCount == 0 ? "None" : "\(audio.fileCount) · \(audio.bytes.storageText)",
                                      systemImage: "headphones", color: .teal)
-                    Button("Remove", role: .destructive) { confirmsRemoveAudio = true }
+                    Button("Clear", role: .destructive) { confirmsRemoveAudio = true }
                         #if os(iOS)
                         .buttonStyle(.borderless)
                         #endif
@@ -140,8 +140,8 @@ struct StorageView: View {
         .formStyle(.grouped)
         .navigationTitle("Storage")
         .task { await measure() }
-        .confirmationDialog("Remove the read-along audio?", isPresented: $confirmsRemoveAudio, titleVisibility: .visible) {
-            Button("Remove Audio", role: .destructive) { Task { await environment.readAlongDownloads.deleteAll() } }
+        .confirmationDialog("Clear the read-along audio?", isPresented: $confirmsRemoveAudio, titleVisibility: .visible) {
+            Button("Clear Audio", role: .destructive) { Task { await environment.readAlongDownloads.deleteAll() } }
         } message: {
             Text("Downloads in progress stop. Reading along streams the audio from Audiobookshelf again, and you can download it again from the series.")
         }

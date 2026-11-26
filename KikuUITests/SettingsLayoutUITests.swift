@@ -36,6 +36,10 @@ final class SettingsLayoutUITests: XCTestCase {
 
         // Storage ▸ Downloads says where the watch's items went.
         open(app, "settings.storage")
+        let downloaded = app.descendants(matching: .any)["storage.downloads"].firstMatch
+        XCTAssertTrue(downloaded.waitForExistence(timeout: 10))
+        XCTAssertTrue(downloaded.label.contains("Downloaded"), downloaded.label)
+        XCTAssertTrue(app.buttons["storage.clearTranscripts"].exists, "Clear on Saved Transcripts")
         open(app, "storage.downloads")
         XCTAssertTrue(app.descendants(matching: .any)["storage.watchPointer"].firstMatch.waitForExistence(timeout: 10),
                       "Storage points to Apple Watch")

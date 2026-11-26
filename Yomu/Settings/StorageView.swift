@@ -3,7 +3,7 @@ import Core
 import KavitaKit
 import SwiftUI
 
-/// Settings ▸ Storage ▸ Downloads: volumes downloading and on the device, by series, so
+/// Settings ▸ Storage ▸ Downloaded: volumes downloading and on the device, by series, so
 /// everything downloaded is visible and removable.
 struct DownloadedVolumesView: View {
     @Environment(AppEnvironment.self) private var environment
@@ -53,7 +53,7 @@ struct DownloadedVolumesView: View {
                 }
             }
         }
-        .navigationTitle("Downloads")
+        .navigationTitle("Downloaded")
         .confirmationDialog("Remove every downloaded volume of \(confirmsDelete?.seriesTitle ?? "")?",
                             isPresented: Binding(get: { confirmsDelete != nil }, set: { if !$0 { confirmsDelete = nil } }),
                             titleVisibility: .visible) {

@@ -308,7 +308,7 @@ struct StorageView: View {
         Form {
             Section {
                 StorageSummary(parts: [
-                    .init("Downloads", bytes: downloadBytes, color: .blue),
+                    .init("Downloaded", bytes: downloadBytes, color: .blue),
                     .init("Dictionaries", bytes: dictionaryBytes, color: .purple),
                     .init("Subtitles", bytes: subtitleBytes, color: .indigo),
                 ])
@@ -317,7 +317,7 @@ struct StorageView: View {
                 NavigationLink {
                     DownloadedEpisodesView()
                 } label: {
-                    SettingsRowLabel("Downloads", value: downloadBytes.storageText, systemImage: "arrow.down.circle.fill", color: .blue)
+                    SettingsRowLabel("Downloaded", value: downloadBytes.storageText, systemImage: "arrow.down.circle.fill", color: .blue)
                 }
                 .accessibilityIdentifier("storage.downloads")
                 NavigationLink {
@@ -345,21 +345,25 @@ struct SavedSubtitlesSection: View {
 
     var body: some View {
         Section {
-            LabeledContent("Saved subtitles", value: transcriptBytes.storageText)
-            Button("Clear Saved Subtitles", role: .destructive) { confirmsClear = true }
-                .disabled(transcriptBytes == 0)
-                .confirmationDialog("Clear saved subtitles?", isPresented: $confirmsClear, titleVisibility: .visible) {
-                    Button("Clear", role: .destructive) {
-                        try? environment.transcripts.clear()
-                        measure()
-                    }
-                } message: {
-                    Text("Lines will fetch an episode's subtitles again the next time you open it.")
+            HStack {
+                SettingsRowLabel("Saved Subtitles", value: transcriptBytes.storageText, systemImage: "captions.bubble.fill", color: .indigo)
+                Button("Clear", role: .destructive) { confirmsClear = true }
+                    #if os(iOS)
+                    .buttonStyle(.borderless)
+                    #endif
+                    .disabled(transcriptBytes == 0)
+                    .accessibilityIdentifier("storage.clearSubtitles")
+            }
+            .confirmationDialog("Clear saved subtitles?", isPresented: $confirmsClear, titleVisibility: .visible) {
+                Button("Clear Subtitles", role: .destructive) {
+                    try? environment.transcripts.clear()
+                    measure()
                 }
-        } header: {
-            Text("Saved Subtitles")
+            } message: {
+                Text("Lines will fetch an episode's subtitles again the next time you open it.")
+            }
         } footer: {
-            Text("Japanese subtitles of episodes you've watched or opened in Lines, for reading and search.")
+            Text("Subtitles of episodes you've watched or opened in Lines, for reading and search.")
         }
         .onAppear(perform: measure)
     }
