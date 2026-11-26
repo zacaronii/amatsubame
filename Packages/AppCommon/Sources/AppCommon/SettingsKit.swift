@@ -559,6 +559,7 @@ public struct AdvancedSettingsView<AppData: View, Troubleshooting: View>: View {
             if offersSetupAgain {
                 Section {
                     Button("Run Setup Again") { environment.setup.runAgain() }
+                        .textButtonTint()
                         .accessibilityIdentifier("advanced.runSetup")
                 } footer: {
                     Text("Walks through the first-launch setup. Nothing is deleted.")
@@ -570,6 +571,7 @@ public struct AdvancedSettingsView<AppData: View, Troubleshooting: View>: View {
                     ShareLink(item: logFile) {
                         Label("Export Logs", systemImage: "square.and.arrow.up")
                     }
+                    .textButtonTint()
                     .accessibilityIdentifier("advanced.exportLogs")
                 }
             } header: {

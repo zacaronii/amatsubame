@@ -319,6 +319,7 @@ public struct StatsView<Cover: View>: View {
                     Spacer()
                     Button(model.goals?.goal(on: .now) == nil ? "Set a Daily Goal" : "Daily Goal") { editingGoal = true }
                         .buttonStyle(.borderless)
+                        .textButtonTint()
                         .accessibilityIdentifier("stats.dailyGoal")
                 }
                 .font(.subheadline)

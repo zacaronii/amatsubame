@@ -88,7 +88,7 @@ struct ReadingListView: View {
                     .accessibilityIdentifier("readingList.more")
                 }
                 #if os(iOS)
-                ToolbarItem(placement: .topBarTrailing) { EditButton().accessibilityIdentifier("readingList.edit") }
+                ToolbarItem(placement: .topBarTrailing) { EditButton().textButtonTint().accessibilityIdentifier("readingList.edit") }
                 #endif
             }
         }

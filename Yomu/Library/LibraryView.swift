@@ -139,6 +139,7 @@ struct LibraryView: View {
                     } actions: {
                         Button("Open Settings") { environment.selectedTab = .settings }
                             .buttonStyle(.borderedProminent)
+                            .filledButtonTint()
                             .accessibilityIdentifier("library.openSettings")
                     }
                 } else {
@@ -306,6 +307,7 @@ struct LibraryView: View {
                     .buttonStyle(.plain)
                     if !dynamicTypeSize.isAccessibilitySize { Spacer() }
                     NavigationLink(value: library) { Text("See All") }
+                        .textButtonTint()
                         .accessibilityIdentifier("library.seeAll.\(library.name)")
                 }
                 if !series.isEmpty {

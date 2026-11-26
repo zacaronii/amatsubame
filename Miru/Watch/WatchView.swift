@@ -89,6 +89,7 @@ struct WatchView: View {
                     } actions: {
                         Button("Open Settings") { environment.selectedTab = .settings }
                             .buttonStyle(.borderedProminent)
+                            .filledButtonTint()
                             .accessibilityIdentifier("watch.openSettings")
                     }
                 } else {
@@ -197,6 +198,7 @@ struct WatchView: View {
                                     ScrollView { nextUpRows(allNextUp).padding() }
                                         .navigationTitle("Next Up")
                                 }
+                                .textButtonTint()
                                 .accessibilityIdentifier("nextUp.seeAll")
                             }
                         }
@@ -335,6 +337,7 @@ private struct LibraryShelf: View {
                 .buttonStyle(.plain)
                 Spacer()
                 NavigationLink("See All", value: library)
+                    .textButtonTint()
                     .accessibilityIdentifier("library.\(library.name)")
             }
             if !items.isEmpty {

@@ -329,6 +329,7 @@ struct LiveFeedView: View {
                     model.togglePlayback()
                 }
                 .buttonStyle(.borderedProminent)
+                .filledButtonTint()
                 .accessibilityIdentifier("live.playPause")
             }
         }

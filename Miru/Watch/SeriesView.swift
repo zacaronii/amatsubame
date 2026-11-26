@@ -354,6 +354,7 @@ struct SeriesView: View {
                     .padding(.vertical, 6)
                 }
                 .buttonStyle(.borderedProminent)
+                .filledButtonTint()
                 .buttonBorderShape(.capsule)
                 .controlSize(.large)
                 .accessibilityIdentifier("series.play")

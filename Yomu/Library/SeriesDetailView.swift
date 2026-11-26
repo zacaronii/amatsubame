@@ -341,6 +341,7 @@ struct SeriesDetailView: View {
                 .buttonStyle(.borderedProminent)
                 .buttonBorderShape(.capsule)
                 .controlSize(.large)
+                .filledButtonTint()
                 .accessibilityIdentifier("series.continue")
             }
             if !notDownloaded.isEmpty {

@@ -49,9 +49,11 @@ public struct SearchView: View {
                     } actions: {
                         NavigationLink("Add Recommended…") { AddRecommendedView() }
                             .buttonStyle(.borderedProminent)
+                            .filledButtonTint()
                             .accessibilityIdentifier("search.addRecommended")
                         // The dictionaries page, where Import from Files shows its progress.
                         NavigationLink("Import…") { DictionariesView() }
+                            .textButtonTint()
                             .accessibilityIdentifier("search.importDictionaries")
                     }
                 } else {

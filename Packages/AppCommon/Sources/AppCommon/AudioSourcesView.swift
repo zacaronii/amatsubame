@@ -28,6 +28,7 @@ public struct AudioSourcesView: View {
                             if !source.enabled { Text("Off").font(.caption).foregroundStyle(.secondary) }
                         }
                     }
+                    .textButtonTint()
                     .reorderMenu(index: index, count: sources.count, move: move)
                 }
                 .onMove(perform: move)
@@ -50,12 +51,13 @@ public struct AudioSourcesView: View {
                     Text("No source had audio.").font(.caption).foregroundStyle(.secondary)
                 }
             }
+            .textButtonTint()
         }
         .settingsListWidth()
         .navigationTitle("Audio Sources")
         .toolbar {
             #if os(iOS)
-            EditButton()
+            EditButton().textButtonTint()
             #endif
         }
         .sheet(item: $editing) { source in

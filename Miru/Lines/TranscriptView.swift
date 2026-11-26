@@ -184,6 +184,7 @@ struct TranscriptView: View {
                     playback = PlaybackSession(itemId: route.itemId, title: model.info.map(Self.title) ?? route.title)
                 }
                 .buttonStyle(.borderedProminent)
+                .filledButtonTint()
                 .buttonBorderShape(.circle)
                 .accessibilityIdentifier("transcript.play")
             }

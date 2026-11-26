@@ -102,6 +102,7 @@ public struct AboutView: View {
             }
         }
         .formStyle(.grouped)
+        .textButtonTint()
         .navigationTitle("About")
         .task { dictionaries = (try? environment.dictionaries.dictionaries()) ?? [] }
     }

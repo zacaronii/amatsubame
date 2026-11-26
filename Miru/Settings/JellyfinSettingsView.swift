@@ -42,6 +42,7 @@ struct JellyfinSettingsView: View {
                 } else {
                     Button("Sign In") { Task { await model.signIn() } }
                         .disabled(!model.canSignIn)
+                        .textButtonTint()
                     ConnectionTestRow(status: model.status, disabled: model.urlText.isEmpty || model.status == .working) {
                         Task { await model.testConnection() }
                     }
