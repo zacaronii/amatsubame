@@ -22,6 +22,8 @@ public struct TappableLine: View {
     public var alignment = Alignment.center
     public let onTap: (Int) -> Void
     @Environment(\.closeLookup) private var closeLookup
+    /// Transcripts and lists follow the system text size; subtitles over video keep their own.
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     #if os(macOS)
     /// Nil in previews and tests: then there's no hover lookup.
     @Environment(CommonEnvironment.self) private var common: CommonEnvironment?
@@ -69,7 +71,32 @@ public struct TappableLine: View {
         return result
     }
 
+    /// `fontSize` at the default text size, scaled like the system's body text for the others
+    /// (17 pt at Large, 53 pt at the largest accessibility size). Over video it stays as set.
+    static func scaledFontSize(_ fontSize: CGFloat, for dynamicTypeSize: DynamicTypeSize, style: Style) -> CGFloat {
+        guard style != .overlay else { return fontSize }
+        let body: CGFloat = switch dynamicTypeSize {
+        case .xSmall: 14
+        case .small: 15
+        case .medium: 16
+        case .large: 17
+        case .xLarge: 19
+        case .xxLarge: 21
+        case .xxxLarge: 23
+        case .accessibility1: 28
+        case .accessibility2: 33
+        case .accessibility3: 40
+        case .accessibility4: 47
+        case .accessibility5: 53
+        @unknown default: 17
+        }
+        return (fontSize * body / 17).rounded()
+    }
+
+    private var size: CGFloat { Self.scaledFontSize(fontSize, for: dynamicTypeSize, style: style) }
+
     public var body: some View {
+        let fontSize = size
         let line = SubtitleFlow(spacing: 0, lineSpacing: fontSize * 0.25, centered: alignment == .center) {
             ForEach(Array(glyphs.enumerated()), id: \.offset) { _, glyph in
                 if let glyph {
@@ -147,8 +174,8 @@ extension TappableLine {
         hoverTask = Task {
             try? await Task.sleep(for: .milliseconds(setting == .always ? 180 : 60))
             guard !Task.isCancelled, self.hovered?.index == hovered.index else { return }
-            Self.lastTap = CGRect(x: hovered.location.x - fontSize / 2, y: hovered.location.y - fontSize * 0.75,
-                                  width: fontSize, height: fontSize * 1.5)
+            Self.lastTap = CGRect(x: hovered.location.x - size / 2, y: hovered.location.y - size * 0.75,
+                                  width: size, height: size * 1.5)
             onTap(hovered.index)
         }
     }
