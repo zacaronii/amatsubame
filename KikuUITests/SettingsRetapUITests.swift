@@ -24,7 +24,7 @@ final class SettingsRetapUITests: XCTestCase {
         app.launch()
         let tab = app.tabBars.buttons["Settings"]
         tab.tap()
-        let row = app.descendants(matching: .any)["settings.kaku"].firstMatch
+        let row = app.revealSettingsRow("settings.kaku")
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         row.tap()
         let field = app.textFields["kaku.url"].firstMatch

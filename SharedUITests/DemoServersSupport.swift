@@ -107,7 +107,7 @@ extension XCTestCase {
         app.buttons["setup.start"].tap()
         sleep(2)
         app.tabBars.buttons["Settings"].tap()
-        let serverRow = app.descendants(matching: .any)[row].firstMatch
+        let serverRow = app.revealSettingsRow(row)
         XCTAssertTrue(serverRow.waitForExistence(timeout: 10))
         XCTAssertTrue(serverRow.label.contains("Demo server"), "the row says it's the demo: \(serverRow.label)")
         serverRow.tap()

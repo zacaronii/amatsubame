@@ -21,7 +21,7 @@ final class KakuServerUITests: XCTestCase {
         app.launchEnvironment = ["UITEST_KIKU": "1"]
         app.launch()
         app.tabBars.buttons["Settings"].tap()
-        let row = app.descendants(matching: .any)["settings.kaku"].firstMatch
+        let row = app.revealSettingsRow("settings.kaku")
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         row.tap()
 
@@ -48,7 +48,7 @@ final class KakuServerUITests: XCTestCase {
         XCTAssertTrue(app.textFields["kaku.url"].waitForExistence(timeout: 5), "Connection has the address")
         shot(app, "kaku connection")
         // Back at the top of Settings, the row says what Kaku is doing.
-        let summary = app.descendants(matching: .any)["settings.kaku"].firstMatch
+        let summary = app.revealSettingsRow("settings.kaku")
         for _ in 0..<4 where !summary.exists {
             app.navigationBars.buttons["BackButton"].firstMatch.tap()
             _ = summary.waitForExistence(timeout: 2)
