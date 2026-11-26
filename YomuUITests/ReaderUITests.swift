@@ -382,25 +382,40 @@ final class ReaderUITests: XCTestCase {
         let close = app.buttons["reader.close"].firstMatch
         XCTAssertTrue(close.waitForExistence(timeout: 5), "reader controls")
         close.tap()
-        app.tabBars.buttons["Settings"].tap()
-        app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Queue'")).firstMatch.tap()
+        // Settings ▸ Advanced ▸ Waiting to Sync ▸ Cards for Anki (the queue since the Settings rework).
+        func openCardsWaiting() {
+            app.tabBars.buttons["Settings"].tap()
+            app.revealSettingsRow("settings.advanced").tap()
+            let cards = app.descendants(matching: .any)["advanced.waiting.ankiNote"].firstMatch
+            XCTAssertTrue(cards.waitForExistence(timeout: 10), "Advanced ▸ Cards for Anki")
+            cards.tap()
+        }
+        func backToSettings() {
+            for _ in 0..<3 where !app.navigationBars["Settings"].exists { app.buttons["BackButton"].firstMatch.tap(); sleep(1) }
+        }
+        openCardsWaiting()
         let card = app.descendants(matching: .any)["queue.card"].firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 10), "the card is queued")
         XCTAssertTrue(card.label.contains("Waiting to retry"), "offline send failed and will retry: \(card.label)")
         snapshot("queued-offline")
 
-        // Reconnect: enter the real address in Settings.
-        app.navigationBars.buttons.firstMatch.tap()
-        app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'AnkiConnect'")).firstMatch.tap()
-        let url = app.textFields.firstMatch
+        // Reconnect: the real address on Settings ▸ Anki.
+        backToSettings()
+        app.revealSettingsRow("settings.anki").tap()
+        let url = app.textFields["anki.url"].firstMatch
         XCTAssertTrue(url.waitForExistence(timeout: 5))
         url.tap()
         url.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 40) + anki)
-        app.buttons["Test Connection"].tap()
+        app.buttons["anki.test"].firstMatch.tap()
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'AnkiConnect v'")).firstMatch.waitForExistence(timeout: 20))
-        app.navigationBars.buttons.firstMatch.tap()
-        app.buttons["Sync Now"].firstMatch.tap()
-        app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Queue'")).firstMatch.tap()
+        backToSettings()
+        // The status card's Sync Now, at the top of Settings.
+        app.tabBars.buttons["Settings"].tap()
+        let syncNow = app.buttons["Sync Now"].firstMatch
+        for _ in 0..<4 where !(syncNow.exists && syncNow.isHittable) { app.swipeDown() }
+        syncNow.tap()
+        backToSettings()
+        openCardsWaiting()
         let sent = app.descendants(matching: .any).matching(NSPredicate(format: "identifier == 'queue.card' AND label CONTAINS 'Sent'")).firstMatch
         XCTAssertTrue(sent.waitForExistence(timeout: 60), "the card reached Anki")
         snapshot("sent-after-reconnect")
