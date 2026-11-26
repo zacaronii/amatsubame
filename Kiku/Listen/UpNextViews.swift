@@ -94,7 +94,7 @@ struct UpNextView: View {
                     .disabled(environment.upNext.isEmpty)
                     .accessibilityIdentifier("upNext.clear")
                 #if os(iOS)
-                EditButton()
+                EditButton().textButtonTint()
                 #endif
             }
         }

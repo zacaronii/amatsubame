@@ -61,6 +61,7 @@ public struct AudiobookshelfSettingsView: View {
                     ConfirmedRemoveButton.signOut("Audiobookshelf") { model.signOut() }
                 } else {
                     Button("Sign In") { Task { await model.signIn() } }
+                        .textButtonTint()
                         .disabled(!model.canSignIn)
                         .accessibilityIdentifier("audiobookshelf.signIn")
                     ConnectionTestRow(status: model.status, disabled: model.urlText.isEmpty || model.status == .working) {

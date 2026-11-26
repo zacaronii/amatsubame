@@ -41,10 +41,12 @@ public struct HachidoriSettingsPage: View {
                     .accessibilityIdentifier("hachidori.address")
                 if addressChanged {
                     Button("Link", action: save)
+                        .textButtonTint()
                         .disabled(HachidoriLink.linkURL(from: address) == nil)
                         .accessibilityIdentifier("hachidori.link")
                 }
                 Button("Test Connection", action: runTest)
+                    .textButtonTint()
                     .disabled(HachidoriLink.linkURL(from: address) == nil || isTesting)
                     .accessibilityIdentifier("hachidori.test")
                 if let test {

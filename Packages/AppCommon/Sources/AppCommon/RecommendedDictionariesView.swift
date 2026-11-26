@@ -178,6 +178,7 @@ struct DictionaryUpdatesSection: View {
                 }
             }
             .disabled(updater.isChecking || updater.isInstalling)
+            .textButtonTint()
             .accessibilityIdentifier("dictionaries.checkNow")
         } header: {
             Text("Updates")

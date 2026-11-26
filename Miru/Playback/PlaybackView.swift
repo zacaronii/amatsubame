@@ -339,6 +339,7 @@ struct PlaybackView: View {
                     Button("Play at \(offer.name)") { model.chooseQuality(offer.bitrate) }
                         .font(.caption.weight(.semibold))
                         .buttonStyle(.borderedProminent)
+                        .filledButtonTint()
                         .buttonBorderShape(.capsule)
                         .controlSize(.small)
                         .fixedSize()
@@ -392,6 +393,7 @@ struct PlaybackView: View {
                 Spacer()
                 Button("Done") { model.showsShortcuts = false }
                     .buttonStyle(.borderedProminent)
+                    .filledButtonTint()
                     .accessibilityIdentifier("shortcuts.done")
             }
             .padding(.horizontal, 16)
@@ -1228,7 +1230,7 @@ struct PlaybackView: View {
                     }
                 }
             }
-            Button("Close", action: close).buttonStyle(.borderedProminent)
+            Button("Close", action: close).buttonStyle(.borderedProminent).filledButtonTint()
         }
         .padding(20)
         .background(.ultraThinMaterial, in: .rect(cornerRadius: 16))
@@ -1270,7 +1272,7 @@ struct PlaybackView: View {
         VStack(spacing: 12) {
             Image(systemName: "exclamationmark.triangle").font(.largeTitle)
             Text(message).multilineTextAlignment(.center)
-            Button("Close", action: close).buttonStyle(.borderedProminent)
+            Button("Close", action: close).buttonStyle(.borderedProminent).filledButtonTint()
         }
         .padding()
         .background(.black.opacity(0.7), in: .rect(cornerRadius: 12))

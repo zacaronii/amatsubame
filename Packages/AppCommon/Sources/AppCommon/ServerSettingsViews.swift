@@ -61,7 +61,7 @@ public struct ConnectionTestRow: View {
     }
 
     @ViewBuilder private var button: some View {
-        let button = Button("Test Connection", action: action).disabled(disabled)
+        let button = Button("Test Connection", action: action).disabled(disabled).textButtonTint()
         if let identifier {
             button.accessibilityIdentifier(identifier)
         } else {

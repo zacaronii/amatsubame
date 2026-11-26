@@ -87,7 +87,9 @@ public struct DictionariesView: View {
                 }
                 .accessibilityIdentifier("dictionaries.addRecommended")
                 Button("Import from Files…", systemImage: "folder") { showsFileImporter = true }
+                    .textButtonTint()
                 Button("Import from URL…", systemImage: "link") { showsURLPrompt = true }
+                    .textButtonTint()
             } footer: {
                 Text("Yomitan dictionary zips: term dictionaries (Jitendex), frequency lists (Jiten) and pitch accent dictionaries.")
             }
@@ -96,7 +98,7 @@ public struct DictionariesView: View {
         .navigationTitle("Dictionaries")
         .toolbar {
             #if os(iOS)
-            EditButton()
+            EditButton().textButtonTint()
             #endif
         }
         .disabled(importing != nil)

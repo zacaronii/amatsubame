@@ -71,6 +71,7 @@ struct ListenView: View {
         } actions: {
             Button("Open Settings") { environment.selectedTab = .settings }
                 .buttonStyle(.borderedProminent)
+                .filledButtonTint()
                 .accessibilityIdentifier("listen.openSettings")
         }
     }
