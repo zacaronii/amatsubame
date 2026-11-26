@@ -77,8 +77,6 @@ public struct HachidoriSettingsPage: View {
                     }
                     LabeledContent("Waiting to Send", value: waitingText)
                         .accessibilityIdentifier("hachidori.waiting")
-                    Button("Sync Now") { environment.syncHachidori() }
-                        .accessibilityIdentifier("hachidori.syncNow")
                 } header: {
                     Text("Sync")
                 } footer: {

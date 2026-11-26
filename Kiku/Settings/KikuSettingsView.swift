@@ -175,16 +175,16 @@ struct KikuSettingsView: View {
     static func statusItems(_ environment: KikuEnvironment) -> [StatusItem] {
         let accounts = environment.common.serverAccounts
         return [
-            StatusItem("Audiobookshelf", isSetUp: accounts[.audiobookshelf] != nil) {
+            StatusItem("Audiobookshelf", isSetUp: accounts[.audiobookshelf] != nil, opens: { AnyView(serverPage(.audiobookshelf, environment: environment)) }) {
                 _ = try await environment.audiobookshelfClient()?.me()
             },
-            StatusItem("Kaku", isSetUp: accounts[.kaku] != nil) {
+            StatusItem("Kaku", isSetUp: accounts[.kaku] != nil, opens: { AnyView(serverPage(.kaku, environment: environment)) }) {
                 _ = try await environment.kakuClient()?.health()
             },
-            StatusItem("Anki", isSetUp: accounts[.anki] != nil) {
+            StatusItem("Anki", isSetUp: accounts[.anki] != nil, opens: { AnyView(serverPage(.anki, environment: environment)) }) {
                 _ = try await environment.common.ankiClient()?.version()
             },
-            StatusItem("kechimochi", isSetUp: ((try? environment.common.activity.kechimochiURL()) ?? nil) != nil) {
+            StatusItem("kechimochi", isSetUp: ((try? environment.common.activity.kechimochiURL()) ?? nil) != nil, opens: { AnyView(KechimochiPage()) }) {
                 try await environment.common.checkKechimochi()
             },
         ]

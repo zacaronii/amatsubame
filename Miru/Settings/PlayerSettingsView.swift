@@ -147,19 +147,19 @@ struct PlayerSettingsView: View {
     static func statusItems(_ environment: PlayerEnvironment) -> [StatusItem] {
         let accounts = environment.common.serverAccounts
         return [
-            StatusItem("Jellyfin", isSetUp: accounts[.jellyfin] != nil) {
+            StatusItem("Jellyfin", isSetUp: accounts[.jellyfin] != nil, opens: { AnyView(serverPage(.jellyfin, environment: environment)) }) {
                 _ = try await environment.jellyfinClient()?.currentUser()
             },
-            StatusItem("Anki", isSetUp: accounts[.anki] != nil) {
+            StatusItem("Anki", isSetUp: accounts[.anki] != nil, opens: { AnyView(serverPage(.anki, environment: environment)) }) {
                 _ = try await environment.common.ankiClient()?.version()
             },
-            StatusItem("Jimaku", isSetUp: ((try? environment.common.secrets.secret(for: .jimakuAPIKey)) ?? nil) != nil) {
+            StatusItem("Jimaku", isSetUp: ((try? environment.common.secrets.secret(for: .jimakuAPIKey)) ?? nil) != nil, opens: { AnyView(JimakuSettingsView()) }) {
                 _ = try await environment.jimakuClient()?.search(query: "テスト")
             },
-            StatusItem("Kaku", isSetUp: accounts[.kaku] != nil) {
+            StatusItem("Kaku", isSetUp: accounts[.kaku] != nil, opens: { AnyView(serverPage(.kaku, environment: environment)) }) {
                 _ = try await environment.kakuClient()?.health()
             },
-            StatusItem("kechimochi", isSetUp: ((try? environment.common.activity.kechimochiURL()) ?? nil) != nil) {
+            StatusItem("kechimochi", isSetUp: ((try? environment.common.activity.kechimochiURL()) ?? nil) != nil, opens: { AnyView(KechimochiPage()) }) {
                 try await environment.common.checkKechimochi()
             },
         ]

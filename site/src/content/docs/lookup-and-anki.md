@@ -207,7 +207,7 @@ On every device:
 - Lookup counts are Hachidori's, so a word you look up in the browser and in Yomu counts in the same
   place. Lookups made while Hachidori can't be reached are counted there once it's back (at that
   time: Hachidori keeps no other time for them). Settings ▸ Connections ▸ Hachidori shows how many words are
-  waiting, when the apps last heard from Hachidori, and **Sync Now**.
+  waiting and when the apps last heard from Hachidori; **Sync Now** at the top of Settings sends them.
 - The popup follows Hachidori's settings (brief definitions, lookup counts, background opacity), and
   keeps them while Hachidori can't be reached. The Popup page shows them; you change them in
   Hachidori.
@@ -344,7 +344,8 @@ Card**.
 
 When AnkiConnect can't be reached (you're away from home, or the computer is asleep) cards wait on the
 device and send themselves when it's back. The top of Settings shows what's waiting, with **Sync
-Now**; **Settings ▸ Advanced ▸ Waiting to Sync** lists them by kind.
+Now**; **Settings ▸ Advanced ▸ Waiting to Sync** lists them by kind. Tap a server's name there to
+open its settings.
 
 ### Syncing
 
