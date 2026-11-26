@@ -27,11 +27,4 @@ final class NewUserUITests: XCTestCase {
         app.swipeUp()
         keepScreenshot(app, "hiku-scrolled")
     }
-
-    private func keepScreenshot(_ app: XCUIApplication, _ name: String) {
-        let attachment = XCTAttachment(screenshot: app.screenshot())
-        attachment.name = name
-        attachment.lifetime = .keepAlways
-        add(attachment)
-    }
 }

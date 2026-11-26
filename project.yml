@@ -321,6 +321,7 @@ targets:
     platform: auto
     sources:
       - path: HikuUITests
+      - path: SharedUITests
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).hiku.uitests
