@@ -55,21 +55,20 @@ struct SetupView: View {
                     // No Stats in Hiku: only Hachidori.
                     ConnectionsSection(includesStats: false) {}
                     Section {
+                        // Sharing the setup, the extension's waiting cards and its logs, like the other apps.
                         NavigationLink {
-                            Form { SetupSharingSection() }
-                                .formStyle(.grouped)
-                                .navigationTitle("Setup")
+                            AdvancedSettingsView(kinds: [.ankiNote], offersSetupAgain: false)
                         } label: {
-                            SettingsRowLabel("Setup", subtitle: environment.setupMode != .shared ? "Hiku's own"
-                                                : environment.appsSharingSetup.isEmpty ? "Shared" : "Shared with \(environment.appsSharingSetup.formatted(.list(type: .and)))",
-                                             systemImage: "square.on.square", color: .gray)
+                            SettingsRowLabel("Advanced", systemImage: "wrench.and.screwdriver.fill", color: .gray)
                         }
+                        .accessibilityIdentifier("settings.advanced")
                         NavigationLink {
                             AboutView()
                         } label: {
                             SettingsRowLabel("About", value: "\(CommonEnvironment.appVersion) (\(CommonEnvironment.buildNumber))",
                                              systemImage: "info", color: .blue)
                         }
+                        .accessibilityIdentifier("settings.about")
                     }
                 } else {
                     Section {
