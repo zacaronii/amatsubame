@@ -417,7 +417,7 @@ struct StreamQualitySection: View {
             }
             .accessibilityIdentifier("settings.streamQuality")
         } footer: {
-            Text("Original plays the file as it is. A lower quality has Jellyfin make a smaller stream, for slow connections; the player's menu changes it while watching. Downloads and cards always use the original.")
+            Text("Original plays the file as it is. A lower quality has Jellyfin make a smaller stream of files above it, for slow connections; the player's menu changes it while watching. Downloads and cards always use the original.")
         }
         .onAppear { bitrate = PlayerSettings.load(environment.common.database).maxStreamBitrate }
         .onChange(of: bitrate) {
