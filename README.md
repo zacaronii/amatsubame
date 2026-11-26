@@ -25,11 +25,13 @@
 [`Server/kaku`](Server/kaku). No servers of your own? Setup offers demo servers to try the apps with.
 
 <p align="center">
-  <img src="docs/media/yomu.gif" width="260" alt="Yomu: tapping a speech bubble in Pepper&amp;Carrot opens the dictionary popup">
-  <img src="docs/media/miru.gif" width="260" alt="Miru: tapping a word in Sintel's Japanese subtitles opens the dictionary popup">
-  <img src="docs/media/hiku.gif" width="260" alt="Hiku: tapping 無鉄砲 on Aozora Bunko in Safari opens the dictionary popup">
+  <img src="docs/media/yomu.gif" width="300" alt="Yomu: tapping a speech bubble in Pepper&amp;Carrot opens the dictionary popup">
+  <img src="docs/media/miru.gif" width="300" alt="Miru: tapping a word in Sintel's Japanese subtitles opens the dictionary popup">
 </p>
-<!-- Kiku's GIF (the transcript following the audio) joins these once it's recorded. Credits: docs/media/CREDITS.md -->
+<p align="center">
+  <img src="docs/media/kiku.gif" width="300" alt="Kiku: the transcript of 坊っちゃん follows the audiobook, and tapping 小学校 opens the dictionary popup">
+  <img src="docs/media/hiku.gif" width="300" alt="Hiku: tapping 無鉄砲 on Aozora Bunko in Safari opens the dictionary popup">
+</p>
 
 ## Get started
 

@@ -60,6 +60,10 @@ public final class AudioPlayer {
 
     public init() {
         player.automaticallyWaitsToMinimizeStalling = true
+        #if DEBUG
+        // UI tests and recordings (`UITEST_MUTE=1`): silent from the start.
+        if ProcessInfo.processInfo.environment["UITEST_MUTE"] != nil { player.isMuted = true }
+        #endif
         timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 4), queue: .main) { [weak self] time in
             MainActor.assumeIsolated { self?.tick(time.seconds) }
         }
