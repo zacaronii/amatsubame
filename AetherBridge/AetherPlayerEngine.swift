@@ -56,7 +56,15 @@ public final class AetherPlayerEngine: PlayerEngine {
         options.prepareNativeSubtitles = ProcessInfo.processInfo.environment["AETHER_NATIVE_SUBS"] != "0"
         // AETHER_SKIP_ATTACHMENTS=1: open without reading Matroska attachments (fonts), AE#956.
         options.skipsContainerAttachments = ProcessInfo.processInfo.environment["AETHER_SKIP_ATTACHMENTS"] == "1"
+        // AETHER_READ_ATTACHMENTS_AT_OPEN=1: the old timing (fonts read during the open).
+        options.readsContainerAttachmentsAtOpen = ProcessInfo.processInfo.environment["AETHER_READ_ATTACHMENTS_AT_OPEN"] == "1"
+        // Lab and test runs are silent from the first frame (no sound on the owner's outputs):
+        // set before the load, so the session starts at volume 0.
+        let env = ProcessInfo.processInfo.environment
+        if env["UITEST_ENGINE_LAB"] != nil || env["UITEST_MUTE"] != nil { engine.volume = 0 }
         _ = try await engine.load(url: url, startPosition: start > 0 ? start : nil, options: options)
+        if env["UITEST_ENGINE_LAB"] != nil || env["UITEST_MUTE"] != nil { engine.volume = 0 }
+        print("[lab] AetherEngine volume after load: \(engine.volume)")
     }
 
     public func setPaused(_ paused: Bool) {

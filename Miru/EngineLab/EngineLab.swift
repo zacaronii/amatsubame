@@ -265,6 +265,16 @@ final class EngineLab {
             try? FileManager.default.removeItem(at: clip)
         }
 
+        // Soak (only when asked for): a minute of plain playback from 2:00, for CPU/GPU sampling
+        // from outside (the run log marks its start and end).
+        if config.tests?.contains("soak") == true {
+            _ = await engine.seekAndWait(to: 120, exact: true, timeout: 10)
+            engine.setPaused(false)
+            note("\(engine.engineName) · \(file.name): soak start")
+            try? await Task.sleep(for: .seconds(60))
+            note("\(engine.engineName) · \(file.name): soak end")
+        }
+
         // 7. PiP possible, Now Playing.
         if runs("system") {
             #if os(iOS)

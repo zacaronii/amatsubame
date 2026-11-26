@@ -1,11 +1,30 @@
 # Spike: AetherEngine as Miru's video engine
 
-Branch `spike/aetherengine`, not for merging. AetherEngine 7.73.0 (pinned in project.yml) sits behind a
+Branch `spike/aetherengine`, not for merging. AetherEngine (pinned in project.yml: 7.76.0 since the retest; the results below are 7.73.0) sits behind a
 small `PlayerEngine` protocol (`Packages/PlayerEngine`) next to mpv (`MPVPlayerEngine`), and an engine
 lab (`Miru/EngineLab`, Debug only, `UITEST_ENGINE_LAB=<config.json>`) runs the same steps on both.
 mpv stays the default; nothing in the shipping player changed.
 
-## Verdict: no-go for now
+## Verdict after the 7.76.0 retest (2026-11-26): the lab blockers are fixed; a device run decides
+
+AetherEngine 7.76.0 fixes all three issues reported against 7.73.0 (Mac lab, muted, same test-account
+files, AetherEngine only):
+
+- **Embedded ASS (#1127):** all eight tracks of the 8-track file give cues after a seek to 300 s (2–3
+  each, plain text). The single-track file: 24 cues by 300 s, back over the playhead 0.47 s after a
+  seek away and back.
+- **Remote DTS (#1128):** 50 rapid seeks on the remaining DTS file: none missed, no backward jumps,
+  median 1.59 s, worst 2.86 s (DTS is still decoded through the bridge, so each seek shows movement
+  only after a second or more). A seek to 30 s right after the start: 1.5 s (was 14.5 s). Snapshot
+  and MediaClipper audio both worked. The first DTS file is no longer on the test account.
+- **First frame on remote HEVC 10-bit + FLAC (#1129):** 1.04 / 1.09 / 0.94 s over three runs (14.7 s
+  on 7.73.0, 5.6 s on 7.75.0; mpv 2.8 s), open in under 200 ms. Exact seeks on that file land within
+  1.3 ms; 0.06–3.6 s each, the slowest being the first seek after opening.
+
+What's left before a go: the draw (AVPlayer: PiP, AirPlay, Now Playing, external display), which only
+an aether-only run on a device can measure, and the owner's call. mpv stays the default until then.
+
+## Verdict for 7.73.0: no-go for now
 
 AetherEngine matches or beats mpv on the measurements that matter for Pause After Each Line and
 exact seeks, and links cleanly next to MPVKit. It isn't ready to replace mpv for Miru:

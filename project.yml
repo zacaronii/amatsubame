@@ -69,7 +69,7 @@ packages:
   # Spike only (never merged): AetherEngine, pinned.
   AetherEngine:
     url: https://github.com/superuser404notfound/AetherEngine
-    exactVersion: 7.74.0
+    exactVersion: 7.76.0
 
 targets:
   # Spike: AetherEngine in a dynamic framework of its own, so it binds to its own FFmpeg
