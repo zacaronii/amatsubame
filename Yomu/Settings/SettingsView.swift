@@ -184,9 +184,12 @@ struct MacSettingsView: View {
             MacSettingsGroup(pages: [.overview(SettingsView.statusItems(environment))]),
             MacSettingsGroup("Reading", pages: [
                 MacSettingsPage("libraries", title: "Libraries", systemImage: "books.vertical") { LibrariesSettingsView() },
-                MacSettingsPage("downloads", title: "Download Rules", systemImage: "arrow.down.circle") { ReadingDownloadsView() },
-                MacSettingsPage("ocr", title: "Manga Text Recognition", systemImage: "text.viewfinder") { OCRSettingsView() },
-                MacSettingsPage("readAlong", title: "Read-Along", systemImage: "headphones") { ReadAlongSettingsView() },
+                MacSettingsPage("downloads", title: "Download Rules", systemImage: "arrow.down.circle",
+                                keywords: ["Automatic Downloads", "Read Text on Downloaded Pages"]) { ReadingDownloadsView() },
+                MacSettingsPage("ocr", title: "Manga Text Recognition", systemImage: "text.viewfinder",
+                                keywords: ["OCR", "Models"]) { OCRSettingsView() },
+                MacSettingsPage("readAlong", title: "Read-Along", systemImage: "headphones",
+                                keywords: ["Audiobook"]) { ReadAlongSettingsView() },
             ]),
         ] + MacSettingsGroup.shared(wordMarksNote: SettingsView.wordMarksNote, popupExtras: AnyView(LookupTimingsToggle()), servers: [
             MacSettingsPage("kavita", title: "Kavita", systemImage: "server.rack") { KavitaSettingsView(environment: environment.common) },
@@ -197,7 +200,8 @@ struct MacSettingsView: View {
         ]) {
             SettingsView.anki(environment)
         } + [
-            .footer {
+            .footer(storageKeywords: ["Read-Along Audio", "Text Recognition Models", "Cache"],
+                    advancedKeywords: ["Character Counts"]) {
                 StorageView()
             } advanced: {
                 SettingsView.advanced

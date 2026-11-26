@@ -2,18 +2,26 @@
 import Core
 import SwiftUI
 
-/// A page of the Mac's Settings window: a row in its sidebar and what it shows.
+/// A page of the Mac's Settings window: a row in its sidebar and what it shows. `keywords`:
+/// the page's row titles, so the sidebar's search finds the page by them too.
 public struct MacSettingsPage: Identifiable {
     public let id: String
     let title: String
     let systemImage: String
+    let keywords: [String]
     let content: () -> AnyView
 
-    public init<Content: View>(_ id: String, title: String, systemImage: String, @ViewBuilder content: @escaping () -> Content) {
+    public init<Content: View>(_ id: String, title: String, systemImage: String, keywords: [String] = [],
+                               @ViewBuilder content: @escaping () -> Content) {
         self.id = id
         self.title = title
         self.systemImage = systemImage
+        self.keywords = keywords
         self.content = { AnyView(content()) }
+    }
+
+    func matches(_ query: String) -> Bool {
+        ([title] + keywords).contains { $0.localizedCaseInsensitiveContains(query) }
     }
 }
 
@@ -92,12 +100,14 @@ public struct MacSettingsWindow: View {
         return pages.first { $0.id == selection } ?? pages.first
     }
 
-    /// The groups with only the pages whose titles match the search.
-    private var shownGroups: [MacSettingsGroup] {
+    private var shownGroups: [MacSettingsGroup] { Self.filter(groups, search: search) }
+
+    /// The groups with only the pages whose title or row titles match the search.
+    static func filter(_ groups: [MacSettingsGroup], search: String) -> [MacSettingsGroup] {
         let query = search.trimmingCharacters(in: .whitespaces)
         guard !query.isEmpty else { return groups }
         return groups.compactMap { group in
-            let pages = group.pages.filter { $0.title.localizedCaseInsensitiveContains(query) }
+            let pages = group.pages.filter { $0.matches(query) }
             return pages.isEmpty ? nil : MacSettingsGroup(group.title, pages: pages)
         }
     }
@@ -123,16 +133,22 @@ public extension MacSettingsPage {
     /// Lookup's pages, the same in every app.
     static func lookup(wordMarksNote: String?, popupExtras: AnyView?) -> [MacSettingsPage] {
         [
-            MacSettingsPage("dictionaries", title: "Dictionaries", systemImage: "character.book.closed.ja") { DictionariesView() },
-            MacSettingsPage("popup", title: "Popup", systemImage: "text.bubble") { PopupSettingsPage(extras: popupExtras) },
-            MacSettingsPage("audioSources", title: "Audio Sources", systemImage: "speaker.wave.2") { AudioSourcesView() },
-            MacSettingsPage("wordMarks", title: "Word Marks", systemImage: "underline") { WordMarksPage(note: wordMarksNote) },
+            MacSettingsPage("dictionaries", title: "Dictionaries", systemImage: "character.book.closed.ja",
+                            keywords: ["Sort Results By", "Frequency", "Add Recommended", "Import from Files", "Import from URL",
+                                       "Copy from Hachidori"]) { DictionariesView() },
+            MacSettingsPage("popup", title: "Popup", systemImage: "text.bubble",
+                            keywords: ["Snippets", "Summary Dictionary", "Background Opacity", "Look Up on Hover",
+                                       "Close When the Pointer Leaves", "Lookup Counts"]) { PopupSettingsPage(extras: popupExtras) },
+            MacSettingsPage("audioSources", title: "Audio Sources", systemImage: "speaker.wave.2",
+                            keywords: ["Word Audio", "Add Source"]) { AudioSourcesView() },
+            MacSettingsPage("wordMarks", title: "Word Marks", systemImage: "underline",
+                            keywords: ["Known and Ignored Words", "Also Mark Words From"]) { WordMarksPage(note: wordMarksNote) },
         ]
     }
 
     /// Stats: the same on every device, through iCloud.
     static var statsCloud: MacSettingsPage {
-        MacSettingsPage("statsCloud", title: "Sync with iCloud", systemImage: "icloud") {
+        MacSettingsPage("statsCloud", title: "Sync with iCloud", systemImage: "icloud", keywords: ["Stats"]) {
             Form {
                 Section {
                     StatsCloudRow()
@@ -146,10 +162,7 @@ public extension MacSettingsPage {
 
     /// Stats: kechimochi.
     static var kechimochi: MacSettingsPage {
-        MacSettingsPage("kechimochi", title: "kechimochi", systemImage: "chart.bar") {
-            Form { StatsSettingsSection() }
-                .navigationTitle("kechimochi")
-        }
+        MacSettingsPage("kechimochi", title: "kechimochi", systemImage: "chart.bar", keywords: ["Stats"]) { KechimochiPage() }
     }
 }
 
@@ -160,23 +173,33 @@ public extension MacSettingsGroup {
                                    @ViewBuilder anki: @escaping () -> Anki) -> [MacSettingsGroup] {
         [
             MacSettingsGroup("Lookup", pages: MacSettingsPage.lookup(wordMarksNote: wordMarksNote, popupExtras: popupExtras)),
-            MacSettingsGroup("Anki", pages: [MacSettingsPage("anki", title: "Anki", systemImage: "rectangle.stack") { anki() }]),
+            MacSettingsGroup("Anki", pages: [
+                MacSettingsPage("anki", title: "Anki", systemImage: "rectangle.stack",
+                                keywords: ["AnkiConnect", "Deck", "Note Type", "Fields", "Sync After Adding", "Sync Anki Collection"]) { anki() },
+            ]),
             MacSettingsGroup("Connections", pages: servers + [
-                MacSettingsPage("hachidori", title: "Hachidori", systemImage: "bird") { HachidoriSettingsPage() },
+                MacSettingsPage("hachidori", title: "Hachidori", systemImage: "bird",
+                                keywords: ["Use Hachidori", "Link", "Test Connection", "Last Synced", "Waiting to Send"]) { HachidoriSettingsPage() },
                 .kechimochi, .statsCloud,
             ]),
         ]
     }
 
-    /// The last group: Storage, Advanced and About.
+    /// The last group: Storage, Advanced and About. `storageKeywords`, `advancedKeywords`: the
+    /// app's own rows on those pages, for the search.
     static func footer<Storage: View, Advanced: View, About: View>(
+        storageKeywords: [String] = [], advancedKeywords: [String] = [],
         @ViewBuilder storage: @escaping () -> Storage, @ViewBuilder advanced: @escaping () -> Advanced,
         @ViewBuilder about: @escaping () -> About
     ) -> MacSettingsGroup {
         MacSettingsGroup(pages: [
-            MacSettingsPage("storage", title: "Storage", systemImage: "internaldrive", content: storage),
-            MacSettingsPage("advanced", title: "Advanced", systemImage: "wrench.and.screwdriver", content: advanced),
-            MacSettingsPage("about", title: "About", systemImage: "info.circle", content: about),
+            MacSettingsPage("storage", title: "Storage", systemImage: "internaldrive",
+                            keywords: ["Downloaded", "Dictionaries"] + storageKeywords, content: storage),
+            MacSettingsPage("advanced", title: "Advanced", systemImage: "wrench.and.screwdriver",
+                            keywords: ["Share Setup", "Waiting to Sync", "Run Setup Again", "Export Logs"] + advancedKeywords,
+                            content: advanced),
+            MacSettingsPage("about", title: "About", systemImage: "info.circle",
+                            keywords: ["Version", "Open Source", "Recommended Dictionaries"], content: about),
         ])
     }
 }

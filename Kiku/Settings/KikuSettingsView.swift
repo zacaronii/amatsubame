@@ -201,8 +201,11 @@ struct MacSettingsView: View {
             MacSettingsGroup(pages: [.overview(KikuSettingsView.statusItems(environment))]),
             MacSettingsGroup("Listening", pages: [
                 MacSettingsPage("libraries", title: "Libraries", systemImage: "books.vertical") { KikuLibrariesSettingsView() },
-                MacSettingsPage("playback", title: "Playback", systemImage: "play.circle") { KikuSettingsView.playback },
-                MacSettingsPage("downloads", title: "Download Rules", systemImage: "arrow.down.circle") { KikuDownloadSettingsView() },
+                MacSettingsPage("playback", title: "Playback", systemImage: "play.circle",
+                                keywords: ["Skip Back", "Skip Forward", "Play the Next Episode"]) { KikuSettingsView.playback },
+                MacSettingsPage("downloads", title: "Download Rules", systemImage: "arrow.down.circle",
+                                keywords: ["Automatic Downloads", "Download Ahead", "Download Once Started", "Remove Played Downloads",
+                                           "Keep Downloads You Made by Hand"]) { KikuDownloadSettingsView() },
             ]),
         ] + MacSettingsGroup.shared(servers: [
             MacSettingsPage("audiobookshelf", title: "Audiobookshelf", systemImage: "server.rack") {
@@ -212,7 +215,7 @@ struct MacSettingsView: View {
         ]) {
             AnkiSettingsPage(environment: environment.common)
         } + [
-            .footer {
+            .footer(storageKeywords: ["Saved Transcripts"]) {
                 StorageView()
             } advanced: {
                 KikuSettingsView.advanced

@@ -154,7 +154,7 @@ final class ServerStatusModel {
     }
 }
 
-/// The top of Settings: one chip per server with a dot (a tap opens its connection), what's
+/// The top of Settings (the Mac's Overview): one chip per server with a dot (a tap opens its connection), what's
 /// waiting to sync with Sync Now (the only general one), and any startup error. Servers that
 /// aren't set up are greyed, never red.
 public struct SettingsStatusCard: View {
@@ -229,7 +229,6 @@ public struct SettingsStatusCard: View {
     }
 
     @ViewBuilder private func chip(_ item: StatusItem) -> some View {
-        #if os(iOS)
         if item.opens != nil {
             // Buttons, not links: links in one row all open the row's last one.
             Button { opened = item.name } label: { chipLabel(item) }
@@ -238,9 +237,6 @@ public struct SettingsStatusCard: View {
         } else {
             chipLabel(item)
         }
-        #else
-        chipLabel(item)
-        #endif
     }
 
     private func chipLabel(_ item: StatusItem) -> some View {
