@@ -69,7 +69,4 @@ dictionary engine [hoshidicts](https://github.com/Manhhao/hoshidicts). Kaku is a
 the [MIT License](Server/kaku/LICENSE). Third-party components and their licenses are listed in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-The apps aren't distributed through the App Store: Apple's terms add restrictions the GPL doesn't
-allow. Build them from source.
-
 Amatsubame stands on the work of many people: see [docs/ACKNOWLEDGEMENTS.md](docs/ACKNOWLEDGEMENTS.md).
