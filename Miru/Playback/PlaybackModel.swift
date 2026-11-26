@@ -812,8 +812,12 @@ final class PlaybackModel {
         choseAudio = false
         let local = try? environment.watchProgress.progress(itemId: item.id)
         // "Play from here" (Lines) wins over the resume point; the start report says where it is.
-        let start = session.startAt ?? LocalWatchProgress.resumePosition(
+        var start = session.startAt ?? LocalWatchProgress.resumePosition(
             local: local, server: item.resumePosition, serverDate: item.userData?.lastPlayedDate)
+        #if DEBUG
+        // UITEST_PLAYER_START=<seconds> on a server's video too (the README's capture).
+        if let testStart = ProcessInfo.processInfo.environment["UITEST_PLAYER_START"].flatMap(Double.init) { start = testStart }
+        #endif
         NowPlaying.prepareAudioSession()
         if let downloaded {
             mpv.load(downloaded.path(percentEncoded: false), start: start)

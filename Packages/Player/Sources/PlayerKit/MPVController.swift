@@ -100,7 +100,7 @@ public final class MPVController {
             ("sid", "no"),
             // …at the top, clear of the app's Japanese line at the bottom.
             ("sub-align-y", "top"), ("sub-margin-y", String(Self.subtitleMargin)),
-        ] + MPVOptions.noScripts + MPVOptions.audioSession + MPVOptions.audioFormat {
+        ] + MPVOptions.noScripts + MPVOptions.audioSession + MPVOptions.audioFormat + Self.testOptions {
             mpv_set_option_string(mpv, name, value)
         }
         mpv_initialize(mpv)
@@ -209,6 +209,15 @@ public final class MPVController {
         mpv_set_property(mpv, "speed", MPV_FORMAT_DOUBLE, &level)
         speed = level
         standIn?.setSpeed(level)
+    }
+
+    /// UI tests and recordings (`UITEST_MUTE=1`, Debug builds only): silent from the first frame.
+    private static var testOptions: [(String, String)] {
+        #if DEBUG
+        ProcessInfo.processInfo.environment["UITEST_MUTE"] != nil ? [("mute", "yes"), ("volume", "0")] : []
+        #else
+        []
+        #endif
     }
 
     public func setMuted(_ muted: Bool) {

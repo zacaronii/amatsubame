@@ -152,11 +152,46 @@ final class KikuEnvironment {
         }
         if env["UITEST_KIKU_PLAYER"] != nil { environment.openUITestEpisode() }
         if env["UITEST_KIKU_BOOK"] != nil { environment.openUITestEpisode(book: true) }
+        if let folder = env["UITEST_KIKU_CAPTURE"] { environment.openCaptureEpisode(folder: URL(filePath: folder)) }
         environment.common.pendingDictionaryImports = (env["UITEST_DICTIONARY_ZIPS"] ?? "")
             .split(separator: "|").map { URL(filePath: String($0)) }
         // In-memory UI tests start set up.
         environment.common.setup.finish()
         return environment
+    }
+
+    /// The README's capture (`UITEST_KIKU_CAPTURE=<folder>`, docs/media/capture/kiku): a public-domain
+    /// clip (`clip.m4a`) with Kaku's own transcript of it (`transcript.json`), playing from 0:25.
+    private func openCaptureEpisode(folder: URL) {
+        struct Capture: Decodable {
+            struct Sentence: Decodable {
+                struct Word: Decodable { var text: String; var start: Double; var end: Double }
+                var text: String; var start: Double; var end: Double; var words: [Word]?
+            }
+            var sentences: [Sentence]
+        }
+        guard let data = try? Data(contentsOf: folder.appending(path: "transcript.json")),
+              let capture = try? JSONDecoder().decode(Capture.self, from: data) else { return }
+        let duration = capture.sentences.last.map { ceil($0.end) } ?? 150
+        let json = #"{"id":"bocchan","libraryItemId":"librivox","title":"坊っちゃん（一）","duration":\#(duration),"publishedAt":1793800000000,"audioFile":{"ino":"1","duration":\#(duration)}}"#
+        guard let episode = try? JSONDecoder().decode(AudiobookshelfEpisode.self, from: Data(json.utf8)) else { return }
+        let entry = EpisodeEntry(episode: episode, showTitle: "夏目漱石", progress: nil)
+        let info = AudioTranscriptInfo(itemId: entry.itemId, episodeId: episode.id, showTitle: entry.showTitle, episodeTitle: episode.title,
+                                       fingerprint: nil, duration: duration, savedAt: .now, lastPlayedAt: .now)
+        try? transcripts.save(info, sentences: capture.sentences.enumerated().map { index, sentence in
+            AudioSentence(key: info.key, position: index, start: sentence.start, end: sentence.end, text: sentence.text,
+                          words: (sentence.words ?? []).map { .init(text: $0.text, start: $0.start, end: $0.end) })
+        })
+        let clip = folder.appending(path: "clip.m4a")
+        localAudioFile = { $0 == entry.id ? clip : nil }
+        // Opened at once; it plays from just before "小学校にいる自分、学校の2階から飛び降りて…"
+        // (0:27) once the dictionaries handed in are imported, so the lookup has them.
+        play(entry, at: 23, autoplay: false)
+        Task { [weak self] in
+            for _ in 0..<240 where self?.common.lookup.lacksDictionaries ?? false { try? await Task.sleep(for: .milliseconds(250)) }
+            try? await Task.sleep(for: .seconds(1))
+            self?.play(entry, at: 23, autoplay: true)
+        }
     }
 
     /// UI tests: an episode (or a book with three chapters) with a saved transcript and a minute
