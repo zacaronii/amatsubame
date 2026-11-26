@@ -260,7 +260,8 @@ final class SetupUITests: XCTestCase {
         app.launch()
         app.tabBars.buttons["Settings"].tap()
         app.element("settings.dictionaries").tap()
-        let checkNow = app.buttons["dictionaries.checkNow"]
+        // Below the installed dictionaries and Character Names: the list makes it once scrolled to.
+        let checkNow = app.revealSettingsRow("dictionaries.checkNow")
         XCTAssertTrue(checkNow.waitForExistence(timeout: 10))
         checkNow.tap()
         let updated = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS 'Updated Jitendex'"), object: checkNow)
