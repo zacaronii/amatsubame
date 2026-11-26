@@ -8,7 +8,8 @@ guaranteed support or response time.
 
 ## Reporting a bug
 
-Open an issue at
+The quickest way is **Settings → About → Report a Bug** in the app: it opens the form with the app,
+its version and your device already filled in. Or open an issue at
 [github.com/zacaronii/amatsubame/issues](https://github.com/zacaronii/amatsubame/issues) and pick
 **Bug report**: its form asks for everything below. Search the open issues first, in case someone has
 already reported it.
@@ -49,7 +50,7 @@ people use the same samples at the same time.
 
 ## Questions and feature requests
 
-Questions and ideas are welcome as issues too. For a feature request, say what you'd like to do and
+Questions and ideas are welcome as issues too (**Settings → About → Suggest an Idea** starts one). For a feature request, say what you'd like to do and
 why, rather than only how; it helps to know what you're reading, watching or listening to when it
 would help (no titles needed).
 

@@ -200,7 +200,8 @@ public extension MacSettingsGroup {
                             keywords: ["Share Setup", "Waiting to Sync", "Run Setup Again", "Export Logs"] + advancedKeywords,
                             content: advanced),
             MacSettingsPage("about", title: "About", systemImage: "info.circle",
-                            keywords: ["Version", "Open Source", "Recommended Dictionaries"], content: about),
+                            keywords: ["Version", "Report a Bug", "Suggest an Idea", "Feedback", "Open Source", "Recommended Dictionaries"],
+                            content: about),
         ])
     }
 }
