@@ -368,9 +368,14 @@ final class KikuBookUITests: XCTestCase {
 
         // Hold a line: Copy Line and Play from Here (the clipboard itself isn't read here: the
         // test runner asking for it hangs on the simulator).
-        let line = app.descendants(matching: .any).matching(identifier: "player.line").firstMatch
-        XCTAssertTrue(line.waitForExistence(timeout: 5))
-        line.press(forDuration: 1.0)
+        let lines = app.descendants(matching: .any).matching(identifier: "player.line")
+        XCTAssertTrue(lines.firstMatch.waitForExistence(timeout: 5))
+        // A line on screen (the first may have scrolled up under the player's header).
+        let line = lines.allElementsBoundByIndex.lazy
+            .map { $0.descendants(matching: .any)["subtitle.line"].firstMatch }
+            .first { $0.isHittable }
+        XCTAssertNotNil(line, "a line on screen")
+        line?.press(forDuration: 1.0)
         let copy = app.buttons["Copy Line"].firstMatch
         XCTAssertTrue(copy.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Play from Here"].exists)

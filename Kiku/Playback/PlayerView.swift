@@ -714,11 +714,16 @@ private struct SentenceRow: View {
     let onTap: (Int) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 0) {
+            // 44 pt to tap, in its own space above the text (so holding the text still opens
+            // Copy Line); the time sits at its bottom, by its text, so the air it adds falls
+            // between lines.
             Button(action: onTime) {
                 Text(sentence.start.clockText)
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(isCurrent ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                    .frame(minWidth: 44, minHeight: 44, alignment: .bottomLeading)
+                    .contentShape(.rect)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Play from \(sentence.start.clockText)")
@@ -729,7 +734,7 @@ private struct SentenceRow: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.bottom, 10)
         .background(isCurrent ? AnyShapeStyle(.tint.opacity(0.18)) : AnyShapeStyle(.clear), in: .rect(cornerRadius: 18))
         .overlay { if isFound { RoundedRectangle(cornerRadius: 18).strokeBorder(.tint, lineWidth: 2) } }
         .animation(.easeInOut(duration: 0.2), value: isCurrent)
