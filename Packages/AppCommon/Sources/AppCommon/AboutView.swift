@@ -37,10 +37,29 @@ public struct AboutView: View {
         return RecommendedDictionaries.entry(for: record, source: sources[record.id])?.license ?? "No attribution in its index."
     }
 
+    private func feedback(_ kind: Feedback.Kind) -> URL {
+        Feedback.url(kind, app: CommonEnvironment.appName, version: "\(CommonEnvironment.appVersion) (\(CommonEnvironment.buildNumber))",
+                     device: Feedback.device)
+    }
+
     public var body: some View {
         Form {
             Section {
                 LabeledContent("Version", value: "\(CommonEnvironment.appVersion) (\(CommonEnvironment.buildNumber))")
+            }
+            Section {
+                Link(destination: feedback(.bug)) {
+                    Label("Report a Bug", systemImage: "ladybug")
+                }
+                .accessibilityIdentifier("about.reportBug")
+                Link(destination: feedback(.idea)) {
+                    Label("Suggest an Idea", systemImage: "lightbulb")
+                }
+                .accessibilityIdentifier("about.suggestIdea")
+            } header: {
+                Text("Feedback")
+            } footer: {
+                Text("Opens a GitHub issue with this app, its version and your device filled in. In TestFlight you can also take a screenshot and tap Share Beta Feedback.")
             }
             Section("Open Source") {
                 ForEach(credits, id: \.0) { name, license, note in
