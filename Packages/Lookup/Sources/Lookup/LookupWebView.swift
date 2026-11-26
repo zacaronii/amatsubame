@@ -95,7 +95,9 @@ struct LookupWebView {
     func makeWebView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.setURLSchemeHandler(DictionaryMediaHandler(media: media), forURLScheme: StructuredContentRenderer.mediaScheme)
-        configuration.userContentController.add(context.coordinator, name: "lookup")
+        // Through a weak proxy: the content controller keeps its handlers, and a coordinator kept
+        // there kept every popup's results and page alive after the popup closed.
+        configuration.userContentController.add(WeakScriptMessageHandler(context.coordinator), name: "lookup")
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
         #if os(iOS)
@@ -186,14 +188,39 @@ struct LookupWebView {
     }
 }
 
+extension LookupWebView {
+    /// The popup closed: nothing of it stays reachable from WebKit.
+    static func dismantle(_ webView: WKWebView) {
+        webView.stopLoading()
+        webView.navigationDelegate = nil
+        webView.configuration.userContentController.removeAllScriptMessageHandlers()
+    }
+}
+
+/// Forwards script messages to a handler it doesn't keep alive (WKUserContentController holds its
+/// handlers strongly).
+final class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
+    weak var target: WKScriptMessageHandler?
+
+    init(_ target: WKScriptMessageHandler) {
+        self.target = target
+    }
+
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        target?.userContentController(controller, didReceive: message)
+    }
+}
+
 #if os(iOS)
 extension LookupWebView: UIViewRepresentable {
     func makeUIView(context: Context) -> WKWebView { makeWebView(context: context) }
     func updateUIView(_ webView: WKWebView, context: Context) { update(webView, context: context) }
+    static func dismantleUIView(_ webView: WKWebView, coordinator: Coordinator) { dismantle(webView) }
 }
 #else
 extension LookupWebView: NSViewRepresentable {
     func makeNSView(context: Context) -> WKWebView { makeWebView(context: context) }
     func updateNSView(_ webView: WKWebView, context: Context) { update(webView, context: context) }
+    static func dismantleNSView(_ webView: WKWebView, coordinator: Coordinator) { dismantle(webView) }
 }
 #endif
