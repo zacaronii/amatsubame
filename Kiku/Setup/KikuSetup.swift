@@ -13,7 +13,7 @@ enum KikuSetup {
         let shelf = common.serverAccounts[.audiobookshelf]
         let kechimochi = ((try? common.activity.kechimochiURL()) ?? nil) != nil
         return [
-            SetupChecklistItem.server("Audiobookshelf", account: shelf, settings: "Settings → Listening"),
+            SetupChecklistItem.server("Audiobookshelf", account: shelf, settings: "Settings → Connections"),
             SetupChecklistItem("Kaku transcripts", detail: common.serverAccounts[.kaku] != nil ? "Connected" : "In Settings → Connections → Kaku",
                                isDone: common.serverAccounts[.kaku] != nil),
             SetupChecklistItem("kechimochi", detail: kechimochi ? "Linked from Stats" : "Optional · In Settings → Connections", isDone: kechimochi),

@@ -13,6 +13,17 @@ import Testing
                                downloadsDirectory: temp.appending(path: "Downloads"), backgroundDownloads: false, sendsProgress: false, sendsCards: false)
     }
 
+    /// Setup's Done list sends what's still to do to where it is now: every server is under
+    /// Settings ▸ Connections (the Settings rework, #284).
+    @Test func setupsChecklistPointsAtConnections() {
+        let details = KikuSetup.checklist(environment()).map(\.detail)
+        #expect(details.count == 3)
+        for detail in details {
+            #expect(detail.contains("Settings → Connections"), "\(detail)")
+            #expect(!detail.contains("Listening"), "\(detail)")
+        }
+    }
+
     @Test func markNeedsSomethingPlaying() {
         #expect(environment().mark(.shortcut) == nil)
     }
