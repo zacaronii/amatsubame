@@ -323,7 +323,8 @@ final class ReaderUITests: XCTestCase {
         XCTAssertEqual(try pageCounter(), start, "the long press must not turn the page")
     }
 
-    /// Mines the tapped word. With `UITEST_ANKI_URL` and `UITEST_ANKI_DECK` (a scratch deck)
+    /// Mines the tapped word. With `UITEST_ANKI_URL` and `UITEST_ANKI_DECK` (a scratch deck; and
+    /// `UITEST_ANKI_KEY` for a keyed AnkiConnect)
     /// the card is also sent; otherwise it stays queued in the in-memory outbox.
     func testMiningAWordFromAPage() throws {
         try enableOCR()
@@ -331,6 +332,7 @@ final class ReaderUITests: XCTestCase {
         if let anki = env["UITEST_ANKI_URL"], let deck = env["UITEST_ANKI_DECK"] {
             app.launchEnvironment["UITEST_ANKI_URL"] = anki
             app.launchEnvironment["UITEST_ANKI_DECK"] = deck
+            if let key = env["UITEST_ANKI_KEY"] { app.launchEnvironment["UITEST_ANKI_KEY"] = key }
         }
         app.launch()
         openReader()
@@ -359,6 +361,8 @@ final class ReaderUITests: XCTestCase {
         }
         app.launchEnvironment["UITEST_ANKI_URL"] = "http://127.0.0.1:9"
         app.launchEnvironment["UITEST_ANKI_DECK"] = deck
+        // AnkiConnect's key (saved now, used once the real address is entered).
+        if let key = env["UITEST_ANKI_KEY"] { app.launchEnvironment["UITEST_ANKI_KEY"] = key }
         app.launch()
         openReader()
         let block = app.descendants(matching: .any).matching(identifier: "ocr.block").firstMatch
