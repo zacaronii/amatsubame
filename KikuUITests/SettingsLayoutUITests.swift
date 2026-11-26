@@ -24,6 +24,8 @@ final class SettingsLayoutUITests: XCTestCase {
         open(app, "settings.appleWatch")
         XCTAssertTrue(app.navigationBars["Apple Watch"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.switches["settings.watchLiveText"].exists, "Live Text on the Apple Watch page")
+        // The test simulator has no watch: the page says so first.
+        XCTAssertTrue(app.descendants(matching: .any)["appleWatch.notInstalled"].firstMatch.exists, "says Kiku isn't on the watch")
         app.navigationBars.buttons.firstMatch.tap()
 
         open(app, "settings.playback")
