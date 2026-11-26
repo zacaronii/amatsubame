@@ -246,9 +246,11 @@ struct PlayerView: View {
     private func topBar(showsEpisode: Bool) -> some View {
         HStack(spacing: 12) {
             Button { environment.showsPlayer = false } label: {
-                Image(systemName: "chevron.down").font(.title3.weight(.semibold)).frame(width: 36, height: 36)
+                // 44 pt to tap, laid out as 36.
+                Image(systemName: "chevron.down").font(.title3.weight(.semibold)).frame(width: 44, height: 44).contentShape(.rect)
             }
             .buttonStyle(.plain)
+            .padding(-4)
             .accessibilityLabel("Close player")
             .accessibilityIdentifier("player.close")
             .keyboardShortcut(.cancelAction)
@@ -263,9 +265,10 @@ struct PlayerView: View {
             }
             Spacer(minLength: 8)
             Button { environment.mark(.player) } label: {
-                Image(systemName: "bookmark").font(.title3).frame(width: 36, height: 36)
+                Image(systemName: "bookmark").font(.title3).frame(width: 44, height: 44).contentShape(.rect)
             }
             .buttonStyle(.plain)
+            .padding(-4)
             .keyboardShortcut("m", modifiers: [])
             .accessibilityLabel("Mark")
             .accessibilityIdentifier("player.mark")
@@ -391,7 +394,7 @@ struct PlayerView: View {
                             Label("Back to Now", systemImage: "arrow.down.to.line")
                                 .font(.subheadline.weight(.semibold))
                                 .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
+                                .padding(.vertical, 12)
                                 .glassEffect(.regular.interactive(), in: .capsule)
                         }
                         .buttonStyle(.plain)
