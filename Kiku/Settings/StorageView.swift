@@ -28,7 +28,7 @@ struct DownloadedEpisodesView: View {
                 Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
             }
             if all.isEmpty {
-                DownloadsEmptySection("Download episodes from a show's page to listen offline. Nothing downloads unless you ask or turn on automatic downloads (Settings ▸ Downloads).")
+                DownloadsEmptySection("Download episodes from a show's page to listen offline. Nothing downloads unless you ask or turn on automatic downloads (Settings ▸ Download Rules).")
             }
             if !active.isEmpty {
                 Section("Downloading") {
@@ -62,7 +62,11 @@ struct DownloadedEpisodesView: View {
                 }
             }
             #if os(iOS)
-            OnWatchSection()
+            // On Apple Watch moved to Settings ▸ Apple Watch: say where.
+            Section {} footer: {
+                Text("What's on your Apple Watch is under Settings ▸ Apple Watch.")
+                    .accessibilityIdentifier("storage.watchPointer")
+            }
             #endif
         }
         .navigationTitle("Downloads")
