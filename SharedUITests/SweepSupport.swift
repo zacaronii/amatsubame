@@ -49,8 +49,9 @@ extension XCTestCase {
         if !app.cells[name].exists, showSidebar.exists, showSidebar.label == "Show Sidebar" { showSidebar.tap(); sleep(1) }
         let cell = app.cells[name].firstMatch
         if cell.exists { return cell }
-        // A rail of tab buttons (the iPhone Duo's inner screen), named by their symbols.
-        let rail = app.buttons.matching(NSPredicate(format: "label == %@ AND identifier CONTAINS '.' AND NOT (identifier BEGINSWITH 'settings.')", name)).firstMatch
+        // Tab buttons outside a tab bar (the iPad's top bar, the iPhone Duo's rail), identified by
+        // their symbols ("gearshape", "books.vertical").
+        let rail = app.buttons.matching(NSPredicate(format: "label == %@ AND identifier != '' AND NOT (identifier BEGINSWITH 'settings.')", name)).firstMatch
         return rail.exists ? rail : cell
     }
 
@@ -78,11 +79,16 @@ extension XCTestCase {
             rows += Set(settingsRows.allElementsBoundByIndex.map { $0.identifier }.filter { !rows.contains($0) }).sorted()
             surface.swipeUp(velocity: .fast)
         }
+        // On screen by its frame: `isHittable` fails the test outright for a row in another column.
+        let window = app.windows.firstMatch.frame
+        func onScreen(_ element: XCUIElement) -> Bool {
+            element.exists && !element.frame.isEmpty && window.contains(CGPoint(x: element.frame.midX, y: element.frame.midY))
+        }
         for row in rows {
             let element = app.descendants(matching: .any)[row].firstMatch
-            for _ in 0..<10 where !(element.exists && element.isHittable) { surface.swipeDown(velocity: .fast) }
-            for _ in 0..<10 where !(element.exists && element.isHittable) { surface.swipeUp(velocity: .slow) }
-            guard element.exists, element.isHittable else { print("SWEEP: \(prefix) · unreachable row \(row)"); continue }
+            for _ in 0..<10 where !onScreen(element) { surface.swipeDown(velocity: .fast) }
+            for _ in 0..<10 where !onScreen(element) { surface.swipeUp(velocity: .slow) }
+            guard onScreen(element) else { print("SWEEP: \(prefix) · unreachable row \(row)"); continue }
             element.tap()
             sleep(2)
             issues += auditScreen(app, "\(prefix)-settings-\(row.dropFirst("settings.".count))")
