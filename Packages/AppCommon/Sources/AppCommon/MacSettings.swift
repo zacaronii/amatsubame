@@ -3,7 +3,8 @@ import Core
 import SwiftUI
 
 /// A page of the Mac's Settings window: a row in its sidebar and what it shows. `keywords`:
-/// the page's row titles, so the sidebar's search finds the page by them too.
+/// the page's row titles, so the sidebar's search finds the page by them too. They're kept by
+/// hand: renaming, adding or moving a row means updating them (docs/shared.md).
 public struct MacSettingsPage: Identifiable {
     public let id: String
     let title: String
