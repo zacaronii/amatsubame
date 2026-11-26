@@ -132,18 +132,18 @@ struct SettingsView: View {
     static func statusItems(_ environment: AppEnvironment) -> [StatusItem] {
         let accounts = environment.serverAccounts
         return [
-            StatusItem("Kavita", isSetUp: accounts[.kavita] != nil) {
+            StatusItem("Kavita", isSetUp: accounts[.kavita] != nil, opens: { AnyView(serverPage(.kavita, environment: environment)) }) {
                 // Any user may ask who they are (server info is for admins).
                 _ = try await environment.kavitaClient()?.currentUser()
             },
-            StatusItem("Anki", isSetUp: accounts[.anki] != nil) {
+            StatusItem("Anki", isSetUp: accounts[.anki] != nil, opens: { AnyView(serverPage(.anki, environment: environment)) }) {
                 _ = try await environment.common.ankiClient()?.version()
             },
-            StatusItem("Read-Along", isSetUp: accounts[.audiobookshelf] != nil) {
+            StatusItem("Read-Along", isSetUp: accounts[.audiobookshelf] != nil, opens: { AnyView(ReadAlongSettingsView()) }) {
                 _ = try await environment.audiobookshelfClient()?.me()
                 if accounts[.kaku] != nil { _ = try await environment.kakuClient()?.health() }
             },
-            StatusItem("kechimochi", isSetUp: (try? environment.common.activity.kechimochiURL()) ?? nil != nil) {
+            StatusItem("kechimochi", isSetUp: (try? environment.common.activity.kechimochiURL()) ?? nil != nil, opens: { AnyView(KechimochiPage()) }) {
                 try await environment.common.checkKechimochi()
             },
         ]

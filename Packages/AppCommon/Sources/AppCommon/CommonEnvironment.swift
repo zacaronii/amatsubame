@@ -333,6 +333,12 @@ public final class CommonEnvironment {
 
     /// Settings ▸ Hachidori ▸ Sync Now: links again at once if it isn't linked, and sends what's
     /// waiting (the host's records come in by themselves while linked).
+    /// The status card's Sync Now: everything waiting, and Hachidori reconnected with its
+    /// pending word statuses queued when it's linked.
+    public func syncEverything() {
+        if hachidoriSettings.enabled { syncHachidori() } else { syncNow(retryWaiting: true) }
+    }
+
     public func syncHachidori() {
         hachidori?.reconnectNow()
         sendWaitingToHachidori()

@@ -44,4 +44,26 @@ final class SettingsLayoutUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["storage.watchPointer"].firstMatch.waitForExistence(timeout: 10),
                       "Storage points to Apple Watch")
     }
+
+    /// The status card's chips open their connections, each its own; Hachidori has no Sync Now
+    /// of its own (the card's is the general one).
+    func testStatusChipsOpenTheirConnections() {
+        let app = XCUIApplication()
+        app.launchEnvironment["UITEST_KIKU"] = "1"
+        app.launch()
+        let settings = app.tabBars.buttons["Settings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 20))
+        settings.tap()
+        for (chip, title) in [("status.Anki", "Anki"), ("status.kechimochi", "kechimochi"), ("status.Kaku", "Kaku")] {
+            let element = app.descendants(matching: .any)[chip].firstMatch
+            XCTAssertTrue(element.waitForExistence(timeout: 10), chip)
+            element.tap()
+            XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 5), "\(chip) opens \(title)")
+            app.navigationBars.buttons.firstMatch.tap()
+            XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        }
+        open(app, "settings.hachidori")
+        XCTAssertTrue(app.navigationBars["Hachidori"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["hachidori.syncNow"].exists, "no Sync Now of its own")
+    }
 }

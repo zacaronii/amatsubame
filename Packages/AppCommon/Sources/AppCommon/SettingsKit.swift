@@ -94,16 +94,30 @@ public extension ServerAccount {
 
 // MARK: Status card
 
-/// One chip in the status card: a server (or feature) and how to check it, read-only.
+/// Settings ▸ kechimochi (from Connections or its status chip).
+public struct KechimochiPage: View {
+    public init() {}
+
+    public var body: some View {
+        Form { StatsSettingsSection() }
+            .formStyle(.grouped)
+            .navigationTitle("kechimochi")
+    }
+}
+
+/// One chip in the status card: a server (or feature), how to check it, and the page a tap
+/// opens (its connection in Settings).
 public struct StatusItem: Identifiable {
     public let name: String
     public let isSetUp: Bool
+    let opens: (() -> AnyView)?
     let check: () async throws -> Void
     public var id: String { name }
 
-    public init(_ name: String, isSetUp: Bool, check: @escaping () async throws -> Void) {
+    public init(_ name: String, isSetUp: Bool, opens: (() -> AnyView)? = nil, check: @escaping () async throws -> Void) {
         self.name = name
         self.isSetUp = isSetUp
+        self.opens = opens
         self.check = check
     }
 }
@@ -140,12 +154,15 @@ final class ServerStatusModel {
     }
 }
 
-/// The top of Settings: one chip per server with a dot, what's waiting to sync with Sync Now,
-/// and any startup error. Servers that aren't set up are greyed, never red.
+/// The top of Settings: one chip per server with a dot (a tap opens its connection), what's
+/// waiting to sync with Sync Now (the only general one), and any startup error. Servers that
+/// aren't set up are greyed, never red.
 public struct SettingsStatusCard: View {
     @Environment(CommonEnvironment.self) private var environment
     @State private var model = ServerStatusModel()
     @State private var waiting: [OutboxJobKind: Int] = [:]
+    /// The chip tapped: its page is shown.
+    @State private var opened: String?
     let items: [StatusItem]
 
     public init(items: [StatusItem]) {
@@ -171,11 +188,14 @@ public struct SettingsStatusCard: View {
                 HStack {
                     Text("Waiting to sync: \(waitingText)").font(.callout).foregroundStyle(.secondary)
                     Spacer()
-                    Button("Sync Now") { environment.syncNow(retryWaiting: true) }
+                    Button("Sync Now") { environment.syncEverything() }
                         .buttonStyle(.bordered)
                         .accessibilityIdentifier("status.syncNow")
                 }
             }
+        }
+        .navigationDestination(isPresented: Binding(get: { opened != nil }, set: { if !$0 { opened = nil } })) {
+            if let item = items.first(where: { $0.name == opened }), let opens = item.opens { opens() }
         }
         .task { await model.refresh(items) }
         .task {
@@ -208,7 +228,22 @@ public struct SettingsStatusCard: View {
         OutboxJobKind.allCases.compactMap { kind in waiting[kind].map { kind.waitingCount($0) } }.formatted(.list(type: .and))
     }
 
-    private func chip(_ item: StatusItem) -> some View {
+    @ViewBuilder private func chip(_ item: StatusItem) -> some View {
+        #if os(iOS)
+        if item.opens != nil {
+            // Buttons, not links: links in one row all open the row's last one.
+            Button { opened = item.name } label: { chipLabel(item) }
+                .buttonStyle(.borderless)
+                .tint(.primary)
+        } else {
+            chipLabel(item)
+        }
+        #else
+        chipLabel(item)
+        #endif
+    }
+
+    private func chipLabel(_ item: StatusItem) -> some View {
         let state = model.states[item.name]
         let color: Color = switch state {
         case _ where !item.isSetUp: .secondary.opacity(0.4)
@@ -431,9 +466,7 @@ public struct ConnectionsSection<Servers: View>: View {
             .accessibilityIdentifier("settings.hachidori")
             if includesStats {
                 NavigationLink {
-                    Form { StatsSettingsSection() }
-                        .formStyle(.grouped)
-                        .navigationTitle("kechimochi")
+                    KechimochiPage()
                 } label: {
                     SettingsRowLabel("kechimochi", subtitle: address == nil ? "Not set up" : "Connected",
                                      systemImage: "chart.bar.fill", color: .orange)
