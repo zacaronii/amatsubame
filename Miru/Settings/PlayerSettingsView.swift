@@ -48,15 +48,9 @@ struct PlayerSettingsView: View {
                     NavigationLink {
                         PlaybackSettingsView()
                     } label: {
-                        SettingsRowLabel("Playback", subtitle: "Skip intros, Japanese audio only", systemImage: "play.rectangle.fill", color: .red)
+                        SettingsRowLabel("Playback", subtitle: "Skip intros, quality, cellular", systemImage: "play.rectangle.fill", color: .red)
                     }
                     .accessibilityIdentifier("settings.playback")
-                    NavigationLink {
-                        Self.downloads
-                    } label: {
-                        SettingsRowLabel("Downloads", subtitle: "Wi-Fi or cellular", systemImage: "arrow.down.circle.fill", color: .blue)
-                    }
-                    .accessibilityIdentifier("settings.downloads")
                     if showsKeyboardShortcuts {
                         NavigationLink {
                             PlayerShortcutsView()
@@ -133,11 +127,6 @@ struct PlayerSettingsView: View {
                              extraLogs: ["dev-setup.log", "nowplaying.log"].map { URL.applicationSupportDirectory.appending(path: $0) })
     }
 
-    static var downloads: some View {
-        Form { DownloadSettingsSection { _ in } }
-            .formStyle(.grouped)
-            .navigationTitle("Downloads")
-    }
 
     static func anki(_ environment: PlayerEnvironment) -> some View {
         AnkiSettingsPage(environment: environment.common) { CardPicturePicker() }
@@ -195,7 +184,6 @@ struct MacSettingsView: View {
                 MacSettingsPage("libraries", title: "Libraries", systemImage: "books.vertical") { JellyfinLibrariesSettingsView() },
                 MacSettingsPage("subtitles", title: "Subtitles", systemImage: "captions.bubble") { SubtitlesSettingsView() },
                 MacSettingsPage("playback", title: "Playback", systemImage: "play.rectangle") { PlaybackSettingsView() },
-                MacSettingsPage("downloads", title: "Downloads", systemImage: "arrow.down.circle") { PlayerSettingsView.downloads },
                 MacSettingsPage("shortcuts", title: "Keyboard Shortcuts", systemImage: "keyboard") { PlayerShortcutsView() },
             ]),
         ] + MacSettingsGroup.shared(servers: [
@@ -298,7 +286,8 @@ struct PlaybackSettingsView: View {
                 Text("Skips intros and recaps without the button, where Jellyfin knows them.")
             }
             StreamQualitySection()
-            JapaneseAudioOnlySection()
+            // Was its own Downloads page; the same stored setting.
+            DownloadSettingsSection { _ in }
         }
         .formStyle(.grouped)
         .navigationTitle("Playback")
@@ -428,7 +417,7 @@ struct StreamQualitySection: View {
             }
             .accessibilityIdentifier("settings.streamQuality")
         } footer: {
-            Text("Original plays the file as it is. A lower quality has Jellyfin make a smaller stream when the file is larger than that, for slow connections; the player's menu changes it while watching. Downloads and cards always use the original.")
+            Text("Original plays the file as it is. A lower quality has Jellyfin make a smaller stream of files above it, for slow connections; the player's menu changes it while watching. Downloads and cards always use the original.")
         }
         .onAppear { bitrate = PlayerSettings.load(environment.common.database).maxStreamBitrate }
         .onChange(of: bitrate) {

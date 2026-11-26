@@ -11,7 +11,7 @@ final class PlayerUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["watch.placeholder"].waitForExistence(timeout: 10), "Watch tab")
         app.tabBars.buttons["Settings"].tap()
         // In order down the screen: Watching, Lookup, Anki, Connections, then Advanced.
-        for row in ["settings.libraries", "settings.subtitles", "settings.playback", "settings.downloads",
+        for row in ["settings.libraries", "settings.subtitles", "settings.playback",
                     "settings.dictionaries", "settings.popup", "settings.audioSources", "settings.wordMarks", "settings.anki",
                     "settings.jellyfin", "settings.jimaku", "settings.kaku", "settings.hachidori", "settings.kechimochi", "settings.advanced"] {
             // Lower rows only exist once scrolled to.
