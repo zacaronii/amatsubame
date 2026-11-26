@@ -52,7 +52,7 @@ final class PlayerUITests: XCTestCase {
         for _ in 0..<4 where !storage.waitForExistence(timeout: 2) { app.swipeUp() }
         storage.tap()
         XCTAssertTrue(app.descendants(matching: .any)["storage.summary"].waitForExistence(timeout: 5), "the storage summary")
-        XCTAssertTrue(app.staticTexts["Saved subtitles"].exists, "saved subtitles in Storage")
+        XCTAssertTrue(app.buttons["storage.clearSubtitles"].exists, "saved subtitles in Storage, with Clear")
         app.descendants(matching: .any)["storage.downloads"].firstMatch.tap()
         XCTAssertTrue(app.descendants(matching: .any)["downloads.empty"].waitForExistence(timeout: 5), "no downloads")
         XCTAssertTrue(app.descendants(matching: .any)["downloads.storage"].exists, "storage header")

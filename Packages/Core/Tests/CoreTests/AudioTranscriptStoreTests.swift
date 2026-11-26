@@ -37,6 +37,17 @@ import Testing
         #expect(try store.savedKeys() == ["show/1", "show/2", "show/3"])
     }
 
+    /// Clear forgets every transcript, its lines and its search entries.
+    @Test func clearAllForgetsEverything() throws {
+        let store = try store()
+        #expect(try store.approximateBytes() > 0)
+        try store.clearAll()
+        #expect(try store.savedKeys().isEmpty)
+        #expect(try store.sentences(key: "show/1").isEmpty)
+        #expect(try store.search("意思決定").isEmpty)
+        #expect(try store.approximateBytes() == 0)
+    }
+
     @Test func searchesPlayedEpisodesNewestFirst() throws {
         let store = try store()
         let groups = try store.search("意思決定")

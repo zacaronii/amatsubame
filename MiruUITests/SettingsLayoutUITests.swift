@@ -31,5 +31,13 @@ final class SettingsLayoutUITests: XCTestCase {
         for _ in 0..<4 where !cellular.exists { app.swipeUp() }
         XCTAssertTrue(cellular.exists, "Download over Cellular under Playback")
         XCTAssertFalse(app.staticTexts["Japanese Audio Only"].exists, "not under Playback any more")
+        app.navigationBars.buttons.firstMatch.tap()
+
+        // Storage: "Downloaded", and saved subtitles with a Clear on their row.
+        open(app, "settings.storage")
+        let downloaded = app.descendants(matching: .any)["storage.downloads"].firstMatch
+        XCTAssertTrue(downloaded.waitForExistence(timeout: 10))
+        XCTAssertTrue(downloaded.label.contains("Downloaded"), downloaded.label)
+        XCTAssertTrue(app.buttons["storage.clearSubtitles"].exists, "Clear on Saved Subtitles")
     }
 }
