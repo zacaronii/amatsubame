@@ -38,6 +38,9 @@ final class PlayerEnvironment {
     /// Mac: the video playing in the main window, covering the tabs (one window for
     /// all videos, not one per video). iPhone and iPad present it full screen instead.
     var playingSession: PlaybackSession?
+    /// Spike (never merged): false while Settings ▸ Test ▸ "Don't record playback" is on. Kept in
+    /// memory only, so it's back on the next launch.
+    var recordsPlayback = true
 
     func openSeries(_ series: JellyfinItem) {
         selectedTab = .watch

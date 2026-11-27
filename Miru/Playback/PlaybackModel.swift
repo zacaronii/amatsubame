@@ -213,6 +213,9 @@ final class PlaybackModel {
     @ObservationIgnored private var lastTime: Double?
     /// Seconds watched and not yet written to the Stats log (written every 10 s and on close).
     @ObservationIgnored private var unloggedSeconds: Double = 0
+    /// Spike (never merged): false when the player opened with "Don't record playback" on. Nothing
+    /// then goes to Stats or Jellyfin (no place, no "watched"), and the next episode doesn't start.
+    let recordsPlayback: Bool
     @ObservationIgnored private var heartbeat: Task<Void, Never>?
     @ObservationIgnored private var choseAudio = false
     @ObservationIgnored private var englishStream: JellyfinMediaStream?
@@ -228,6 +231,7 @@ final class PlaybackModel {
     init(session: PlaybackSession, environment: PlayerEnvironment) {
         self.session = session
         self.environment = environment
+        recordsPlayback = environment.recordsPlayback
         lines = LineLookup(service: environment.common.lookup)
         let settings = PlayerSettings.load(environment.common.database)
         look = settings
@@ -932,7 +936,7 @@ final class PlaybackModel {
         let credits = segments.first { $0.kind == .outro }?.start
         let offer = JellyfinUpNext.offerTime(duration: mpv.duration, creditsStart: credits)
         let inWindow = mpv.reachedEnd || (offer.map { mpv.timePosition >= $0 } ?? false)
-        if upNext != nil, !upNextCancelled, sleepTimer != .endOfEpisode, inWindow {
+        if recordsPlayback, upNext != nil, !upNextCancelled, sleepTimer != .endOfEpisode, inWindow {
             if upNextCountdown == nil { startCountdown() }
         } else if upNextCountdown != nil {
             // Seeked back before the end, or cancelled.
@@ -1029,10 +1033,21 @@ final class PlaybackModel {
         saveProgress(.progress)
     }
 
+    #if DEBUG
+    /// Tests: `seconds` watched of `item`, logged and reported as the player does every few seconds.
+    func recordForTests(_ item: JellyfinItem, seconds: Double, position: Double) {
+        self.item = item
+        mediaSourceId = "test"
+        unloggedSeconds = seconds
+        logWatching()
+        report(.progress, position: position)
+    }
+    #endif
+
     /// Writes the seconds watched so far to the Stats log, under the show (or the movie).
     private func logWatching() {
         defer { unloggedSeconds = 0 }
-        guard let item, unloggedSeconds > 0 else { return }
+        guard recordsPlayback, let item, unloggedSeconds > 0 else { return }
         let subject = ActivitySubject(kind: .watching, seriesKey: item.seriesId ?? item.id, seriesTitle: item.seriesName ?? item.name,
                                       itemKey: item.id)
         try? environment.common.activity.record(subject, seconds: unloggedSeconds)
@@ -1990,7 +2005,7 @@ final class PlaybackModel {
     }
 
     private func saveProgress(_ event: JellyfinProgressPayload.Event) {
-        guard let item else { return }
+        guard recordsPlayback, let item else { return }
         lastSaved = Date()
         // Nothing has played yet (still loading, or the stream failed): mpv's time reads 0, or the
         // last episode's. Saving it would wipe the resume point, or put the next episode near
@@ -2123,7 +2138,7 @@ final class PlaybackModel {
     }
 
     private func report(_ event: JellyfinProgressPayload.Event, position: Double) {
-        guard let item, let mediaSourceId else { return }
+        guard recordsPlayback, let item, let mediaSourceId else { return }
         let now = Date()
         let report = JellyfinProgressPayload(
             itemId: item.id, mediaSourceId: mediaSourceId, playSessionId: playSessionId,

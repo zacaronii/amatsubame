@@ -68,10 +68,13 @@ struct PlayerSettingsView: View {
                 Section {
                     Toggle("Play with AetherEngine", isOn: $aetherTest)
                         .accessibilityIdentifier("settings.aetherTest")
+                    Toggle("Don't record playback", isOn: Binding(get: { !environment.recordsPlayback },
+                                                                  set: { environment.recordsPlayback = !$0 }))
+                        .accessibilityIdentifier("settings.dontRecord")
                 } header: {
                     Text("Test")
                 } footer: {
-                    Text("Episodes open in a plain test player that uses AetherEngine instead of mpv. It doesn't save your place or mark episodes watched. Turn it off to go back to the normal player.")
+                    Text("Play with AetherEngine: episodes open in a plain test player that uses AetherEngine instead of mpv. It doesn't save your place or mark episodes watched. Turn it off to go back to the normal player.\n\nDon't record playback: the normal player adds nothing to Stats, doesn't tell Jellyfin your place or that you watched, and doesn't start the next episode. It turns itself off when Miru is closed from the app switcher and opened again.")
                 }
                 #endif
 
