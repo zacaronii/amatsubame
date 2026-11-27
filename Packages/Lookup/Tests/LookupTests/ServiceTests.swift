@@ -116,6 +116,18 @@ import Testing
         return service
     }
 
+    /// A tap shows as many results as Hachidori (32), not the engine's default 16.
+    @Test func aTapShowsHachidorisThirtyTwoResults() async throws {
+        let database = try AppDatabase.inMemory()
+        let library = DictionaryLibrary(database: database, directory: FileManager.default.temporaryDirectory.appending(path: "results-\(UUID().uuidString)"))
+        var builder = TestDictionaryBuilder(title: "Terms")
+        builder.terms = (0..<40).map { .init(String(UnicodeScalar(0x4E00 + $0)!), "か", glossary: ["entry \($0)"]) }
+        try await library.importDictionary(at: try builder.write())
+        let service = LookupService(library: library, audio: AudioService(database: database))
+        try await service.reload()
+        #expect(await service.lookup(text: "か", utf16Offset: 0).results.count == 32)
+    }
+
     /// A card's extra senses come only from the same word: another dictionary's entry under a
     /// different reading of the same spelling is its own result and never joins the card.
     @Test func cardSensesComeOnlyFromTheSameWordAndReading() async throws {

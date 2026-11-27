@@ -222,7 +222,7 @@ public final class LookupService {
     /// Looks up typed text (the search screen and glossary links).
     public func search(_ query: String) async -> LookupResultPage {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        return LookupResultPage(query: trimmed, results: await terms(trimmed, maxResults: 32))
+        return LookupResultPage(query: trimmed, results: await terms(trimmed, maxResults: Self.maxResults))
     }
 
     /// The host's results while linked, else (or when it doesn't answer) the local dictionaries',
@@ -246,9 +246,12 @@ public final class LookupService {
             let names = NameRanking.characterNames(in: await library.engine.lookup(text, maxResults: 8))
             return NameRanking.merging(names: names, into: found)
         }
-        if let maxResults { return await library.engine.lookup(text, maxResults: maxResults) }
-        return await library.engine.lookup(text)
+        return await library.engine.lookup(text, maxResults: maxResults ?? Self.maxResults)
     }
+
+    /// Hachidori's `maxResults` default. The engine caps before its final ordering, so a smaller
+    /// cap isn't just a shorter list: at 16, さんか put 賛歌 first instead of 参加.
+    static let maxResults = 32
 
     /// A typed search the user settled on (submitted): kept in history and counted, like a
     /// lookup (searches as you type aren't counted). Returns its lookup count.
