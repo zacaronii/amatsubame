@@ -11,6 +11,7 @@ final class PlayerGestureUITests: XCTestCase {
         XCUIDevice.shared.orientation = .landscapeLeft
         addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
         app.launch()
@@ -68,6 +69,7 @@ final class PlayerGestureUITests: XCTestCase {
         XCUIDevice.shared.orientation = .landscapeLeft
         addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
         // An English file for mpv to draw, to look at where it lands (optional).
@@ -126,6 +128,7 @@ final class PlayerGestureUITests: XCTestCase {
         XCUIDevice.shared.orientation = .landscapeLeft
         addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
         app.launch()
@@ -168,6 +171,7 @@ final class PlayerGestureUITests: XCTestCase {
         }
         continueAfterFailure = false
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
         app.launchEnvironment["UITEST_PLAYER_SEGMENTS"] = "Intro:0:30"
@@ -206,6 +210,7 @@ final class PlayerGestureUITests: XCTestCase {
             throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file to test segments.")
         }
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
         app.launchEnvironment["UITEST_PLAYER_SEGMENTS"] = "Intro:0:30"
@@ -234,6 +239,7 @@ final class PlayerGestureUITests: XCTestCase {
         XCUIDevice.shared.orientation = .landscapeLeft
         addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
         app.launchEnvironment["UITEST_JIMAKU"] = "1"
@@ -294,6 +300,7 @@ final class PlayerGestureUITests: XCTestCase {
         continueAfterFailure = false
         func launch() -> XCUIApplication {
             let app = XCUIApplication()
+            app.launchEnvironment["UITEST_MUTE"] = "1"
             app.launchEnvironment["UITEST_PLAYER"] = "1"
             app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
             // The test video is 60 s: the card comes 20 s before the end.
@@ -332,6 +339,7 @@ final class PlayerGestureUITests: XCTestCase {
         }
         continueAfterFailure = false
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
         app.launch()
@@ -361,6 +369,7 @@ final class PlayerGestureUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
         app.launchEnvironment["UITEST_JIMAKU"] = "1"

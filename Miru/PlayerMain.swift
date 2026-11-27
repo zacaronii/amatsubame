@@ -127,10 +127,10 @@ struct PlayerMenus: Commands {
     /// The menu's wording follows what the item would do now.
     private func title(_ shortcut: PlayerShortcut) -> String {
         switch shortcut {
-        case .playPause: player?.mpv.isPaused == false ? "Pause" : "Play"
+        case .playPause: player?.engine.isPaused == false ? "Pause" : "Play"
         case .skip: player?.skipTitle ?? shortcut.title
         case .english: player?.showsEnglish == true ? "Hide English Subtitles" : "Show English Subtitles"
-        case .mute: player?.mpv.isMuted == true ? "Unmute" : "Mute"
+        case .mute: player?.engine.isMuted == true ? "Unmute" : "Mute"
         default: shortcut.title
         }
     }

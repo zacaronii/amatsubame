@@ -20,6 +20,10 @@ class AVPiPPlayer: NSObject, PiPPlayer {
         layer.videoGravity = .resizeAspect
         super.init()
         player.appliesMediaSelectionCriteriaAutomatically = false
+        #if DEBUG
+        // UI tests and recordings (`UITEST_MUTE=1`): silent from the start, like mpv.
+        if ProcessInfo.processInfo.environment["UITEST_MUTE"] != nil { player.volume = 0 }
+        #endif
     }
 
     func prepare(_ source: PiPSource, at time: Double) async -> Bool {

@@ -15,7 +15,7 @@ final class ExternalDisplay {
     private(set) var isConnected = false
     private(set) var screenName = "the Other Screen"
     /// The player on screen now, set by the player while it's open.
-    var player: MPVController?
+    var player: (any PlayerEngine)?
 
     /// The picture is on the other screen (only while something is playing).
     var showsVideo: Bool { isConnected && player != nil }
@@ -63,7 +63,7 @@ struct ExternalVideoView: View {
             Color.black
             if let player = display.player {
                 // The one video layer moves here from the phone's player (and back after).
-                MPVVideoView(controller: player)
+                player.videoView(fills: false)
             } else {
                 Text("Miru").font(.largeTitle.weight(.semibold)).foregroundStyle(.white.opacity(0.4))
             }

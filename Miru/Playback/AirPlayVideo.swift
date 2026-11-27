@@ -116,10 +116,10 @@ final class AirPlayVideoHandoff {
 import AVFoundation
 import PlayerKit
 
-/// AVPlayer for AirPlay video: plays on the TV, and while it does it stands in for mpv
-/// (`MPVController.attach`), so the transport goes to it and its time drives the lines.
+/// AVPlayer for AirPlay video: plays on the TV, and while it does it stands in for the engine
+/// (`PlayerEngine.attach`), so the transport goes to it and its time drives the lines.
 @MainActor
-final class AVAirPlayPlayer: AVPiPPlayer, AirPlayVideoPlayer, MPVStandIn {
+final class AVAirPlayPlayer: AVPiPPlayer, AirPlayVideoPlayer, PlayerStandIn {
     private var timeObserver: Any?
     private var rate: Float = 1
 
@@ -147,7 +147,7 @@ final class AVAirPlayPlayer: AVPiPPlayer, AirPlayVideoPlayer, MPVStandIn {
         player.seek(to: CMTime(seconds: seconds, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
     }
 
-    // MPVStandIn
+    // PlayerStandIn
     func setPaused(_ paused: Bool) {
         if paused { pause() } else { play(rate: rate) }
     }
@@ -157,16 +157,16 @@ final class AVAirPlayPlayer: AVPiPPlayer, AirPlayVideoPlayer, MPVStandIn {
         if player.rate > 0 { player.rate = rate }
     }
 
-    /// Reports the time, pause and waiting to `mpv` (several times a second, and on every
+    /// Reports the time, pause and waiting to `engine` (several times a second, and on every
     /// start, stop and jump).
-    func startReporting(to mpv: MPVController) {
+    func startReporting(to engine: any PlayerEngine) {
         stopReporting()
-        timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 20), queue: .main) { [weak self, weak mpv] _ in
+        timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 20), queue: .main) { [weak self, weak engine] _ in
             MainActor.assumeIsolated {
-                guard let self, let mpv else { return }
+                guard let self, let engine else { return }
                 let status = self.player.timeControlStatus
-                mpv.standInReport(time: self.currentTime, paused: status == .paused,
-                                  buffering: status == .waitingToPlayAtSpecifiedRate)
+                engine.standInReport(time: self.currentTime, paused: status == .paused,
+                                     buffering: status == .waitingToPlayAtSpecifiedRate, ended: false)
             }
         }
     }

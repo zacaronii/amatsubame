@@ -4,7 +4,7 @@ import Testing
 /// A stand-in (AirPlay video) plays in mpv's place: the transport goes to it, and what it
 /// reports is mpv's time and pause until it's detached.
 @MainActor @Suite struct MPVStandInTests {
-    final class StandIn: MPVStandIn {
+    final class StandIn: PlayerStandIn {
         var paused: [Bool] = []
         var seeks: [Double] = []
         var speeds: [Double] = []

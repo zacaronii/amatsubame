@@ -8,6 +8,7 @@ final class LongSessionUITests: XCTestCase {
         let env = ProcessInfo.processInfo.environment
         guard let minutes = env["UITEST_LONG"].flatMap(Double.init) else { throw XCTSkip("Set UITEST_LONG=<minutes> to run.") }
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_TRANSCRIPT"] = "2"
         if let zips = env["UITEST_DICTIONARY_ZIPS"] { app.launchEnvironment["UITEST_DICTIONARY_ZIPS"] = zips }

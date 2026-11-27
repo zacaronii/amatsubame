@@ -2,37 +2,17 @@ import Foundation
 import Libmpv
 import Observation
 import QuartzCore
+import SwiftUI
 #if canImport(UIKit)
 import UIKit
 #else
 import AppKit
 #endif
 
-/// Another player playing in mpv's place (AirPlay video on a TV): while one is attached, the
-/// transport goes to it, and the time, pause and speed it reports are mpv's, so everything that
-/// follows mpv follows it. mpv waits, paused.
-@MainActor public protocol MPVStandIn: AnyObject {
-    func setPaused(_ paused: Bool)
-    func seek(to seconds: Double)
-    func setSpeed(_ speed: Double)
-}
-
-/// One mpv player drawing into a Metal layer (MoltenVK, as in MPVKit's demo).
-/// Properties update on the main actor from mpv's event loop.
+/// One mpv player drawing into a Metal layer (MoltenVK, as in MPVKit's demo): Miru's
+/// `PlayerEngine`. Properties update on the main actor from mpv's event loop.
 @MainActor @Observable
 public final class MPVController {
-    public struct Track: Identifiable, Equatable, Sendable {
-        public var id: Int
-        public var type: String
-        public var language: String?
-        public var title: String?
-        public var codec: String?
-        public var isExternal: Bool
-        public var isSelected: Bool
-        /// The stream's index in the file (FFmpeg numbering), for `MediaClipper`.
-        public var ffIndex: Int?
-    }
-
     public private(set) var timePosition: Double = 0
     public private(set) var duration: Double = 0
     public private(set) var isPaused = true
@@ -51,7 +31,7 @@ public final class MPVController {
     /// when the stream keeps running dry (`BufferWait`), so a slow connection gets fewer, longer
     /// waits instead of stopping every few seconds.
     public private(set) var bufferWait = BufferWait()
-    public private(set) var tracks: [Track] = []
+    public private(set) var tracks: [PlayerTrack] = []
     /// The file's own chapters (mpv's `chapter-list`): start in seconds and title.
     public private(set) var fileChapters: [(start: Double, title: String?)] = []
     public private(set) var lastError: String?
@@ -65,7 +45,9 @@ public final class MPVController {
     /// The video's display aspect ratio (width / height) once known.
     public private(set) var videoAspect: Double?
     /// The player playing in mpv's place, if one is (`attach(_:)`).
-    @ObservationIgnored public private(set) weak var standIn: (any MPVStandIn)?
+    @ObservationIgnored public private(set) weak var standIn: (any PlayerStandIn)?
+    /// Pause After Each Line's next stop (`setTimeBoundary`), checked on every time event.
+    @ObservationIgnored private var boundary: TimeBoundary?
 
     /// The layer mpv renders into; host it in a view (`MPVVideoView`).
     public let layer = MPVMetalLayer()
@@ -123,9 +105,10 @@ public final class MPVController {
 
     // MARK: Commands
 
-    /// Plays `url`, sending `headers` with every request, from `start` seconds.
+    /// Plays `url`, sending `headers` with every request, from `start` seconds. A file is passed
+    /// to mpv as its path, not a percent-encoded file URL.
     public func load(_ url: URL, headers: [String: String] = [:], start: Double = 0) {
-        load(url.absoluteString, headers: headers, start: start)
+        load(url.isFileURL ? url.path(percentEncoded: false) : url.absoluteString, headers: headers, start: start)
     }
 
     /// Plays anything mpv can open (a URL, a path, or e.g. `av://lavfi:testsrc`).
@@ -235,7 +218,7 @@ public final class MPVController {
 
     /// `standIn` plays from here on: mpv pauses where it is and stops reporting its own time,
     /// pause, end and buffering until `detach()`. The stand-in reports them (`standInReport`).
-    public func attach(_ standIn: any MPVStandIn) {
+    public func attach(_ standIn: any PlayerStandIn) {
         setFlag("pause", true)
         self.standIn = standIn
         isBuffering = false
@@ -254,7 +237,7 @@ public final class MPVController {
     /// Where the stand-in is: its time, whether it's paused, waiting for data, or at the end.
     public func standInReport(time: Double, paused: Bool, buffering: Bool = false, ended: Bool = false) {
         guard standIn != nil else { return }
-        if time.isFinite, abs(time - timePosition) > 0.0005 { timePosition = max(time, 0) }
+        if time.isFinite, abs(time - timePosition) > 0.0005 { moveTime(to: max(time, 0)) }
         if paused != isPaused { isPaused = paused }
         if buffering != isBuffering { isBuffering = buffering }
         if ended != reachedEnd { reachedEnd = ended }
@@ -411,7 +394,7 @@ public final class MPVController {
     }
 
     enum Update: Sendable {
-        case time(Double), duration(Double), paused(Bool), ended(Bool), tracks([Track]), volume(Double), aspect(Double)
+        case time(Double), duration(Double), paused(Bool), ended(Bool), tracks([PlayerTrack]), volume(Double), aspect(Double)
         case buffering(Bool), bufferPercent(Int), chapters([(start: Double, title: String?)])
         case none
     }
@@ -463,9 +446,9 @@ public final class MPVController {
         }
     }
 
-    nonisolated private static func tracks(from node: mpv_node) -> [Track] {
+    nonisolated private static func tracks(from node: mpv_node) -> [PlayerTrack] {
         guard node.format == MPV_FORMAT_NODE_ARRAY, let list = node.u.list?.pointee else { return [] }
-        return (0..<Int(list.num)).compactMap { index -> Track? in
+        return (0..<Int(list.num)).compactMap { index -> PlayerTrack? in
             let item = list.values[index]
             guard item.format == MPV_FORMAT_NODE_MAP, let map = item.u.list?.pointee else { return nil }
             var values: [String: mpv_node] = [:]
@@ -485,8 +468,19 @@ public final class MPVController {
                 return node.u.flag != 0
             }
             guard let id = int("id"), let type = string("type") else { return nil }
-            return Track(id: id, type: type, language: string("lang"), title: string("title"), codec: string("codec"),
+            return PlayerTrack(id: id, type: type, language: string("lang"), title: string("title"), codec: string("codec"),
                          isExternal: flag("external"), isSelected: flag("selected"), ffIndex: int("ff-index"))
+        }
+    }
+
+    /// The time moves (mpv's or the stand-in's): a boundary it crosses fires first, in the same
+    /// step, before anything that follows `timePosition` sees the new time.
+    private func moveTime(to time: Double) {
+        let old = timePosition
+        timePosition = time
+        if let boundary, boundary.isCrossed(from: old, to: time) {
+            self.boundary = nil
+            boundary.action()
         }
     }
 
@@ -499,7 +493,7 @@ public final class MPVController {
             }
         }
         switch update {
-        case .time(let value): timePosition = value
+        case .time(let value): moveTime(to: value)
         case .duration(let value): duration = value
         case .paused(let value): isPaused = value
         case .ended(let value): reachedEnd = value
@@ -521,6 +515,42 @@ public final class MPVController {
             if value > 0, videoAspect.map({ abs($0 - value) / $0 > 0.005 }) ?? true { videoAspect = value }
         case .none: break
         }
+    }
+}
+
+extension MPVController: PlayerEngine {
+    public var engineName: String { "mpv" }
+
+    public func setTimeBoundary(_ time: Double?, action: @escaping @MainActor () -> Void) {
+        boundary = time.map { TimeBoundary(time: $0, action: action) }
+    }
+
+    public func videoView(fills: Bool) -> AnyView {
+        AnyView(MPVVideoView(controller: self, fills: fills))
+    }
+
+    public var streamInfo: [(label: String, value: String)] {
+        func number(_ name: String, digits: Int = 0) -> String? {
+            property(name).flatMap(Double.init).map { String(format: "%.\(digits)f", $0) }
+        }
+        var rows: [(label: String, value: String)] = []
+        let size = [property("video-params/w"), property("video-params/h")].compactMap { $0 }.joined(separator: "×")
+        let video = [property("video-codec"), size.isEmpty ? nil : size, number("container-fps", digits: 3).map { "\($0) fps" }]
+            .compactMap { $0 }.joined(separator: " · ")
+        if !video.isEmpty { rows.append(("Video", video)) }
+        if let decoder = property("hwdec-current"), decoder != "no" { rows.append(("Decoding", "hardware (\(decoder))")) }
+        else { rows.append(("Decoding", "software")) }
+        let audio = [property("audio-codec-name"), number("audio-params/samplerate").map { "\($0) Hz" },
+                     property("audio-params/channel-count").map { "\($0) ch" }].compactMap { $0 }.joined(separator: " · ")
+        if !audio.isEmpty { rows.append(("Audio", audio)) }
+        rows.append(("Dropped frames", "\(property("frame-drop-count") ?? "0") (decoder \(property("decoder-frame-drop-count") ?? "0"))"))
+        if let cache = number("demuxer-cache-duration", digits: 1) { rows.append(("Buffered", "\(cache) s")) }
+        return rows
+    }
+
+    public var subtitleNote: String {
+        "mpv sid: \(stringProperty("sid") ?? "-")"
+            + (stringProperty("sub-text").flatMap { $0.isEmpty ? nil : ", mpv line: \($0)" } ?? "")
     }
 }
 

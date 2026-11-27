@@ -14,6 +14,7 @@ final class PictureInPictureLiveUITests: XCTestCase {
         let account = try TestAccounts.require("JELLYFIN_URL", "TEST_JELLYFIN_USER", "TEST_JELLYFIN_PASSWORD")
         continueAfterFailure = false
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER_PIP"] = "4"
         app.launch()
         let search = app.buttons["watch.search"].firstMatch

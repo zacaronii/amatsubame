@@ -13,9 +13,8 @@ struct PlaybackView: View {
     /// Debug: tells the UI tests when the audio session mixes.
     private var debugSessionNote: String {
         #if DEBUG
-        // And mpv's subtitle track and the line it draws (English), for UI tests.
-        NowPlaying.sessionNote + ", mpv sid: \(model.mpv.stringProperty("sid") ?? "-")"
-            + (model.mpv.stringProperty("sub-text").flatMap { $0.isEmpty ? nil : ", mpv line: \($0)" } ?? "")
+        // And the engine's subtitle track and the line it draws (English), for UI tests.
+        NowPlaying.sessionNote + ", " + model.engine.subtitleNote
         #else
         ""
         #endif
@@ -53,13 +52,13 @@ struct PlaybackView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let screen = PlayerScreen(geometry, aspect: model.mpv.videoAspect)
+            let screen = PlayerScreen(geometry, aspect: model.engine.videoAspect)
             player(size: geometry.size, screen: screen)
                 .onGeometryChange(for: Bool.self) { $0.size.width > $0.size.height } action: { wide = $0 }
         }
         #if os(iOS)
-        .onAppear { external.player = model.mpv }
-        .onDisappear { if external.player === model.mpv { external.player = nil } }
+        .onAppear { external.player = model.engine }
+        .onDisappear { if external.player === model.engine { external.player = nil } }
         #endif
         .sheet(isPresented: Binding(get: { model.showsSearch }, set: { model.showsSearch = $0 })) {
             SearchView(miningContext: model.miningContext()) { model.showsSearch = false }
@@ -80,7 +79,7 @@ struct PlaybackView: View {
             SubtitleSearchView(model: SubtitleSearchModel(item: model.item, environment: environment)) { picked in
                 model.useSubtitle(picked)
                 model.showsSubtitleSearch = false
-                model.mpv.setPaused(false)
+                model.engine.setPaused(false)
             } onClose: {
                 model.showsSubtitleSearch = false
             }
@@ -104,7 +103,7 @@ struct PlaybackView: View {
                     .playerGestures(model: model, size: screen.videoArea.size, enabled: model.popup == nil, canFill: screen.layout.canFill, scrub: $scrub) {
                         // Pause or play without bringing up the controls.
                         togglesPauseQuietly = true
-                        model.mpv.togglePause()
+                        model.engine.togglePause()
                     } onTap: {
                         // A tap shows or hides the controls in every layout; two fingers pause.
                         if model.popup != nil {
@@ -115,7 +114,7 @@ struct PlaybackView: View {
                     }
                     .accessibilityIdentifier("player.video")
                     // For UI tests (and VoiceOver): where playback is and whether it's paused.
-                    .accessibilityValue(String(format: "%.1f s, %@", model.mpv.timePosition, model.mpv.isPaused ? "paused" : "playing")
+                    .accessibilityValue(String(format: "%.1f s, %@", model.engine.timePosition, model.engine.isPaused ? "paused" : "playing")
                                         + (fills(screen) ? ", filled" : "") + debugSessionNote)
                     // Pinch's counterpart for VoiceOver.
                     .accessibilityAction(named: model.fillsScreen ? "Fit to Screen" : "Zoom to Fill") {
@@ -176,9 +175,9 @@ struct PlaybackView: View {
             await model.open()
             scheduleHide()
         }
-        .onChange(of: model.mpv.timePosition) { model.timeChanged() }
-        .onChange(of: model.mpv.reachedEnd) { model.updateUpNext() }
-        .onChange(of: model.mpv.isBuffering) { model.bufferingChanged() }
+        .onChange(of: model.engine.timePosition) { model.timeChanged() }
+        .onChange(of: model.engine.reachedEnd) { model.updateUpNext() }
+        .onChange(of: model.engine.isBuffering) { model.bufferingChanged() }
         // Keys go back to the video once the cheat sheet closes.
         .onChange(of: model.showsShortcuts) { _, shows in if !shows { focused = true } }
         #if os(iOS)
@@ -187,7 +186,7 @@ struct PlaybackView: View {
         .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification).receive(on: RunLoop.main)) { _ in
             model.airPlayRouteChanged()
         }
-        .onChange(of: model.mpv.hasStarted) { _, started in if started { model.airPlayRouteChanged() } }
+        .onChange(of: model.engine.hasStarted) { _, started in if started { model.airPlayRouteChanged() } }
         #if DEBUG
         .onReceive(NotificationCenter.default.publisher(for: AVRoutePickerViewHost.tappedForTests)) { _ in
             model.showOSD("AirPlay picker tapped")
@@ -207,7 +206,7 @@ struct PlaybackView: View {
             default: break
             }
         }
-        .onChange(of: model.mpv.tracks) { model.tracksChanged() }
+        .onChange(of: model.engine.tracks) { model.tracksChanged() }
         .onChange(of: model.currentSegment) { _, segment in
             // The skip button shows on its own for the segment's first seconds.
             skipHideTask?.cancel()
@@ -227,7 +226,7 @@ struct PlaybackView: View {
                 scheduleHide()
             }
         }
-        .onChange(of: model.mpv.isPaused) { _, paused in
+        .onChange(of: model.engine.isPaused) { _, paused in
             model.pauseChanged(paused)
             if togglesPauseQuietly {
                 togglesPauseQuietly = false
@@ -299,7 +298,7 @@ struct PlaybackView: View {
     @ViewBuilder private var progressAndError: some View {
         if model.holdsFast {
             // While the picture is held.
-            Label(String(format: "%g×", model.mpv.speed), systemImage: "forward.fill")
+            Label(String(format: "%g×", model.engine.speed), systemImage: "forward.fill")
                 .font(.subheadline.weight(.semibold).monospacedDigit())
                 .foregroundStyle(.white)
                 .padding(.horizontal, 14)
@@ -312,12 +311,12 @@ struct PlaybackView: View {
         }
         if model.isOpening {
             ProgressView().tint(.white).controlSize(.large)
-        } else if model.showsBuffering, !model.mpv.isPaused {
+        } else if model.showsBuffering, !model.engine.isPaused {
             // The stream ran dry: the picture is frozen until more arrives.
             VStack(spacing: 10) {
                 VStack(spacing: 10) {
                     ProgressView().tint(.white).controlSize(.large)
-                    Text(model.mpv.bufferPercent.map { "Buffering \($0)%" } ?? "Buffering")
+                    Text(model.engine.bufferPercent.map { "Buffering \($0)%" } ?? "Buffering")
                         .font(.subheadline.monospacedDigit())
                         .foregroundStyle(.white)
                     if let slow = model.slowStreamNote {
@@ -347,7 +346,7 @@ struct PlaybackView: View {
                 }
             }
         }
-        if let error = model.error ?? model.mpv.lastError {
+        if let error = model.error ?? model.engine.lastError {
             errorView(error)
         }
     }
@@ -451,15 +450,15 @@ struct PlaybackView: View {
     private func bottomBarRow(_ bottom: CGRect) -> some View {
         place(bottom) {
             HStack(spacing: 14) {
-                Button { model.mpv.togglePause() } label: {
+                Button { model.engine.togglePause() } label: {
                     Image(systemName: playPauseSymbol).font(.title2).frame(width: 44, height: 44).contentShape(.circle)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(playPauseLabel)
                 .accessibilityIdentifier("player.playPause")
-                Text(Self.format(scrub?.target ?? model.mpv.timePosition))
+                Text(Self.format(scrub?.target ?? model.engine.timePosition))
                 scrubber.frame(maxWidth: .infinity)
-                Text("−" + Self.format(max(model.mpv.duration - (scrub?.target ?? model.mpv.timePosition), 0)))
+                Text("−" + Self.format(max(model.engine.duration - (scrub?.target ?? model.engine.timePosition), 0)))
             }
             .font(.subheadline.monospacedDigit())
             .foregroundStyle(.white)
@@ -504,9 +503,9 @@ struct PlaybackView: View {
             VStack(spacing: 4) {
                 scrubber
                 HStack {
-                    Text(Self.format(scrub?.target ?? model.mpv.timePosition))
+                    Text(Self.format(scrub?.target ?? model.engine.timePosition))
                     Spacer()
-                    Text("−" + Self.format(max(model.mpv.duration - (scrub?.target ?? model.mpv.timePosition), 0)))
+                    Text("−" + Self.format(max(model.engine.duration - (scrub?.target ?? model.engine.timePosition), 0)))
                 }
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
@@ -515,7 +514,7 @@ struct PlaybackView: View {
             .padding(.top, 12)
             HStack(spacing: 28) {
                 lineButton("backward.end.fill", label: "Previous line", id: "player.previousLine") { model.previousLine() }
-                Button { model.mpv.togglePause() } label: {
+                Button { model.engine.togglePause() } label: {
                     Image(systemName: playPauseSymbol)
                         .font(.title)
                         .foregroundStyle(.black)
@@ -559,7 +558,7 @@ struct PlaybackView: View {
         VStack {
             Spacer()
             SubtitleOverlay(cues: model.showsJapanese ? model.currentCues : [], highlight: model.highlight, fontSize: fontSize) { cue, index in
-                if !model.mpv.isPaused { togglesPauseQuietly = true }
+                if !model.engine.isPaused { togglesPauseQuietly = true }
                 model.lookUp(cue, characterIndex: index)
             } onSwipe: { direction in
                 if direction > 0 { model.nextLine() } else { model.previousLine() }
@@ -580,15 +579,15 @@ struct PlaybackView: View {
     private func hoverChanged(_ inside: Bool) {
         guard model.look.pausesOnHover else { return }
         if inside {
-            guard !model.mpv.isPaused else { return }
+            guard !model.engine.isPaused else { return }
             pausedForHover = true
             togglesPauseQuietly = true
-            model.mpv.setPaused(true)
+            model.engine.setPaused(true)
         } else if pausedForHover {
             pausedForHover = false
-            if model.popup == nil, model.mpv.isPaused {
+            if model.popup == nil, model.engine.isPaused {
                 togglesPauseQuietly = true
-                model.mpv.setPaused(false)
+                model.engine.setPaused(false)
             }
         }
     }
@@ -662,7 +661,7 @@ struct PlaybackView: View {
                     fontSize: subtitleSize(size)
                 ) { cue, index in
                     // A lookup pauses without bringing up the controls.
-                    if !model.mpv.isPaused { togglesPauseQuietly = true }
+                    if !model.engine.isPaused { togglesPauseQuietly = true }
                     model.lookUp(cue, characterIndex: index)
                 } onSwipe: { direction in
                     if direction > 0 { model.nextLine() } else { model.previousLine() }
@@ -781,10 +780,10 @@ struct PlaybackView: View {
             }
             .accessibilityElement(children: .combine)
         } else {
-            MPVVideoView(controller: model.mpv, fills: fills(screen))
+            model.engine.videoView(fills: fills(screen))
         }
         #else
-        MPVVideoView(controller: model.mpv, fills: fills(screen))
+        model.engine.videoView(fills: fills(screen))
         #endif
     }
 
@@ -862,7 +861,7 @@ struct PlaybackView: View {
     /// were keys only (`[` `]` `#` `E`), which an iPhone doesn't have.
     private var optionsMenu: some View {
         Menu {
-            Picker("Speed", selection: Binding(get: { PlaybackModel.speeds.min { abs($0 - model.mpv.speed) < abs($1 - model.mpv.speed) } ?? 1 },
+            Picker("Speed", selection: Binding(get: { PlaybackModel.speeds.min { abs($0 - model.engine.speed) < abs($1 - model.engine.speed) } ?? 1 },
                                                set: { model.chooseSpeed($0) })) {
                 ForEach(PlaybackModel.speeds, id: \.self) { speed in
                     Text(speed == 1 ? "Normal" : String(format: "%g×", speed)).tag(speed)
@@ -934,8 +933,8 @@ struct PlaybackView: View {
             Spacer()
             // Not under a side panel's edge (it's in the middle of the screen).
             if scrub == nil, !sidePanelShows, model.popup == nil {
-                Button { model.mpv.togglePause() } label: {
-                    Image(systemName: model.mpv.isPaused ? "play.fill" : "pause.fill")
+                Button { model.engine.togglePause() } label: {
+                    Image(systemName: model.engine.isPaused ? "play.fill" : "pause.fill")
                         .font(.system(size: 34))
                         .frame(width: 76, height: 76)
                         // The whole square takes the tap: one that just misses the circle still
@@ -943,7 +942,7 @@ struct PlaybackView: View {
                         .contentShape(.rect)
                 }
                 .glassEffect(in: .circle)
-                .accessibilityLabel(model.mpv.isPaused ? "Play" : "Pause")
+                .accessibilityLabel(model.engine.isPaused ? "Play" : "Pause")
                 .accessibilityIdentifier("player.playPause")
                 Spacer()
             }
@@ -988,7 +987,7 @@ struct PlaybackView: View {
     /// Infuse style: while scrubbing, the target time and a preview picture; then the bar in a
     /// glass capsule with elapsed and remaining time.
     private func bottomBar(size: CGSize) -> some View {
-        let position = scrub?.target ?? model.mpv.timePosition
+        let position = scrub?.target ?? model.engine.timePosition
         return VStack(alignment: .leading, spacing: 6) {
             if let scrub {
                 scrubPreview(scrub, size: size)
@@ -997,7 +996,7 @@ struct PlaybackView: View {
             HStack(spacing: 14) {
                 Text(Self.format(position))
                 scrubber
-                Text("−" + Self.format(max(model.mpv.duration - position, 0)))
+                Text("−" + Self.format(max(model.engine.duration - position, 0)))
             }
             .font(.subheadline.monospacedDigit())
             .padding(.horizontal, 20)
@@ -1008,18 +1007,18 @@ struct PlaybackView: View {
 
     /// The playback slider (scrubbing shows the target time and a preview picture).
     private var scrubber: some View {
-        let duration = max(model.mpv.duration, 1)
-        let position = scrub?.target ?? model.mpv.timePosition
+        let duration = max(model.engine.duration, 1)
+        let position = scrub?.target ?? model.engine.timePosition
         return Slider(
             value: Binding(get: { min(position, duration) }, set: { value in
-                scrub = ScrubState(start: scrub?.start ?? model.mpv.timePosition, target: value)
+                scrub = ScrubState(start: scrub?.start ?? model.engine.timePosition, target: value)
             }),
             in: 0...duration
         ) { editing in
             if editing {
-                if scrub == nil { scrub = ScrubState(start: model.mpv.timePosition, target: model.mpv.timePosition) }
+                if scrub == nil { scrub = ScrubState(start: model.engine.timePosition, target: model.engine.timePosition) }
             } else if let target = scrub?.target {
-                model.mpv.seek(to: target)
+                model.engine.seek(to: target)
                 scrub = nil
             }
         }
@@ -1066,8 +1065,8 @@ struct PlaybackView: View {
         .accessibilityHidden(true)
     }
 
-    private var playPauseLabel: String { model.mpv.isPaused ? "Play" : "Pause" }
-    private var playPauseSymbol: String { model.mpv.isPaused ? "play.fill" : "pause.fill" }
+    private var playPauseLabel: String { model.engine.isPaused ? "Play" : "Pause" }
+    private var playPauseSymbol: String { model.engine.isPaused ? "play.fill" : "pause.fill" }
 
     /// The time being scrubbed to, with » or « for the direction, over the picture there.
     private func scrubPreview(_ scrub: ScrubState, size: CGSize) -> some View {
@@ -1279,7 +1278,7 @@ struct PlaybackView: View {
     }
 
     private func findSubtitles() {
-        model.mpv.setPaused(true)
+        model.engine.setPaused(true)
         model.showsSubtitleSearch = true
     }
 
@@ -1290,10 +1289,10 @@ struct PlaybackView: View {
 
     private func scheduleHide() {
         hideTask?.cancel()
-        guard !model.mpv.isPaused else { return }
+        guard !model.engine.isPaused else { return }
         hideTask = Task {
             try? await Task.sleep(for: .seconds(3))
-            guard !Task.isCancelled, scrub == nil, !model.showsSubtitlesSheet, !optionsOpen, !model.mpv.isPaused else { return }
+            guard !Task.isCancelled, scrub == nil, !model.showsSubtitlesSheet, !optionsOpen, !model.engine.isPaused else { return }
             showsControls = false
         }
     }

@@ -8,6 +8,7 @@ final class WatchRetapUITests: XCTestCase {
     func testWatchTabReturnsToTheTopFromTwoScreensDeep() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launch()
         XCUIDevice.shared.orientation = .portrait
         let libraries = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'library.' AND identifier != 'library.filter'"))

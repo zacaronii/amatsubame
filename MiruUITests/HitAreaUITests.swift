@@ -5,6 +5,7 @@ import XCTest
 final class HitAreaUITests: XCTestCase {
     func testLineTimesAreBigEnoughToTap() {
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_TRANSCRIPT"] = "1"
         app.launch()

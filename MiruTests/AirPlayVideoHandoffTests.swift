@@ -1,3 +1,4 @@
+#if os(iOS) // AirPlay video is iOS only.
 import AVFoundation
 import Foundation
 @testable import Miru
@@ -160,3 +161,4 @@ import Testing
         #expect(await watching.value == nil)
     }
 }
+#endif

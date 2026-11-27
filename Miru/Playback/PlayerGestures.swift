@@ -111,13 +111,13 @@ private struct PlayerGestures: ViewModifier {
                 let dx = value.translation.width, dy = value.translation.height
                 if dragMode == nil {
                     if abs(dx) > abs(dy) {
-                        dragMode = model.mpv.duration > 0 ? .scrub(start: model.mpv.timePosition) : .ignored
+                        dragMode = model.engine.duration > 0 ? .scrub(start: model.engine.timePosition) : .ignored
                     } else {
                         switch PlayerGestureMath.edge(x: value.startLocation.x, width: size.width) {
                         case .left?:
                             if originalBrightness == nil { originalBrightness = UIScreen.main.brightness }
                             dragMode = .brightness(start: UIScreen.main.brightness)
-                        case .right?: dragMode = .volume(start: model.mpv.volume / 100)
+                        case .right?: dragMode = .volume(start: model.engine.volume / 100)
                         default: dragMode = .ignored
                         }
                     }
@@ -125,14 +125,14 @@ private struct PlayerGestures: ViewModifier {
                 switch dragMode {
                 case .scrub(let start)?:
                     scrub = ScrubState(start: start, target: PlayerGestureMath.scrubTarget(
-                        from: start, dx: dx, width: size.width, duration: model.mpv.duration))
+                        from: start, dx: dx, width: size.width, duration: model.engine.duration))
                 case .brightness(let start)?:
                     let value = PlayerGestureMath.level(from: start, dy: dy, height: size.height)
                     UIScreen.main.brightness = value
                     level = (.left, value)
                 case .volume(let start)?:
                     let value = PlayerGestureMath.level(from: start, dy: dy, height: size.height)
-                    model.mpv.setVolume(value * 100)
+                    model.engine.setVolume(value * 100)
                     level = (.right, value)
                 case .ignored?, nil:
                     break
@@ -140,7 +140,7 @@ private struct PlayerGestures: ViewModifier {
             }
             .onEnded { _ in
                 if case .scrub(let start)? = dragMode, let target = scrub?.target, abs(target - start) >= 1 {
-                    model.mpv.seek(to: target)
+                    model.engine.seek(to: target)
                 }
                 if case .scrub? = dragMode { scrub = nil }
                 dragMode = nil
@@ -156,7 +156,7 @@ private struct PlayerGestures: ViewModifier {
         let side = PlayerGestureMath.third(x: location.x, width: size.width)
         let delta = skip.register(side, at: Date())
         guard delta != 0 else { return }
-        model.mpv.seek(by: delta)
+        model.engine.seek(by: delta)
         showBadge { skipBadge = (side, skip.total) }
     }
 
