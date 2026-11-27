@@ -48,6 +48,27 @@ struct RealDictionaryTests {
         #expect(first.inflections.map(\.name) == ["redirected from 精いっぱい"])
     }
 
+    /// A word with its own entry stays ahead of its redirect, as in Yomitan: Jitendex's particle なあ
+    /// before 七 (なあ ⟶ 七), バット before バッド; ねえ and よお have no redirect.
+    @Test func ownEntriesStayAheadOfRedirects() async throws {
+        let library = try await Self.importedLibrary()
+        func followed(_ text: String) async -> [String] {
+            let results = await library.engine.lookup(text)
+            var found: [String: [TermLookupResult]] = [:]
+            for term in Redirects.terms(in: results) { found[term] = await library.engine.lookup(term, maxResults: 8) }
+            return Redirects.follow(results, found: found).map { "\($0.expression)/\($0.reading)" }
+        }
+        let naa = await followed("なあ")
+        #expect(naa.first == "なあ/なあ")
+        #expect(naa.firstIndex(of: "七/しち").map { $0 > 0 } ?? true)
+        let bat = await followed("バット")
+        #expect(bat.first == "バット/バット")
+        #expect(bat.contains("バッド/バッド"))
+        #expect(await followed("ねえ").first == "ねえ/ねえ")
+        #expect(await followed("よお").first == "よお/よお")
+        #expect(await followed("精いっぱい").first == "精一杯/せいいっぱい")
+    }
+
     /// Word marks split a chapter in the background: report how long one takes.
     @Test func chapterScanSpeed() async throws {
         let library = try await Self.importedLibrary()

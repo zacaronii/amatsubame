@@ -26,13 +26,13 @@ struct RedirectsTests {
         #expect(results[0].inflections.map(\.name) == ["redirected from 精いっぱい"])
     }
 
-    @Test func anotherDictionarysDefinitionStays() {
+    @Test func anotherDictionarysDefinitionStaysAheadOfTheRedirect() {
         let other = Glossary(dictionary: "JMdict", json: #"["with all one's might"]"#)
         let tapped = TermLookupResult(matched: "精いっぱい", deinflected: "精いっぱい", expression: "精いっぱい", reading: "せいいっぱい",
                                       glossaries: [redirect, other])
         let results = Redirects.follow([tapped], found: found)
-        #expect(results.map(\.expression) == ["精一杯", "精いっぱい"])
-        #expect(results[1].glossaries == [other])
+        #expect(results.map(\.expression) == ["精いっぱい", "精一杯"])
+        #expect(results[0].glossaries == [other])
     }
 
     @Test func aRedirectWithNothingToFollowStays() {
@@ -45,5 +45,25 @@ struct RedirectsTests {
     @Test func theLinkNamesTheReading() {
         #expect(Redirects.targets(redirect) == [Redirects.Target(term: "精一杯", reading: "せいいっぱい", rules: ["redirected from 精いっぱい"])])
         #expect(Redirects.targets(full).isEmpty)
+    }
+
+    /// Jitendex's なあ: the particle and a redirect to 七 (しち), merged into one result by hoshidicts.
+    let naaRedirect = Glossary(dictionary: "Jitendex.org [2026-10-03]", json: """
+    [{"type":"structured-content","content":{"tag":"div","data":{"content":"redirect-glossary"},"content":["⟶",\
+    {"tag":"a","href":"?query=%E4%B8%83&wildcards=off&primary_reading=%E3%81%97%E3%81%A1","content":"七"}]}},\
+    ["七",["redirected from なあ"]]]
+    """)
+    let particle = Glossary(dictionary: "Jitendex.org [2026-10-03]", json: #"["expressing emotion; seeking agreement"]"#)
+
+    @Test func aWordWithItsOwnEntryStaysAheadOfItsRedirect() {
+        let tapped = TermLookupResult(matched: "なあ", deinflected: "なあ", expression: "なあ", reading: "なあ",
+                                      glossaries: [particle, naaRedirect])
+        let na = TermLookupResult(matched: "な", deinflected: "な", expression: "な", reading: "な")
+        let seven = TermLookupResult(matched: "七", deinflected: "七", expression: "七", reading: "しち", glossaries: [full])
+        let nana = TermLookupResult(matched: "七", deinflected: "七", expression: "七", reading: "なな")
+        let results = Redirects.follow([tapped, na], found: ["七": [seven, nana]])
+        #expect(results.map { "\($0.expression)/\($0.reading)" } == ["なあ/なあ", "七/しち", "な/な"])
+        #expect(results[0].glossaries == [particle])
+        #expect(results[1].inflections.map(\.name) == ["redirected from なあ"])
     }
 }

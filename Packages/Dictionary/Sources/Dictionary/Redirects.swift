@@ -3,7 +3,8 @@ import Foundation
 /// Jitendex stores some spellings as redirects: 精いっぱい's only definitions are a link
 /// "⟶ 精一杯" and a Yomitan deinflection definition `["精一杯", ["redirected from 精いっぱい"]]`.
 /// Yomitan follows those (looks up 精一杯 and shows it with the note, like an inflection);
-/// so do we. The redirect's own glossary goes, and so does the result when nothing else is left.
+/// so do we. The redirect's own glossary goes, and so does the result when nothing else is left;
+/// what is left of it stays ahead of the entries the redirect leads to, as in Yomitan.
 nonisolated public enum Redirects {
     /// A redirect in a result: the term to look up, its reading when the link names one, and
     /// the rules to show ("redirected from 精いっぱい").
@@ -23,6 +24,7 @@ nonisolated public enum Redirects {
     public static func follow(_ results: [TermLookupResult], found: [String: [TermLookupResult]]) -> [TermLookupResult] {
         guard results.contains(where: { $0.glossaries.contains(where: isRedirect) }) else { return results }
         var followed: [TermLookupResult] = []
+        var redirected: [TermLookupResult] = []
         var shown = Set(results.map { "\($0.expression)\t\($0.reading)" })
         for result in results {
             let targets = result.glossaries.flatMap(targets)
@@ -42,7 +44,6 @@ nonisolated public enum Redirects {
                     entries.append(entry)
                 }
             }
-            followed += entries
             // Nothing found (the target's dictionary is off): the redirect stays as it is.
             guard !entries.isEmpty else {
                 followed.append(result)
@@ -51,6 +52,20 @@ nonisolated public enum Redirects {
             var rest = result
             rest.glossaries.removeAll(where: isRedirect)
             if !rest.glossaries.isEmpty { followed.append(rest) }
+            redirected += entries
+        }
+        // Yomitan's ranking (translator.js): longer match, then fewer text-processing steps, then a
+        // shorter inflection chain. A redirect's "redirected from" rule is one more inflection, so the
+        // target goes after every result it doesn't outrank: Jitendex's particle なあ, merged with its
+        // redirect なあ ⟶ 七, stays ahead of 七. hoshidicts returns the rest in that order already.
+        func outranks(_ a: TermLookupResult, _ b: TermLookupResult) -> Bool {
+            let ka = (-a.matched.count, a.preprocessorSteps, a.inflections.count)
+            let kb = (-b.matched.count, b.preprocessorSteps, b.inflections.count)
+            return ka < kb
+        }
+        for entry in redirected {
+            let index = followed.firstIndex { outranks(entry, $0) } ?? followed.endIndex
+            followed.insert(entry, at: index)
         }
         return followed
     }
