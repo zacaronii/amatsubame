@@ -361,42 +361,90 @@ public final class DictionaryLibrary: Sendable {
         try await reloadEngine()
     }
 
+    /// Hachidori's Sort by frequency dictionary (nil: none). Choosing one sets the sort order to
+    /// its own direction (rank-based or unset: ascending; occurrence-based: descending), as
+    /// Hachidori's settings do.
     public func setFrequencySortDictionary(_ title: String?) async throws {
-        try await updateSettings { $0.frequencySortTitle = title }
+        let mode = try title.flatMap { title in try dictionaries().first { $0.title == title } }
+            .flatMap { installedIndex(of: $0) }?.frequencyMode
+        try await updateSettings { settings in
+            settings.frequencySortTitle = title
+            if title != nil { settings.frequencySortOrder = FrequencyOrder(frequencyMode: mode).rawValue }
+        }
         try await reloadEngine()
     }
 
-    /// Hachidori's `frequencyOrder` while linked, when it names a direction: it wins over the
-    /// dictionary's own mode (as on the host).
-    private let hostFrequencyOrder = Mutex<FrequencyOrder?>(nil)
+    /// Sort by frequency dictionary and Sort order as Settings shows them (a dictionary chosen
+    /// before Sort order was a setting shows its own direction).
+    public func frequencySortSettings() throws -> (title: String?, order: String) {
+        let settings = try settings()
+        if let order = settings.frequencySortOrder { return (settings.frequencySortTitle, order) }
+        guard let title = settings.frequencySortTitle, let record = try dictionaries().first(where: { $0.title == title }) else {
+            return (settings.frequencySortTitle, "auto")
+        }
+        return (title, FrequencyOrder(frequencyMode: installedIndex(of: record)?.frequencyMode).rawValue)
+    }
 
-    /// Sets (nil: clears) the linked host's frequency order, and reloads when it changed.
-    public func setHostFrequencyOrder(_ order: FrequencyOrder?) async throws {
-        let changed = hostFrequencyOrder.withLock { current in
-            defer { current = order }
-            return current != order
+    /// Hachidori's Sort order: "auto" (dictionary order), "ascending", "descending" or "disabled".
+    public func setFrequencySortOrder(_ order: String) async throws {
+        try await updateSettings { $0.frequencySortOrder = order }
+        try await reloadEngine()
+    }
+
+    /// A linked Hachidori's `frequencyDictionary` and `frequencyOrder`, which replace ours while
+    /// it's linked (as its own lookups use them).
+    public struct HostFrequencySort: Equatable, Sendable {
+        public var dictionary: String
+        public var order: String
+
+        public init(dictionary: String, order: String) {
+            self.dictionary = dictionary
+            self.order = order
+        }
+    }
+
+    private let hostFrequencySort = Mutex<HostFrequencySort?>(nil)
+
+    /// Sets (nil: clears) the linked host's frequency settings, and reloads when they changed.
+    public func setHostFrequencySort(_ sort: HostFrequencySort?) async throws {
+        let changed = hostFrequencySort.withLock { current in
+            defer { current = sort }
+            return current != sort
         }
         if changed { try await reloadEngine() }
+    }
+
+    /// The dictionary that sorts lookups and which way, or nil for dictionary order: Hachidori's
+    /// rule, a chosen dictionary with a direction (Automatic and Disabled don't sort).
+    func frequencySort(enabled: [DictionaryRecord]) throws -> (record: DictionaryRecord, order: FrequencyOrder)? {
+        let settings = try settings()
+        let host = hostFrequencySort.withLock { $0 }
+        let title = host.map { $0.dictionary.isEmpty ? nil : $0.dictionary } ?? settings.frequencySortTitle
+        guard let record = title.flatMap({ title in enabled.first { $0.title == title && $0.hasFrequencies } }) else { return nil }
+        let order: FrequencyOrder?
+        if let host {
+            order = FrequencyOrder(hostSetting: host.order)
+        } else if let setting = settings.frequencySortOrder {
+            order = FrequencyOrder(hostSetting: setting)
+        } else {
+            // Chosen before Sort order was a setting: the direction choosing it sets.
+            order = FrequencyOrder(frequencyMode: installedIndex(of: record)?.frequencyMode)
+        }
+        return order.map { (record, $0) }
     }
 
     /// Loads the enabled dictionaries, in order, into the engine.
     public func reloadEngine() async throws {
         let enabled = try dictionaries().filter(\.enabled)
-        let sortTitle = try settings().frequencySortTitle.flatMap { title in
-            enabled.contains { $0.title == title && $0.hasFrequencies } ? title : nil
-        }
-        // The dictionary that sorts (the chosen one, else the first with frequencies), and which
-        // way its numbers run.
-        let sorter = sortTitle.flatMap { title in enabled.first { $0.title == title } } ?? enabled.first(where: \.hasFrequencies)
-        let order = hostFrequencyOrder.withLock { $0 }
-            ?? FrequencyOrder(frequencyMode: sorter.flatMap { installedIndex(of: $0) }?.frequencyMode)
+        let sort = try frequencySort(enabled: enabled)
         let loaded = enabled.map {
             EngineDictionary(title: $0.title, folder: folder(for: $0), hasTerms: $0.hasTerms,
                              hasFrequencies: $0.hasFrequencies, hasPitches: $0.hasPitches, hasKanji: $0.hasKanji)
         }
         // A dictionary the engine rejects is left out of word marks too.
-        let rejected = await engine.configure(loaded, frequencySortTitle: sorter?.title, frequencyOrder: order)
+        let rejected = await engine.configure(loaded, frequencySortTitle: sort?.record.title, frequencyOrder: sort?.order ?? .ascending)
         await scanner.configure(loaded.filter { !rejected.contains($0.title) },
-                                frequencySortTitle: sorter.flatMap { rejected.contains($0.title) ? nil : $0.title }, frequencyOrder: order)
+                                frequencySortTitle: sort.flatMap { rejected.contains($0.record.title) ? nil : $0.record.title },
+                                frequencyOrder: sort?.order ?? .ascending)
     }
 }
