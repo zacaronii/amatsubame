@@ -29,7 +29,7 @@ They include or use the following. Each keeps its own license; the full texts ar
 | [GRDB.swift](https://github.com/groue/GRDB.swift) | MIT |
 | [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) | MIT |
 | [zstd](https://github.com/facebook/zstd) | BSD-3-Clause (dual BSD/GPL-2.0) |
-| [MPVKit](https://github.com/mpvkit/MPVKit) (LGPL build) with mpv, FFmpeg and MoltenVK | LGPL-3.0 (MPVKit), LGPL-2.1+ (mpv, FFmpeg), Apache-2.0 (MoltenVK), plus the licenses of the libraries MPVKit bundles |
+| [MPVKit](https://github.com/mpvkit/MPVKit) (LGPL build, from the owner's fork [zacaronii/MPVKit](https://github.com/zacaronii/MPVKit) with upstream's binaries mirrored on the forks of its build repos; docs/miru.md) with mpv, FFmpeg and MoltenVK | LGPL-3.0 (MPVKit), LGPL-2.1+ (mpv, FFmpeg), Apache-2.0 (MoltenVK), plus the licenses of the libraries MPVKit bundles |
 
 ## Followed, not copied
 - [Hachidori](https://github.com/bee-san/hachidori) (GPL-3.0): how lookups are counted and the

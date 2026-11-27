@@ -11,8 +11,9 @@ let package = Package(
     dependencies: [
         .package(path: "../Core"),
         .package(path: "../../Vendor/libfvad"),
-        // The LGPL product only ("MPVKit", never "MPVKit-GPL").
-        .package(url: "https://github.com/mpvkit/MPVKit", exact: "1.1.0-n9.0.2"),
+        // The LGPL product only, from the owner's fork: its tag's manifest has no GPL product and
+        // takes every binary from the owner's forks of MPVKit's build repos (docs/miru.md ▸ MPVKit).
+        .package(url: "https://github.com/zacaronii/MPVKit", exact: "1.1.0-n9.0.2-amatsubame.1"),
     ],
     targets: [
         .target(name: "PlayerKit", dependencies: [
