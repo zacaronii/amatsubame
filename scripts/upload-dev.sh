@@ -1,23 +1,31 @@
 #!/bin/bash
-# Archives the four apps for iOS and macOS from the current commit and uploads them to App Store
-# Connect, where the TestFlight "Dev" group gets them. Releases reuse these builds (scripts/release.sh).
-# Dev builds come from the dev branch (README ▸ Branches); a build from anywhere else says so.
+# Archives the four apps for iOS and macOS from the current commit. The iOS builds go to App Store
+# Connect, where the TestFlight "Dev" group gets them; the Mac apps go to Homebrew only, as the dev
+# casks (yomu@dev, miru@dev, kiku@dev, hiku@dev) in the tap. Releases reuse these builds
+# (scripts/release.sh). Dev builds come from the dev branch (README ▸ Branches); a build from
+# anywhere else says so.
 #
 #   scripts/upload-dev.sh [--no-upload] [App ...]
 #
-# Apps default to Yomu Miru Kiku Hiku. Each is archived and exported (signed for the App Store) into
-# build.noindex/testflight/<build>/, then uploaded; --no-upload stops after the export.
+# Apps default to Yomu Miru Kiku Hiku. Each is archived into build.noindex/testflight/<build>/. The
+# iOS app is exported for the App Store and uploaded. The Mac app is exported with Developer ID,
+# notarized and stapled (scripts/mac-developer-id.sh), zipped, and once every app is done the zips
+# replace the ones on the tap's rolling "dev" release and the dev casks point at them.
+# --no-upload stops after the exports (the Mac apps aren't notarized then).
 #
-# All the apps get one build number, the upload time (YYYYMMDDHHMM, UTC): it only ever goes up, and
-# Mac builds must always be higher than any uploaded before. Once the first upload has gone through,
-# the tag build-<number> is pushed on the commit, so a release can find what a build came from.
+# All the apps get one build number, the upload time (YYYYMMDDHHMM, UTC): it only ever goes up.
+# Once the first upload has gone through, the tag build-<number> is pushed on the commit, so a
+# release can find what a build came from.
 #
 # Needs, besides a clean checkout:
 # - Config/Signing.local.xcconfig with DEVELOPMENT_TEAM (a paid team) and AMATSUBAME_APP_GROUP = YES. The
 #   builds also get iCloud (Stats across devices); AMATSUBAME_ICLOUD=NO in the environment leaves it out.
 # - That team's Apple ID signed in to Xcode (Settings ▸ Accounts): signing goes through it, since an
-#   App Manager API key can't manage certificates and profiles.
-# - For uploading, an App Store Connect API key (App Manager) in the login keychain (scripts/asc-key.sh).
+#   App Manager API key can't manage certificates and profiles. Developer ID signing needs the
+#   team's Developer ID Application certificate, which Xcode makes the first time.
+# - For uploading, an App Store Connect API key (App Manager) in the login keychain (scripts/asc-key.sh);
+#   notarizing uses it too.
+# - gh signed in with push access to the tap (github.com/<owner>/homebrew-amatsubame).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -92,8 +100,39 @@ tag_build() {
   tagged=1
 }
 
+. scripts/mac-developer-id.sh
+. scripts/homebrew-casks.sh
+
+# The Mac apps' zips go on one release in the tap, tagged "dev", which every Dev build overwrites:
+# the app repo's own releases stay the versions, and nothing old piles up.
+owner=$(gh repo view --json owner -q .owner.login)
+tap_repo="$owner/homebrew-amatsubame"
+
+# The zips onto the dev release (replacing those apps' older ones), then the casks.
+publish_mac() {
+  local tap="$work/tap" app zip old
+  echo "• Homebrew: $tap_repo dev casks"
+  gh repo clone "$tap_repo" "$tap" -- -q
+  gh release view dev -R "$tap_repo" >/dev/null 2>&1 \
+    || gh release create dev -R "$tap_repo" --prerelease --title "Dev builds" \
+      --notes "The Mac apps of the latest Dev build, for the @dev casks: brew install --cask $tap_repo/kiku@dev (or yomu, miru, hiku). Every Dev build replaces them." >/dev/null
+  for app in "${mac_apps[@]}"; do
+    zip="$out/$app-$version-$build.zip"
+    gh release upload dev "$zip" -R "$tap_repo" --clobber
+    for old in $(gh release view dev -R "$tap_repo" --json assets -q '.assets[].name' | grep "^$app-" | grep -vx "$(basename "$zip")" || true); do
+      gh release delete-asset dev "$old" -R "$tap_repo" --yes
+    done
+    write_dev_cask "$app" "$tap" "$zip"
+  done
+  check_casks "$tap"/Casks/*.rb
+  git -C "$tap" add Casks
+  git -C "$tap" commit -q -m "Dev build $build: ${mac_apps[*]}"
+  git -C "$tap" push -q
+}
+
 xcodegen >/dev/null
 echo "Build $build (version $version, commit $(git rev-parse --short HEAD)) of: ${apps[*]} ($([ $upload = 1 ] && echo uploading || echo "not uploading"))"
+mac_apps=()
 for app in "${apps[@]}"; do
   for platform in iOS macOS; do
     archive="$out/$app-$platform.xcarchive"
@@ -107,13 +146,22 @@ for app in "${apps[@]}"; do
       -derivedDataPath "build.noindex/testflight/derived-$platform" \
       CURRENT_PROJECT_VERSION="$build" AMATSUBAME_APP_GROUP=YES AMATSUBAME_ICLOUD="${AMATSUBAME_ICLOUD:-YES}" ${extra[@]+"${extra[@]}"} -allowProvisioningUpdates >"$log" 2>&1 \
       || fail "archiving $app for $platform failed; see $log"
+    if [ "$platform" = macOS ]; then
+      # Homebrew, not TestFlight: Developer ID, notarized and stapled.
+      echo "• $app (macOS): exporting with Developer ID$([ $upload = 1 ] && echo ", notarizing")"
+      developer_id_app "$archive" "$out/$app-macOS" "$log" $([ $upload = 1 ] || echo --no-notarize)
+      [ $upload = 1 ] || continue
+      ditto -c -k --keepParent "$out/$app-macOS/$app.app" "$out/$app-$version-$build.zip"
+      mac_apps+=("$app")
+      continue
+    fi
     echo "• $app ($platform): exporting"
     xcodebuild -exportArchive -archivePath "$archive" -exportOptionsPlist "$work/ExportOptions.plist" \
       -exportPath "$out/$app-$platform" -allowProvisioningUpdates >>"$log" 2>&1 \
       || fail "exporting $app for $platform failed; see $log"
     [ $upload = 1 ] || continue
-    package=$(find "$out/$app-$platform" -maxdepth 1 \( -name "*.ipa" -o -name "*.pkg" \) | head -1)
-    [ -n "$package" ] || fail "no .ipa or .pkg for $app ($platform) in $out/$app-$platform"
+    package=$(find "$out/$app-$platform" -maxdepth 1 -name "*.ipa" | head -1)
+    [ -n "$package" ] || fail "no .ipa for $app ($platform) in $out/$app-$platform"
     echo "• $app ($platform): uploading"
     xcrun altool --upload-package "$package" --api-key "$key_id" --api-issuer "$issuer" \
       --p8-file-path "$key_file" >>"$log" 2>&1 \
@@ -122,7 +170,8 @@ for app in "${apps[@]}"; do
   done
 done
 if [ $upload = 1 ]; then
-  echo "Done: build $build is on its way to the Dev group (tag build-$build). Archives and logs are in $out."
+  publish_mac
+  echo "Done: build $build is on its way to the Dev group (tag build-$build), and the Mac apps are on Homebrew as $(tr '[:upper:]' '[:lower:]' <<<"${mac_apps[*]/%/@dev}"). Archives and logs are in $out."
 else
   echo "Done. Archives and logs are in $out."
 fi

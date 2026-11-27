@@ -25,8 +25,6 @@ public struct BookReaderView: View {
     private let accessory: AnyView?
     /// The app's button in the top bar, before Reader Settings (Yomu's read-along switch).
     private let barItem: AnyView?
-    /// Above the lookup popup (Yomu's read-along clip row).
-    private let popupHeader: AnyView?
 
     public init(model: BookReaderModel, onClose: @escaping () -> Void, onOpenChapter: @escaping (ReaderChapter) -> Void) {
         self.model = model
@@ -34,19 +32,17 @@ public struct BookReaderView: View {
         self.onOpenChapter = onOpenChapter
         accessory = nil
         barItem = nil
-        popupHeader = nil
     }
 
-    public init<Accessory: View, BarItem: View, PopupHeader: View>(
+    public init<Accessory: View, BarItem: View>(
         model: BookReaderModel, onClose: @escaping () -> Void, onOpenChapter: @escaping (ReaderChapter) -> Void,
-        @ViewBuilder accessory: () -> Accessory, @ViewBuilder barItem: () -> BarItem, @ViewBuilder popupHeader: () -> PopupHeader
+        @ViewBuilder accessory: () -> Accessory, @ViewBuilder barItem: () -> BarItem
     ) {
         self.model = model
         self.onClose = onClose
         self.onOpenChapter = onOpenChapter
         self.accessory = AnyView(accessory())
         self.barItem = AnyView(barItem())
-        self.popupHeader = AnyView(popupHeader())
     }
 
     public var body: some View {
@@ -79,7 +75,6 @@ public struct BookReaderView: View {
                                                  beside: model.isVertical, onClose: { model.popup = nil }) { popup, lookup in
                                 VStack(spacing: 0) {
                                     HighlightBar(model: model)
-                                    if let popupHeader { popupHeader }
                                     LookupPopupView(service: lookup, model: popup, drawsBackground: false)
                                 }
                             }
@@ -328,7 +323,6 @@ public struct BookReaderView: View {
         let height = min(page.height - 16, 560)
         return VStack(spacing: 0) {
             HighlightBar(model: model)
-            if let popupHeader { popupHeader }
             if let lookup = model.lookup { LookupPopupView(service: lookup, model: popup, drawsBackground: false) }
         }
         .accessibilityElement(children: .contain)

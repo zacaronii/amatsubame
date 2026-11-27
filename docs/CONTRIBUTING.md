@@ -7,8 +7,8 @@ branch → pull request → `dev`, and `dev` goes to `main` when it has been tri
 ## Branches
 
 - **`dev`** is where work lands. Each fix or feature is a branch from `dev` and a pull request back
-  into it, merged once the builds and tests pass. Dev TestFlight builds (iPhone, iPad and Mac) come
-  from `dev`, so testing always covers everything merged so far.
+  into it, merged once the builds and tests pass. Dev builds (TestFlight for iPhone and iPad, the
+  `@dev` Homebrew casks for Mac) come from `dev`, so testing always covers everything merged so far.
 - **`main`** only gets what has been tried. One pull request, `dev` → `main` (labelled `chore`), is
   merged when the next release is ready; releases come from `main`. It stays the default branch, so
   `Fixes #N` closes an issue when its fix reaches `main`. Until then the issue carries `in dev`.
