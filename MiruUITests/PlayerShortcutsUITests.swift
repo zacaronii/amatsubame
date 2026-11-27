@@ -7,7 +7,7 @@ final class PlayerShortcutsUITests: XCTestCase {
 
     override func setUpWithError() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
-            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file to test the shortcuts.")
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to the 60 s test video (scripts/make-test-media.sh) to test the shortcuts.")
         }
         continueAfterFailure = false
         // Sideways: the overlay layout, where hiding the Japanese line leaves none on screen

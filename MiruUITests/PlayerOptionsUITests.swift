@@ -6,7 +6,7 @@ import XCTest
 final class PlayerOptionsUITests: XCTestCase {
     func testPauseAfterEachLine() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
-            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file.")
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to the 60 s test video (scripts/make-test-media.sh).")
         }
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -48,7 +48,7 @@ final class PlayerOptionsUITests: XCTestCase {
     /// skipped, landing just before the next line; off again it plays straight through.
     func testCondensedSkipsTheStretchesWithNoLines() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
-            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file.")
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to the 60 s test video (scripts/make-test-media.sh).")
         }
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -95,7 +95,7 @@ final class PlayerOptionsUITests: XCTestCase {
     /// button is in the top bar.
     func testExternalDisplayKeepsTheLinesHere() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
-            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file.")
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to the 60 s test video (scripts/make-test-media.sh).")
         }
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -131,7 +131,7 @@ final class PlayerOptionsUITests: XCTestCase {
     /// real TV.)
     func testAirPlayButtonReachesTheRoutePicker() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
-            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file.")
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to the 60 s test video (scripts/make-test-media.sh).")
         }
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -157,7 +157,7 @@ final class PlayerOptionsUITests: XCTestCase {
     /// player says so); back here, mpv plays on from where it got to.
     func testPictureInPictureAndBack() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
-            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file.")
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to the 60 s test video (scripts/make-test-media.sh).")
         }
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -198,7 +198,7 @@ final class PlayerOptionsUITests: XCTestCase {
     /// Holding the picture plays at 2× until it's let go.
     func testHoldingThePicturePlaysFaster() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
-            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file.")
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to the 60 s test video (scripts/make-test-media.sh).")
         }
         let app = XCUIApplication()
         app.launchEnvironment["UITEST_MUTE"] = "1"
@@ -224,7 +224,7 @@ final class PlayerOptionsUITests: XCTestCase {
     /// Opening the options menu keeps the controls (it hangs from them) up while you choose.
     func testTheControlsStayWhileTheOptionsMenuIsOpen() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
-            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file.")
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to the 60 s test video (scripts/make-test-media.sh).")
         }
         let app = XCUIApplication()
         app.launchEnvironment["UITEST_MUTE"] = "1"
@@ -250,7 +250,7 @@ final class PlayerOptionsUITests: XCTestCase {
     func testEnglishSubtitlesTurnOnAndOff() throws {
         let environment = ProcessInfo.processInfo.environment
         guard let video = environment["UITEST_PLAYER_VIDEO"], let english = environment["UITEST_PLAYER_ENGLISH_FILE"] else {
-            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO and TEST_RUNNER_UITEST_PLAYER_ENGLISH_FILE (an .srt).")
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO and TEST_RUNNER_UITEST_PLAYER_ENGLISH_FILE (scripts/make-test-media.sh).")
         }
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -282,7 +282,7 @@ final class PlayerOptionsUITests: XCTestCase {
     /// the size and position from Settings apply.
     func testHiddenSubtitlesShowOnATap() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
-            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file.")
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to the 60 s test video (scripts/make-test-media.sh).")
         }
         continueAfterFailure = false
         let app = XCUIApplication()
