@@ -10,6 +10,7 @@ final class EnglishSubtitlesLiveUITests: XCTestCase {
         }
         continueAfterFailure = false
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launch()
         let search = app.buttons["watch.search"].firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 20), "signed in to Jellyfin")

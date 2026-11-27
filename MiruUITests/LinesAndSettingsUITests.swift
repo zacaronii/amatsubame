@@ -6,6 +6,7 @@ final class LinesAndSettingsUITests: XCTestCase {
     func testSubtitlesKakuTapThrough() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launch()
         XCUIDevice.shared.orientation = .portrait
@@ -30,6 +31,7 @@ final class LinesAndSettingsUITests: XCTestCase {
     func testLinesSaysNoResultsOnlyAfterSearching() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_TRANSCRIPT"] = "1"
         app.launch()
@@ -56,6 +58,7 @@ final class LinesAndSettingsUITests: XCTestCase {
     func testSettingsTabReturnsToTheTopFromTwoScreensDeep() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launch()
         checkSettingsTabRetap(app)
@@ -67,6 +70,7 @@ final class LinesAndSettingsUITests: XCTestCase {
     func testLinesTabReturnsToTheTop() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_TRANSCRIPT"] = "1"
         app.launch()
@@ -91,6 +95,7 @@ final class LinesAndSettingsUITests: XCTestCase {
     func testWideLinesListStaysPutWhenPickingAnEpisode() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_TRANSCRIPT"] = "2"
         app.launch()

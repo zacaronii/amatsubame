@@ -9,6 +9,7 @@ final class BufferingUITests: XCTestCase {
             throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_SLOW_VIDEO to a slowly served video.")
         }
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
         app.launchEnvironment["UITEST_QUALITY_OFFER"] = "1"

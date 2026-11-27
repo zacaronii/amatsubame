@@ -5,6 +5,7 @@ final class PlayerUITests: XCTestCase {
     func testTabsAndSettings() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launch()
         XCUIDevice.shared.orientation = .portrait
@@ -61,6 +62,7 @@ final class PlayerUITests: XCTestCase {
     /// The Stats tab with a few days of seeded watching (a screenshot to check by eye).
     func testStatsTab() throws {
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_STATS"] = "1"
         app.launch()
@@ -78,6 +80,7 @@ final class PlayerUITests: XCTestCase {
     func testTranscriptShowsWordMarks() throws {
         guard let zips = ProcessInfo.processInfo.environment["UITEST_DICTIONARY_ZIPS"] else { throw XCTSkip("Needs UITEST_DICTIONARY_ZIPS.") }
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_TRANSCRIPT"] = "1"
         app.launchEnvironment["UITEST_DICTIONARY_ZIPS"] = zips
@@ -98,6 +101,7 @@ final class PlayerUITests: XCTestCase {
     func testSearchThisEpisode() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_TRANSCRIPT"] = "1"
         app.launch()
@@ -126,6 +130,7 @@ final class PlayerUITests: XCTestCase {
     func testSavedTranscriptInLines() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_TRANSCRIPT"] = "1"
         app.launch()

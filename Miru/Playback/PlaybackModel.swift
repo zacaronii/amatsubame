@@ -38,10 +38,11 @@ extension Notification.Name {
     static let localSubtitleUploaded = Notification.Name("localSubtitleUploaded")
 }
 
-/// Plays one Jellyfin item with mpv and reports progress through the outbox.
+/// Plays one Jellyfin item and reports progress through the outbox. The video engine (mpv) is
+/// behind `PlayerEngine`, so nothing here depends on which one plays.
 @MainActor @Observable
 final class PlaybackModel {
-    let mpv = MPVController()
+    let engine: any PlayerEngine
     private(set) var session: PlaybackSession
     private(set) var item: JellyfinItem?
     private(set) var error: String?
@@ -225,7 +226,8 @@ final class PlaybackModel {
     /// report 20 s after the last one it used, so a pause has to be repeated to be counted.
     static let saveInterval: TimeInterval = 10
 
-    init(session: PlaybackSession, environment: PlayerEnvironment) {
+    init(session: PlaybackSession, environment: PlayerEnvironment, engine: any PlayerEngine = MPVController()) {
+        self.engine = engine
         self.session = session
         self.environment = environment
         lines = LineLookup(service: environment.common.lookup)
@@ -233,7 +235,7 @@ final class PlaybackModel {
         look = settings
         pausesAfterLines = settings.pausesAfterLines
         // The speed last chosen carries over (mpv keeps it from then on).
-        if settings.speed != 1 { mpv.setSpeed(settings.speed) }
+        if settings.speed != 1 { engine.setSpeed(settings.speed) }
     }
 
     // MARK: The player's menu (speed, audio, English, pausing after lines)
@@ -267,7 +269,7 @@ final class PlaybackModel {
         sleepTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(Double(minutes) * 60))
             guard !Task.isCancelled, let self else { return }
-            mpv.setPaused(true)
+            engine.setPaused(true)
             sleepTimer = nil
         }
     }
@@ -283,15 +285,15 @@ final class PlaybackModel {
         condensed = on
         if let item { try? SeriesPlayerSetting(seriesKey: item.seriesId ?? item.id, condensed: on).save(environment.common.database) }
         showOSD(on ? "Condensed: skipping stretches with no lines" : "Condensed off")
-        if on { skipSilence(at: mpv.timePosition) }
+        if on { skipSilence(at: engine.timePosition) }
     }
 
     /// Condensed: inside a stretch with no line, on to just before the next one (playing
     /// forward, nothing open over the video).
     private func skipSilence(at time: Double) {
-        guard condensed, subtitles != nil, mpv.hasStarted, !mpv.isPaused, popup == nil,
+        guard condensed, subtitles != nil, engine.hasStarted, !engine.isPaused, popup == nil,
               let stretch = silentStretches.first(where: { $0.contains(time) }), stretch.upperBound - time > 0.25 else { return }
-        mpv.seek(to: stretch.upperBound)
+        engine.seek(to: stretch.upperBound)
     }
 
     // MARK: Picture in picture (iOS)
@@ -328,7 +330,7 @@ final class PlaybackModel {
     /// Offered when the device has picture in picture and the video can reach AVPlayer: a
     /// stream from Jellyfin (directly or transcoded), or a download AVPlayer opens (not MKV).
     var canPictureInPicture: Bool {
-        guard PictureInPicture.isSupported, item != nil, mpv.hasStarted, airPlayState == .off else { return false }
+        guard PictureInPicture.isSupported, item != nil, engine.hasStarted, airPlayState == .off else { return false }
         if mediaSourceId == "local" { return true } // UI tests: a local test video
         if let localFile {
             let codecs = playingCodecs
@@ -339,11 +341,11 @@ final class PlaybackModel {
 
     func startPictureInPicture() {
         guard pipState == .off, canPictureInPicture, let item else { return }
-        let time = mpv.timePosition, rate = Float(mpv.speed)
-        let wasPlaying = !mpv.isPaused
-        mpv.setPaused(true)
+        let time = engine.timePosition, rate = Float(engine.speed)
+        let wasPlaying = !engine.isPaused
+        engine.setPaused(true)
         // mpv's picture is hidden meanwhile: its video stops, leaving the decoder to AVPlayer.
-        mpv.setVideoEnabled(false)
+        engine.setVideoEnabled(false)
         pipState = .starting
         // A transcode needs its first segment and then the one at the seek (Jellyfin restarts
         // there): a few seconds each on a slow line.
@@ -356,8 +358,8 @@ final class PlaybackModel {
             guard source != nil else {
                 self.pipState = .off
                 self.pipHandoff = nil
-                self.mpv.setVideoEnabled(!self.inBackground)
-                if wasPlaying { self.mpv.setPaused(false) }
+                self.engine.setVideoEnabled(!self.inBackground)
+                if wasPlaying { self.engine.setPaused(false) }
                 self.showOSD("Picture in Picture isn't available for this video")
                 return
             }
@@ -386,13 +388,13 @@ final class PlaybackModel {
         let (time, wasPlaying) = pipHandoff.finish()
         self.pipHandoff = nil
         pipState = .off
-        mpv.setVideoEnabled(!inBackground)
-        mpv.seek(to: time)
-        if restored && wasPlaying { mpv.setPaused(false) }
+        engine.setVideoEnabled(!inBackground)
+        engine.seek(to: time)
+        if restored && wasPlaying { engine.setPaused(false) }
         if failed { showOSD("Picture in Picture couldn't start") }
         saveProgress(.progress)
         // Closed while away, paused: the session ends as it would have.
-        if inBackground, mpv.isPaused { endSessionInBackground() }
+        if inBackground, engine.isPaused { endSessionInBackground() }
     }
 
     func stopPictureInPicture() { pip.stop() }
@@ -403,7 +405,7 @@ final class PlaybackModel {
         #if DEBUG
         guard let after = ProcessInfo.processInfo.environment["UITEST_PLAYER_PIP"].flatMap(Double.init) else { return }
         Task {
-            for _ in 0..<300 where mpv.timePosition < start + after { try? await Task.sleep(for: .milliseconds(100)) }
+            for _ in 0..<300 where engine.timePosition < start + after { try? await Task.sleep(for: .milliseconds(100)) }
             if canPictureInPicture { startPictureInPicture() } else {
                 showOSD(PictureInPicture.isSupported ? "PiP not offered" : "PiP not supported here")
             }
@@ -519,7 +521,7 @@ final class PlaybackModel {
             airPlayTriedRoute = nil
             return
         }
-        guard airPlayState == .off, item != nil, mpv.hasStarted, !inBackground, pipState == .off,
+        guard airPlayState == .off, item != nil, engine.hasStarted, !inBackground, pipState == .off,
               // Mirroring: mpv's picture is on that screen already (ExternalDisplay).
               !ExternalDisplay.shared.isConnected,
               airPlayTriedRoute != route.uid, !airPlayFailedRoutes.contains(route.uid),
@@ -547,7 +549,7 @@ final class PlaybackModel {
         let sources = avPlayerSources(item: item, bitrate: bitrate, forTV: true)
         Task { [weak self] in
             // mpv plays on (the sound on the receiver) while the TV's stream gets ready.
-            let outcome = await handoff.start(at: self?.mpv.timePosition ?? 0, sources: sources)
+            let outcome = await handoff.start(at: self?.engine.timePosition ?? 0, sources: sources)
             // Closed or moved on meanwhile: the TV's source (a transcode) is let go.
             guard let self, self.airPlayState == .starting, self.airPlay === handoff else {
                 if case .playing = outcome { _ = handoff.finish() }
@@ -576,10 +578,10 @@ final class PlaybackModel {
 
     /// The TV is ready: it plays from where mpv is, and stands in for mpv until it's done.
     private func takeOverAirPlay(_ handoff: AirPlayVideoHandoff, name: String) {
-        let time = mpv.timePosition, wasPlaying = !mpv.isPaused, rate = Float(mpv.speed)
-        mpv.attach(airPlayPlayer)
-        mpv.setVideoEnabled(false)
-        airPlayPlayer.startReporting(to: mpv)
+        let time = engine.timePosition, wasPlaying = !engine.isPaused, rate = Float(engine.speed)
+        engine.attach(airPlayPlayer)
+        engine.setVideoEnabled(false)
+        airPlayPlayer.startReporting(to: engine)
         airPlayPlayer.seek(to: time)
         if wasPlaying { airPlayPlayer.play(rate: rate) } else { airPlayPlayer.setSpeed(Double(rate)) }
         airPlayName = name.isEmpty ? "the TV" : name
@@ -606,12 +608,12 @@ final class PlaybackModel {
         self.airPlay = nil
         airPlayState = .off
         guard started else { return }
-        mpv.detach()
+        engine.detach()
         guard reason != .closing else { return }
-        mpv.setVideoEnabled(!inBackground)
-        mpv.seek(to: time)
+        engine.setVideoEnabled(!inBackground)
+        engine.seek(to: time)
         // At the end: mpv plays the last moment, reaches the end itself, and Up Next shows.
-        if wasPlaying || reason == .ended || reason == .unreachable { mpv.setPaused(false) }
+        if wasPlaying || reason == .ended || reason == .unreachable { engine.setPaused(false) }
         if reason == .unreachable, let route = airPlayRoute {
             airPlayFailedRoutes.insert(route.uid)
             showOSD(Self.airPlaySoundOnlyNote)
@@ -633,9 +635,47 @@ final class PlaybackModel {
     /// The line last paused for, so pressing play doesn't pause on it again.
     @ObservationIgnored private var pausedAfterCue: Int?
 
+    /// How long before a line's end Pause After Each Line stops, so the line stays on screen to
+    /// read: within one of mpv's time steps, which come about once a frame.
+    private var linePauseWindow: Double { 0.12 * max(engine.speed, 1) }
+
+    /// Pause After Each Line, on every time step: pauses now if the line showing is about to end
+    /// (also right after landing there with a seek), else asks the engine to call back as it nears
+    /// that line's end (`PlayerEngine.setTimeBoundary`), so an engine with a precise clock pauses
+    /// on time rather than at its next tick.
+    private func armLinePause(at time: Double, jumped: Bool) {
+        guard pausesAfterLines, let subtitles else {
+            engine.setTimeBoundary(nil) {}
+            return
+        }
+        if !engine.isPaused, !jumped, popup == nil,
+           let cue = subtitles.lineEnding(at: time, within: linePauseWindow, lastPaused: pausedAfterCue) {
+            pauseAfterLine(cue.id)
+            return
+        }
+        guard let line = subtitles.cues(at: time).max(by: { $0.end < $1.end }), line.id != pausedAfterCue else {
+            engine.setTimeBoundary(nil) {}
+            return
+        }
+        engine.setTimeBoundary(line.end - linePauseWindow) { [weak self] in
+            guard let self, self.pausesAfterLines, !self.engine.isPaused, self.popup == nil,
+                  // Still the line about to end (another may carry on past it by now). The
+                  // boundary sits exactly `linePauseWindow` before the end: allow for rounding.
+                  self.subtitles?.lineEnding(at: self.engine.timePosition, within: self.linePauseWindow + 0.001,
+                                             lastPaused: self.pausedAfterCue)?.id == line.id else { return }
+            self.pauseAfterLine(line.id)
+        }
+    }
+
+    private func pauseAfterLine(_ cue: Int) {
+        pausedAfterCue = cue
+        engine.setPaused(true)
+    }
+
     func setPausesAfterLines(_ on: Bool) {
         pausesAfterLines = on
         pausedAfterCue = nil
+        if !on { engine.setTimeBoundary(nil) {} }
         var settings = PlayerSettings.load(environment.common.database)
         settings.pausesAfterLines = on
         try? settings.save(environment.common.database)
@@ -649,13 +689,13 @@ final class PlaybackModel {
 
     func setHoldsFast(_ held: Bool) {
         if held {
-            guard !holdsFast, !mpv.isPaused, mpv.hasStarted, popup == nil else { return }
-            speedBeforeHold = mpv.speed
+            guard !holdsFast, !engine.isPaused, engine.hasStarted, popup == nil else { return }
+            speedBeforeHold = engine.speed
             holdsFast = true
-            mpv.setSpeed(max(2, mpv.speed))
+            engine.setSpeed(max(2, engine.speed))
         } else if holdsFast {
             holdsFast = false
-            if let speedBeforeHold { mpv.setSpeed(speedBeforeHold) }
+            if let speedBeforeHold { engine.setSpeed(speedBeforeHold) }
             speedBeforeHold = nil
         }
     }
@@ -664,10 +704,10 @@ final class PlaybackModel {
         setSpeed(value)
     }
 
-    var audioTracks: [MPVController.Track] { mpv.tracks.filter { $0.type == "audio" } }
+    var audioTracks: [PlayerTrack] { engine.tracks.filter { $0.type == "audio" } }
 
-    func chooseAudio(_ track: MPVController.Track) {
-        mpv.selectAudio(track.id)
+    func chooseAudio(_ track: PlayerTrack) {
+        engine.selectAudio(track.id)
         showOSD("Audio: " + Self.describe(language: track.language, title: track.title))
     }
 
@@ -710,8 +750,9 @@ final class PlaybackModel {
             segments = Self.testSegments()
             // UITEST_PLAYER_START=<seconds>: open part-way in, like a resume point.
             NowPlaying.prepareAudioSession()
-            mpv.load(session.itemId, start: firstOpen ? ProcessInfo.processInfo.environment["UITEST_PLAYER_START"].flatMap(Double.init) ?? 0 : 0)
-            mpv.setPaused(false)
+            let video = session.itemId.hasPrefix("/") ? URL(filePath: session.itemId) : URL(string: session.itemId)
+            engine.load(video ?? URL(filePath: session.itemId), headers: [:], start: firstOpen ? ProcessInfo.processInfo.environment["UITEST_PLAYER_START"].flatMap(Double.init) ?? 0 : 0)
+            engine.setPaused(false)
             #if os(iOS)
             startPictureInPictureForTests(at: 0)
             #endif
@@ -720,8 +761,8 @@ final class PlaybackModel {
             // UITEST_PLAYER_ENGLISH=<path>: an English subtitle file mpv draws (once the video is loaded).
             if let english = ProcessInfo.processInfo.environment["UITEST_PLAYER_ENGLISH"] {
                 Task {
-                    for _ in 0..<50 where mpv.duration <= 0 { try? await Task.sleep(for: .milliseconds(100)) }
-                    mpv.showSubtitles(from: URL(filePath: english))
+                    for _ in 0..<50 where engine.duration <= 0 { try? await Task.sleep(for: .milliseconds(100)) }
+                    engine.showSubtitles(from: URL(filePath: english))
                 }
             }
             startNowPlaying()
@@ -820,14 +861,14 @@ final class PlaybackModel {
         #endif
         NowPlaying.prepareAudioSession()
         if let downloaded {
-            mpv.load(downloaded.path(percentEncoded: false), start: start)
+            engine.load(downloaded, headers: [:], start: start)
         } else if let client {
-            mpv.load(transcode ?? client.streamURL(itemId: item.id, mediaSourceId: sourceId, playSessionId: playSessionId),
+            engine.load(transcode ?? client.streamURL(itemId: item.id, mediaSourceId: sourceId, playSessionId: playSessionId),
                      headers: client.playbackHeaders, start: start)
         }
         session.startAt = nil
         startPosition = start
-        mpv.setPaused(false)
+        engine.setPaused(false)
         lastSaved = Date()
         lastTime = nil
         report(.started, position: start)
@@ -928,10 +969,10 @@ final class PlaybackModel {
 
     /// Shows or hides the card as playback nears the end (call on time, pause and end changes).
     func updateUpNext() {
-        guard item != nil, mpv.hasStarted else { return }
+        guard item != nil, engine.hasStarted else { return }
         let credits = segments.first { $0.kind == .outro }?.start
-        let offer = JellyfinUpNext.offerTime(duration: mpv.duration, creditsStart: credits)
-        let inWindow = mpv.reachedEnd || (offer.map { mpv.timePosition >= $0 } ?? false)
+        let offer = JellyfinUpNext.offerTime(duration: engine.duration, creditsStart: credits)
+        let inWindow = engine.reachedEnd || (offer.map { engine.timePosition >= $0 } ?? false)
         if upNext != nil, !upNextCancelled, sleepTimer != .endOfEpisode, inWindow {
             if upNextCountdown == nil { startCountdown() }
         } else if upNextCountdown != nil {
@@ -942,7 +983,7 @@ final class PlaybackModel {
             askedForSuggestions = true
             Task { await loadSuggestions() }
         }
-        let endCard = hasNoNext && mpv.reachedEnd
+        let endCard = hasNoNext && engine.reachedEnd
         if endCard != showsEndCard { showsEndCard = endCard }
     }
 
@@ -953,7 +994,7 @@ final class PlaybackModel {
                 try? await Task.sleep(for: .milliseconds(250))
                 guard let self, !Task.isCancelled, let left = self.upNextCountdown else { return }
                 // Paused holds the countdown (at the very end mpv stays paused on the last frame).
-                if self.mpv.isPaused && !self.mpv.reachedEnd { continue }
+                if self.engine.isPaused && !self.engine.reachedEnd { continue }
                 if left <= 0.25 {
                     // Not from this task: stopping the countdown cancels it, and the next
                     // episode's requests would be cancelled with it.
@@ -1001,24 +1042,19 @@ final class PlaybackModel {
                                                  hidden: environment.hiddenLibraries)
     }
 
-    /// Call when mpv's time moves: saves and reports every `saveInterval` seconds, and right
-    /// away after a seek.
+    /// Call when the engine's time moves: saves and reports every `saveInterval` seconds, and
+    /// right away after a seek.
     func timeChanged() {
         updateSegment()
-        guard mpv.hasStarted else { return }
+        guard engine.hasStarted else { return }
         updateUpNext()
-        let time = mpv.timePosition
+        let time = engine.timePosition
         let jumped = lastTime.map { abs(time - $0) > 2 } ?? false
-        // Pause After Each Line: just before the line ends, so it stays on screen to read.
         if let lastTime, time < lastTime { pausedAfterCue = nil }
-        if pausesAfterLines, !mpv.isPaused, !jumped, popup == nil,
-           let cue = subtitles?.lineEnding(at: time, within: 0.12 * max(mpv.speed, 1), lastPaused: pausedAfterCue) {
-            pausedAfterCue = cue.id
-            mpv.setPaused(true)
-        }
+        armLinePause(at: time, jumped: jumped)
         skipSilence(at: time)
         // Stats: time that played forward, not seeks or pauses.
-        if let lastTime, !jumped, !mpv.isPaused, time > lastTime {
+        if let lastTime, !jumped, !engine.isPaused, time > lastTime {
             unloggedSeconds += time - lastTime
             if unloggedSeconds >= 10 { logWatching() }
         }
@@ -1076,12 +1112,12 @@ final class PlaybackModel {
     func tracksChanged() {
         noteEnglishTrack()
         guard !choseAudio else { return }
-        let audio = mpv.tracks.filter { $0.type == "audio" }
+        let audio = engine.tracks.filter { $0.type == "audio" }
         guard !audio.isEmpty else { return }
         choseAudio = true
-        let isJapanese = { (track: MPVController.Track) in ["jpn", "ja", "jp"].contains(track.language?.lowercased() ?? "") }
+        let isJapanese = { (track: PlayerTrack) in ["jpn", "ja", "jp"].contains(track.language?.lowercased() ?? "") }
         if let selected = audio.first(where: \.isSelected), isJapanese(selected) { return }
-        if let japanese = audio.first(where: isJapanese) { mpv.selectAudio(japanese.id) }
+        if let japanese = audio.first(where: isJapanese) { engine.selectAudio(japanese.id) }
     }
 
     func playNext() async {
@@ -1525,58 +1561,58 @@ final class PlaybackModel {
         guard let item, let mediaSourceId else { return }
         try? environment.transcripts.save(
             TranscriptInfo.make(item: item, mediaSourceId: mediaSourceId, streamIndex: -1,
-                                audioIndex: mpv.tracks.first { $0.type == "audio" && $0.isSelected }?.ffIndex),
+                                audioIndex: engine.tracks.first { $0.type == "audio" && $0.isSelected }?.ffIndex),
             lines: TranscriptLines.mergingBuildUps(track.cues.map { ($0.start, $0.end, $0.text) }))
     }
 
     /// The Japanese lines on screen now.
     var currentCues: [SubtitleCue] {
-        subtitles?.cues(at: mpv.timePosition) ?? []
+        subtitles?.cues(at: engine.timePosition) ?? []
     }
 
     func previousLine() {
-        guard let cue = subtitles?.previous(before: mpv.timePosition) else { return }
-        mpv.seek(to: cue.start)
+        guard let cue = subtitles?.previous(before: engine.timePosition) else { return }
+        engine.seek(to: cue.start)
     }
 
     func nextLine() {
-        guard let cue = subtitles?.next(after: mpv.timePosition) else { return }
-        mpv.seek(to: cue.start)
+        guard let cue = subtitles?.next(after: engine.timePosition) else { return }
+        engine.seek(to: cue.start)
     }
 
     /// Goes back to the line before the one on screen and plays (AirPods triple press).
     func playLineBefore() {
-        guard let cue = subtitles?.lineBefore(mpv.timePosition) else { return }
-        mpv.seek(to: cue.start)
-        mpv.setPaused(false)
+        guard let cue = subtitles?.lineBefore(engine.timePosition) else { return }
+        engine.seek(to: cue.start)
+        engine.setPaused(false)
     }
 
     /// Plays the current (or last) line again from its start.
     func replayLine() {
-        guard let cue = subtitles?.currentOrPrevious(at: mpv.timePosition) else { return }
-        mpv.seek(to: cue.start)
-        mpv.setPaused(false)
+        guard let cue = subtitles?.currentOrPrevious(at: engine.timePosition) else { return }
+        engine.seek(to: cue.start)
+        engine.setPaused(false)
     }
 
     /// English on or off. The file is added once, in the background (Jellyfin can take a while
     /// to pull it out of a big video file); turned off before it's in, it stays off when it comes.
     func toggleEnglish() {
         if showsEnglish {
-            mpv.selectSubtitle(nil)
+            engine.selectSubtitle(nil)
             showsEnglish = false
             return
         }
         showsEnglish = true
         if let englishTrackId {
-            mpv.selectSubtitle(englishTrackId)
+            engine.selectSubtitle(englishTrackId)
         } else if addingEnglish {
             // Selected as it comes in.
         } else if let localEnglish {
             addingEnglish = true
-            mpv.showSubtitles(from: localEnglish)
+            engine.showSubtitles(from: localEnglish)
         } else if let englishStream, let client, let item, let mediaSourceId {
             addingEnglish = true
-            mpv.showSubtitles(from: client.subtitleURL(itemId: item.id, mediaSourceId: mediaSourceId, index: englishStream.index))
+            engine.showSubtitles(from: client.subtitleURL(itemId: item.id, mediaSourceId: mediaSourceId, index: englishStream.index))
         }
     }
 
@@ -1586,15 +1622,15 @@ final class PlaybackModel {
     /// Remembers mpv's id for the English file once it's in, and keeps mpv's subtitle to the
     /// switch: the file selects itself as it comes, even if English was turned off meanwhile.
     private func noteEnglishTrack() {
-        if englishTrackId == nil, let added = mpv.tracks.first(where: { $0.type == "sub" && $0.isExternal })?.id {
+        if englishTrackId == nil, let added = engine.tracks.first(where: { $0.type == "sub" && $0.isExternal })?.id {
             englishTrackId = added
             addingEnglish = false
         }
-        let selected = mpv.tracks.first { $0.type == "sub" && $0.isSelected }?.id
+        let selected = engine.tracks.first { $0.type == "sub" && $0.isSelected }?.id
         if !showsEnglish, selected != nil {
-            mpv.selectSubtitle(nil)
+            engine.selectSubtitle(nil)
         } else if showsEnglish, let englishTrackId, selected != englishTrackId {
-            mpv.selectSubtitle(englishTrackId)
+            engine.selectSubtitle(englishTrackId)
         }
     }
 
@@ -1603,8 +1639,8 @@ final class PlaybackModel {
     /// Pauses and looks up the word at `characterIndex` of `cue`'s sentence. If it was
     /// playing, closing the popup plays again.
     func lookUp(_ cue: SubtitleCue, characterIndex: Int) {
-        if !mpv.isPaused { resumesAfterLookup = true }
-        mpv.setPaused(true)
+        if !engine.isPaused { resumesAfterLookup = true }
+        engine.setPaused(true)
         lines.lookUp(cue.text, characterIndex: characterIndex, key: "cue-\(cue.id)", context: miningContext(for: cue))
     }
 
@@ -1613,11 +1649,11 @@ final class PlaybackModel {
     /// Runs a keyboard shortcut; the keys and menu come from `PlayerShortcut`.
     func perform(_ shortcut: PlayerShortcut) {
         switch shortcut {
-        case .playPause: mpv.togglePause()
-        case .back5: mpv.seek(by: -5)
-        case .forward5: mpv.seek(by: 5)
-        case .back1: mpv.seek(by: -1)
-        case .forward1: mpv.seek(by: 1)
+        case .playPause: engine.togglePause()
+        case .back5: engine.seek(by: -5)
+        case .forward5: engine.seek(by: 5)
+        case .back1: engine.seek(by: -1)
+        case .forward1: engine.seek(by: 1)
         case .previousLine: previousLine()
         case .nextLine: nextLine()
         case .replayLine: replayLine()
@@ -1625,24 +1661,24 @@ final class PlaybackModel {
         case .pauseAfterLines: setPausesAfterLines(!pausesAfterLines)
         case .condensed: if subtitles != nil { setCondensed(!condensed) }
         case .lookUpLine:
-            if let cue = subtitles?.currentOrPrevious(at: mpv.timePosition) { lookUp(cue, characterIndex: 0) }
+            if let cue = subtitles?.currentOrPrevious(at: engine.timePosition) { lookUp(cue, characterIndex: 0) }
         case .search:
-            mpv.setPaused(true)
+            engine.setPaused(true)
             showsSearch = true
-        case .slower: setSpeed(mpv.speed / 1.1)
-        case .faster: setSpeed(mpv.speed * 1.1)
-        case .halfSpeed: setSpeed(mpv.speed / 2)
-        case .doubleSpeed: setSpeed(mpv.speed * 2)
+        case .slower: setSpeed(engine.speed / 1.1)
+        case .faster: setSpeed(engine.speed * 1.1)
+        case .halfSpeed: setSpeed(engine.speed / 2)
+        case .doubleSpeed: setSpeed(engine.speed * 2)
         case .normalSpeed: setSpeed(1)
-        case .frameBack: mpv.frameStep(forward: false)
-        case .frameForward: mpv.frameStep(forward: true)
+        case .frameBack: engine.frameStep(forward: false)
+        case .frameForward: engine.frameStep(forward: true)
         case .loop: cycleLoop()
         case .volumeDown, .volumeUp:
-            mpv.setVolume(mpv.volume + (shortcut == .volumeUp ? 2 : -2))
-            showOSD("Volume \(Int(mpv.volume.rounded()))%" + (mpv.isMuted ? " (muted)" : ""))
+            engine.setVolume(engine.volume + (shortcut == .volumeUp ? 2 : -2))
+            showOSD("Volume \(Int(engine.volume.rounded()))%" + (engine.isMuted ? " (muted)" : ""))
         case .mute:
-            mpv.setMuted(!mpv.isMuted)
-            showOSD(mpv.isMuted ? "Muted" : "Sound on")
+            engine.setMuted(!engine.isMuted)
+            showOSD(engine.isMuted ? "Muted" : "Sound on")
         case .nextAudio: nextAudioTrack()
         case .toggleJapanese:
             showsJapanese.toggle()
@@ -1670,38 +1706,38 @@ final class PlaybackModel {
     }
 
     private func setSpeed(_ value: Double) {
-        mpv.setSpeed(value)
-        showOSD(String(format: "Speed %.2f×", mpv.speed))
+        engine.setSpeed(value)
+        showOSD(String(format: "Speed %.2f×", engine.speed))
         // Kept for the next video (and the next launch).
         var settings = PlayerSettings.load(environment.common.database)
-        if settings.speed != mpv.speed {
-            settings.speed = mpv.speed
+        if settings.speed != engine.speed {
+            settings.speed = engine.speed
             try? settings.save(environment.common.database)
         }
     }
 
     /// mpv's A–B loop: the first press marks the start, the second the end, the third clears it.
     private func cycleLoop() {
-        let now = mpv.timePosition
-        switch mpv.loop {
+        let now = engine.timePosition
+        switch engine.loop {
         case (nil, _):
-            mpv.setLoop(start: now, end: nil)
+            engine.setLoop(start: now, end: nil)
             showOSD("Loop start \(PlaybackView.format(now))")
         case (let start?, nil) where now > start:
-            mpv.setLoop(start: start, end: now)
+            engine.setLoop(start: start, end: now)
             showOSD("Looping \(PlaybackView.format(start))–\(PlaybackView.format(now))")
         default:
-            mpv.setLoop(start: nil, end: nil)
+            engine.setLoop(start: nil, end: nil)
             showOSD("Loop off")
         }
     }
 
     private func nextAudioTrack() {
-        let audio = mpv.tracks.filter { $0.type == "audio" }
+        let audio = engine.tracks.filter { $0.type == "audio" }
         guard audio.count > 1 else { return showOSD(audio.isEmpty ? "No audio" : "Only one audio track") }
         let current = audio.firstIndex(where: \.isSelected) ?? -1
         let next = audio[(current + 1) % audio.count]
-        mpv.selectAudio(next.id)
+        engine.selectAudio(next.id)
         showOSD("Audio \((current + 1) % audio.count + 1)/\(audio.count): " + Self.describe(language: next.language, title: next.title))
     }
 
@@ -1763,7 +1799,7 @@ final class PlaybackModel {
     /// While buffering on a connection slower than the video: both speeds, so it's clear the
     /// waits aren't a fault. Nil when the stream is keeping up or nothing's been measured yet.
     var slowStreamNote: String? {
-        guard let speed = mpv.streamSpeed, let needed = mpv.averageBitRate ?? transcodeBitrate.map(Double.init),
+        guard let speed = engine.streamSpeed, let needed = engine.averageBitRate ?? transcodeBitrate.map(Double.init),
               speed < needed * 0.95 else { return nil }
         func megabits(_ bits: Double) -> String { (bits / 1_000_000).formatted(.number.precision(.fractionLength(1))) }
         return "Arriving at \(megabits(speed)) Mbps\nThis video needs \(megabits(needed))"
@@ -1782,7 +1818,7 @@ final class PlaybackModel {
         // UI tests: the offer on a test video too (which has no qualities), to see where it sits.
         if ProcessInfo.processInfo.environment["UITEST_QUALITY_OFFER"] != nil { offered = true }
         #endif
-        guard offered, slowStreamNote != nil, let speed = mpv.streamSpeed else { return nil }
+        guard offered, slowStreamNote != nil, let speed = engine.streamSpeed else { return nil }
         let fitting = PlayerSettings.streamQuality(fitting: speed)
         let playing = transcodeBitrate ?? Int.max
         guard fitting < playing, let quality = PlayerSettings.streamQualities.first(where: { $0.bitrate == fitting }) else { return nil }
@@ -1796,9 +1832,9 @@ final class PlaybackModel {
         setLook { $0.maxStreamBitrate = bitrate }
         let name = PlayerSettings.streamQualities.first { $0.bitrate == bitrate }?.name ?? ""
         showOSD("Quality: \(name)")
-        guard canChooseQuality, mpv.hasStarted else { return }
+        guard canChooseQuality, engine.hasStarted else { return }
         // The session at the old quality ends (the server stops its transcode); a new one starts.
-        let position = mpv.timePosition
+        let position = engine.timePosition
         saveProgress(.stopped)
         session.startAt = position
         Task { await open() }
@@ -1807,7 +1843,7 @@ final class PlaybackModel {
     /// mpv started or stopped waiting for the stream. The spinner comes after a moment (a seek
     /// refills in less); each wait goes in the log, to tell a slow network from anything else.
     func bufferingChanged() {
-        let waiting = mpv.isBuffering && mpv.hasStarted
+        let waiting = engine.isBuffering && engine.hasStarted
         bufferingTask?.cancel()
         if waiting {
             bufferingTask = Task { [weak self] in
@@ -1817,36 +1853,23 @@ final class PlaybackModel {
         } else {
             showsBuffering = false
         }
-        guard mpv.hasStarted || !mpv.isBuffering else { return }
-        if let line = stalls.note(buffering: mpv.isBuffering, position: mpv.timePosition) {
-            let speeds = mpv.averageBitRate.map { " (video \(Int($0 / 1000)) kbps, next wait gathers \(mpv.bufferWait.seconds) s)" } ?? ""
+        guard engine.hasStarted || !engine.isBuffering else { return }
+        if let line = stalls.note(buffering: engine.isBuffering, position: engine.timePosition) {
+            let speeds = engine.averageBitRate.map { " (video \(Int($0 / 1000)) kbps, next wait gathers \(engine.bufferWait.seconds) s)" } ?? ""
             AppLog.info(.playback, "\(line)\(speeds): \(item?.name ?? session.title)")
         }
     }
 
     private func readStreamInfo() -> [(label: String, value: String)] {
-        func number(_ name: String, digits: Int = 0) -> String? {
-            mpv.property(name).flatMap(Double.init).map { String(format: "%.\(digits)f", $0) }
-        }
-        var rows: [(String, String)] = []
-        let size = [mpv.property("video-params/w"), mpv.property("video-params/h")].compactMap { $0 }.joined(separator: "×")
-        let video = [mpv.property("video-codec"), size.isEmpty ? nil : size, number("container-fps", digits: 3).map { "\($0) fps" }]
-            .compactMap { $0 }.joined(separator: " · ")
-        if !video.isEmpty { rows.append(("Video", video)) }
-        if let decoder = mpv.property("hwdec-current"), decoder != "no" { rows.append(("Decoding", "hardware (\(decoder))")) }
-        else { rows.append(("Decoding", "software")) }
-        let audio = [mpv.property("audio-codec-name"), number("audio-params/samplerate").map { "\($0) Hz" },
-                     mpv.property("audio-params/channel-count").map { "\($0) ch" }].compactMap { $0 }.joined(separator: " · ")
-        if !audio.isEmpty { rows.append(("Audio", audio)) }
-        rows.append(("Dropped frames", "\(mpv.property("frame-drop-count") ?? "0") (decoder \(mpv.property("decoder-frame-drop-count") ?? "0"))"))
-        if let cache = number("demuxer-cache-duration", digits: 1) { rows.append(("Buffered", "\(cache) s")) }
+        // What the engine decodes, then what only the player knows.
+        var rows: [(String, String)] = engine.streamInfo.map { ($0.label, $0.value) }
         if let waits = stalls.summary { rows.append(("Waited for stream", waits)) }
         if let transcodeBitrate {
             rows.append(("Quality", "transcoded to \(PlayerSettings.streamQualities.first { $0.bitrate == transcodeBitrate }?.name ?? "\(transcodeBitrate / 1000) kbps")"))
         } else if localFile == nil {
             rows.append(("Quality", "original"))
         }
-        rows.append(("Speed", String(format: "%.2f×", mpv.speed)))
+        rows.append(("Speed", String(format: "%.2f×", engine.speed)))
         return rows
     }
 
@@ -1872,19 +1895,19 @@ final class PlaybackModel {
     /// The video's chapters: Jellyfin's, or the file's own (a download, a local file).
     var chapters: PlayerChapters {
         let server = (item?.chapters ?? []).map { (start: $0.start, name: $0.name) }
-        let list = server.count >= 2 ? server : mpv.fileChapters.map { (start: $0.start, name: $0.title) }
-        return PlayerChapters(list, duration: mpv.duration)
+        let list = server.count >= 2 ? server : engine.fileChapters.map { (start: $0.start, name: $0.title) }
+        return PlayerChapters(list, duration: engine.duration)
     }
 
     /// Previous or next chapter (Page Up and Page Down, and the options menu).
     func moveChapter(forward: Bool) {
         let chapters = chapters
         guard !chapters.isEmpty else { return showOSD("No chapters") }
-        let time = mpv.timePosition
+        let time = engine.timePosition
         guard let target = forward ? chapters.nextStart(from: time) : chapters.previousStart(from: time) else {
             return showOSD("Last chapter")
         }
-        mpv.seek(to: target)
+        engine.seek(to: target)
         showOSD(chapters.name(at: target) ?? "Chapter")
     }
 
@@ -1901,8 +1924,8 @@ final class PlaybackModel {
 
     private func updateSegment() {
         // While loading, the time reads 0 before jumping to the resume point: not in the intro.
-        guard mpv.hasStarted else { return }
-        let segment = JellyfinMediaSegment.at(mpv.timePosition, in: segments)
+        guard engine.hasStarted else { return }
+        let segment = JellyfinMediaSegment.at(engine.timePosition, in: segments)
         if segment != currentSegment { currentSegment = segment }
         guard let segment, segment.skipsAutomatically, !autoSkipped.contains(segment.start),
               PlayerSettings.load(environment.common.database).autoSkipsIntros else { return }
@@ -1913,14 +1936,14 @@ final class PlaybackModel {
 
     /// The skip button: past the segment, or on to the next episode during the credits.
     func skipSegment() {
-        guard let segment = currentSegment ?? JellyfinMediaSegment.at(mpv.timePosition, in: segments) else { return }
+        guard let segment = currentSegment ?? JellyfinMediaSegment.at(engine.timePosition, in: segments) else { return }
         if segment.kind == .outro, nextItemId != nil {
             Task { await playNext() }
             return
         }
         // Never seek past the end (that would stop instead of showing the last moment).
-        let end = mpv.duration > 0 ? min(segment.end, mpv.duration - 0.5) : segment.end
-        mpv.seek(to: end)
+        let end = engine.duration > 0 ? min(segment.end, engine.duration - 0.5) : segment.end
+        engine.seek(to: end)
         currentSegment = nil
     }
 
@@ -1939,6 +1962,9 @@ final class PlaybackModel {
     }
 
     #if DEBUG
+    /// Unit tests: Japanese lines without opening a video.
+    func useSubtitlesForTests(_ track: SubtitleTrack) { subtitles = track }
+
     /// UI tests: `UITEST_PLAYER_SEGMENTS="Intro:0:20,Outro:50:60"` for the local test video.
     private static func testSegments() -> [JellyfinMediaSegment] {
         (ProcessInfo.processInfo.environment["UITEST_PLAYER_SEGMENTS"] ?? "").split(separator: ",").compactMap { part in
@@ -1954,21 +1980,21 @@ final class PlaybackModel {
         lines.close()
         if resumesAfterLookup {
             resumesAfterLookup = false
-            mpv.setPaused(false)
+            engine.setPaused(false)
         }
     }
 
     /// Card media for `cue` (or, from the magnifier, the line at the paused moment).
     func miningContext(for cue: SubtitleCue? = nil) -> VideoMiningContext? {
         guard let item, let mediaSourceId else { return nil }
-        let time = mpv.timePosition
+        let time = engine.timePosition
         let cue = cue ?? subtitles?.currentOrPrevious(at: time)
         // Without a line, a few seconds around the paused moment.
         let start = cue?.start ?? max(time - 3, 0)
         let end = cue?.end ?? time + 1
         return VideoMiningContext(
             client: client, localFile: localFile, item: item, mediaSourceId: mediaSourceId, start: start, end: end, at: time,
-            audioTrack: mpv.tracks.first { $0.type == "audio" && $0.isSelected }?.ffIndex,
+            audioTrack: engine.tracks.first { $0.type == "audio" && $0.isSelected }?.ffIndex,
             animated: environment.animatedCardPictures)
     }
 
@@ -1985,7 +2011,7 @@ final class PlaybackModel {
         if item != nil { saveProgress(.stopped) }
         finishLocalSubtitle()
         thumbnails?.close()
-        mpv.shutdown()
+        engine.shutdown()
         NotificationCenter.default.post(name: .playbackDidClose, object: nil)
     }
 
@@ -1995,12 +2021,12 @@ final class PlaybackModel {
         // Nothing has played yet (still loading, or the stream failed): mpv's time reads 0, or the
         // last episode's. Saving it would wipe the resume point, or put the next episode near
         // its end. Only close the session, where it started.
-        guard mpv.hasStarted else {
+        guard engine.hasStarted else {
             if event == .stopped, sessionStarted { report(.stopped, position: startPosition) }
             return
         }
-        let duration = mpv.duration > 0 ? mpv.duration : item.duration ?? 0
-        var position = mpv.reachedEnd ? duration : mpv.timePosition
+        let duration = engine.duration > 0 ? engine.duration : item.duration ?? 0
+        var position = engine.reachedEnd ? duration : engine.timePosition
         #if os(iOS)
         // In picture in picture, AVPlayer is the one playing.
         if pipState == .on, let pipHandoff { position = pipHandoff.player.currentTime }
@@ -2013,7 +2039,7 @@ final class PlaybackModel {
     /// Jellyfin's index of the audio stream mpv is playing.
     private var audioStreamIndex: Int? {
         if transcodeBitrate != nil { return transcodeAudioIndex }
-        guard let ffIndex = mpv.tracks.first(where: { $0.type == "audio" && $0.isSelected })?.ffIndex else { return nil }
+        guard let ffIndex = engine.tracks.first(where: { $0.type == "audio" && $0.isSelected })?.ffIndex else { return nil }
         return mediaStreams.first { $0.isAudio && $0.ffmpegIndex(in: mediaStreams) == ffIndex }?.index
     }
 
@@ -2028,11 +2054,11 @@ final class PlaybackModel {
     func movedToBackground() {
         guard item != nil else { return }
         inBackground = true
-        mpv.setVideoEnabled(false)
-        NowPlayingLog.write("background, \(mpv.isPaused ? "paused" : "playing")\(NowPlaying.sessionNote)")
+        engine.setVideoEnabled(false)
+        NowPlayingLog.write("background, \(engine.isPaused ? "paused" : "playing")\(NowPlaying.sessionNote)")
         // Picture in picture plays on (mpv waits, paused): the session goes on with it, or
         // Jellyfin would stop the stream it's playing.
-        if mpv.isPaused, !inPictureInPicture { endSessionInBackground() }
+        if engine.isPaused, !inPictureInPicture { endSessionInBackground() }
     }
 
     /// Quitting (Mac): end the session; the stop is queued if it can't be sent first.
@@ -2054,7 +2080,7 @@ final class PlaybackModel {
     /// ended, so it starts again (with the "watched further elsewhere" check).
     private func remotePlay() async {
         if wasInBackground { await returnedFromBackground(staysInBackground: true) }
-        mpv.setPaused(false)
+        engine.setPaused(false)
     }
 
     /// Back on screen: if this episode was watched further elsewhere meanwhile, move there
@@ -2064,23 +2090,23 @@ final class PlaybackModel {
             inBackground = false
             #if os(iOS)
             // The TV keeps the picture; a TV picked while away gets it now.
-            mpv.setVideoEnabled(airPlayState != .on)
+            engine.setVideoEnabled(airPlayState != .on)
             airPlayRouteChanged()
             #else
-            mpv.setVideoEnabled(true)
+            engine.setVideoEnabled(true)
             #endif
         }
         guard wasInBackground, let item else { return }
         wasInBackground = false
         if let client, let fresh = try? await client.item(id: item.id), let played = fresh.userData?.lastPlayedDate,
-           played > lastReported, let position = fresh.resumePosition, abs(position - mpv.timePosition) > 2 {
-            mpv.setPaused(true)
-            mpv.seek(to: position)
+           played > lastReported, let position = fresh.resumePosition, abs(position - engine.timePosition) > 2 {
+            engine.setPaused(true)
+            engine.seek(to: position)
             lastTime = position
             showNote("Moved to \(Self.clock(position)), where you left off on another device", seconds: 5)
         }
         lastSaved = Date()
-        report(.started, position: mpv.timePosition)
+        report(.started, position: engine.timePosition)
         startHeartbeat()
         updateNowPlaying()
     }
@@ -2090,14 +2116,14 @@ final class PlaybackModel {
     private func startNowPlaying() {
         nowPlaying.start(.init(
             play: { [weak self] in Task { await self?.remotePlay() } },
-            pause: { [weak self] in self?.mpv.setPaused(true) },
+            pause: { [weak self] in self?.engine.setPaused(true) },
             toggle: { [weak self] in
                 guard let self else { return }
-                if self.mpv.isPaused { Task { await self.remotePlay() } } else { self.mpv.setPaused(true) }
+                if self.engine.isPaused { Task { await self.remotePlay() } } else { self.engine.setPaused(true) }
             },
             nextLine: { [weak self] in self?.nextLine() },
             lineBefore: { [weak self] in self?.playLineBefore() },
-            seek: { [weak self] position in self?.mpv.seek(to: position) }))
+            seek: { [weak self] position in self?.engine.seek(to: position) }))
         updateNowPlaying()
     }
 
@@ -2105,8 +2131,8 @@ final class PlaybackModel {
         guard item != nil else { return }
         let lines = titleLines
         nowPlaying.update(title: lines.detail ?? lines.main, series: lines.detail == nil ? nil : lines.main,
-                          duration: mpv.duration > 0 ? mpv.duration : item?.duration ?? 0,
-                          position: mpv.timePosition, isPaused: mpv.isPaused)
+                          duration: engine.duration > 0 ? engine.duration : item?.duration ?? 0,
+                          position: engine.timePosition, isPaused: engine.isPaused)
     }
 
     static func clock(_ seconds: Double) -> String {
@@ -2119,7 +2145,7 @@ final class PlaybackModel {
         #if os(iOS)
         if pipState == .on { return !(pipHandoff?.player.isPlaying ?? false) }
         #endif
-        return mpv.isPaused
+        return engine.isPaused
     }
 
     private func report(_ event: JellyfinProgressPayload.Event, position: Double) {

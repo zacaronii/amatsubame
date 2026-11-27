@@ -18,6 +18,7 @@ final class StreamQualityUITests: XCTestCase {
         }
         continueAfterFailure = false
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_STREAM_QUALITY"] = quality
         app.launch()
         let search = app.buttons["watch.search"].firstMatch

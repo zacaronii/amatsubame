@@ -10,7 +10,8 @@ final class PlayerOptionsUITests: XCTestCase {
         }
         continueAfterFailure = false
         let app = XCUIApplication()
-        app.launchEnvironment = ["UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video, "UITEST_JIMAKU": "1"]
+        app.launchEnvironment["UITEST_MUTE"] = "1"
+        app.launchEnvironment = ["UITEST_MUTE": "1", "UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video, "UITEST_JIMAKU": "1"]
         app.launch()
         let player = app.descendants(matching: .any)["player.video"].firstMatch
         XCTAssertTrue(player.waitForExistence(timeout: 10))
@@ -51,7 +52,8 @@ final class PlayerOptionsUITests: XCTestCase {
         }
         continueAfterFailure = false
         let app = XCUIApplication()
-        app.launchEnvironment = ["UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video, "UITEST_JIMAKU": "gaps"]
+        app.launchEnvironment["UITEST_MUTE"] = "1"
+        app.launchEnvironment = ["UITEST_MUTE": "1", "UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video, "UITEST_JIMAKU": "gaps"]
         app.launch()
         let player = app.descendants(matching: .any)["player.video"].firstMatch
         XCTAssertTrue(player.waitForExistence(timeout: 10))
@@ -97,7 +99,8 @@ final class PlayerOptionsUITests: XCTestCase {
         }
         continueAfterFailure = false
         let app = XCUIApplication()
-        app.launchEnvironment = ["UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video, "UITEST_JIMAKU": "1", "UITEST_EXTERNAL_DISPLAY": "1"]
+        app.launchEnvironment["UITEST_MUTE"] = "1"
+        app.launchEnvironment = ["UITEST_MUTE": "1", "UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video, "UITEST_JIMAKU": "1", "UITEST_EXTERNAL_DISPLAY": "1"]
         app.launch()
         let player = app.descendants(matching: .any)["player.video"].firstMatch
         XCTAssertTrue(player.waitForExistence(timeout: 10))
@@ -132,7 +135,8 @@ final class PlayerOptionsUITests: XCTestCase {
         }
         continueAfterFailure = false
         let app = XCUIApplication()
-        app.launchEnvironment = ["UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video]
+        app.launchEnvironment["UITEST_MUTE"] = "1"
+        app.launchEnvironment = ["UITEST_MUTE": "1", "UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video]
         app.launch()
         let player = app.descendants(matching: .any)["player.video"].firstMatch
         XCTAssertTrue(player.waitForExistence(timeout: 10))
@@ -157,8 +161,9 @@ final class PlayerOptionsUITests: XCTestCase {
         }
         continueAfterFailure = false
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         // Started 3 s in by UITEST_PLAYER_PIP (the options menu's item can't be reached here).
-        app.launchEnvironment = ["UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video, "UITEST_PLAYER_PIP": "3"]
+        app.launchEnvironment = ["UITEST_MUTE": "1", "UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video, "UITEST_PLAYER_PIP": "3"]
         app.launch()
         let player = app.descendants(matching: .any)["player.video"].firstMatch
         XCTAssertTrue(player.waitForExistence(timeout: 10))
@@ -196,7 +201,8 @@ final class PlayerOptionsUITests: XCTestCase {
             throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file.")
         }
         let app = XCUIApplication()
-        app.launchEnvironment = ["UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video]
+        app.launchEnvironment["UITEST_MUTE"] = "1"
+        app.launchEnvironment = ["UITEST_MUTE": "1", "UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video]
         app.launch()
         let player = app.descendants(matching: .any)["player.video"].firstMatch
         XCTAssertTrue(player.waitForExistence(timeout: 10))
@@ -221,7 +227,8 @@ final class PlayerOptionsUITests: XCTestCase {
             throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file.")
         }
         let app = XCUIApplication()
-        app.launchEnvironment = ["UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video]
+        app.launchEnvironment["UITEST_MUTE"] = "1"
+        app.launchEnvironment = ["UITEST_MUTE": "1", "UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video]
         app.launch()
         let player = app.descendants(matching: .any)["player.video"].firstMatch
         XCTAssertTrue(player.waitForExistence(timeout: 10))
@@ -247,7 +254,8 @@ final class PlayerOptionsUITests: XCTestCase {
         }
         continueAfterFailure = false
         let app = XCUIApplication()
-        app.launchEnvironment = ["UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video, "UITEST_PLAYER_ENGLISH_OFFERED": english]
+        app.launchEnvironment["UITEST_MUTE"] = "1"
+        app.launchEnvironment = ["UITEST_MUTE": "1", "UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video, "UITEST_PLAYER_ENGLISH_OFFERED": english]
         app.launch()
         let player = app.descendants(matching: .any)["player.video"].firstMatch
         XCTAssertTrue(player.waitForExistence(timeout: 10))
@@ -262,7 +270,8 @@ final class PlayerOptionsUITests: XCTestCase {
         }
         continueAfterFailure = false
         let app = XCUIApplication()
-        app.launchEnvironment = ["UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video, "UITEST_PLAYER_ENGLISH_OFFERED": slow]
+        app.launchEnvironment["UITEST_MUTE"] = "1"
+        app.launchEnvironment = ["UITEST_MUTE": "1", "UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video, "UITEST_PLAYER_ENGLISH_OFFERED": slow]
         app.launch()
         let player = app.descendants(matching: .any)["player.video"].firstMatch
         XCTAssertTrue(player.waitForExistence(timeout: 10))
@@ -277,7 +286,8 @@ final class PlayerOptionsUITests: XCTestCase {
         }
         continueAfterFailure = false
         let app = XCUIApplication()
-        app.launchEnvironment = ["UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video, "UITEST_JIMAKU": "1", "UITEST_PLAYER_LOOK": "conceal,large,higher"]
+        app.launchEnvironment["UITEST_MUTE"] = "1"
+        app.launchEnvironment = ["UITEST_MUTE": "1", "UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video, "UITEST_JIMAKU": "1", "UITEST_PLAYER_LOOK": "conceal,large,higher"]
         app.launch()
         let player = app.descendants(matching: .any)["player.video"].firstMatch
         XCTAssertTrue(player.waitForExistence(timeout: 10))
