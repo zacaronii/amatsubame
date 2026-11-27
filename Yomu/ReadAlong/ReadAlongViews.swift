@@ -99,34 +99,6 @@ struct ReadAlongBar: View {
     }
 }
 
-/// Above a lookup while reading along (like Kiku's): the looked-up sentence's clip, what the
-/// card's audio will be.
-struct ReadAlongClipRow: View {
-    let model: ReadAlongModel
-
-    var body: some View {
-        if let cue = model.tappedCue {
-            HStack(spacing: 12) {
-                Button { model.playTappedClip() } label: {
-                    Image(systemName: model.clip.isPlaying ? "stop.fill" : "play.fill")
-                        .frame(width: 40, height: 40)
-                        .background(.quaternary, in: .circle)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(model.clip.isPlaying ? "Stop the clip" : "Play the clip")
-                .accessibilityIdentifier("lookup.playClip")
-                Text("\(ReadAlongBar.clock(cue.start)) – \(ReadAlongBar.clock(cue.end)) · this clip goes on the card")
-                    .font(.caption).foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-            }
-            .padding(12)
-            .background(.background.secondary, in: .rect(cornerRadius: 18))
-            .padding([.horizontal, .top])
-            .tint(ReadAlongBar.orange)
-        }
-    }
-}
-
 /// The reader's headphones button: reading along on (orange) or off (plain reading).
 struct ReadAlongSwitch: View {
     let model: ReadAlongModel

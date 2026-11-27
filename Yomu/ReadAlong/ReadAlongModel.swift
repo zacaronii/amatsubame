@@ -14,8 +14,6 @@ final class ReadAlongModel: BookReadAlongHost {
     let pair: ReadAlongPair
     let cues: ReadAlongCues
     let audio = AudioPlayer()
-    /// The looked-up sentence on its own (the popup's clip row), without moving the main audio.
-    let clip = ClipPlayer()
     private(set) var currentIndex: Int?
     /// Keep the spoken sentence on screen; turning pages by hand turns it off.
     private(set) var follows = true
@@ -254,18 +252,7 @@ final class ReadAlongModel: BookReadAlongHost {
         }
     }
 
-    /// The sentence a word was looked up in, while reading along: what the card's audio is.
-    var tappedCue: ReadAlongCue? { isOn ? tappedIndex.map { cues.cues[$0] } : nil }
-
-    /// Plays (or stops) the looked-up sentence, with the same lead-in and tail as the card's.
-    func playTappedClip() {
-        if clip.isPlaying { return clip.stop() }
-        guard let cue = tappedCue, let source else { return }
-        clip.play(url: source.url, headers: source.headers, from: max(cue.start - AudioClips.leadIn, 0), to: cue.end + AudioClips.tail)
-    }
-
     func lookupClosed() {
-        clip.stop()
         if resumesAfterLookup {
             resumesAfterLookup = false
             audio.play()

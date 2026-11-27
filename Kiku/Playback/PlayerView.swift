@@ -781,10 +781,8 @@ private struct Scrubber: View {
     }
 }
 
-/// The lookup (K5): the line with the word highlighted and its clip (what goes on the card),
-/// then the shared popup.
-/// The lookup's content in Kiku: the line's clip above the popup (`lookupOverlay` draws the
-/// card or panel around it).
+/// The lookup's content in Kiku: the shared popup, whose first block is the line with the word
+/// marked (`lookupOverlay` draws the card or panel around it).
 struct KikuLookupPanel: View {
     @Environment(CommonEnvironment.self) private var common
     let model: any LineLookupHost
@@ -792,28 +790,6 @@ struct KikuLookupPanel: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if let sentence = model.lookupSentence {
-                HStack(spacing: 12) {
-                    Button { model.playClip(sentence) } label: {
-                        Image(systemName: model.clip.isPlaying ? "stop.fill" : "play.fill")
-                            .frame(width: 40, height: 40)
-                            .background(.quaternary, in: .circle)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(model.clip.isPlaying ? "Stop the clip" : "Play the clip")
-                    .accessibilityIdentifier("lookup.playClip")
-                    // The line itself is the popup's first block (with the word marked, and
-                    // tappable for another word), so here only its clip.
-                    Text("\(sentence.start.clockText) – \(sentence.end.clockText) · this clip goes on the card")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Spacer(minLength: 0)
-                }
-                .padding(12)
-                // See-through like the popup (its background opacity), not a solid block.
-                .background(.quaternary.opacity(0.6), in: .rect(cornerRadius: 18))
-                .padding(.horizontal)
-                .padding(.top, 2)
-            }
             LookupPopupView(service: common.lookup, model: popup, drawsBackground: false)
             if model.resumesOnClose {
                 Text("Playback paused · resumes when you close this")

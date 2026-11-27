@@ -104,7 +104,12 @@ final class KikuPlayerUITests: XCTestCase {
         current.descendants(matching: .any)["subtitle.line"].tap()
         XCTAssertTrue(app.staticTexts["Playback paused · resumes when you close this"].waitForExistence(timeout: 5))
         XCTAssertEqual(playPause.value as? String, "paused")
-        XCTAssertTrue(app.buttons["lookup.playClip"].exists)
+        // The popup starts with the line itself: no clip bar above it.
+        XCTAssertFalse(app.buttons["lookup.playClip"].exists)
+        let lookup = XCTAttachment(screenshot: app.screenshot())
+        lookup.name = "player-lookup"
+        lookup.lifetime = .keepAlways
+        add(lookup)
         app.closeLookup()
         let resumed = expectation(for: NSPredicate(format: "value == 'playing'"), evaluatedWith: playPause)
         wait(for: [resumed], timeout: 5)
@@ -448,7 +453,8 @@ final class KikuMarksAndStatsUITests: XCTestCase {
         XCTAssertTrue(marked.waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["1 to mine"].exists)
         marked.descendants(matching: .any)["subtitle.line"].firstMatch.tap()
-        XCTAssertTrue(app.buttons["lookup.playClip"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["lookup.handle"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["lookup.playClip"].exists)
         app.closeLookup()
         XCTAssertTrue(app.buttons["mark.clear"].waitForExistence(timeout: 5))
         app.buttons["mark.clear"].tap()
