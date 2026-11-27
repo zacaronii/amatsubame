@@ -915,6 +915,11 @@ struct PlaybackView: View {
                     optionsOpen = false
                     scheduleHide()
                 }
+            // Which engine plays this video, so the owner can say what played (phase 2).
+            Section {
+                Text("Playing with \(model.engine.engineSummary)")
+                    .accessibilityIdentifier("player.engine")
+            }
         } label: {
             Image(systemName: "slider.horizontal.3")
                 .font(.title3.weight(.semibold))
@@ -1333,7 +1338,12 @@ struct PlaybackContainer: View {
             }
         }
         .onAppear {
-            if model == nil { model = PlaybackModel(session: session, environment: environment) }
+            if model == nil {
+                let (engine, note) = EngineChoice.makeEngine()
+                let opened = PlaybackModel(session: session, environment: environment, engine: engine)
+                if let note { opened.showOSD(note) }
+                model = opened
+            }
         }
         #if os(macOS)
         .navigationTitle(model?.title ?? session.title)

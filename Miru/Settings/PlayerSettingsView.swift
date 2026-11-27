@@ -186,7 +186,7 @@ struct MacSettingsView: View {
                 MacSettingsPage("subtitles", title: "Subtitles", systemImage: "captions.bubble",
                                 keywords: ["Hide Until Tapped", "Pause Under the Pointer", "Position", "Size"]) { SubtitlesSettingsView() },
                 MacSettingsPage("playback", title: "Playback", systemImage: "play.rectangle",
-                                keywords: ["Skip Intros Automatically", "Streaming Quality"]) { PlaybackSettingsView() },
+                                keywords: ["Skip Intros Automatically", "Streaming Quality", "Engine", "AetherEngine"]) { PlaybackSettingsView() },
                 MacSettingsPage("shortcuts", title: "Keyboard Shortcuts", systemImage: "keyboard", keywords: ["Keys"]) { PlayerShortcutsView() },
             ]),
         ] + MacSettingsGroup.shared(servers: [
@@ -281,12 +281,23 @@ struct SubtitleLookSection: View {
 
 /// Settings ▸ Watching ▸ Playback.
 struct PlaybackSettingsView: View {
+    @State private var engine = EngineChoice.current
+
     var body: some View {
         Form {
             Section {
                 SkipIntrosToggle()
             } footer: {
                 Text("Skips intros and recaps without the button, where Jellyfin knows them.")
+            }
+            Section {
+                Picker("Engine", selection: $engine) {
+                    ForEach(EngineChoice.allCases) { Text($0.title).tag($0) }
+                }
+                .accessibilityIdentifier("settings.engine")
+                .onChange(of: engine) { _, choice in EngineChoice.current = choice }
+            } footer: {
+                Text("AetherEngine plays most videos with the system's player, so picture in picture, AirPlay and Now Playing come from the system. It's being tested: if a video won't play, switch back to mpv. English subtitles show as plain text. Applies to the next video you open.")
             }
             StreamQualitySection()
             // Was its own Downloads page; the same stored setting.

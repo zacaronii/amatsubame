@@ -19,6 +19,7 @@ import SwiftUI
 public final class AetherPlayerEngine: PlayerEngine {
     @ObservationIgnored let engine: AetherEngine
     public var engineName: String { "AetherEngine" }
+    public var engineDetail: String? { route == "none" ? nil : "\(route) route" }
 
     public private(set) var timePosition: Double = 0
     public private(set) var duration: Double = 0

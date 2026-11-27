@@ -11,6 +11,9 @@ import SwiftUI
 @MainActor public protocol PlayerEngine: AnyObject, Observable, Sendable {
     /// The engine's name for the stats sheet and logs ("mpv").
     var engineName: String { get }
+    /// How it plays this file, for the player's menu and the log ("loopback route"); nil if
+    /// there's nothing to add.
+    var engineDetail: String? { get }
 
     // MARK: State
     var timePosition: Double { get }
@@ -97,6 +100,9 @@ import SwiftUI
 }
 
 public extension PlayerEngine {
+    var engineDetail: String? { nil }
+    /// "AetherEngine, loopback route", or just the name.
+    var engineSummary: String { [engineName, engineDetail].compactMap { $0 }.joined(separator: ", ") }
     func togglePause() { setPaused(!isPaused) }
     func load(_ url: URL, headers: [String: String] = [:]) { load(url, headers: headers, start: 0) }
     func showSubtitles(from url: URL?) { showSubtitles(from: url, headers: [:]) }
