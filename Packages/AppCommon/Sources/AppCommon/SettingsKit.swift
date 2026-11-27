@@ -122,19 +122,33 @@ public struct StatusItem: Identifiable {
     }
 }
 
-/// The result of each chip's check, kept while the app runs (a minute before checking again).
+/// The result of each chip's check. A server that answered isn't asked again for a minute; one
+/// that couldn't be reached is asked again on the next refresh (the card refreshes when the
+/// network comes back, the app returns and something waiting gets through).
 @Observable
 final class ServerStatusModel {
     enum State: Equatable { case checking, ok, failed(String) }
     private(set) var states: [String: State] = [:]
     @ObservationIgnored private var checkedAt: [String: Date] = [:]
 
+    var hasFailures: Bool { states.values.contains { if case .failed = $0 { true } else { false } } }
+
     func refresh(_ items: [StatusItem], force: Bool = false) async {
-        let due = items.filter { item in
+        await check(items.filter { item in
             guard item.isSetUp else { return false }
-            if !force, let date = checkedAt[item.name], Date().timeIntervalSince(date) < 60, states[item.name] != nil { return false }
+            if !force, states[item.name] == .ok, let date = checkedAt[item.name], Date().timeIntervalSince(date) < 60 { return false }
             return true
-        }
+        })
+    }
+
+    /// Only the chips showing a failure.
+    func recheckFailed(_ items: [StatusItem]) async {
+        await check(items.filter { item in
+            if item.isSetUp, case .failed = states[item.name] { true } else { false }
+        })
+    }
+
+    private func check(_ due: [StatusItem]) async {
         // All at once; each chip updates when its own check ends.
         let checks = due.map { item in
             if states[item.name] == nil { states[item.name] = .checking }
@@ -163,6 +177,7 @@ public struct SettingsStatusCard: View {
     @State private var waiting: [OutboxJobKind: Int] = [:]
     /// The chip tapped: its page is shown.
     @State private var opened: String?
+    @Environment(\.scenePhase) private var scenePhase
     let items: [StatusItem]
 
     public init(items: [StatusItem]) {
@@ -197,12 +212,32 @@ public struct SettingsStatusCard: View {
         .navigationDestination(isPresented: Binding(get: { opened != nil }, set: { if !$0 { opened = nil } })) {
             if let item = items.first(where: { $0.name == opened }), let opens = item.opens { opens() }
         }
-        .task { await model.refresh(items) }
+        // On appear, and whenever a server is set up or removed (the accounts can load after the
+        // card first shows: Settings opened at launch on the Mac).
+        .task(id: items.filter(\.isSetUp).map(\.name)) { await model.refresh(items) }
+        // Back on a network (or a VPN like Tailscale connecting): every chip again.
+        .onChange(of: environment.reachability.reconnections) { Task { await model.refresh(items, force: true) } }
+        // Back in the app: the ones that failed (and any older than a minute).
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await model.refresh(items) } }
+        }
+        // While something shows as unreachable, ask it again every 20 seconds.
+        .task(id: model.hasFailures) {
+            while model.hasFailures, !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(20))
+                guard !Task.isCancelled else { return }
+                await model.recheckFailed(items)
+            }
+        }
         .task {
             do {
                 // A demo server's writes stay on the device: not waiting for anything.
                 for try await counts in environment.outbox.observeWaitingCounts() {
-                    waiting = counts.filter { !environment.heldKinds.contains($0.key) }
+                    let held = counts.filter { !environment.heldKinds.contains($0.key) }
+                    // Something waiting got through: its server answers again.
+                    let total = { (counts: [OutboxJobKind: Int]) in counts.values.reduce(0, +) }
+                    if total(held) < total(waiting) { Task { await model.recheckFailed(items) } }
+                    waiting = held
                 }
             } catch {}
         }
