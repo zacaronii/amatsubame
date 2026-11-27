@@ -4,15 +4,22 @@ The four apps share one version (`MARKETING_VERSION` in `project.yml`), 0.x whil
 number goes up for features, the last one for fix-only releases. They also share one build number,
 the upload time, which only goes up.
 
-- `scripts/upload-dev.sh` uploads the current commit (normally `dev`) to the TestFlight **Dev** group
-  and tags it `build-<number>`. A release doesn't rebuild: it promotes a Dev build that has been in use,
-  once `dev` has been merged into `main`.
+- `scripts/upload-dev.sh` builds the current commit (normally `dev`) and tags it `build-<number>`.
+  The iPhone and iPad apps go to the TestFlight **Dev** group. The Mac apps don't go to TestFlight:
+  they're exported with Developer ID, notarized and stapled, uploaded as `<App>-<version>-<build>.zip`
+  to the rolling `dev` release of
+  [zacaronii/homebrew-amatsubame](https://github.com/zacaronii/homebrew-amatsubame) (each Dev build
+  replaces the last), and the `@dev` casks (`yomu@dev`, `miru@dev`, `kiku@dev`, `hiku@dev`) point at
+  them. The script writes the `@dev` casks from the release casks, and each pair conflicts, since
+  they're the same app. A release doesn't rebuild: it promotes a Dev build that has been in use, once
+  `dev` has been merged into `main`.
 - `scripts/release.sh <build number>` checks that build's commit, tags it `v<version>`, creates the
   GitHub pre-release with generated notes, and opens the pull request that moves `dev` to the next
   fix version (0.2.0 out → 0.2.1), so every Dev build already carries the version it would ship as.
   The build is then added to the main tester group in App Store Connect.
-- The same run makes the Mac apps for Homebrew: the build's Mac archives exported with Developer ID,
-  notarized, stapled and attached to the GitHub release as `<App>-<version>.zip`, and the casks in
+- The same run makes the Mac apps for Homebrew: the Dev build's notarized Mac apps (or, if they're no
+  longer on that Mac, the build's commit archived and signed the same way, `scripts/mac-developer-id.sh`),
+  attached to the GitHub release as `<App>-<version>.zip`, and the release casks in
   [zacaronii/homebrew-amatsubame](https://github.com/zacaronii/homebrew-amatsubame) moved to them.
   `scripts/release.sh --mac-only <build number>` redoes just that part for a released build.
 - Publishing the release also publishes Kaku's Docker image, tagged with the version
@@ -26,6 +33,9 @@ When:
 - About every two weeks: ship what has merged into `dev` if it passes the checklist; skip the cycle if
   nothing worthwhile merged.
 - A merged bug fix shouldn't wait more than about a week: do a fix-only release if needed.
+- iCloud (Stats and settings across devices) works in the Developer ID copies too: their provisioning
+  profile carries the App Group and the iCloud Documents container, and they use the same app data as
+  the TestFlight Mac apps did.
 - TestFlight builds expire after 90 days, so never go more than about two months between releases.
 - Bigger features use a GitHub milestone (for example "v0.4.0") and ship once its issues are closed.
 

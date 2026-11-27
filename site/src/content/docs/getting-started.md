@@ -3,8 +3,8 @@ title: Getting started
 description: What you need, how to build the apps from source with Xcode, and what the first launch walks you through.
 ---
 
-The Amatsubame apps aren't on the App Store. On a Mac you can install them with Homebrew; otherwise
-you build them yourself with Xcode and install them on your own devices. That takes a few minutes
+The Amatsubame apps aren't on the App Store. On a Mac you install them with Homebrew; on an iPhone
+or iPad you build them yourself with Xcode and install them on your own devices. That takes a few minutes
 once, and after that each app's first launch walks you through connecting your server, choosing
 libraries and getting dictionaries.
 
@@ -48,8 +48,11 @@ Install only the ones you use. They need macOS 26 or later on a Mac with Apple s
 `brew upgrade` updates them when a new version comes out. The apps share one setup, so dictionaries
 and Anki settings you choose in one are there in the others.
 
-If you also have an app from TestFlight, remove that copy first: both are the same app. To turn on
-Hiku after installing it, open Safari ▸ Settings ▸ Extensions.
+If you had a Mac app from TestFlight, remove that copy first: both are the same app, and your data
+stays. To turn on Hiku after installing it, open Safari ▸ Settings ▸ Extensions.
+
+Testing the latest Dev build instead? Use the `@dev` casks (`zacaronii/amatsubame/yomu@dev`, and so
+on). A Dev cask and its release cask are the same app, so uninstall one before installing the other.
 
 ## Build the apps
 
