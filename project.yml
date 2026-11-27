@@ -203,12 +203,13 @@ targets:
           for f in "$BUILT_PRODUCTS_DIR"/AetherLib*.framework; do
             [ -d "$f" ] || continue
             rm -rf "$dest/$(basename "$f")"
-            cp -R "$f" "$dest/"
+            # Archives list products as symlinks into UninstalledProducts: copy what they point to.
+            cp -R "$(realpath "$f")" "$dest/$(basename "$f")"
             codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY:--}" --preserve-metadata=identifier,entitlements "$dest/$(basename "$f")" || true
           done
           if [ -d "$BUILT_PRODUCTS_DIR/AetherEngine_AetherEngine.bundle" ]; then
             rm -rf "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/AetherEngine_AetherEngine.bundle"
-            cp -R "$BUILT_PRODUCTS_DIR/AetherEngine_AetherEngine.bundle" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/"
+            cp -R "$(realpath "$BUILT_PRODUCTS_DIR/AetherEngine_AetherEngine.bundle")" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/AetherEngine_AetherEngine.bundle"
           fi
     dependencies:
       - package: AppCommon
