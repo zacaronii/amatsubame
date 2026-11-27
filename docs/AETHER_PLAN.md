@@ -64,6 +64,25 @@ measured per codec in phase 2's device testing (below).
 
 ## Phase 0: backup and groundwork (no player change)
 
+**Done on 2026-11-27** (the owner's go came the same day). What was done, where it differs from the
+steps below:
+- **Backup:** tag `mpv-final-2026-11-27` on 2e41370, the commit of Dev build 202611271555, which is
+  already on TestFlight and notarized for the Mac. Its Miru is the same code as dev's head then
+  (307a9a3 only changed scripts), so no new build was needed.
+- **Mac zip:** on a release `mpv-final-2026-11-27` in the **tap** repo, not the app repo. A release
+  in the app repo would have run the Kaku image workflow (from the tagged commit, before #327's
+  guard) and moved Kaku's `latest` image to unreleased code. `miru@mpv` is in the tap.
+- **Scripts:** #327 (`--ios-only`, the backup in the cask conflicts, the Kaku guard).
+- **Pins:** see Version pinning. LibDovi, SMBClient and LibTrueHD (also AetherEngine dependencies)
+  are pinned exactly at upstream; forking them too is an open question.
+- **Notices:** added on the spike branch, which is the only place AetherEngine is built. Dev's
+  `THIRD_PARTY_NOTICES.md` gets them in the PR that adds the package (phase 2).
+- **Rehearsal:** on a simulator, dev → spike → dev → spike over the same data (a Stats session, a
+  resume point, a finished download and its file, player settings and a preference). Everything
+  stayed and each build launched; the spike adds no migrations. The simulator had no server account,
+  so this checks the data and the launch, not the screens that show them.
+- **Still to do for the gate:** the owner installs the backup on the iPhone, the iPad and the Mac.
+
 **1. The mpv backup.** Made on the last dev commit before any AetherEngine code merges:
 - Tag it `mpv-final-<YYYY-MM-DD>` and push the tag.
 - Make a Dev build from it and note the build number in the tag message. Its TestFlight build
@@ -306,8 +325,15 @@ Phase 2 adds:
 ## Version pinning
 
 **How it's pinned:**
-- project.yml pins AetherEngine and FFmpegBuild with `exactVersion`, from the owner's forks.
-- A bump is its own PR. Its description has:
+- project.yml pins only AetherEngine, with `exactVersion`, from the owner's fork, at a tag of
+  ours: `<upstream version>-amatsubame.<n>` (now `7.76.0-amatsubame.1`, branch `amatsubame` in
+  github.com/zacaronii/AetherEngine).
+- That tag's one commit changes only AetherEngine's `Package.swift`: FFmpegBuild comes from the
+  owner's fork, and every dependency is `exact:` (FFmpegBuild 3.19.3, LibDovi 2.2.0, SMBClient
+  0.3.1, LibTrueHD 3.2.0). Pinning FFmpegBuild in project.yml instead would give SwiftPM two URLs
+  for one package, which it warns will become an error.
+- A bump is its own PR: merge the upstream tag into the fork's `amatsubame` branch, update the
+  pins in `Package.swift`, tag `<version>-amatsubame.1`. Its description has:
   - the upstream changelog between the versions;
   - the Mac lab rerun: ASS cues on the 8-track file, 50 remote DTS seeks, first frame on HEVC
     10-bit + FLAC, snapshot, card clip;
@@ -328,9 +354,10 @@ Phase 2 adds:
 - **iPhone and iPad, within 90 days of the backup:** TestFlight ▸ Miru ▸ Previous Builds ▸ the
   build named in the `mpv-final-<date>` tag ▸ Install.
 - **iPhone and iPad, after 90 days:**
-  1. Check out the tag on a branch.
+  1. Make a branch from the tag. The tag's own `upload-dev.sh` predates `--ios-only`, so commit
+     dev's `scripts/upload-dev.sh` and `scripts/homebrew-casks.sh` onto it.
   2. Run `scripts/upload-dev.sh --ios-only Miru`. That makes a new build of the same code with a
-     new build number.
+     new build number, and leaves the casks alone.
   3. Install it from TestFlight.
 - **Mac:**
   1. `brew uninstall --cask miru@dev` (or `miru`)
@@ -357,6 +384,9 @@ not work.
 
 ## Open questions
 
+- **More forks:** LibDovi and LibTrueHD are binary packages from AetherEngine's author, like
+  FFmpegBuild, and SMBClient is a third party's. They're pinned exactly but not forked, so upstream
+  could still delete a tag. Forking them would make the build fully independent of upstream.
 - **Battery:** answered for phase 0 (AetherEngine level with mpv or slightly better; above). Still
   open: how much the software route costs, which phase 2's device testing measures per codec.
 - **Mac:** AetherEngine's AVPlayer route on macOS hasn't been run outside the lab. Phase 2's
