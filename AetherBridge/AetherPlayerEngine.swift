@@ -402,7 +402,8 @@ public final class AetherPlayerEngine: PlayerEngine {
 
     public var subtitleNote: String {
         let line = engine.secondarySubtitleCues.first { $0.startTime <= timePosition && timePosition < $0.endTime }
-        return "engine sid: \(engine.activeSecondarySubtitleTrackIndex.map(String.init) ?? "no")"
+        let shown = sidecarShown ? "\(Self.sidecarId)" : engine.activeSecondarySubtitleTrackIndex.map(String.init)
+        return "engine sid: \(shown ?? "no")"
             + (line.map { ", engine line: \(Self.text($0))" } ?? "")
     }
 
