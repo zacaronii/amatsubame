@@ -2,8 +2,8 @@
 
 This is the plan for moving Miru's player from mpv (MPVKit) to
 [AetherEngine](https://github.com/superuser404notfound/AetherEngine). Nothing in it is built
-yet. The battery comparison (Miru 202611271629) is in (below); it starts when the owner decides
-to go ahead. The evidence so far is the spike on `spike/aetherengine`
+yet beyond phase 0. The battery comparison (Miru 202611271629) is in (below), phase 0 is done,
+and the owner said go for phase 1 on 2026-11-27. The evidence so far is the spike on `spike/aetherengine`
 (`docs/spikes/aetherengine.md` there):
 - a Mac lab run against 7.73.0, then 7.76.0;
 - the owner's device run on 7.76.0 ("everything seemed to work well");
@@ -73,15 +73,16 @@ steps below:
   in the app repo would have run the Kaku image workflow (from the tagged commit, before #327's
   guard) and moved Kaku's `latest` image to unreleased code. `miru@mpv` is in the tap.
 - **Scripts:** #327 (`--ios-only`, the backup in the cask conflicts, the Kaku guard).
-- **Pins:** see Version pinning. LibDovi, SMBClient and LibTrueHD (also AetherEngine dependencies)
-  are pinned exactly at upstream; forking them too is an open question.
+- **Pins:** see Version pinning. LibDovi, LibTrueHD and SMBClient (AetherEngine's other
+  dependencies) were forked too, at the owner's request, so the spike resolves only from forks.
 - **Notices:** added on the spike branch, which is the only place AetherEngine is built. Dev's
   `THIRD_PARTY_NOTICES.md` gets them in the PR that adds the package (phase 2).
 - **Rehearsal:** on a simulator, dev → spike → dev → spike over the same data (a Stats session, a
   resume point, a finished download and its file, player settings and a preference). Everything
   stayed and each build launched; the spike adds no migrations. The simulator had no server account,
   so this checks the data and the launch, not the screens that show them.
-- **Still to do for the gate:** the owner installs the backup on the iPhone, the iPad and the Mac.
+- **Gate passed:** the owner installed the backup on the iPhone and the Mac and it worked, and said
+  go for phase 1.
 
 **1. The mpv backup.** Made on the last dev commit before any AetherEngine code merges:
 - Tag it `mpv-final-<YYYY-MM-DD>` and push the tag.
@@ -326,12 +327,13 @@ Phase 2 adds:
 
 **How it's pinned:**
 - project.yml pins only AetherEngine, with `exactVersion`, from the owner's fork, at a tag of
-  ours: `<upstream version>-amatsubame.<n>` (now `7.76.0-amatsubame.1`, branch `amatsubame` in
+  ours: `<upstream version>-amatsubame.<n>` (now `7.76.0-amatsubame.2`, branch `amatsubame` in
   github.com/zacaronii/AetherEngine).
-- That tag's one commit changes only AetherEngine's `Package.swift`: FFmpegBuild comes from the
-  owner's fork, and every dependency is `exact:` (FFmpegBuild 3.19.3, LibDovi 2.2.0, SMBClient
-  0.3.1, LibTrueHD 3.2.0). Pinning FFmpegBuild in project.yml instead would give SwiftPM two URLs
-  for one package, which it warns will become an error.
+- The branch changes only AetherEngine's `Package.swift`: every dependency comes from its fork in
+  the same account and is `exact:` (FFmpegBuild 3.19.3, LibDovi 2.2.0, SMBClient 0.3.1, LibTrueHD
+  3.2.0). Each of those keeps its binaries in git, so the forks hold everything a build needs.
+  Pinning the forks in project.yml instead would give SwiftPM two URLs for one package, which it
+  warns will become an error.
 - A bump is its own PR: merge the upstream tag into the fork's `amatsubame` branch, update the
   pins in `Package.swift`, tag `<version>-amatsubame.1`. Its description has:
   - the upstream changelog between the versions;
@@ -384,9 +386,6 @@ not work.
 
 ## Open questions
 
-- **More forks:** LibDovi and LibTrueHD are binary packages from AetherEngine's author, like
-  FFmpegBuild, and SMBClient is a third party's. They're pinned exactly but not forked, so upstream
-  could still delete a tag. Forking them would make the build fully independent of upstream.
 - **Battery:** answered for phase 0 (AetherEngine level with mpv or slightly better; above). Still
   open: how much the software route costs, which phase 2's device testing measures per codec.
 - **Mac:** AetherEngine's AVPlayer route on macOS hasn't been run outside the lab. Phase 2's
