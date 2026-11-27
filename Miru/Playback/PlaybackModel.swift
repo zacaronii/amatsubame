@@ -162,6 +162,9 @@ final class PlaybackModel {
     private(set) var showsBuffering = false
     /// This video's waits for the stream, for the log and the stream info.
     private(set) var stalls = StallLog()
+    /// Hangs that aren't waits for the stream (#143), checked once a second (`startStuckWatch`).
+    @ObservationIgnored private var stuck = StuckWatch()
+    @ObservationIgnored private var stuckWatch: Task<Void, Never>?
     @ObservationIgnored private var bufferingTask: Task<Void, Never>?
     /// The cheat sheet over the video (`?`).
     var showsShortcuts = false
@@ -729,6 +732,8 @@ final class PlaybackModel {
         #endif
         resetUpNext()
         stalls = StallLog()
+        stuck = StuckWatch()
+        startStuckWatch()
         showsBuffering = false
         #if DEBUG
         // UI tests: a local video file instead of a Jellyfin item (gesture tests without a server),
@@ -1078,6 +1083,7 @@ final class PlaybackModel {
     func pauseChanged(_ paused: Bool) {
         // Played again by hand while a lookup is open: closing it shouldn't do anything then.
         if !paused { resumesAfterLookup = false }
+        if paused, lookupTiming?.paused == nil { lookupTiming?.paused = Date() }
         ScreenAwake.set(!paused)
         updateNowPlaying()
         guard item != nil, sessionStarted else { return }
@@ -1639,9 +1645,34 @@ final class PlaybackModel {
     /// Pauses and looks up the word at `characterIndex` of `cue`'s sentence. If it was
     /// playing, closing the popup plays again.
     func lookUp(_ cue: SubtitleCue, characterIndex: Int) {
+        lookupTiming = (Date(), nil, lookupState())
         if !engine.isPaused { resumesAfterLookup = true }
         engine.setPaused(true)
-        lines.lookUp(cue.text, characterIndex: characterIndex, key: "cue-\(cue.id)", context: miningContext(for: cue))
+        lines.lookUp(cue.text, characterIndex: characterIndex, key: "cue-\(cue.id)", context: miningContext(for: cue)) { [weak self] seconds in
+            self?.lookupShown(lookupSeconds: seconds)
+        }
+    }
+
+    /// A lookup on its way to the popup: when it was tapped, when the engine reported it paused,
+    /// and how the player was then. A slow one goes in the log (`slowLookup`).
+    @ObservationIgnored private var lookupTiming: (tapped: Date, paused: Date?, state: String)?
+    static let slowLookup: Double = 0.3
+
+    private func lookupState() -> String {
+        [String(format: "%.1f s", engine.timePosition), engine.isPaused ? "paused" : "playing",
+         engine.isBuffering ? "buffering" : nil, pausesAfterLines ? "pausing after lines" : nil,
+         environment.common.lookup.looksUpOnHost ? "looked up on the Hachidori host" : nil]
+            .compactMap { $0 }.joined(separator: ", ")
+    }
+
+    private func lookupShown(lookupSeconds: Double) {
+        guard let timing = lookupTiming else { return }
+        lookupTiming = nil
+        let total = Date().timeIntervalSince(timing.tapped)
+        guard total >= Self.slowLookup else { return }
+        let ms = { (seconds: Double) in "\(Int((seconds * 1000).rounded())) ms" }
+        let paused = timing.paused.map { ms($0.timeIntervalSince(timing.tapped)) } ?? "no change reported"
+        AppLog.info(.playback, "Slow lookup: the popup came \(ms(total)) after the tap (paused after \(paused), dictionary \(ms(lookupSeconds))); \(timing.state)")
     }
 
     // MARK: Keyboard shortcuts
@@ -1860,10 +1891,32 @@ final class PlaybackModel {
         }
     }
 
+    /// Once a second while the player is open: playback that should be moving and isn't goes in
+    /// the log (#143), with how the video is playing. It only reads the engine's state.
+    private func startStuckWatch() {
+        stuckWatch?.cancel()
+        stuckWatch = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard let self, !Task.isCancelled else { return }
+                self.checkStuck()
+            }
+        }
+    }
+
+    private func checkStuck() {
+        // Picture in picture stops the engine's clock on purpose (AVPlayer plays then).
+        let playing = engine.hasStarted && !engine.isPaused && !engine.isBuffering && !engine.reachedEnd && !inPictureInPicture
+        guard let line = stuck.check(position: engine.timePosition, playing: playing) else { return }
+        let how = transcodeBitrate.map { "transcoded to \($0 / 1000) kbps" } ?? (localFile == nil ? "streamed as is" : "downloaded")
+        AppLog.info(.playback, "\(line) [\(how)\(inBackground ? ", in the background" : "")]: \(item?.name ?? session.title)")
+    }
+
     private func readStreamInfo() -> [(label: String, value: String)] {
         // What the engine decodes, then what only the player knows.
         var rows: [(String, String)] = engine.streamInfo.map { ($0.label, $0.value) }
         if let waits = stalls.summary { rows.append(("Waited for stream", waits)) }
+        if let hangs = stuck.summary { rows.append(("Stuck while playing", hangs)) }
         if let transcodeBitrate {
             rows.append(("Quality", "transcoded to \(PlayerSettings.streamQualities.first { $0.bitrate == transcodeBitrate }?.name ?? "\(transcodeBitrate / 1000) kbps")"))
         } else if localFile == nil {
@@ -1999,6 +2052,7 @@ final class PlaybackModel {
     }
 
     func close() {
+        stuckWatch?.cancel()
         #if os(iOS)
         endAirPlayVideo(.closing)
         #endif

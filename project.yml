@@ -434,6 +434,7 @@ targets:
       - package: AppCommon
       - package: Core
       - package: JellyfinKit
+      - package: Lookup
 
   MiruUITests:
     type: bundle.ui-testing
