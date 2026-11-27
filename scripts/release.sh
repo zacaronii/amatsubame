@@ -8,8 +8,8 @@
 #   scripts/release.sh --check-only <build number>   (the checks only)
 #   scripts/release.sh --mac-only <build number>     (the Homebrew part only, for a released build)
 #
-# The Mac apps for Homebrew are the build's Mac archives from upload-dev.sh (or, for apps that weren't
-# uploaded from this Mac, the build's commit archived the same way), exported with Developer ID,
+# The Mac apps for Homebrew are the build's notarized Mac apps from upload-dev.sh (or, when they
+# aren't on this Mac any more, the build's commit archived the same way), exported with Developer ID,
 # notarized with the App Store Connect API key (scripts/asc-key.sh), stapled and zipped as
 # <App>-<version>.zip. That needs Config/Signing.local.xcconfig and the team's Apple ID in Xcode,
 # as for uploads. The tap is github.com/<owner>/homebrew-amatsubame, one cask per app.
@@ -73,53 +73,41 @@ make_worktree() {
   (cd "$tree" && xcodegen >/dev/null)
 }
 
-# Developer ID copies of the Mac apps, notarized, stapled and zipped into $mac_out.
+# Developer ID copies of the Mac apps, notarized, stapled and zipped into $mac_out: the Dev build's
+# own (upload-dev.sh made them that way) when they're still on this Mac, else the build's commit
+# archived and signed the same way (scripts/mac-developer-id.sh).
 mac_out="$root/$logs/mac"
 mac_apps() {
   step "Mac apps for Homebrew"
-  local local_config="$root/Config/Signing.local.xcconfig" team app log archive status
+  local local_config="$root/Config/Signing.local.xcconfig" app log archive dev_copy
   [ -f "$local_config" ] || fail "Config/Signing.local.xcconfig is missing: it names the team that signs the Mac apps."
   team=$(sed -nE 's/^[[:space:]]*DEVELOPMENT_TEAM[[:space:]]*=[[:space:]]*([A-Z0-9]+).*/\1/p' "$local_config" | tail -1)
   [ -n "$team" ] || fail "no DEVELOPMENT_TEAM in Config/Signing.local.xcconfig."
   . scripts/asc-key.sh
   load_asc_key "$work"
-  cat > "$work/DeveloperID.plist" <<EOP
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-	<key>method</key><string>developer-id</string>
-	<key>teamID</key><string>$team</string>
-	<key>signingStyle</key><string>automatic</string>
-</dict>
-</plist>
-EOP
+  . scripts/mac-developer-id.sh
   rm -rf "$mac_out"
   mkdir -p "$mac_out"
   for app in Yomu Miru Kiku Hiku; do
     log="$mac_out/$app.log"
-    archive="$root/build.noindex/testflight/$build/$app-macOS.xcarchive"
-    if [ ! -d "$archive" ]; then
-      echo "  $app: archiving (not uploaded from this Mac in build $build)"
-      archive="$mac_out/$app.xcarchive"
-      cp "$local_config" "$tree/Config/"
-      (cd "$tree" && xcodebuild archive -project Amatsubame.xcodeproj -scheme "$app" -configuration Release \
-        -destination generic/platform=macOS -archivePath "$archive" -derivedDataPath "$root/build.noindex/release-archive" \
-        CURRENT_PROJECT_VERSION="$build" AMATSUBAME_APP_GROUP=YES AMATSUBAME_ICLOUD="${AMATSUBAME_ICLOUD:-YES}" ARCHS=arm64 -allowProvisioningUpdates) >"$log" 2>&1 \
-        || fail "archiving $app failed; see $log"
+    dev_copy="$root/build.noindex/testflight/$build/$app-macOS"
+    if [ -d "$dev_copy/$app.app" ] && xcrun stapler validate "$dev_copy/$app.app" >/dev/null 2>&1; then
+      echo "  $app: the Dev build's notarized copy"
+      ditto "$dev_copy/$app.app" "$mac_out/$app/$app.app"
+    else
+      archive="$root/build.noindex/testflight/$build/$app-macOS.xcarchive"
+      if [ ! -d "$archive" ]; then
+        echo "  $app: archiving (not built on this Mac in build $build)"
+        archive="$mac_out/$app.xcarchive"
+        cp "$local_config" "$tree/Config/"
+        (cd "$tree" && xcodebuild archive -project Amatsubame.xcodeproj -scheme "$app" -configuration Release \
+          -destination generic/platform=macOS -archivePath "$archive" -derivedDataPath "$root/build.noindex/release-archive" \
+          CURRENT_PROJECT_VERSION="$build" AMATSUBAME_APP_GROUP=YES AMATSUBAME_ICLOUD="${AMATSUBAME_ICLOUD:-YES}" ARCHS=arm64 -allowProvisioningUpdates) >"$log" 2>&1 \
+          || fail "archiving $app failed; see $log"
+      fi
+      echo "  $app: exporting with Developer ID and notarizing"
+      developer_id_app "$archive" "$mac_out/$app" "$log"
     fi
-    echo "  $app: exporting with Developer ID"
-    xcodebuild -exportArchive -archivePath "$archive" -exportOptionsPlist "$work/DeveloperID.plist" \
-      -exportPath "$mac_out/$app" -allowProvisioningUpdates >>"$log" 2>&1 \
-      || fail "exporting $app failed; see $log"
-    echo "  $app: notarizing"
-    ditto -c -k --keepParent "$mac_out/$app/$app.app" "$work/$app.zip"
-    xcrun notarytool submit "$work/$app.zip" --key "$key_file" --key-id "$key_id" --issuer "$issuer" \
-      --wait --output-format json >"$mac_out/$app-notary.json" 2>>"$log" || true
-    status=$(python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1])).get("status", "?"))' "$mac_out/$app-notary.json" 2>/dev/null || echo "?")
-    [ "$status" = Accepted ] \
-      || fail "notarizing $app: $status. Its submission is in $mac_out/$app-notary.json; xcrun notarytool log <id> shows why."
-    xcrun stapler staple "$mac_out/$app/$app.app" >>"$log" 2>&1 || fail "stapling $app failed; see $log"
     ditto -c -k --keepParent "$mac_out/$app/$app.app" "$mac_out/$app-$version.zip"
   done
 }
@@ -285,7 +273,7 @@ step "Tagging v$version"
 git tag -a "v$version" -m "Amatsubame $version (TestFlight build $build)" "$commit"
 git push -q origin "v$version"
 gh release create "v$version" "$mac_out"/*-"$version".zip --verify-tag --prerelease --generate-notes \
-  --title "Amatsubame $version" --notes "TestFlight build $build. The Mac apps are also on Homebrew: brew install --cask $(gh repo view --json owner -q .owner.login)/amatsubame/yomu (or miru, kiku, hiku)."
+  --title "Amatsubame $version" --notes "iPhone and iPad: TestFlight build $build. Mac: Homebrew only, brew install --cask $(gh repo view --json owner -q .owner.login)/amatsubame/yomu (or miru, kiku, hiku)."
 update_tap
 
 # The next version: the last number goes up, as if the next release only fixes things. The first

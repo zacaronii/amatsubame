@@ -35,13 +35,14 @@
 
 ## Get started
 
-Guides for every app are at [amatsubame.com](https://amatsubame.com). The Mac apps are also on
-[Homebrew](https://brew.sh):
+Guides for every app are at [amatsubame.com](https://amatsubame.com). The Mac apps are on
+[Homebrew](https://brew.sh) (the iPhone and iPad apps are on TestFlight):
 
     brew install --cask zacaronii/amatsubame/yomu   # or miru, kiku, hiku
 
-They're signed and notarized, need Apple silicon, and are the same apps as on TestFlight: install each
-app from one place only.
+They're signed with Developer ID, notarized and need Apple silicon. Testers can follow every Dev build
+with the `@dev` casks instead (`zacaronii/amatsubame/yomu@dev` and so on); a release cask and its
+`@dev` cask are the same app, so install one of the two.
 
 ## Build from source
 
