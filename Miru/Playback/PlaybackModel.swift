@@ -734,6 +734,7 @@ final class PlaybackModel {
         stalls = StallLog()
         stuck = StuckWatch()
         startStuckWatch()
+        loggedEngine = false
         showsBuffering = false
         #if DEBUG
         // UI tests: a local video file instead of a Jellyfin item (gesture tests without a server),
@@ -1052,6 +1053,7 @@ final class PlaybackModel {
     func timeChanged() {
         updateSegment()
         guard engine.hasStarted else { return }
+        logEngineOnce()
         updateUpNext()
         let time = engine.timePosition
         let jumped = lastTime.map { abs(time - $0) > 2 } ?? false
@@ -1889,6 +1891,15 @@ final class PlaybackModel {
             let speeds = engine.averageBitRate.map { " (video \(Int($0 / 1000)) kbps, next wait gathers \(engine.bufferWait.seconds) s)" } ?? ""
             AppLog.info(.playback, "\(line)\(speeds): \(item?.name ?? session.title)")
         }
+    }
+
+    /// Logs, once per video, which engine plays it and how (phase 2): at its first time step.
+    @ObservationIgnored private var loggedEngine = false
+
+    private func logEngineOnce() {
+        guard !loggedEngine else { return }
+        loggedEngine = true
+        AppLog.info(.playback, "Playing with \(engine.engineSummary): \(item?.name ?? session.title)")
     }
 
     /// Once a second while the player is open: playback that should be moving and isn't goes in
