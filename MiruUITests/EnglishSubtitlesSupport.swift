@@ -2,7 +2,10 @@ import XCTest
 
 extension XCTestCase {
     /// The options menu's English Subtitles: mpv's English line on, off and on again (debug
-    /// builds put the line mpv draws in the picture's accessibility value).
+    /// builds put the line mpv draws in the picture's accessibility value). Checked paused: while
+    /// the video plays, that value changes ten times a second, XCTest waits for the app to go
+    /// idle before each tap (about 55 s), and the video ends before a line can show (#314). mpv
+    /// draws the line at the paused frame, so it needs a line there.
     func checkEnglishTurnsOnAndOff(_ app: XCUIApplication, player: XCUIElement) {
         let options = app.descendants(matching: .any)["player.options"].firstMatch
         // On: mpv has a track and draws a line (within a few lines' time); off: no track.
@@ -23,6 +26,10 @@ extension XCTestCase {
             item.tap()
         }
         XCTAssertTrue(shows(false), "off to begin with")
+        player.twoFingerTap()
+        let paused = NSPredicate { _, _ in (player.value as? String ?? "").contains("paused") }
+        XCTAssertEqual(XCTWaiter().wait(for: [expectation(for: paused, evaluatedWith: nil)], timeout: 5), .completed,
+                       "a two-finger tap pauses: \(player.value ?? "")")
         toggle("on")
         XCTAssertTrue(shows(true), "on: \(player.value ?? "")")
         toggle("off")
