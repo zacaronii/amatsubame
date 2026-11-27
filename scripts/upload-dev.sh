@@ -5,13 +5,15 @@
 # (scripts/release.sh). Dev builds come from the dev branch (README ▸ Branches); a build from
 # anywhere else says so.
 #
-#   scripts/upload-dev.sh [--no-upload] [App ...]
+#   scripts/upload-dev.sh [--no-upload] [--ios-only] [App ...]
 #
 # Apps default to Yomu Miru Kiku Hiku. Each is archived into build.noindex/testflight/<build>/. The
 # iOS app is exported for the App Store and uploaded. The Mac app is exported with Developer ID,
 # notarized and stapled (scripts/mac-developer-id.sh), zipped, and once every app is done the zips
 # replace the ones on the tap's rolling "dev" release and the dev casks point at them.
-# --no-upload stops after the exports (the Mac apps aren't notarized then).
+# --no-upload stops after the exports (the Mac apps aren't notarized then). --ios-only leaves the Mac
+# out: nothing is notarized and the tap isn't touched, so the @dev casks stay on the last full build
+# (a backup or test build for TestFlight only; docs/AETHER_PLAN.md).
 #
 # All the apps get one build number, the upload time (YYYYMMDDHHMM, UTC): it only ever goes up.
 # Once the first upload has gone through, the tag build-<number> is pushed on the commit, so a
@@ -30,10 +32,12 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 upload=1
+platforms=(iOS macOS)
 apps=()
 for arg in "$@"; do
   case "$arg" in
     --no-upload) upload=0 ;;
+    --ios-only) platforms=(iOS) ;;
     Yomu|Miru|Kiku|Hiku) apps+=("$arg") ;;
     *) echo "Unknown argument: $arg" >&2; exit 2 ;;
   esac
@@ -131,10 +135,10 @@ publish_mac() {
 }
 
 xcodegen >/dev/null
-echo "Build $build (version $version, commit $(git rev-parse --short HEAD)) of: ${apps[*]} ($([ $upload = 1 ] && echo uploading || echo "not uploading"))"
+echo "Build $build (version $version, commit $(git rev-parse --short HEAD)) of: ${apps[*]} ($([ $upload = 1 ] && echo uploading || echo "not uploading")$([ ${#platforms[@]} = 1 ] && echo ", iOS only"))"
 mac_apps=()
 for app in "${apps[@]}"; do
-  for platform in iOS macOS; do
+  for platform in "${platforms[@]}"; do
     archive="$out/$app-$platform.xcarchive"
     log="$out/$app-$platform.log"
     # The Mac builds are Apple silicon only (the OCR code's Float16 doesn't exist on Intel).
@@ -169,7 +173,9 @@ for app in "${apps[@]}"; do
     tag_build
   done
 done
-if [ $upload = 1 ]; then
+if [ $upload = 1 ] && [ ${#mac_apps[@]} = 0 ]; then
+  echo "Done: build $build is on its way to the Dev group (tag build-$build), iOS only: the Homebrew casks weren't touched. Archives and logs are in $out."
+elif [ $upload = 1 ]; then
   publish_mac
   echo "Done: build $build is on its way to the Dev group (tag build-$build), and the Mac apps are on Homebrew as $(tr '[:upper:]' '[:lower:]' <<<"${mac_apps[*]/%/@dev}"). Archives and logs are in $out."
 else

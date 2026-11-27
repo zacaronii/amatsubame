@@ -15,6 +15,13 @@ the upload time, which only goes up.
   it offline). Both scripts check every cask with `ruby -c` and `brew style` before pushing the tap,
   since one broken cask stops every brew command that reads it. A release doesn't rebuild: it promotes a Dev build that has been in use, once
   `dev` has been merged into `main`.
+- `scripts/upload-dev.sh --ios-only` sends only the iPhone and iPad apps to TestFlight and leaves the
+  tap alone, so the `@dev` casks stay on the last full build (for a backup or test build).
+- **Pinned backups.** `miru@mpv` is Miru's last mpv-only build (`docs/AETHER_PLAN.md`), kept while the
+  player moves to AetherEngine. Its zip is on its own release in the tap (`mpv-final-<date>`, which no
+  script touches), and its cask is written by hand, with a fixed version and sha and `livecheck skip`.
+  `homebrew-casks.sh` adds `<app>@mpv` to the release and `@dev` casks' conflicts whenever the tap has
+  one. It isn't in the app repo's releases, so it never becomes "latest" and doesn't publish Kaku.
 - `scripts/release.sh <build number>` checks that build's commit, tags it `v<version>`, creates the
   GitHub pre-release with generated notes, and opens the pull request that moves `dev` to the next
   fix version (0.2.0 out → 0.2.1), so every Dev build already carries the version it would ship as.
@@ -25,7 +32,8 @@ the upload time, which only goes up.
   [zacaronii/homebrew-amatsubame](https://github.com/zacaronii/homebrew-amatsubame) moved to them.
   `scripts/release.sh --mac-only <build number>` redoes just that part for a released build.
 - Publishing the release also publishes Kaku's Docker image, tagged with the version
-  (`ghcr.io/zacaronii/amatsubame-kaku:<version>`, `.github/workflows/kaku-image.yml`).
+  (`ghcr.io/zacaronii/amatsubame-kaku:<version>`, `.github/workflows/kaku-image.yml`). Only `v<version>`
+  releases do: any other release in the app repo skips it, so it can't move `latest`.
 - The first feature (a PR labelled `idea` or `enhancement`) merged after a release also moves `dev`
   to the next feature version (0.2.1 → 0.3.0). If that's forgotten, the release script stops and
   says so.
