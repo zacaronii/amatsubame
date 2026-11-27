@@ -1347,9 +1347,14 @@ extension View {
     func playbackPresentation(_ session: Binding<PlaybackSession?>) -> some View {
         #if os(iOS)
         fullScreenCover(item: session) { value in
-            PlaybackContainer(session: value) { session.wrappedValue = nil }
-                // A full-screen cover doesn't inherit the app's tint (word marks and highlights use it).
-                .tint(Color("AccentColor"))
+            // Spike: Settings ▸ Test sends episodes to AetherEngine's test player instead.
+            if AetherTest.isOn {
+                AetherTestPlayback(session: value) { session.wrappedValue = nil }
+            } else {
+                PlaybackContainer(session: value) { session.wrappedValue = nil }
+                    // A full-screen cover doesn't inherit the app's tint (word marks and highlights use it).
+                    .tint(Color("AccentColor"))
+            }
         }
         #else
         modifier(OpenPlaybackInMainWindow(session: session))
