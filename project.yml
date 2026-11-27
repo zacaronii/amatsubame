@@ -92,6 +92,11 @@ targets:
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortraitUpsideDown"
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
+      configs:
+        Debug:
+          # Test runs load the package frameworks from the build folder, signed ad hoc, so the
+          # hardened runtime's library check stops the app before any test (Debug only).
+          RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION[sdk=macosx*]: YES
     dependencies:
       - package: AppCommon
       - package: Core
@@ -164,6 +169,11 @@ targets:
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortraitUpsideDown"
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
+      configs:
+        Debug:
+          # Test runs load the package frameworks from the build folder, signed ad hoc, so the
+          # hardened runtime's library check stops the app before any test (Debug only).
+          RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION[sdk=macosx*]: YES
     dependencies:
       - package: AppCommon
       - package: Core
@@ -203,6 +213,11 @@ targets:
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: NO
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortraitUpsideDown"
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
+      configs:
+        Debug:
+          # Test runs load the package frameworks from the build folder, signed ad hoc, so the
+          # hardened runtime's library check stops the app before any test (Debug only).
+          RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION[sdk=macosx*]: YES
     dependencies:
       - package: AppCommon
       - package: Core
@@ -308,6 +323,11 @@ targets:
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
+      configs:
+        Debug:
+          # Test runs load the package frameworks from the build folder, signed ad hoc, so the
+          # hardened runtime's library check stops the app before any test (Debug only).
+          RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION[sdk=macosx*]: YES
     dependencies:
       - target: HikuExtension
       - package: AppCommon
