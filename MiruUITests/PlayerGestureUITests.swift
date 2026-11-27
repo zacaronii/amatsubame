@@ -4,7 +4,7 @@ import XCTest
 final class PlayerGestureUITests: XCTestCase {
     func testTwoFingerTapDoubleTapAndScrub() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
-            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file to test gestures.")
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to the 60 s test video (scripts/make-test-media.sh) to test gestures.")
         }
         continueAfterFailure = false
         // Sideways: the overlay layout, where the controls hide (upright, the play button stays under the picture).
@@ -63,7 +63,7 @@ final class PlayerGestureUITests: XCTestCase {
     /// again; portrait always fits, and turning back sideways fills again. A pinch never scrubs.
     func testPinchFillsTheScreenSideways() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
-            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file to test gestures.")
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to the 60 s test video (scripts/make-test-media.sh) to test gestures.")
         }
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .landscapeLeft
@@ -122,7 +122,7 @@ final class PlayerGestureUITests: XCTestCase {
     /// 40 s ("Opening", "Part A", "Ending").
     func testChaptersFromTheOptionsMenu() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_CHAPTERS_VIDEO"] else {
-            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_CHAPTERS_VIDEO to a video with chapters.")
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_CHAPTERS_VIDEO to the test video with chapters (scripts/make-test-media.sh).")
         }
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .landscapeLeft
@@ -167,7 +167,7 @@ final class PlayerGestureUITests: XCTestCase {
 
     func testSkipIntroButton() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
-            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file to test skipping.")
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to the 60 s test video (scripts/make-test-media.sh) to test skipping.")
         }
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -207,7 +207,7 @@ final class PlayerGestureUITests: XCTestCase {
     /// part-way start; the fix is `MPVController.hasStarted`.
     func testSkipIntroDoesNotFlashWhenResumingPastTheIntro() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
-            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file to test segments.")
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to the 60 s test video (scripts/make-test-media.sh) to test segments.")
         }
         let app = XCUIApplication()
         app.launchEnvironment["UITEST_MUTE"] = "1"
@@ -232,7 +232,7 @@ final class PlayerGestureUITests: XCTestCase {
     /// again; if it was already paused, it stays paused.
     func testLookupPausesQuietlyAndClosingResumes() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
-            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file to test lookups.")
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to the 60 s test video (scripts/make-test-media.sh) to test lookups.")
         }
         continueAfterFailure = false
         // Sideways: the overlay layout, where the controls hide (upright, the play button stays under the picture).
@@ -295,7 +295,7 @@ final class PlayerGestureUITests: XCTestCase {
     /// episode plays. Cancel hides it.
     func testUpNextCardPlaysTheNextEpisodeOrCancels() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
-            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file to test Up Next.")
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to the 60 s test video (scripts/make-test-media.sh) to test Up Next.")
         }
         continueAfterFailure = false
         func launch() -> XCUIApplication {
@@ -335,7 +335,7 @@ final class PlayerGestureUITests: XCTestCase {
     /// (UITEST_PLAYER_AUDIO_VIDEO).
     func testBackgroundAudioAndNowPlaying() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_AUDIO_VIDEO"] else {
-            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_AUDIO_VIDEO to a video with an audio track.")
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_AUDIO_VIDEO to a video with an audio track (scripts/make-test-media.sh).")
         }
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -362,7 +362,7 @@ final class PlayerGestureUITests: XCTestCase {
 
     func testFindSubtitlesOnJimakuRetimeAndSave() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
-            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file to test subtitle search.")
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to the 60 s test video (scripts/make-test-media.sh) to test subtitle search.")
         }
         continueAfterFailure = false
         // Upright: the Subtitles settings open as a sheet (sideways they are a panel on the right).
