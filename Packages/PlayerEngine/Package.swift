@@ -7,7 +7,9 @@ import PackageDescription
 let package = Package(
     name: "PlayerEngine",
     platforms: [.iOS(.v26), .macOS(.v26)],
-    products: [.library(name: "PlayerEngine", targets: ["PlayerEngine"])],
+    // Dynamic: the app (through PlayerKit) and the AetherBridge framework must share one copy of
+    // the protocol, or a conformance made in one isn't the same protocol in the other.
+    products: [.library(name: "PlayerEngine", type: .dynamic, targets: ["PlayerEngine"])],
     targets: [
         .target(name: "PlayerEngine"),
         .testTarget(name: "PlayerEngineTests", dependencies: ["PlayerEngine"]),

@@ -64,8 +64,33 @@ packages:
     path: Packages/HachidoriKit
   Names:
     path: Packages/Names
+  PlayerEngine:
+    path: Packages/PlayerEngine
+  # AetherEngine from the owner's fork, at a tag whose manifest pins its dependencies exactly,
+  # each from its own fork (docs/AETHER_PLAN.md ▸ Version pinning). A bump is its own PR.
+  AetherEngine:
+    url: https://github.com/zacaronii/AetherEngine
+    exactVersion: 7.76.0-amatsubame.2
 
 targets:
+  # AetherEngine behind PlayerEngine (Miru's opt-in second engine), in a dynamic framework of its
+  # own so it binds to its own FFmpeg (AetherLib*), not the static one MPVKit puts in the app.
+  AetherBridge:
+    type: framework
+    supportedDestinations: [iOS, macOS]
+    platform: auto
+    deploymentTarget:
+      iOS: "26.0"
+      macOS: "26.0"
+    sources: [AetherBridge]
+    dependencies:
+      - package: AetherEngine
+      - package: PlayerEngine
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).aetherbridge
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
   Yomu:
     type: application
     supportedDestinations: [iOS, macOS]
@@ -158,8 +183,14 @@ targets:
         CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: $(AMATSUBAME_CLOUD_DEVICE_ENTITLEMENTS)
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         TARGETED_DEVICE_FAMILY: "1,2"
-        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Shared/App-macOS$(AMATSUBAME_CLOUD_MAC_SUFFIX).entitlements
+        # Miru's own: AetherEngine's native route serves the stream to AVPlayer from a local HTTP
+        # server (network.server; docs/AETHER_PLAN.md, phase 2). Otherwise the shared ones.
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Miru/Resources/Miru-macOS$(AMATSUBAME_CLOUD_MAC_SUFFIX).entitlements
         ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
+        # AetherBridge and AetherEngine's FFmpeg frameworks sit in Contents/Frameworks.
+        LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]: $(inherited) @executable_path/../Frameworks
+        # The embed script below copies from the build products folder.
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_FILE: Miru/Resources/Info.plist
         INFOPLIST_KEY_CFBundleDisplayName: Miru
@@ -174,6 +205,31 @@ targets:
           # Test runs load the package frameworks from the build folder, signed ad hoc, so the
           # hardened runtime's library check stops the app before any test (Debug only).
           RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION[sdk=macosx*]: YES
+    postCompileScripts:
+      # AetherBridge links AetherEngine's FFmpeg frameworks (AetherLib*) and its resource bundle,
+      # which Xcode doesn't embed for a framework's package dependencies: copy them into Miru.
+      # Archives list products as symlinks into UninstalledProducts, so copy what they point to
+      # (an iOS bundle with symlinks is rejected, ITMS-90332).
+      - name: Embed AetherEngine frameworks
+        basedOnDependencyAnalysis: false
+        script: |
+          set -e
+          dest="$TARGET_BUILD_DIR/$FRAMEWORKS_FOLDER_PATH"
+          mkdir -p "$dest"
+          for f in "$BUILT_PRODUCTS_DIR"/AetherLib*.framework; do
+            [ -d "$f" ] || continue
+            rm -rf "$dest/$(basename "$f")"
+            cp -R "$(realpath "$f")" "$dest/$(basename "$f")"
+            # The package checkout's files are read-only; signing rewrites them.
+            chmod -R u+w "$dest/$(basename "$f")"
+            codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY:--}" --preserve-metadata=identifier,entitlements "$dest/$(basename "$f")"
+          done
+          bundle="$BUILT_PRODUCTS_DIR/AetherEngine_AetherEngine.bundle"
+          if [ -d "$bundle" ]; then
+            rm -rf "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/AetherEngine_AetherEngine.bundle"
+            cp -R "$(realpath "$bundle")" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/AetherEngine_AetherEngine.bundle"
+            chmod -R u+w "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/AetherEngine_AetherEngine.bundle"
+          fi
     dependencies:
       - package: AppCommon
       - package: Core
@@ -183,6 +239,8 @@ targets:
       - package: Lookup
       - package: Player
         product: PlayerKit
+      # The opt-in second engine (Settings ▸ Playback ▸ Engine).
+      - target: AetherBridge
       - package: JimakuKit
       - package: AudiobookshelfKit
 
@@ -434,6 +492,10 @@ targets:
       - package: AppCommon
       - package: Core
       - package: JellyfinKit
+      - package: PlayerEngine
+      # Linked only: the host app (Miru) already embeds it.
+      - target: AetherBridge
+        embed: false
 
   MiruUITests:
     type: bundle.ui-testing
