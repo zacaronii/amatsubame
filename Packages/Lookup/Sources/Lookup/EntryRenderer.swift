@@ -24,10 +24,13 @@ public enum EntryRenderer {
     }
 
     /// `statuses` (one per result) adds the Known and Ignore buttons, pressed for the word's mark.
+    /// `noDictionaries`: nothing to look in yet, said as such rather than "No results".
     public static func entries(_ results: [TermLookupResult], mined: [Bool]? = nil, statuses: [WordStatus?]? = nil,
-                               lookupCount: LookupCount? = nil, summary: SummaryOptions? = nil) -> String {
+                               lookupCount: LookupCount? = nil, summary: SummaryOptions? = nil, noDictionaries: Bool = false) -> String {
         if results.isEmpty {
-            return "<div class=\"no-results\">No results</div>"
+            return noDictionaries
+                ? "<div class=\"no-results\">No dictionaries yet. Add one in the app's settings to look words up.</div>"
+                : "<div class=\"no-results\">No results</div>"
         }
         return results.enumerated().map { index, result in
             entry(result, index: index, mined: mined.map { index < $0.count && $0[index] },
@@ -55,15 +58,6 @@ public enum EntryRenderer {
         "Looked up \(count) \(count == 1 ? "time" : "times")"
     }
 
-    /// The source text with the matched span highlighted; tapping another word in it looks that up.
-    public static func source(_ source: LookupSource) -> String {
-        let text = source.text as NSString
-        let start = min(max(source.utf16Offset, 0), text.length)
-        let end = min(start + max(source.utf16Length, 0), text.length)
-        let before = text.substring(to: start), match = text.substring(with: NSRange(location: start, length: end - start))
-        let after = text.substring(from: end)
-        return "<div class=\"source\" lang=\"ja\">\(HTML.escape(before))<mark>\(HTML.escape(match))</mark>\(HTML.escape(after))</div>"
-    }
 
     /// `status`: nil leaves out the Known and Ignore buttons; `.some(nil)` shows them unpressed.
     static func entry(_ result: TermLookupResult, index: Int, mined: Bool? = nil, status: WordStatus?? = nil,

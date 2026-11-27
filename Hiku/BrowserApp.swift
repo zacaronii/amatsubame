@@ -48,25 +48,30 @@ struct SetupView: View {
                 ExtensionStatusSection(model: extensionState)
                 SafariSection()
                 if isShared {
-                    LookupAndMiningSection {
+                    LookupSection()
+                    AnkiSection {
                         AnkiSettingsPage(environment: environment)
                     }
+                    // No Stats in Hiku: only Hachidori.
+                    ConnectionsSection(includesStats: false) {}
                     Section {
+                        // Sharing the setup, the extension's waiting cards and its logs, like the other apps.
                         NavigationLink {
-                            Form { SetupSharingSection() }
-                                .formStyle(.grouped)
-                                .navigationTitle("Setup")
+                            AdvancedSettingsView(kinds: [.ankiNote], offersSetupAgain: false)
                         } label: {
-                            SettingsRowLabel("Setup", subtitle: environment.setupMode != .shared ? "Hiku's own"
-                                                : environment.appsSharingSetup.isEmpty ? "Shared" : "Shared with \(environment.appsSharingSetup.formatted(.list(type: .and)))",
-                                             systemImage: "square.on.square", color: .gray)
+                            SettingsRowLabel("Advanced", subtitle: environment.setupMode != .shared ? "Hiku's own setup"
+                                                : environment.appsSharingSetup.isEmpty ? "Setup shared"
+                                                : "Setup shared with \(environment.appsSharingSetup.formatted(.list(type: .and)))",
+                                             systemImage: "wrench.and.screwdriver.fill", color: .gray)
                         }
+                        .accessibilityIdentifier("settings.advanced")
                         NavigationLink {
                             AboutView()
                         } label: {
                             SettingsRowLabel("About", value: "\(CommonEnvironment.appVersion) (\(CommonEnvironment.buildNumber))",
                                              systemImage: "info", color: .blue)
                         }
+                        .accessibilityIdentifier("settings.about")
                     }
                 } else {
                     Section {

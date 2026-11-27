@@ -237,9 +237,14 @@ private struct HistoryRow: View {
     let entry: LinesHistoryModel.Entry
     /// For a group: how many episodes of the show were watched back to back.
     var episodes = 1
+    /// At the accessibility text sizes the picture goes above the text, which gets the width and
+    /// as many lines as it needs.
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(spacing: 12) {
+        let large = dynamicTypeSize.isAccessibilitySize
+        let lines = large ? nil : 1 as Int?
+        (large ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 12))) {
             JellyfinImage(itemId: entry.id, tag: entry.imageTag, aspectRatio: 16 / 9, placeholder: "film")
                 .frame(width: 96)
                 .overlay(alignment: .bottom) {
@@ -250,17 +255,17 @@ private struct HistoryRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(entry.show)
                     .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
+                    .lineLimit(lines)
                 if episodes > 1 {
                     Text("\(episodes) episodes · latest \(entry.detail)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .lineLimit(lines)
                 } else if !entry.detail.isEmpty {
                     Text(entry.detail)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .lineLimit(lines)
                 }
                 if entry.hasJapanese == false {
                     Label("No Japanese subtitles", systemImage: "captions.bubble")
@@ -272,7 +277,7 @@ private struct HistoryRow: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            Spacer(minLength: 0)
+            if !large { Spacer(minLength: 0) }
         }
     }
 }

@@ -86,6 +86,14 @@ import Testing
         #expect(CardFormatting.shortDefinition(senses) == "1. rich; strong; heavy<br>2. probable; likely<br>3. passionate; sensuous; hot")
     }
 
+    /// "a snake" repeats "snake" (articles, "to" and trailing punctuation aside); a sense with
+    /// nothing new is dropped and the next one takes its number.
+    @Test func shortDefinitionSkipsRepeatsIgnoringArticles() {
+        let senses = [["snake", "to coil"], ["a snake.", "The Coil"], ["serpent"]]
+        #expect(CardFormatting.shortDefinition(senses) == "1. snake; to coil<br>2. serpent")
+        #expect(CardFormatting.comparable("To Run!") == "run" && CardFormatting.comparable("another") == "another")
+    }
+
     @Test func shortDefinitionOfOneSenseHasNoNumber() {
         #expect(CardFormatting.shortDefinition([["(sound of) <bells>"]]) == "&lt;bells&gt;")
         #expect(CardFormatting.shortDefinition([["(onomatopoeia)"]]) == "(onomatopoeia)", "a gloss that's all note stays")

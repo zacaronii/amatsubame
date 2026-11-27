@@ -121,6 +121,34 @@ final class PlayerOptionsUITests: XCTestCase {
         add(shot)
     }
 
+    /// AirPlay: the top bar's button is the system's route picker (TVs first), where a TV gets
+    /// the picture and a speaker the sound. The simulator has no AirPlay, so its picker shows
+    /// nothing: the test checks the tap reaches the picker's button and that the picture stays
+    /// here. (A TV playing is checked with a fake player in AirPlayVideoHandoffTests, and on a
+    /// real TV.)
+    func testAirPlayButtonReachesTheRoutePicker() throws {
+        guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file.")
+        }
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment = ["UITEST_PLAYER": "1", "UITEST_PLAYER_VIDEO": video]
+        app.launch()
+        let player = app.descendants(matching: .any)["player.video"].firstMatch
+        XCTAssertTrue(player.waitForExistence(timeout: 10))
+        let airPlay = app.descendants(matching: .any)["player.airplay"].firstMatch
+        for _ in 0..<3 where !(airPlay.waitForExistence(timeout: 3) && airPlay.isHittable) { player.tap() }
+        XCTAssertEqual(airPlay.label, "AirPlay")
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "AirPlay button"
+        shot.lifetime = .keepAlways
+        add(shot)
+        airPlay.tap()
+        XCTAssertTrue(app.staticTexts["AirPlay picker tapped"].waitForExistence(timeout: 5),
+                      "the tap reaches the route picker's button")
+        XCTAssertFalse(app.descendants(matching: .any)["player.airPlayNote"].exists, "the picture stays here")
+    }
+
     /// Picture in picture: the button hands the video to AVPlayer in the small window (the
     /// player says so); back here, mpv plays on from where it got to.
     func testPictureInPictureAndBack() throws {

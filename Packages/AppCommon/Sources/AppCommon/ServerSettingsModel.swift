@@ -17,12 +17,15 @@ open class ServerSettingsModel {
     public let environment: CommonEnvironment
     public var urlText = ""
     public var status = ConnectionStatus.idle
+    /// Signing in to a public demo server: the account is saved as one (`ServerAccount.isDemo`).
+    public var isDemo = false
 
     public init(kind: ServerKind, environment: CommonEnvironment) {
         self.kind = kind
         self.environment = environment
         if let account = try? environment.accounts.account(kind) {
             urlText = account.baseURL.absoluteString
+            isDemo = account.isDemo
             if let version = account.serverVersion {
                 status = .ok("Last seen v\(version)")
             }
@@ -55,6 +58,8 @@ open class ServerSettingsModel {
     }
 
     public func saveAccount(_ account: ServerAccount, secrets: [SecretKey: String?] = [:]) throws {
+        var account = account
+        account.isDemo = isDemo
         for (key, value) in secrets {
             try environment.secrets.setSecret(value, for: key)
         }
@@ -75,9 +80,20 @@ open class ServerSettingsModel {
 public final class AnkiSettingsModel: ServerSettingsModel {
     var apiKey = ""
 
+    /// The saved key couldn't be read (a Keychain error), rather than there being none.
+    private(set) var keyProblem: String?
+    /// Nothing is saved: the store has no key (not just a field cleared while editing).
+    private(set) var noSavedKey = false
+
     init(environment: CommonEnvironment) {
         super.init(kind: .anki, environment: environment)
-        apiKey = secret(.ankiAPIKey)
+        do {
+            let saved = try environment.secrets.secret(for: .ankiAPIKey)
+            apiKey = saved ?? ""
+            noSavedKey = saved == nil
+        } catch {
+            keyProblem = "Couldn't read the saved API key: \(error.localizedDescription)"
+        }
     }
 
     var canTest: Bool { !urlText.isEmpty && status != .working }
@@ -92,6 +108,7 @@ public final class AnkiSettingsModel: ServerSettingsModel {
                               serverVersion: String(check.version), lastCheckedAt: .now),
                 secrets: [.ankiAPIKey: key.isEmpty ? nil : key]
             )
+            noSavedKey = key.isEmpty
             Task { await environment.refreshMinedWords() }
             return "AnkiConnect v\(check.version) · \(check.deckCount) decks"
         }
@@ -100,5 +117,6 @@ public final class AnkiSettingsModel: ServerSettingsModel {
     func remove() {
         remove(secrets: [.ankiAPIKey])
         apiKey = ""
+        noSavedKey = true
     }
 }

@@ -169,8 +169,9 @@ public struct PlayerSettings: Codable, Equatable, Sendable, FetchableRecord, Per
     var id = 1
     /// Intros (and recaps) are skipped without tapping the button.
     public var autoSkipsIntros = false
-    /// What a mined card's picture is: a still frame or the line as an animated GIF.
-    public var cardPicture = CardPicture.screenshot
+    /// What a mined card's picture is: a still frame or the line as an animated GIF. New setups
+    /// start animated; a saved choice (the column's default for older rows: a still) stays.
+    public var cardPicture = CardPicture.animated
     /// The playback speed last chosen (1 = normal), kept from one video to the next.
     public var speed = 1.0
     /// Pause at the end of every Japanese line (intensive listening), until play is pressed.
@@ -205,7 +206,7 @@ public struct PlayerSettings: Codable, Equatable, Sendable, FetchableRecord, Per
         case screenshot, animated
     }
 
-    public init(autoSkipsIntros: Bool = false, cardPicture: CardPicture = .screenshot) {
+    public init(autoSkipsIntros: Bool = false, cardPicture: CardPicture = .animated) {
         self.autoSkipsIntros = autoSkipsIntros
         self.cardPicture = cardPicture
     }

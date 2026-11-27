@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Settings ▸ Character Counts: counting the Japanese books' characters (Hoshi Reader's rule)
+/// Settings ▸ Advanced ▸ Character Counts: counting the Japanese books' characters (Hoshi Reader's rule)
 /// so the library's progress is in characters, not Kavita's figures.
 struct CharacterCountsView: View {
     @Environment(AppEnvironment.self) private var environment

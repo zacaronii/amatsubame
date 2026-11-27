@@ -13,10 +13,10 @@ enum KikuSetup {
         let shelf = common.serverAccounts[.audiobookshelf]
         let kechimochi = ((try? common.activity.kechimochiURL()) ?? nil) != nil
         return [
-            SetupChecklistItem.server("Audiobookshelf", account: shelf, settings: "Settings → Listening"),
-            SetupChecklistItem("Kaku transcripts", detail: common.serverAccounts[.kaku] != nil ? "Connected" : "In Settings → Listening → Kaku",
+            SetupChecklistItem.server("Audiobookshelf", account: shelf, settings: "Settings → Connections"),
+            SetupChecklistItem("Kaku transcripts", detail: common.serverAccounts[.kaku] != nil ? "Connected" : "In Settings → Connections → Kaku",
                                isDone: common.serverAccounts[.kaku] != nil),
-            SetupChecklistItem("kechimochi", detail: kechimochi ? "Linked from Stats" : "Optional · In Settings → Stats", isDone: kechimochi),
+            SetupChecklistItem("kechimochi", detail: kechimochi ? "Linked from Stats" : "Optional · In Settings → Connections", isDone: kechimochi),
         ]
     }
 }
@@ -38,32 +38,36 @@ struct KikuServerStep: View {
                       action: {
                           if connected { flow.advance(from: .server) } else { Task { await connect(model) } }
                       }) {
-                Picker("Sign in with", selection: $model.method) {
-                    Text("Password").tag(AudiobookshelfSettingsModel.Method.password)
-                    Text("API Key").tag(AudiobookshelfSettingsModel.Method.apiKey)
-                }
-                .pickerStyle(.segmented)
-                .accessibilityIdentifier("setup.server.method")
-                SetupCard {
-                    TextField("Server URL", text: $model.urlText, prompt: Text(verbatim: "https://audiobookshelf.example.ts.net"))
-                        .urlEntry()
-                        .padding(.horizontal, 16).padding(.vertical, 10)
-                        .accessibilityIdentifier("setup.server.url")
-                    Divider().padding(.leading, 16)
-                    if model.method == .password {
-                        TextField("Username", text: $model.username)
-                            .credentialEntry()
+                if model.isDemo {
+                    SetupDemoServerCard(serverName: "Audiobookshelf") { useOwnServer(model) }
+                } else {
+                    Picker("Sign in with", selection: $model.method) {
+                        Text("Password").tag(AudiobookshelfSettingsModel.Method.password)
+                        Text("API Key").tag(AudiobookshelfSettingsModel.Method.apiKey)
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("setup.server.method")
+                    SetupCard {
+                        TextField("Server URL", text: $model.urlText, prompt: Text(verbatim: "https://audiobookshelf.example.ts.net"))
+                            .urlEntry()
                             .padding(.horizontal, 16).padding(.vertical, 10)
-                            .accessibilityIdentifier("setup.server.username")
+                            .accessibilityIdentifier("setup.server.url")
                         Divider().padding(.leading, 16)
-                        SecureField("Password", text: $model.password)
-                            .padding(.horizontal, 16).padding(.vertical, 10)
-                            .accessibilityIdentifier("setup.server.password")
-                    } else {
-                        SecureField("API Key", text: $model.apiKey)
-                            .credentialEntry()
-                            .padding(.horizontal, 16).padding(.vertical, 10)
-                            .accessibilityIdentifier("setup.server.key")
+                        if model.method == .password {
+                            TextField("Username", text: $model.username)
+                                .credentialEntry()
+                                .padding(.horizontal, 16).padding(.vertical, 10)
+                                .accessibilityIdentifier("setup.server.username")
+                            Divider().padding(.leading, 16)
+                            SecureField("Password", text: $model.password)
+                                .padding(.horizontal, 16).padding(.vertical, 10)
+                                .accessibilityIdentifier("setup.server.password")
+                        } else {
+                            SecureField("API Key", text: $model.apiKey)
+                                .credentialEntry()
+                                .padding(.horizontal, 16).padding(.vertical, 10)
+                                .accessibilityIdentifier("setup.server.key")
+                        }
                     }
                 }
                 Group {
@@ -79,6 +83,7 @@ struct KikuServerStep: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityIdentifier("setup.server.status")
             }
+            .task { await signInToDemo(model) }
         } else {
             Color.clear.onAppear {
                 model = AudiobookshelfSettingsModel(environment: environment.common, tokens: environment.tokens)
@@ -88,6 +93,27 @@ struct KikuServerStep: View {
 
     private func isFailed(_ status: ConnectionStatus) -> Bool {
         if case .failed = status { true } else { false }
+    }
+
+    /// Try It with the Demo Servers: signs in to the demo Audiobookshelf once, as a demo account.
+    private func signInToDemo(_ model: AudiobookshelfSettingsModel) async {
+        guard let demo = flow.demo?.audiobookshelf, !model.isSignedIn, !model.isDemo else { return }
+        model.isDemo = true
+        model.method = .password
+        model.urlText = demo.url.absoluteString
+        model.username = demo.user
+        model.password = demo.password
+        await connect(model)
+    }
+
+    private func useOwnServer(_ model: AudiobookshelfSettingsModel) {
+        if model.isSignedIn { model.signOut() }
+        model.isDemo = false
+        model.urlText = ""
+        model.username = ""
+        model.password = ""
+        flow.demo = nil
+        found = nil
     }
 
     private func connect(_ model: AudiobookshelfSettingsModel) async {

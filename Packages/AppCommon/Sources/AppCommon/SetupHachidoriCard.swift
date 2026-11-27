@@ -102,7 +102,8 @@ struct SetupHachidoriCard: View {
             do {
                 _ = try await common.testHachidori(address: address)
             } catch {
-                phase = .failed("No answer from Hachidori at this address. Check that it's running and that this device can reach it (the same network, or Tailscale).")
+                let reason = (error as? HachidoriError).flatMap(\.errorDescription).map { " \($0)" } ?? ""
+                phase = .failed("No answer from Hachidori at this address. Check that it's running and that this device can reach it (the same network, or Tailscale)." + reason)
                 return
             }
             flow.noteSharedOrigin()

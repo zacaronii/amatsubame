@@ -176,6 +176,16 @@ public struct AudioTranscriptStore: Sendable {
         }
     }
 
+    /// Forgets every saved transcript (Settings ▸ Storage ▸ Saved Transcripts ▸ Clear): they
+    /// download again when an episode is played with the server in reach.
+    public func clearAll() throws {
+        try database.writer.write { db in
+            try db.execute(sql: "DELETE FROM audioSentence")
+            try db.execute(sql: "DELETE FROM audioSentenceSearch")
+            try db.execute(sql: "DELETE FROM audioTranscript")
+        }
+    }
+
     /// Roughly how much space saved transcripts take, index and word timings included.
     public func approximateBytes() throws -> Int {
         try database.reader.read { db in

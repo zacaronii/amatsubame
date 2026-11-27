@@ -89,7 +89,6 @@ public actor DictionaryEngine {
         handles = QueryHandles(query: newQuery, deinflector: deinflector)
         self.dictionaries = loaded
         self.frequencySortTitle = frequencySortTitle.flatMap { title in loaded.contains { $0.title == title } ? title : nil }
-            ?? loaded.first(where: \.hasFrequencies)?.title
         self.frequencyOrder = frequencyOrder
         return rejected
     }
@@ -106,7 +105,7 @@ public actor DictionaryEngine {
                     frequency_dictionary: sortTitle == nil
                         ? hd_str(ptr: nil, len: 0)
                         : hd_str(ptr: sortPointer, len: strlen(sortPointer)),
-                    frequency_order: order.hoshidicts,
+                    frequency_order: FrequencyOrder.hoshidicts(order, sorting: sortTitle != nil),
                     primary_reading: hd_str(ptr: nil, len: 0)
                 )
                 var results: UnsafePointer<hd_lookup_result>?

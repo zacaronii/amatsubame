@@ -18,14 +18,15 @@ final class KikuUITests: XCTestCase {
         app.tabBars.buttons["Marks"].tap()
         XCTAssertTrue(app.staticTexts["Marks you make while listening show up here."].waitForExistence(timeout: 5))
         app.tabBars.buttons["Settings"].tap()
-        let row = app.descendants(matching: .any)["settings.audiobookshelf"].firstMatch
+        let row = app.revealSettingsRow("settings.audiobookshelf")
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         row.tap()
         XCTAssertTrue(app.buttons["audiobookshelf.signIn"].waitForExistence(timeout: 5))
         // Tapping the tab that's showing goes back to its top screen.
         app.tabBars.buttons["Settings"].tap()
         XCTAssertTrue(app.buttons["audiobookshelf.signIn"].waitForNonExistence(timeout: 5), "back at the top of Settings")
-        XCTAssertTrue(row.exists)
+        XCTAssertTrue(app.navigationBars["Settings"].exists)
+        XCTAssertTrue(app.revealSettingsRow("settings.audiobookshelf").exists, "the row is in Settings' list")
     }
 }
 
@@ -367,9 +368,14 @@ final class KikuBookUITests: XCTestCase {
 
         // Hold a line: Copy Line and Play from Here (the clipboard itself isn't read here: the
         // test runner asking for it hangs on the simulator).
-        let line = app.descendants(matching: .any).matching(identifier: "player.line").firstMatch
-        XCTAssertTrue(line.waitForExistence(timeout: 5))
-        line.press(forDuration: 1.0)
+        let lines = app.descendants(matching: .any).matching(identifier: "player.line")
+        XCTAssertTrue(lines.firstMatch.waitForExistence(timeout: 5))
+        // A line on screen (the first may have scrolled up under the player's header).
+        let line = lines.allElementsBoundByIndex.lazy
+            .map { $0.descendants(matching: .any)["subtitle.line"].firstMatch }
+            .first { $0.isHittable }
+        XCTAssertNotNil(line, "a line on screen")
+        line?.press(forDuration: 1.0)
         let copy = app.buttons["Copy Line"].firstMatch
         XCTAssertTrue(copy.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Play from Here"].exists)

@@ -5,7 +5,7 @@ public struct AboutView: View {
     @Environment(CommonEnvironment.self) private var environment
     @State private var dictionaries: [DictionaryRecord] = []
     private let credits: [(String, String, String)]
-    private static let shared: [(String, String, String)] = [
+    static let shared: [(String, String, String)] = [
         ("hoshidicts", "GPL-3.0", "Yomitan dictionary import and lookup by Manhhao, in bee-san's fork that Hachidori uses, with Yomitan's Japanese deinflection rules."),
         ("Yomitan", "GPL-3.0", "Dictionary format, deinflection rules and structured-content rendering this app follows."),
         ("GRDB.swift", "MIT", "SQLite toolkit."),
@@ -15,7 +15,14 @@ public struct AboutView: View {
         ("xxHash", "BSD-2-Clause", "Used by hoshidicts."),
         ("zstd", "BSD", "Used by hoshidicts."),
         ("AniList", "AniList terms of use", "Character names and pictures for the names dictionary (anilist.co)."),
-        ("MangaBaka", "CC BY-NC-SA 4.0", "Which AniList series a manga or light novel is, for the names dictionary (mangabaka.org)."),
+        ("MangaBaka", "CC BY-NC-SA 4.0", "Which AniList series a manga or light novel is, for the names dictionary (mangabaka.org). Used as published."),
+    ]
+
+    /// Credits that link to their source and terms: the data services' terms ask for a credit
+    /// with a link (MangaBaka's CC BY-NC-SA: to the licence).
+    static let creditLinks: [String: (site: URL, license: URL)] = [
+        "AniList": (URL(string: "https://anilist.co")!, URL(string: "https://docs.anilist.co/guide/terms-of-use")!),
+        "MangaBaka": (URL(string: "https://mangabaka.org")!, URL(string: "https://creativecommons.org/licenses/by-nc-sa/4.0/")!),
     ]
 
     /// `appCredits` are the app's own libraries, listed before the shared ones.
@@ -30,19 +37,45 @@ public struct AboutView: View {
         return RecommendedDictionaries.entry(for: record, source: sources[record.id])?.license ?? "No attribution in its index."
     }
 
+    private func feedback(_ kind: Feedback.Kind) -> URL {
+        Feedback.url(kind, app: CommonEnvironment.appName, version: "\(CommonEnvironment.appVersion) (\(CommonEnvironment.buildNumber))",
+                     device: Feedback.device)
+    }
+
     public var body: some View {
         Form {
             Section {
                 LabeledContent("Version", value: "\(CommonEnvironment.appVersion) (\(CommonEnvironment.buildNumber))")
             }
+            Section {
+                Link(destination: feedback(.bug)) {
+                    Label("Report a Bug", systemImage: "ladybug")
+                }
+                .accessibilityIdentifier("about.reportBug")
+                Link(destination: feedback(.idea)) {
+                    Label("Suggest an Idea", systemImage: "lightbulb")
+                }
+                .accessibilityIdentifier("about.suggestIdea")
+            } header: {
+                Text("Feedback")
+            } footer: {
+                Text("Opens a GitHub issue with this app, its version and your device filled in. In TestFlight you can also take a screenshot and tap Share Beta Feedback.")
+            }
             Section("Open Source") {
                 ForEach(credits, id: \.0) { name, license, note in
                     VStack(alignment: .leading, spacing: 2) {
                         HStack {
-                            Text(name).font(.headline)
-                            Spacer()
-                            Text(license).font(.caption).foregroundStyle(.secondary)
+                            if let links = Self.creditLinks[name] {
+                                Link(name, destination: links.site).font(.headline)
+                                Spacer()
+                                Link(license, destination: links.license).font(.caption)
+                            } else {
+                                Text(name).font(.headline)
+                                Spacer()
+                                Text(license).font(.caption).foregroundStyle(.secondary)
+                            }
                         }
+                        .accessibilityIdentifier("about.credit.\(name)")
                         Text(note).font(.caption).foregroundStyle(.secondary)
                     }
                 }
@@ -69,6 +102,7 @@ public struct AboutView: View {
             }
         }
         .formStyle(.grouped)
+        .textButtonTint()
         .navigationTitle("About")
         .task { dictionaries = (try? environment.dictionaries.dictionaries()) ?? [] }
     }
@@ -104,13 +138,18 @@ extension AboutView {
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = .center
         paragraph.paragraphSpacing = 6
-        func add(_ string: String, font: NSFont, color: NSColor) {
-            text.append(NSAttributedString(string: string, attributes: [.font: font, .foregroundColor: color, .paragraphStyle: paragraph]))
+        func add(_ string: String, font: NSFont, color: NSColor, link: URL? = nil) {
+            var attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color, .paragraphStyle: paragraph]
+            if let link { attributes[.link] = link }
+            text.append(NSAttributedString(string: string, attributes: attributes))
         }
         add("Open Source\n", font: .boldSystemFont(ofSize: NSFont.systemFontSize), color: .labelColor)
         for (name, license, note) in appCredits + shared {
-            add(name, font: .boldSystemFont(ofSize: NSFont.smallSystemFontSize), color: .labelColor)
-            add(" · \(license)\n", font: small, color: .secondaryLabelColor)
+            let links = creditLinks[name]
+            add(name, font: .boldSystemFont(ofSize: NSFont.smallSystemFontSize), color: .labelColor, link: links?.site)
+            add(" · ", font: small, color: .secondaryLabelColor)
+            add(license, font: small, color: .secondaryLabelColor, link: links?.license)
+            add("\n", font: small, color: .secondaryLabelColor)
             add("\(note)\n", font: small, color: .secondaryLabelColor)
         }
         add("\nEach dictionary's licence is in Settings ▸ About.", font: small, color: .secondaryLabelColor)

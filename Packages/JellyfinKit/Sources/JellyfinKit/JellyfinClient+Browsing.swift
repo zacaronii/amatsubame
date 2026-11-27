@@ -257,8 +257,11 @@ extension JellyfinClient {
     /// `subtitleStreamIndex` (picture in picture, which plays through AVPlayer): that text track
     /// goes into the HLS playlist as WebVTT, which AVPlayer shows; without it nothing is burnt
     /// into the picture.
-    public func transcodingInfo(itemId: String, mediaSourceId: String, maxBitrate: Int,
-                                audioStreamIndex: Int?, subtitleStreamIndex: Int? = nil) async throws(ConnectionError) -> JellyfinPlaybackInfo {
+    ///
+    /// `copiesVideo` (AirPlay to a TV): an H.264 video within `maxBitrate` is copied as it is
+    /// instead of encoded again.
+    public func transcodingInfo(itemId: String, mediaSourceId: String, maxBitrate: Int, audioStreamIndex: Int?,
+                                subtitleStreamIndex: Int? = nil, copiesVideo: Bool = false) async throws(ConnectionError) -> JellyfinPlaybackInfo {
         struct Transcoding: Encodable {
             var Container = "ts"
             var `Type` = "Video"
@@ -295,7 +298,7 @@ extension JellyfinClient {
             var EnableDirectPlay = false
             var EnableDirectStream = false
             var EnableTranscoding = true
-            var AllowVideoStreamCopy = false
+            var AllowVideoStreamCopy: Bool
             var AllowAudioStreamCopy = false
             var DeviceProfile: Profile
         }
@@ -305,6 +308,7 @@ extension JellyfinClient {
             request = try .json("POST", url("Items/\(itemId)/PlaybackInfo", ["userId": userId]),
                                 body: Body(UserId: userId, MediaSourceId: mediaSourceId, MaxStreamingBitrate: maxBitrate,
                                            AudioStreamIndex: audioStreamIndex, SubtitleStreamIndex: subtitleStreamIndex ?? -1,
+                                           AllowVideoStreamCopy: copiesVideo,
                                            DeviceProfile: Profile(MaxStreamingBitrate: maxBitrate, MaxStaticBitrate: maxBitrate,
                                                                   SubtitleProfiles: subtitleStreamIndex == nil ? [] : [SubtitleProfile()])))
         } catch {

@@ -4,7 +4,8 @@ import Foundation
 import GRDB
 import HachidoriKit
 
-/// The text a lookup came from, with the matched span (UTF-16 offsets).
+/// The text a lookup came from, with the matched span (UTF-16 offsets): where the word sits, for
+/// the readers' and lines' marks. The popup doesn't show it.
 public struct LookupSource: Equatable, Sendable {
     public var text: String
     public var utf16Offset: Int
@@ -24,7 +25,7 @@ public struct LookupResultPage: Identifiable, Equatable, Sendable {
     public var query: String
     /// The sentence around a tap, for mining (phase 4); nil for searches.
     public var sentence: String?
-    /// Shown above the results so another word can be tapped (readers, OCR blocks).
+    /// Where the word sits in the tapped text (lines, OCR blocks), so the reader or line can mark it.
     public var source: LookupSource?
     public var results: [TermLookupResult]
     /// How often the first result's headword has been looked up, counting this visit; nil
@@ -68,7 +69,7 @@ public final class LookupService {
             guard oldValue !== host else { return }
             oldValue?.stop()
             // No host: the sort dictionary's own order again.
-            if host == nil { Task { [library] in try? await library.setHostFrequencyOrder(nil) } }
+            if host == nil { Task { [library] in try? await library.setHostFrequencySort(nil) } }
             host?.onOptions = { [weak self] options in self?.keep(options) }
             host?.onWordStatus = { [weak self] overrides in self?.adopt(overrides) }
         }
@@ -108,10 +109,10 @@ public final class LookupService {
     private func keep(_ options: HostOptions) {
         let following = Self.settings(storedPopupSettings, following: options)
         if following != storedPopupSettings { updatePopupSettings { $0 = following } }
-        // The host's frequency order, when it names one, sorts the lookups here too (unless the
-        // host was removed meanwhile: then the dictionary's own order stays).
-        let order = FrequencyOrder(hostSetting: options.frequencyOrder)
-        Task { [weak self, library] in try? await library.setHostFrequencyOrder(self?.host == nil ? nil : order) }
+        // The host's frequency sorting applies to the lookups here too (unless the host was removed
+        // meanwhile: then ours does).
+        let sort = DictionaryLibrary.HostFrequencySort(dictionary: options.frequencyDictionary, order: options.frequencyOrder)
+        Task { [weak self, library] in try? await library.setHostFrequencySort(self?.host == nil ? nil : sort) }
     }
     /// Settings ▸ Popup ▸ Lookup Counts: count lookups and show "Looked up N times".
     public var showsLookupCounts: Bool { popupSettings.showLookupCounts }
@@ -202,16 +203,16 @@ public final class LookupService {
         reloadPopupSettings()
     }
 
-    /// Looks up from the tapped character of `text` onward. With `showSource`, the
-    /// popup shows `text` above the results with the match highlighted.
-    public func lookup(text: String, utf16Offset: Int, showSource: Bool = false) async -> LookupResultPage {
+    /// Looks up from the tapped character of `text` onward. With `keepsSource`, the page keeps
+    /// where the match sits in `text` (`source`), for the line's or the page's mark.
+    public func lookup(text: String, utf16Offset: Int, keepsSource: Bool = false) async -> LookupResultPage {
         let scanned = TextScanner.scanText(text, utf16Offset: utf16Offset)
         let results = NameRanking.forTextTap(await terms(scanned))
         let matched = results.first?.matched ?? ""
         let page = LookupResultPage(
             query: results.first?.matched ?? scanned,
             sentence: TextScanner.sentence(in: text, utf16Offset: utf16Offset),
-            source: showSource ? LookupSource(text: text, utf16Offset: utf16Offset, utf16Length: matched.utf16.count) : nil,
+            source: keepsSource ? LookupSource(text: text, utf16Offset: utf16Offset, utf16Length: matched.utf16.count) : nil,
             results: results
         )
         if !results.isEmpty { try? activity?.recordLookup() }
@@ -221,7 +222,7 @@ public final class LookupService {
     /// Looks up typed text (the search screen and glossary links).
     public func search(_ query: String) async -> LookupResultPage {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        return LookupResultPage(query: trimmed, results: await terms(trimmed, maxResults: 32))
+        return LookupResultPage(query: trimmed, results: await terms(trimmed, maxResults: Self.maxResults))
     }
 
     /// The host's results while linked, else (or when it doesn't answer) the local dictionaries',
@@ -245,9 +246,12 @@ public final class LookupService {
             let names = NameRanking.characterNames(in: await library.engine.lookup(text, maxResults: 8))
             return NameRanking.merging(names: names, into: found)
         }
-        if let maxResults { return await library.engine.lookup(text, maxResults: maxResults) }
-        return await library.engine.lookup(text)
+        return await library.engine.lookup(text, maxResults: maxResults ?? Self.maxResults)
     }
+
+    /// Hachidori's `maxResults` default. The engine caps before its final ordering, so a smaller
+    /// cap isn't just a shorter list: at 16, さんか put 賛歌 first instead of 参加.
+    static let maxResults = 32
 
     /// A typed search the user settled on (submitted): kept in history and counted, like a
     /// lookup (searches as you type aren't counted). Returns its lookup count.
@@ -310,10 +314,15 @@ public final class LookupService {
         max(0, 1 - Double(min(max(opacityPercent, 0), 100)) / 70)
     }
 
+    /// Nothing to look words up in: no dictionary with terms is on, and no Hachidori host
+    /// answers instead of this device's.
+    public var lacksDictionaries: Bool {
+        !looksUpOnHost && !((try? library.dictionaries()) ?? []).contains { $0.enabled && $0.hasTerms }
+    }
+
     /// The full HTML document for a page of results. With `nativeBackground`, the page stays
     /// transparent and the view showing it draws the background (`LookupPopupView`).
     public func document(for page: LookupResultPage, nativeBackground: Bool = false) -> String {
-        let source = page.source.map(EntryRenderer.source) ?? ""
         let mined = mining.map { mining in page.results.map(mining.isMined) }
         // Known and Ignore while words are marked, as in Hachidori (they're about the marks).
         let statuses = mining?.marksWords == true ? page.results.map { wordStatus(of: $0.expression) } : nil
@@ -327,7 +336,9 @@ public final class LookupService {
             ? .init(dictionary: popupSettings.compactDefinitionSummaryDictionary, count: popupSettings.compactDefinitionSummaryCount)
             : nil
         let dictionaryStyles = looksUpOnHost && followsHost ? styles.merging(host?.styles ?? [:]) { $1 } : styles
-        return LookupPage.document(body: source + EntryRenderer.entries(page.results, mined: mined, statuses: statuses, lookupCount: count, summary: summary),
+        let noDictionaries = page.results.isEmpty && lacksDictionaries
+        return LookupPage.document(body: EntryRenderer.entries(page.results, mined: mined, statuses: statuses, lookupCount: count,
+                                                               summary: summary, noDictionaries: noDictionaries),
                                    dictionaryStyles: dictionaryStyles, extraCSS: accentCSS)
     }
 

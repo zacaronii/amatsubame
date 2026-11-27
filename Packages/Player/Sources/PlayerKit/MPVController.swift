@@ -8,6 +8,15 @@ import UIKit
 import AppKit
 #endif
 
+/// Another player playing in mpv's place (AirPlay video on a TV): while one is attached, the
+/// transport goes to it, and the time, pause and speed it reports are mpv's, so everything that
+/// follows mpv follows it. mpv waits, paused.
+@MainActor public protocol MPVStandIn: AnyObject {
+    func setPaused(_ paused: Bool)
+    func seek(to seconds: Double)
+    func setSpeed(_ speed: Double)
+}
+
 /// One mpv player drawing into a Metal layer (MoltenVK, as in MPVKit's demo).
 /// Properties update on the main actor from mpv's event loop.
 @MainActor @Observable
@@ -55,6 +64,8 @@ public final class MPVController {
     public private(set) var loop: (start: Double?, end: Double?) = (nil, nil)
     /// The video's display aspect ratio (width / height) once known.
     public private(set) var videoAspect: Double?
+    /// The player playing in mpv's place, if one is (`attach(_:)`).
+    @ObservationIgnored public private(set) weak var standIn: (any MPVStandIn)?
 
     /// The layer mpv renders into; host it in a view (`MPVVideoView`).
     public let layer = MPVMetalLayer()
@@ -89,7 +100,7 @@ public final class MPVController {
             ("sid", "no"),
             // …at the top, clear of the app's Japanese line at the bottom.
             ("sub-align-y", "top"), ("sub-margin-y", String(Self.subtitleMargin)),
-        ] + MPVOptions.noScripts + MPVOptions.audioSession {
+        ] + MPVOptions.noScripts + MPVOptions.audioSession + MPVOptions.audioFormat + Self.testOptions {
             mpv_set_option_string(mpv, name, value)
         }
         mpv_initialize(mpv)
@@ -156,17 +167,29 @@ public final class MPVController {
     @ObservationIgnored private var subtitleMarginsApplied = (y: MPVController.subtitleMargin, x: MPVController.subtitleSideMargin)
 
     public func setPaused(_ paused: Bool) {
+        if let standIn {
+            standIn.setPaused(paused)
+            return
+        }
         setFlag("pause", paused)
     }
 
     public func togglePause() { setPaused(!isPaused) }
 
     public func seek(to seconds: Double) {
+        if let standIn {
+            standIn.seek(to: max(seconds, 0))
+            return
+        }
         bufferWait.noteSeek()
         command(["seek", String(format: "%.3f", max(seconds, 0)), "absolute+exact"])
     }
 
     public func seek(by seconds: Double) {
+        if standIn != nil {
+            seek(to: timePosition + seconds)
+            return
+        }
         bufferWait.noteSeek()
         command(["seek", String(format: "%.3f", seconds), "relative+exact"])
     }
@@ -185,6 +208,16 @@ public final class MPVController {
         var level = (min(max(value, 0.25), 4) * 100).rounded() / 100
         mpv_set_property(mpv, "speed", MPV_FORMAT_DOUBLE, &level)
         speed = level
+        standIn?.setSpeed(level)
+    }
+
+    /// UI tests and recordings (`UITEST_MUTE=1`, Debug builds only): silent from the first frame.
+    private static var testOptions: [(String, String)] {
+        #if DEBUG
+        ProcessInfo.processInfo.environment["UITEST_MUTE"] != nil ? [("mute", "yes"), ("volume", "0")] : []
+        #else
+        []
+        #endif
     }
 
     public func setMuted(_ muted: Bool) {
@@ -194,7 +227,37 @@ public final class MPVController {
 
     /// One frame forward or back; mpv pauses (its `.` and `,`).
     public func frameStep(forward: Bool) {
+        guard standIn == nil else { return }
         command([forward ? "frame-step" : "frame-back-step"])
+    }
+
+    // MARK: Stand-in
+
+    /// `standIn` plays from here on: mpv pauses where it is and stops reporting its own time,
+    /// pause, end and buffering until `detach()`. The stand-in reports them (`standInReport`).
+    public func attach(_ standIn: any MPVStandIn) {
+        setFlag("pause", true)
+        self.standIn = standIn
+        isBuffering = false
+        bufferPercent = nil
+        streamSpeed = nil
+    }
+
+    /// mpv reports for itself again (seek it to where the stand-in got to, then play).
+    public func detach() {
+        standIn = nil
+        isPaused = true
+        isBuffering = false
+        reachedEnd = false
+    }
+
+    /// Where the stand-in is: its time, whether it's paused, waiting for data, or at the end.
+    public func standInReport(time: Double, paused: Bool, buffering: Bool = false, ended: Bool = false) {
+        guard standIn != nil else { return }
+        if time.isFinite, abs(time - timePosition) > 0.0005 { timePosition = max(time, 0) }
+        if paused != isPaused { isPaused = paused }
+        if buffering != isBuffering { isBuffering = buffering }
+        if ended != reachedEnd { reachedEnd = ended }
     }
 
     /// Loops between `start` and `end` (mpv's A–B loop); nil clears that end.
@@ -428,6 +491,13 @@ public final class MPVController {
     }
 
     private func apply(_ update: Update) {
+        // A stand-in plays: mpv (paused) doesn't speak for the playback.
+        if standIn != nil {
+            switch update {
+            case .time, .paused, .ended, .buffering, .bufferPercent: return
+            default: break
+            }
+        }
         switch update {
         case .time(let value): timePosition = value
         case .duration(let value): duration = value
@@ -478,6 +548,17 @@ enum MPVOptions {
     static let audioSession: [(String, String)] = [("audio-exclusive", "yes")]
     #else
     static let audioSession: [(String, String)] = []
+    #endif
+
+    /// On macOS 27, mpv 0.41's CoreAudio output can't open multichannel planar float (48 kHz 5.1/7.1:
+    /// "unable to set the input channel layout", -50) and falls back to AVFoundation, but leaves its
+    /// device listener behind: the next audio device change (headphones, AirPods, a display) calls
+    /// it on the freed output and crashes (mpv#18274, fixed in mpv 0.42). Interleaved float opens
+    /// fine. Drop this once MPVKit ships mpv 0.42.
+    #if os(macOS)
+    static let audioFormat: [(String, String)] = [("audio-format", "float")]
+    #else
+    static let audioFormat: [(String, String)] = []
     #endif
 }
 

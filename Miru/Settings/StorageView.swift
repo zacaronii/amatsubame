@@ -3,7 +3,7 @@ import Core
 import JellyfinKit
 import SwiftUI
 
-/// Settings ▸ Storage ▸ Downloads: what's downloading and what's on the device, by show.
+/// Settings ▸ Storage ▸ Downloaded: what's downloading and what's on the device, by show.
 struct DownloadedEpisodesView: View {
     @Environment(PlayerEnvironment.self) private var environment
     @Environment(CommonEnvironment.self) private var common
@@ -66,7 +66,7 @@ struct DownloadedEpisodesView: View {
                 }
             }
         }
-        .navigationTitle("Downloads")
+        .navigationTitle("Downloaded")
         .confirmationDialog("Delete every downloaded episode of \(confirmsDelete?.seriesTitle ?? "")?",
                             isPresented: Binding(get: { confirmsDelete != nil }, set: { if !$0 { confirmsDelete = nil } }),
                             titleVisibility: .visible) {

@@ -104,15 +104,24 @@ public enum CardFormatting {
 
     /// A glanceable definition: the first senses, each with its first glosses, one line per
     /// sense ("1. rich; strong; heavy"). Parenthetical notes are dropped unless they're the whole
-    /// gloss, and repeated glosses are skipped.
+    /// gloss, and repeated glosses are skipped ("a snake" repeats "snake"), with any sense left
+    /// empty by that.
     public static func shortDefinition(_ senses: [[String]], maxSenses: Int = 3, maxGlosses: Int = 3) -> String {
         var seen = Set<String>()
         let lines = senses.compactMap { sense -> String? in
-            let glosses = sense.map(withoutNotes).filter { !$0.isEmpty && seen.insert($0).inserted }.prefix(maxGlosses)
+            let glosses = sense.map(withoutNotes).filter { !$0.isEmpty && seen.insert(comparable($0)).inserted }.prefix(maxGlosses)
             return glosses.isEmpty ? nil : glosses.map(escape).joined(separator: "; ")
         }.prefix(maxSenses)
         if lines.count <= 1 { return lines.first ?? "" }
         return lines.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "<br>")
+    }
+
+    /// A gloss as compared for repeats: lowercased, without a leading article or "to" and
+    /// without trailing punctuation.
+    static func comparable(_ gloss: String) -> String {
+        gloss.lowercased()
+            .replacingOccurrences(of: #"^(a|an|the|to)\s+"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"[\s.,;:!?…。、]+$"#, with: "", options: .regularExpression)
     }
 
     private static func withoutNotes(_ gloss: String) -> String {

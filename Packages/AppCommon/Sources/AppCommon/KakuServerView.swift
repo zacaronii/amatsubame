@@ -269,16 +269,11 @@ public struct KakuSettingsRow: View {
     @Environment(CommonEnvironment.self) private var common
     @State private var health: KakuHealth?
     @State private var unreachable = false
-    let purpose: String
-
-    /// `purpose`: what Kaku is for in this app, shown until it's set up ("Transcripts").
-    public init(purpose: String) {
-        self.purpose = purpose
-    }
+    public init() {}
 
     public var body: some View {
         let account = common.serverAccounts[.kaku]
-        SettingsRowLabel("Kaku", subtitle: Self.summary(purpose: purpose, host: account?.baseURL.host(), health: health, unreachable: unreachable),
+        SettingsRowLabel("Kaku", subtitle: Self.summary(host: account?.baseURL.host(), health: health, unreachable: unreachable),
                          systemImage: "text.quote", color: .teal, dot: account == nil ? nil : unreachable ? .red : account?.dotColor)
             .task(id: account?.baseURL) {
                 (health, unreachable) = (nil, false)
@@ -291,8 +286,8 @@ public struct KakuSettingsRow: View {
             }
     }
 
-    static func summary(purpose: String, host: String?, health: KakuHealth?, unreachable: Bool) -> String {
-        guard let host else { return "\(purpose) · not set up" }
+    static func summary(host: String?, health: KakuHealth?, unreachable: Bool) -> String {
+        guard let host else { return "Optional · your own transcription server" }
         if unreachable { return "Can't reach \(host)" }
         guard let jobs = health?.jobs else { return host }
         let waiting = jobs["queued"] ?? 0

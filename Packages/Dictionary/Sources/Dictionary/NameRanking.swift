@@ -27,19 +27,45 @@ nonisolated public enum NameRanking {
     }
 
     /// The Mac looks words up on a linked Hachidori host, which doesn't have the names of the
-    /// series open here: the local names' hits join its results after every one as long or
-    /// longer (a word dictionary wins a tie, as in a local lookup).
+    /// series open here: the local names' hits join its results before every one as long or
+    /// shorter (the open series' names win a tie, as locally: `characterNamesFirst`).
     public static func merging(names: [TermLookupResult], into results: [TermLookupResult]) -> [TermLookupResult] {
         var merged = results
         for name in names.reversed() {
             let length = name.matched.count
-            let position = merged.firstIndex { $0.matched.count < length } ?? merged.endIndex
+            let position = merged.firstIndex { $0.matched.count <= length } ?? merged.endIndex
             merged.insert(name, at: position)
         }
         return merged
     }
 
+    /// The open series' characters first among matches of the same length: the reader is in that
+    /// series, so a name there is almost always who's meant (アイゼン before a word spelled the
+    /// same). A longer match still comes first, and a name matched through hiragana it isn't
+    /// written with (its reading, or hiragana read as katakana) isn't moved up: ゆき in prose is
+    /// still 雪 before a character called ユキ.
+    public static func characterNamesFirst(_ results: [TermLookupResult]) -> [TermLookupResult] {
+        var ranked: [TermLookupResult] = []
+        var run: [TermLookupResult] = []
+        func flush() {
+            ranked += run.filter(isOpenSeriesName) + run.filter { !isOpenSeriesName($0) }
+            run = []
+        }
+        for result in results {
+            if let last = run.last, last.matched.count != result.matched.count { flush() }
+            run.append(result)
+        }
+        flush()
+        return ranked
+    }
+
+    static func isOpenSeriesName(_ result: TermLookupResult) -> Bool {
+        result.glossaries.contains { $0.dictionary == characterNamesTitle }
+            && (!hasHiragana(result.matched) || hasHiragana(result.expression))
+    }
+
     public static func forTextTap(_ results: [TermLookupResult]) -> [TermLookupResult] {
+        let results = characterNamesFirst(results)
         let demoted = results.filter(isConvertedName)
         guard !demoted.isEmpty, demoted.count < results.count else { return results }
         return results.filter { !isConvertedName($0) } + demoted

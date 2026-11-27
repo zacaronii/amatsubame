@@ -11,7 +11,7 @@ import Testing
         }
         // FTS5's own shadow tables (transcriptLine_data, audioSentenceSearch_idx, …) aren't ours to list.
         #expect(Set(tables.filter { !$0.hasPrefix("transcriptLine_") && !$0.hasPrefix("audioSentenceSearch_") }) == [
-            "serverAccount", "outboxJob", "outboxMedia",
+            "serverAccount", "outboxJob", "outboxMedia", "outboxHeld",
             "kavitaLibrary", "kavitaSeries", "kavitaVolume", "kavitaChapter", "jellyfinItem",
             "kavitaReadingProgress", "mangaReaderSettings", "pageCache",
             "dictionary", "audioSource", "lookupHistory", "dictionarySettings", "dictionarySource",
@@ -53,6 +53,15 @@ import Testing
         #expect(try store.account(.kavita) == nil)
         try store.delete(.jellyfin)
         #expect(try store.account(.jellyfin) == nil)
+    }
+
+    /// A demo server's account says so; any other account isn't one.
+    @Test func demoAccountsAreMarked() throws {
+        let store = AccountStore(database: try AppDatabase.inMemory())
+        try store.save(ServerAccount(kind: .kavita, baseURL: URL(string: "https://kavita-demo.example.com")!, isDemo: true))
+        try store.save(ServerAccount(kind: .jellyfin, baseURL: URL(string: "https://media.example.ts.net")!))
+        #expect(try store.account(.kavita)?.isDemo == true)
+        #expect(try store.account(.jellyfin)?.isDemo == false)
     }
 
     @Test func libraryCacheCascadesFromLibrary() throws {

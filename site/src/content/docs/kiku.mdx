@@ -123,7 +123,7 @@ and pause, and a big **Mark** button. The Digital Crown turns your iPhone's volu
 out of reach, a mark waits and is saved at the right moment when it's back. Add the Kiku complication
 to a watch face to see how far along you are and open the remote with one tap.
 
-**Live Text** puts the transcript on your wrist. Turn it on in **Settings ▸ Playback ▸ Live Text on
+**Live Text** puts the transcript on your wrist. Turn it on in **Settings ▸ Apple Watch ▸ Live Text on
 Apple Watch** (it's off until you do), then tap the transcript button at the top left of the remote.
 The line playing is large, with the lines before it dimmed above.
 
@@ -149,7 +149,7 @@ Send an episode or a book to your watch and leave your iPhone at home:
 
 1. On your iPhone, long-press an episode (or use the watch button on a book's page, or **Send to
    Watch** in the player's ⋯ menu). The watch downloads it from Audiobookshelf by itself, most
-   readily on its charger. **Settings ▸ Storage ▸ Downloads ▸ On Apple Watch** shows how far along
+   readily on its charger. **Settings ▸ Apple Watch ▸ On Apple Watch** shows how far along
    each one is and how much space the watch has left. The download starts as soon as the watch
    hears about it if Kiku's complication is on your watch face; otherwise it starts the next time
    you open Kiku on the watch. If your watch can't reach your server (it's only on a VPN or at
@@ -162,7 +162,7 @@ Send an episode or a book to your watch and leave your iPhone at home:
    Audiobookshelf and Stats. **Sync Now** on either side sends them straight away, and each shows
    when it last synced. If your iPhone was further along than where the watch got to, Kiku asks
    which place to continue from rather than jumping back.
-4. To fill the watch by itself, open **Settings ▸ Downloads ▸ Apple Watch**: **Sync Once Started**
+4. To fill the watch by itself, open **Settings ▸ Apple Watch**: **Sync Once Started**
    sends what you start playing on your iPhone, **Download Ahead** keeps the first episodes of each
    show you download ahead, and **Remove Played** clears what you've finished. A storage limit
    keeps the rules in check. Remove something a rule added and it stays off.
@@ -235,13 +235,13 @@ you were listening to. Yomu tells you if that book isn't paired yet.
 
 Download an episode or a book from its page to listen offline. The audio, cover and transcript all
 come along. On iPhone and iPad, downloads wait for Wi-Fi unless **Download over Cellular** is on in
-**Settings → Downloads**; nothing downloads unless you ask (or turn on download ahead, below). **Settings → Storage** lists what's on the device by
+**Settings → Download Rules**; nothing downloads unless you ask (or turn on download ahead, below). **Settings → Storage** lists what's on the device by
 show, and the saved transcripts. Each download says why it's there (**By Hand**, **Ahead** or
 **Started**), and the top of the list shows how much space each takes.
 
 ### Download ahead
 
-**Settings → Downloads → Automatic Downloads** (a podcast library) keeps upcoming episodes downloaded for each podcast
+**Settings → Download Rules → Automatic Downloads** (a podcast library) keeps upcoming episodes downloaded for each podcast
 library, off until you turn it on:
 
 - **Keep Downloaded:** how many episodes of each show (1 to 10).
@@ -258,7 +258,7 @@ played it lately) or **Off** (never). Download ahead itself never deletes anythi
 
 ### Download once started
 
-Turn on **Download Once Started** for a library (podcasts or books) in **Settings → Downloads**, and
+Turn on **Download Once Started** for a library (podcasts or books) in **Settings → Download Rules**, and
 an episode or book you start playing downloads while you listen. Next time it plays from the device,
 even offline. Just opening one doesn't count: it has to play for a few seconds.
 
@@ -285,20 +285,22 @@ arrived is sent once, as one session per sitting.
 
 The **Stats** tab shows your listening time by week, month or all time (only real playback counts,
 not seeking), along with lookups, cards mined and your streak. Your
-[kechimochi](https://github.com/Morgawr/kechimochi) log can show there too (**Settings → Stats**).
+[kechimochi](https://github.com/Morgawr/kechimochi) log can show there too (**Settings → Connections → kechimochi**).
 
 ## Settings
 
-- **Listening:** Audiobookshelf, Libraries, Kaku (transcripts), Playback (Lock Screen skip
-  intervals) and Downloads.
-- **Lookup and Mining:** dictionaries, word audio sources and Anki. See
+- **Listening:** Libraries, Playback (Lock Screen skip intervals, playing the next episode), Download Rules
+  (over cellular, automatic downloads per library) and, on iPhone, **Apple Watch** (Live Text, what goes
+  to the watch and what's on it now).
+- **Lookup:** dictionaries, the popup, word audio sources and word marks. **Anki:** the connection and cards. See
   [Lookup and Anki](/lookup-and-anki/).
-- **Stats:** the kechimochi address, and **Sync with iCloud** (on unless you turn it off), which keeps
+- **Connections:** every server and account in one place: Audiobookshelf, Kaku (transcripts),
+  Hachidori, the kechimochi address, and **Sync with iCloud** (on unless you turn it off), which keeps
   the Stats tab and your playback settings the same on all your devices signed in to the same iCloud
   account: the skips, starting speed, transcript, next episode and pausing after lines, each show's
   own speed and skips, your marks with their notes, the libraries you've hidden (on the same
   Audiobookshelf server) and the kechimochi address (the latest change wins). Live Text on Apple Watch
   stays on each device. When this app shares its setup with your other apps (and no Hachidori is linked), the lookup
   popup's settings are kept the same too.
-- **Storage**, **Advanced** (sharing the setup with your other apps, things waiting to sync, Run
+- **Storage** (what's downloaded and saved, each with **Clear**), **Advanced** (sharing the setup with your other apps, things waiting to sync, Run
   Setup Again, Export Logs) and **About**.

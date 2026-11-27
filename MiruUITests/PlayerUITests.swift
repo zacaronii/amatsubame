@@ -10,8 +10,10 @@ final class PlayerUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         XCTAssertTrue(app.descendants(matching: .any)["watch.placeholder"].waitForExistence(timeout: 10), "Watch tab")
         app.tabBars.buttons["Settings"].tap()
-        for row in ["settings.jellyfin", "settings.libraries", "settings.subtitles", "settings.playback", "settings.downloads",
-                    "settings.dictionaries", "settings.audioSources", "settings.anki", "settings.kechimochi", "settings.advanced"] {
+        // In order down the screen: Watching, Lookup, Anki, Connections, then Advanced.
+        for row in ["settings.libraries", "settings.subtitles", "settings.playback",
+                    "settings.dictionaries", "settings.popup", "settings.audioSources", "settings.wordMarks", "settings.anki",
+                    "settings.jellyfin", "settings.jimaku", "settings.kaku", "settings.hachidori", "settings.kechimochi", "settings.advanced"] {
             // Lower rows only exist once scrolled to.
             let element = app.descendants(matching: .any)[row].firstMatch
             for _ in 0..<4 where !element.waitForExistence(timeout: 2) {
@@ -19,7 +21,7 @@ final class PlayerUITests: XCTestCase {
             }
             XCTAssertTrue(element.exists, "\(row) in Settings")
         }
-        // Stats: the iCloud switch, under kechimochi (it says why it can't sync here).
+        // Connections: the iCloud switch, under kechimochi (it says why it can't sync here).
         let cloud = app.switches["stats.iCloud"].firstMatch
         for _ in 0..<4 where !cloud.waitForExistence(timeout: 2) { app.swipeUp() }
         XCTAssertTrue(cloud.exists, "Sync with iCloud in Settings")
@@ -50,7 +52,7 @@ final class PlayerUITests: XCTestCase {
         for _ in 0..<4 where !storage.waitForExistence(timeout: 2) { app.swipeUp() }
         storage.tap()
         XCTAssertTrue(app.descendants(matching: .any)["storage.summary"].waitForExistence(timeout: 5), "the storage summary")
-        XCTAssertTrue(app.staticTexts["Saved subtitles"].exists, "saved subtitles in Storage")
+        XCTAssertTrue(app.buttons["storage.clearSubtitles"].exists, "saved subtitles in Storage, with Clear")
         app.descendants(matching: .any)["storage.downloads"].firstMatch.tap()
         XCTAssertTrue(app.descendants(matching: .any)["downloads.empty"].waitForExistence(timeout: 5), "no downloads")
         XCTAssertTrue(app.descendants(matching: .any)["downloads.storage"].exists, "storage header")

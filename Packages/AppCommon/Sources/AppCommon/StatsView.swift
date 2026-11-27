@@ -138,6 +138,8 @@ public final class StatsModel {
 /// (time listened).
 public struct StatsView<Cover: View>: View {
     @Environment(\.openURL) private var openURL
+    /// At the accessibility text sizes the tiles stack, one per row, so their titles fit.
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var model: StatsModel
     let kind: ActivitySession.Kind
     let cover: (StatsSummary.Series) -> Cover
@@ -186,7 +188,7 @@ public struct StatsView<Cover: View>: View {
                             case .app: appStats
                             case .all:
                                 AllImmersionView(model: immersion, appName: Self.appName(kind))
-                                    // Each time it shows (back from Settings ▸ Stats with a new address too).
+                                    // Each time it shows (back from Settings ▸ Connections with a new address too).
                                     .task { await immersion.load() }
                             }
                         }
@@ -317,6 +319,7 @@ public struct StatsView<Cover: View>: View {
                     Spacer()
                     Button(model.goals?.goal(on: .now) == nil ? "Set a Daily Goal" : "Daily Goal") { editingGoal = true }
                         .buttonStyle(.borderless)
+                        .textButtonTint()
                         .accessibilityIdentifier("stats.dailyGoal")
                 }
                 .font(.subheadline)
@@ -358,7 +361,19 @@ public struct StatsView<Cover: View>: View {
     }
 
     @ViewBuilder private func tiles(_ summary: StatsSummary) -> some View {
-        if kind == .reading {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: 10) {
+                if kind == .reading {
+                    if summary.measure != .time { tile("Time", Self.duration(summary.seconds)) }
+                    if summary.measure != .characters { tile("Characters", summary.characters.formatted()) }
+                    if summary.measure != .pages { tile("Pages", summary.pages.formatted()) }
+                } else {
+                    tile("Episodes", summary.items.formatted())
+                }
+                tile("Cards mined", summary.cards.formatted())
+                tile("Lookups", summary.lookups.formatted())
+            }
+        } else if kind == .reading {
             // The two measures the chart isn't showing, then cards and lookups.
             Grid(horizontalSpacing: 10, verticalSpacing: 10) {
                 GridRow {
@@ -390,7 +405,8 @@ public struct StatsView<Cover: View>: View {
 
     private func tile(_ title: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.subheadline).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.7)
+            Text(title).font(.subheadline).foregroundStyle(.secondary)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1).minimumScaleFactor(0.7)
             Text(value).font(.title2.bold().monospacedDigit()).lineLimit(1).minimumScaleFactor(0.6)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -449,7 +465,7 @@ public struct StatsView<Cover: View>: View {
     }
 }
 
-/// Settings ▸ Stats: where the Stats tab's kechimochi row goes.
+/// Settings ▸ Connections ▸ kechimochi: where the Stats tab's kechimochi row goes.
 public struct StatsSettingsSection: View {
     @Environment(CommonEnvironment.self) private var environment
     @State private var url = ""
@@ -472,8 +488,6 @@ public struct StatsSettingsSection: View {
                     .onSubmit(save)
                     .accessibilityIdentifier("stats.kechimochiURL")
             }
-        } header: {
-            Text("Stats")
         } footer: {
             Text("The Stats tab links to kechimochi for everything you read, watch and listen to. Nothing is sent there from this app.")
         }
@@ -493,7 +507,7 @@ public struct StatsSettingsSection: View {
 }
 
 extension Notification.Name {
-    /// Settings ▸ Stats has a new kechimochi address: All immersion loads again.
+    /// Settings ▸ Connections has a new kechimochi address: All immersion loads again.
     static let kechimochiAddressDidChange = Notification.Name("kechimochiAddressDidChange")
 }
 
@@ -819,7 +833,7 @@ public struct ChipRow<Item: Hashable, Label: View>: View {
     }
 }
 
-/// Settings ▸ Stats ▸ iCloud: this app's Stats and daily goals on all your devices.
+/// Settings ▸ Connections ▸ Sync with iCloud: this app's Stats and daily goals on all your devices.
 struct StatsCloudRow: View {
     @Environment(CommonEnvironment.self) private var environment
 

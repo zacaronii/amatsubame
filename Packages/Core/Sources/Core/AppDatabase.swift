@@ -1138,6 +1138,36 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v70_read_along_source") { db in
+            // Yomu: what made the transcript a read-along was aligned with (#149).
+            try db.alter(table: "readAlongPair") { t in
+                t.add(column: "transcriptModel", .text)
+                t.add(column: "transcriptKaku", .text)
+                t.add(column: "transcribedAt", .datetime)
+            }
+        }
+
+        migrator.registerMigration("v71_demo_server") { db in
+            // The public demo servers: nothing is written to them. Their jobs' kinds are held
+            // (kept, unsent) while signed in, and discarded on leaving.
+            try db.alter(table: "serverAccount") { t in
+                t.add(column: "isDemo", .boolean).notNull().defaults(to: false)
+            }
+            try db.create(table: "outboxHeld") { t in
+                t.primaryKey("kind", .text)
+                // When the hold began: only jobs written since are the demo's.
+                t.column("since", .datetime).notNull()
+            }
+        }
+
+        migrator.registerMigration("v72_frequency_sort_order") { db in
+            // Hachidori's Sort order beside its Sort by frequency dictionary. Left empty here: a
+            // dictionary chosen before keeps its own direction (what choosing one sets).
+            try db.alter(table: "dictionarySettings") { t in
+                t.add(column: "frequencySortOrder", .text)
+            }
+        }
+
         return migrator
     }
 }

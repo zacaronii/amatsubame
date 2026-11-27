@@ -49,8 +49,6 @@ struct PlaybackView: View {
     #if os(iOS)
     /// A connected screen (AirPlay mirroring, a cable) shows the video instead.
     @State private var external = ExternalDisplay.shared
-    /// The note that AirPlay is the sound only, said once a player.
-    @State private var notedAirPlaySound = false
     #endif
 
     var body: some View {
@@ -184,14 +182,17 @@ struct PlaybackView: View {
         // Keys go back to the video once the cheat sheet closes.
         .onChange(of: model.showsShortcuts) { _, shows in if !shows { focused = true } }
         #if os(iOS)
-        // The AirPlay button sends only the sound (mpv's picture can't go over AirPlay): say once
-        // how the picture gets to the TV. (Posted on a background thread: received on the main one.)
+        // A TV picked in AirPlay gets the picture (a speaker, the sound). (Posted on a
+        // background thread: received on the main one.)
         .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification).receive(on: RunLoop.main)) { _ in
-            guard !notedAirPlaySound, !external.showsVideo,
-                  AVAudioSession.sharedInstance().currentRoute.outputs.contains(where: { $0.portType == .airPlay }) else { return }
-            notedAirPlaySound = true
-            model.showOSD("AirPlay plays the sound. For the picture on the TV, use Screen Mirroring")
+            model.airPlayRouteChanged()
         }
+        .onChange(of: model.mpv.hasStarted) { _, started in if started { model.airPlayRouteChanged() } }
+        #if DEBUG
+        .onReceive(NotificationCenter.default.publisher(for: AVRoutePickerViewHost.tappedForTests)) { _ in
+            model.showOSD("AirPlay picker tapped")
+        }
+        #endif
         #endif
         #if os(macOS)
         // Quitting skips onDisappear: end the session (the stop is queued and kept if it can't go now).
@@ -338,6 +339,7 @@ struct PlaybackView: View {
                     Button("Play at \(offer.name)") { model.chooseQuality(offer.bitrate) }
                         .font(.caption.weight(.semibold))
                         .buttonStyle(.borderedProminent)
+                        .filledButtonTint()
                         .buttonBorderShape(.capsule)
                         .controlSize(.small)
                         .fixedSize()
@@ -391,6 +393,7 @@ struct PlaybackView: View {
                 Spacer()
                 Button("Done") { model.showsShortcuts = false }
                     .buttonStyle(.borderedProminent)
+                    .filledButtonTint()
                     .accessibilityIdentifier("shortcuts.done")
             }
             .padding(.horizontal, 16)
@@ -760,6 +763,15 @@ struct PlaybackView: View {
                 PiPLayerHost(layer: model.pip.avPlayer.layer)
                 if model.pipState == .on { Color.black }
             }
+        } else if model.airPlayState == .on {
+            ZStack {
+                Color.black
+                Label("Playing on \(model.airPlayName)", systemImage: "airplayvideo")
+                    .font(.headline)
+                    .foregroundStyle(.white.opacity(0.7))
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("player.airPlayNote")
         } else if external.showsVideo {
             ZStack {
                 Color.black
@@ -783,12 +795,13 @@ struct PlaybackView: View {
             Spacer(minLength: 8)
             subtitleStatus
             #if os(iOS)
-            // AirPlay for the sound; the picture goes to a mirrored or connected screen by itself.
+            // AirPlay: a TV gets the picture (AVPlayer), a speaker the sound; a mirrored or
+            // connected screen shows mpv's picture by itself.
             AirPlayButton()
                 .frame(width: 30, height: 30)
                 .frame(width: 48, height: 48)
                 .glassEffect(in: .circle)
-                .accessibilityLabel("AirPlay Sound")
+                .accessibilityLabel("AirPlay")
                 .accessibilityIdentifier("player.airplay")
             #endif
             optionsMenu
@@ -1099,6 +1112,10 @@ struct PlaybackView: View {
                 Label("Find Subtitles", systemImage: "captions.bubble")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.orange)
+                    // As tall as the round buttons beside it: the caption alone is a 14 pt target
+                    // (with the plain style, taps on the iPad's picture-above-lines layout missed it).
+                    .frame(minHeight: 48)
+                    .contentShape(.rect)
             }
             .accessibilityIdentifier("player.noSubtitles")
         case .failed(let message):
@@ -1213,7 +1230,7 @@ struct PlaybackView: View {
                     }
                 }
             }
-            Button("Close", action: close).buttonStyle(.borderedProminent)
+            Button("Close", action: close).buttonStyle(.borderedProminent).filledButtonTint()
         }
         .padding(20)
         .background(.ultraThinMaterial, in: .rect(cornerRadius: 16))
@@ -1255,7 +1272,7 @@ struct PlaybackView: View {
         VStack(spacing: 12) {
             Image(systemName: "exclamationmark.triangle").font(.largeTitle)
             Text(message).multilineTextAlignment(.center)
-            Button("Close", action: close).buttonStyle(.borderedProminent)
+            Button("Close", action: close).buttonStyle(.borderedProminent).filledButtonTint()
         }
         .padding()
         .background(.black.opacity(0.7), in: .rect(cornerRadius: 12))

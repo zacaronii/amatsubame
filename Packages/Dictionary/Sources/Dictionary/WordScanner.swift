@@ -41,7 +41,7 @@ public actor WordScanner {
             if dictionary.hasFrequencies { hd_query_add_freq_dict(query, path) }
         }
         handles = QueryHandles(query: query, deinflector: deinflector)
-        self.frequencySortTitle = frequencySortTitle ?? dictionaries.first(where: \.hasFrequencies)?.title
+        self.frequencySortTitle = frequencySortTitle
         self.frequencyOrder = frequencyOrder
     }
 
@@ -82,7 +82,7 @@ public actor WordScanner {
             (sortTitle ?? "").withCString { sortPointer in
                 var options = hd_lookup_options(
                     frequency_dictionary: sortTitle == nil ? hd_str(ptr: nil, len: 0) : hd_str(ptr: sortPointer, len: strlen(sortPointer)),
-                    frequency_order: order.hoshidicts,
+                    frequency_order: FrequencyOrder.hoshidicts(order, sorting: sortTitle != nil),
                     primary_reading: hd_str(ptr: nil, len: 0)
                 )
                 var results: UnsafePointer<hd_lookup_result>?

@@ -182,9 +182,8 @@ public struct LookupPopupView: View {
         switch event {
         case .tap(let text, let offset):
             Task {
-                // A tap in the source header re-runs the lookup from there, keeping the header.
-                let fromSource = page.source?.text == text
-                let next = await service.lookup(text: text, utf16Offset: offset, showSource: fromSource)
+                // A word in a definition (the popup shows no sentence of its own).
+                let next = await service.lookup(text: text, utf16Offset: offset)
                 if !next.results.isEmpty { model.push(next) }
             }
         case .query(let query):

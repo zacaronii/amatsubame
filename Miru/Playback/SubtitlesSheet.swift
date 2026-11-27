@@ -32,6 +32,7 @@ struct SubtitlesSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { if let close { close() } else { dismiss() } }
                         .buttonStyle(.borderedProminent)
+                        .filledButtonTint()
                 }
             }
             .confirmationDialog("Save these subtitles to Jellyfin?", isPresented: $confirmsSave, titleVisibility: .visible) {

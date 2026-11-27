@@ -6,6 +6,9 @@ import JellyfinKit
 import Lookup
 import Observation
 import PlayerKit
+#if os(iOS)
+import AVFoundation
+#endif
 
 /// What to play: an item and the episodes after it (for "Next episode").
 struct PlaybackSession: Codable, Identifiable, Hashable {
@@ -325,7 +328,7 @@ final class PlaybackModel {
     /// Offered when the device has picture in picture and the video can reach AVPlayer: a
     /// stream from Jellyfin (directly or transcoded), or a download AVPlayer opens (not MKV).
     var canPictureInPicture: Bool {
-        guard PictureInPicture.isSupported, item != nil, mpv.hasStarted else { return false }
+        guard PictureInPicture.isSupported, item != nil, mpv.hasStarted, airPlayState == .off else { return false }
         if mediaSourceId == "local" { return true } // UI tests: a local test video
         if let localFile {
             let codecs = playingCodecs
@@ -397,6 +400,7 @@ final class PlaybackModel {
     /// UITEST_PLAYER_PIP=<seconds>: picture in picture that many seconds after `start` (the
     /// menu's items can't be reached by a UI test); says why when it isn't offered.
     private func startPictureInPictureForTests(at start: Double) {
+        #if DEBUG
         guard let after = ProcessInfo.processInfo.environment["UITEST_PLAYER_PIP"].flatMap(Double.init) else { return }
         Task {
             for _ in 0..<300 where mpv.timePosition < start + after { try? await Task.sleep(for: .milliseconds(100)) }
@@ -404,29 +408,37 @@ final class PlaybackModel {
                 showOSD(PictureInPicture.isSupported ? "PiP not offered" : "PiP not supported here")
             }
         }
+        #endif
     }
 
-    /// The direct stream first (when the file suits AVPlayer), then Jellyfin's transcode with
-    /// the audio mpv plays and the Japanese track (a Jellyfin text track) in the playlist.
+    /// Picture in picture's sources. Small window, small stream: a 1080p remux's own bitrate
+    /// made 20 MB segments that took longer than the hand-off allows; 4 Mbps is a fraction of
+    /// that and plenty for the window.
     private func pipSources(item: JellyfinItem) -> [PictureInPictureHandoff.SourceMaker] {
+        avPlayerSources(item: item, bitrate: min(transcodeBitrate ?? Self.pipBitrate, Self.pipBitrate), forTV: false)
+    }
+
+    /// What AVPlayer plays this video from, best first: the direct stream (when the file suits
+    /// AVPlayer and plays at its own quality), then Jellyfin's transcode at up to `bitrate`, with
+    /// the audio mpv plays and the Japanese track (a Jellyfin text track) in the playlist.
+    /// `forTV`: the direct stream only when there's no Japanese track it would leave out, and
+    /// the transcode copies an H.264 video that fits instead of encoding it again.
+    private func avPlayerSources(item: JellyfinItem, bitrate: Int, forTV: Bool) -> [PictureInPictureHandoff.SourceMaker] {
         if mediaSourceId == "local" {
             return [{ PiPSource(kind: .direct, url: URL(filePath: self.session.itemId)) }]
         }
         if let localFile { return [{ PiPSource(kind: .direct, url: localFile) }] }
         guard let client, let sourceId = mediaSourceId else { return [] }
         let codecs = playingCodecs
-        let direct = PictureInPictureHandoff.playsDirectly(container: mediaContainer, videoCodec: codecs.video, audioCodec: codecs.audio)
-            && transcodeBitrate == nil
         let audio = audioStreamIndex
         let subtitle = subtitleStreamIndex.flatMap { index in mediaStreams.first { $0.index == index && $0.isTextSubtitleStream == true } }?.index
-        // Small window, small stream: a 1080p remux's own bitrate made 20 MB segments that took
-        // longer than the hand-off allows; 4 Mbps is a fraction of that and plenty for the window.
-        let bitrate = min(transcodeBitrate ?? Self.pipBitrate, Self.pipBitrate)
+        let direct = PictureInPictureHandoff.playsDirectly(container: mediaContainer, videoCodec: codecs.video, audioCodec: codecs.audio)
+            && transcodeBitrate == nil && !(forTV && subtitle != nil)
         return [
             { direct ? PiPSource(kind: .direct, url: client.streamURL(itemId: item.id, mediaSourceId: sourceId), headers: client.playbackHeaders) : nil },
             {
                 guard let info = try? await client.transcodingInfo(itemId: item.id, mediaSourceId: sourceId, maxBitrate: bitrate,
-                                                                   audioStreamIndex: audio, subtitleStreamIndex: subtitle),
+                                                                   audioStreamIndex: audio, subtitleStreamIndex: subtitle, copiesVideo: forTV),
                       let path = info.mediaSources.first?.transcodingUrl, let url = client.transcodeURL(path, maxBitrate: bitrate) else { return nil }
                 // Kept until stopped, so a kill doesn't leave it running (stopped at the next launch).
                 if let id = info.playSessionId { UserDefaults.standard.set(id, forKey: Self.pendingPiPTranscodeKey) }
@@ -447,13 +459,172 @@ final class PlaybackModel {
     @ObservationIgnored private var notedPiPSubtitles = false
     private func notePiPSubtitles() {
         guard !notedPiPSubtitles else { return }
+        notedPiPSubtitles = noteAVPlayerSubtitles(on: "Picture in Picture")
+    }
+
+    /// Says what AVPlayer (picture in picture, the TV) can't show of the subtitles; true if
+    /// there was something to say.
+    private func noteAVPlayerSubtitles(on place: String) -> Bool {
         if usesLocalSubtitle {
-            notedPiPSubtitles = true
-            showOSD("Picture in Picture plays without your Jimaku subtitles")
-        } else if subtitleOffset != 0, subtitleStreamIndex != nil {
-            notedPiPSubtitles = true
-            showOSD("Picture in Picture shows the subtitles with Jellyfin's timing")
+            showOSD("\(place) plays without your Jimaku subtitles")
+            return true
         }
+        if subtitleOffset != 0, subtitleStreamIndex != nil {
+            showOSD("\(place) shows the subtitles with Jellyfin's timing")
+            return true
+        }
+        return false
+    }
+
+    // MARK: AirPlay video (iOS)
+
+    enum AirPlayState { case off, starting, on }
+    /// AirPlay video: AVPlayer plays the episode on the TV, standing in for mpv (its time
+    /// drives the lines here; the transport goes to it). Off, mpv plays (the sound alone, on
+    /// an AirPlay speaker).
+    private(set) var airPlayState = AirPlayState.off
+    /// The TV's name while it plays.
+    private(set) var airPlayName = "the TV"
+    @ObservationIgnored private lazy var airPlayPlayer = AVAirPlayPlayer()
+    @ObservationIgnored private var airPlay: AirPlayVideoHandoff?
+    @ObservationIgnored private var airPlayWatch: Task<Void, Never>?
+    /// The AirPlay route tried for this video (once a route: picked again after leaving it, it's tried again).
+    @ObservationIgnored private var airPlayTriedRoute: String?
+    /// Routes that couldn't play the video this run (the TV couldn't reach the server).
+    @ObservationIgnored private var airPlayFailedRoutes: Set<String> = []
+    @ObservationIgnored private var notedAirPlay = false
+    /// AirPlay receivers that play only sound (speakers), kept: they're not tried again.
+    static let soundOnlyRoutesKey = "airplay.soundOnlyRoutes"
+    /// The most a TV's transcode streams at (less when Settings' streaming quality is lower).
+    static let tvBitrate = 20_000_000
+
+    /// The current AirPlay output, if the sound goes to one.
+    private var airPlayRoute: (uid: String, portName: String)? {
+        let outputs = AVAudioSession.sharedInstance().currentRoute.outputs
+        guard let uid = Self.airPlayOutput(outputs.map { ($0.portType, $0.uid) }) else { return nil }
+        return (uid, outputs.first { $0.uid == uid }?.portName ?? "")
+    }
+
+    /// The AirPlay output among a route's outputs (its uid): only AirPlay. AirPods and other
+    /// Bluetooth, CarPlay, wired headphones, HDMI and the device's own speaker never start
+    /// a hand-off.
+    nonisolated static func airPlayOutput(_ outputs: [(type: AVAudioSession.Port, uid: String)]) -> String? {
+        outputs.first { $0.type == .airPlay }?.uid
+    }
+
+    /// The output changed (an AirPlay receiver picked, or this device again), or the video
+    /// started: a TV gets the picture.
+    func airPlayRouteChanged() {
+        guard let route = airPlayRoute else {
+            airPlayTriedRoute = nil
+            return
+        }
+        guard airPlayState == .off, item != nil, mpv.hasStarted, !inBackground, pipState == .off,
+              // Mirroring: mpv's picture is on that screen already (ExternalDisplay).
+              !ExternalDisplay.shared.isConnected,
+              airPlayTriedRoute != route.uid, !airPlayFailedRoutes.contains(route.uid),
+              !(UserDefaults.standard.stringArray(forKey: Self.soundOnlyRoutesKey) ?? []).contains(route.uid) else { return }
+        airPlayTriedRoute = route.uid
+        if let localFile {
+            let codecs = playingCodecs
+            guard PictureInPictureHandoff.playsDirectly(container: localFile.pathExtension, videoCodec: codecs.video, audioCodec: codecs.audio) else {
+                noteAirPlay("AirPlay plays the sound only for downloaded MKV files")
+                return
+            }
+        }
+        guard let item, mediaSourceId == "local" || localFile != nil || client != nil else { return }
+        startAirPlayVideo(item: item, route: route)
+    }
+
+    private func startAirPlayVideo(item: JellyfinItem, route: (uid: String, portName: String)) {
+        airPlayState = .starting
+        let handoff = AirPlayVideoHandoff(player: airPlayPlayer) { [weak self] id in self?.stopPiPTranscode(id) }
+        airPlay = handoff
+        // The TV's quality: the original where it plays as it is, else up to 20 Mbps, or the
+        // streaming quality Settings asks for when that's lower.
+        let limit = look.maxStreamBitrate
+        let bitrate = min(transcodeBitrate ?? (limit > 0 ? limit : Self.tvBitrate), Self.tvBitrate)
+        let sources = avPlayerSources(item: item, bitrate: bitrate, forTV: true)
+        Task { [weak self] in
+            // mpv plays on (the sound on the receiver) while the TV's stream gets ready.
+            let outcome = await handoff.start(at: self?.mpv.timePosition ?? 0, sources: sources)
+            // Closed or moved on meanwhile: the TV's source (a transcode) is let go.
+            guard let self, self.airPlayState == .starting, self.airPlay === handoff else {
+                if case .playing = outcome { _ = handoff.finish() }
+                return
+            }
+            switch outcome {
+            case .playing:
+                self.takeOverAirPlay(handoff, name: route.portName)
+            case .soundOnly:
+                // A speaker: mpv keeps the sound, and this receiver isn't tried again.
+                self.airPlayState = .off
+                self.airPlay = nil
+                var routes = UserDefaults.standard.stringArray(forKey: Self.soundOnlyRoutesKey) ?? []
+                routes.append(route.uid)
+                UserDefaults.standard.set(Array(routes.suffix(20)), forKey: Self.soundOnlyRoutesKey)
+            case .failed:
+                self.airPlayState = .off
+                self.airPlay = nil
+                self.airPlayFailedRoutes.insert(route.uid)
+                self.showOSD(Self.airPlaySoundOnlyNote)
+            }
+        }
+    }
+
+    static let airPlaySoundOnlyNote = "The TV couldn't play the video from Jellyfin, so AirPlay plays the sound only"
+
+    /// The TV is ready: it plays from where mpv is, and stands in for mpv until it's done.
+    private func takeOverAirPlay(_ handoff: AirPlayVideoHandoff, name: String) {
+        let time = mpv.timePosition, wasPlaying = !mpv.isPaused, rate = Float(mpv.speed)
+        mpv.attach(airPlayPlayer)
+        mpv.setVideoEnabled(false)
+        airPlayPlayer.startReporting(to: mpv)
+        airPlayPlayer.seek(to: time)
+        if wasPlaying { airPlayPlayer.play(rate: rate) } else { airPlayPlayer.setSpeed(Double(rate)) }
+        airPlayName = name.isEmpty ? "the TV" : name
+        airPlayState = .on
+        airPlayPlayer.onEnd = { [weak self] in self?.endAirPlayVideo(.ended) }
+        if !notedAirPlay { notedAirPlay = noteAVPlayerSubtitles(on: "The TV") }
+        airPlayWatch = Task { [weak self] in
+            guard let end = await handoff.watch() else { return }
+            self?.endAirPlayVideo(end == .back ? .back : .unreachable)
+        }
+    }
+
+    enum AirPlayEnd { case back, unreachable, ended, closing }
+
+    /// mpv takes over from the TV where it got to: playing on if the TV was (the sound on
+    /// the receiver if it's still picked), at the end if the episode ended there.
+    private func endAirPlayVideo(_ reason: AirPlayEnd) {
+        guard airPlayState != .off, let airPlay else { return }
+        airPlayWatch?.cancel()
+        airPlayWatch = nil
+        airPlayPlayer.onEnd = nil
+        let started = airPlayState == .on
+        let (time, wasPlaying) = airPlay.finish()
+        self.airPlay = nil
+        airPlayState = .off
+        guard started else { return }
+        mpv.detach()
+        guard reason != .closing else { return }
+        mpv.setVideoEnabled(!inBackground)
+        mpv.seek(to: time)
+        // At the end: mpv plays the last moment, reaches the end itself, and Up Next shows.
+        if wasPlaying || reason == .ended || reason == .unreachable { mpv.setPaused(false) }
+        if reason == .unreachable, let route = airPlayRoute {
+            airPlayFailedRoutes.insert(route.uid)
+            showOSD(Self.airPlaySoundOnlyNote)
+        }
+        saveProgress(.progress)
+        // Another TV picked meanwhile: that one gets the picture.
+        if reason == .back { airPlayRouteChanged() }
+    }
+
+    private func noteAirPlay(_ text: String) {
+        guard !notedAirPlay else { return }
+        notedAirPlay = true
+        showOSD(text)
     }
     #endif
 
@@ -512,6 +683,10 @@ final class PlaybackModel {
     }
 
     func open() async {
+        #if os(iOS)
+        endAirPlayVideo(.closing)
+        airPlayTriedRoute = nil
+        #endif
         resetUpNext()
         stalls = StallLog()
         showsBuffering = false
@@ -637,8 +812,12 @@ final class PlaybackModel {
         choseAudio = false
         let local = try? environment.watchProgress.progress(itemId: item.id)
         // "Play from here" (Lines) wins over the resume point; the start report says where it is.
-        let start = session.startAt ?? LocalWatchProgress.resumePosition(
+        var start = session.startAt ?? LocalWatchProgress.resumePosition(
             local: local, server: item.resumePosition, serverDate: item.userData?.lastPlayedDate)
+        #if DEBUG
+        // UITEST_PLAYER_START=<seconds> on a server's video too (the README's capture).
+        if let testStart = ProcessInfo.processInfo.environment["UITEST_PLAYER_START"].flatMap(Double.init) { start = testStart }
+        #endif
         NowPlaying.prepareAudioSession()
         if let downloaded {
             mpv.load(downloaded.path(percentEncoded: false), start: start)
@@ -1794,6 +1973,9 @@ final class PlaybackModel {
     }
 
     func close() {
+        #if os(iOS)
+        endAirPlayVideo(.closing)
+        #endif
         logWatching()
         stopKaku()
         stopCountdown()
@@ -1880,7 +2062,13 @@ final class PlaybackModel {
     func returnedFromBackground(staysInBackground: Bool = false) async {
         if !staysInBackground {
             inBackground = false
+            #if os(iOS)
+            // The TV keeps the picture; a TV picked while away gets it now.
+            mpv.setVideoEnabled(airPlayState != .on)
+            airPlayRouteChanged()
+            #else
             mpv.setVideoEnabled(true)
+            #endif
         }
         guard wasInBackground, let item else { return }
         wasInBackground = false

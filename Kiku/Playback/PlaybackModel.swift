@@ -279,11 +279,8 @@ final class PlaybackModel: Identifiable, LineLookupHost {
 
     /// "large-v3 · Kaku 1.5.0 · 5 Nov 2026": what made the transcript, for the More menu.
     static func sourceText(_ info: AudioTranscriptInfo) -> String {
-        let parts = [info.model, info.kakuVersion.map { "Kaku \($0)" },
-                     (info.transcribedAt ?? info.savedAt).formatted(date: .abbreviated, time: .omitted)]
-        let text = parts.compactMap(\.self).joined(separator: " · ")
         // A copy from before the model was kept has only its date.
-        return info.model == nil && info.kakuVersion == nil ? "Saved \(text)" : text
+        KakuTranscriptSource.text(model: info.model, kaku: info.kakuVersion, made: info.transcribedAt, saved: info.savedAt)
     }
 
     /// Asks Kaku to transcribe this episode again (Kaku 1.6), first in its queue, and shows the

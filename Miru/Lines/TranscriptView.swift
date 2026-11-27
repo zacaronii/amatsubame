@@ -184,6 +184,7 @@ struct TranscriptView: View {
                     playback = PlaybackSession(itemId: route.itemId, title: model.info.map(Self.title) ?? route.title)
                 }
                 .buttonStyle(.borderedProminent)
+                .filledButtonTint()
                 .buttonBorderShape(.circle)
                 .accessibilityIdentifier("transcript.play")
             }
@@ -269,9 +270,12 @@ struct TranscriptLineRow: View {
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(isEmphasized ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
                         .frame(width: 48, alignment: .leading)
+                        // Taller to tap (44 pt and up) than it's laid out.
+                        .padding(.vertical, 15)
                         .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
+                .padding(.vertical, -15)
                 .accessibilityLabel("Play from \(TranscriptView.timestamp(line.start))")
                 .accessibilityIdentifier("transcript.playLine")
             } else {

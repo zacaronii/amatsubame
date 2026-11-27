@@ -226,7 +226,10 @@ public final class BrowserService {
         let id = UUID().uuidString
         pages.append((id, page, source))
         if pages.count > Self.keptPages { pages.removeFirst(pages.count - Self.keptPages) }
-        return ["id": id, "found": !page.results.isEmpty, "html": common.lookup.document(for: page)]
+        // With no dictionary yet, the popup opens anyway to say how to get one (a tap that
+        // found nothing otherwise shows nothing).
+        let found = !page.results.isEmpty || common.lookup.lacksDictionaries
+        return ["id": id, "found": found, "html": common.lookup.document(for: page)]
     }
 
     private func result(_ id: String, _ index: Int) -> TermLookupResult? {

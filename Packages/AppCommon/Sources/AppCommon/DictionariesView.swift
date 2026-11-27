@@ -10,6 +10,7 @@ public struct DictionariesView: View {
     /// The ones that update themselves ("Auto").
     @State private var selfUpdating: Set<String> = []
     @State private var frequencySort: String?
+    @State private var frequencySortOrder = "auto"
     @State private var showsFileImporter = false
     @State private var showsURLPrompt = false
     @State private var urlText = ""
@@ -48,14 +49,35 @@ public struct DictionariesView: View {
             }
             let frequencyDictionaries = records.filter { $0.hasFrequencies && $0.enabled }
             if !frequencyDictionaries.isEmpty {
-                Section("Sort Results By") {
-                    Picker("Frequency", selection: $frequencySort) {
-                        Text("Automatic").tag(String?.none)
+                // Hachidori's Frequency sorting: nothing sorts unless a dictionary and a direction are chosen.
+                Section {
+                    Picker("Sort by Frequency Dictionary", selection: $frequencySort) {
+                        Text("None").tag(String?.none)
                         ForEach(frequencyDictionaries) { Text($0.title).tag(Optional($0.title)) }
                     }
-                    .onChange(of: frequencySort) { _, title in
-                        Task { await run { try await environment.dictionaries.setFrequencySortDictionary(title) } }
+                    .onChange(of: frequencySort) { old, title in
+                        guard old != title, title != (try? environment.dictionaries.settings().frequencySortTitle) else { return }
+                        Task {
+                            await run { try await environment.dictionaries.setFrequencySortDictionary(title) }
+                            loadFrequencySort()
+                        }
                     }
+                    Picker("Sort Order", selection: $frequencySortOrder) {
+                        Text("Automatic — Dictionary Order").tag("auto")
+                        Text("Ascending — Lowest Number First").tag("ascending").selectionDisabled(frequencySort == nil)
+                        Text("Descending — Highest Number First").tag("descending").selectionDisabled(frequencySort == nil)
+                        Text("Disabled").tag("disabled")
+                    }
+                    .onChange(of: frequencySortOrder) { old, order in
+                        guard old != order, order != (try? environment.dictionaries.frequencySortSettings().order) else { return }
+                        Task { await run { try await environment.dictionaries.setFrequencySortOrder(order) } }
+                    }
+                } header: {
+                    Text("Frequency Sorting")
+                } footer: {
+                    Text(environment.hachidori == nil
+                         ? "Choosing a dictionary sorts by its numbers, in the direction it declares. Automatic keeps your dictionary order, as Hachidori does by default."
+                         : "While Hachidori is linked, its own frequency sorting applies.")
                 }
             }
             CharacterNamesSection()
@@ -87,7 +109,9 @@ public struct DictionariesView: View {
                 }
                 .accessibilityIdentifier("dictionaries.addRecommended")
                 Button("Import from Files…", systemImage: "folder") { showsFileImporter = true }
+                    .textButtonTint()
                 Button("Import from URL…", systemImage: "link") { showsURLPrompt = true }
+                    .textButtonTint()
             } footer: {
                 Text("Yomitan dictionary zips: term dictionaries (Jitendex), frequency lists (Jiten) and pitch accent dictionaries.")
             }
@@ -96,7 +120,7 @@ public struct DictionariesView: View {
         .navigationTitle("Dictionaries")
         .toolbar {
             #if os(iOS)
-            EditButton()
+            EditButton().textButtonTint()
             #endif
         }
         .disabled(importing != nil)
@@ -127,7 +151,13 @@ public struct DictionariesView: View {
             Button("Cancel", role: .cancel) {}
         }
         .task { await observe() }
-        .task { frequencySort = try? environment.dictionaries.settings().frequencySortTitle }
+        .task { loadFrequencySort() }
+    }
+
+    private func loadFrequencySort() {
+        guard let settings = try? environment.dictionaries.frequencySortSettings() else { return }
+        frequencySort = settings.title
+        frequencySortOrder = settings.order
     }
 
     private func observe() async {

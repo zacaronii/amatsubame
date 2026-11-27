@@ -86,8 +86,10 @@ public actor OutboxWorker {
         defer { isDraining = false }
         repeat {
             drainRequested = false
+            // A demo server's kinds stay queued (`OutboxStore.heldKinds`).
+            let held = (try? store.heldKinds()) ?? []
             await withTaskGroup(of: OutboxDrainReport.self) { group in
-                for kind in handlers.keys {
+                for kind in handlers.keys where !held.contains(kind) {
                     group.addTask { await self.drainLane(kind) }
                 }
                 for await lane in group {
@@ -115,7 +117,7 @@ public actor OutboxWorker {
     private func scheduleRetry() {
         retryTask?.cancel()
         retryTask = nil
-        guard let date = try? store.nextAttemptDate(kinds: Set(handlers.keys)) else {
+        guard let date = try? store.nextAttemptDate(kinds: Set(handlers.keys).subtracting((try? store.heldKinds()) ?? [])) else {
             scheduledRetry = nil
             return
         }

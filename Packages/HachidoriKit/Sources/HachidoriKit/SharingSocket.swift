@@ -20,6 +20,11 @@ public protocol SharingTransport: Sendable {
     func connect(to url: URL, origin: String) async throws -> any SharingSocket
 }
 
+/// The relay answered the WebSocket handshake with an HTTP status instead of switching protocols.
+public enum SharingSocketError: Error, Equatable, Sendable {
+    case refused(status: Int)
+}
+
 /// `URLSessionWebSocketTask`, with the Origin header the relay checks.
 public struct URLSessionSharingTransport: SharingTransport {
     /// How long the opening handshake may take (an unreachable address otherwise waits a minute).
@@ -47,10 +52,16 @@ public struct URLSessionSharingTransport: SharingTransport {
         }
 
         func receive() async throws -> String {
-            switch try await task.receive() {
-            case .string(let text): return text
-            case .data(let data): return String(decoding: data, as: UTF8.self)
-            @unknown default: return ""
+            do {
+                switch try await task.receive() {
+                case .string(let text): return text
+                case .data(let data): return String(decoding: data, as: UTF8.self)
+                @unknown default: return ""
+                }
+            } catch {
+                // A handshake the server turned down (a proxy's 403, a 404): say so, not just "bad response".
+                if let http = task.response as? HTTPURLResponse, http.statusCode != 101 { throw SharingSocketError.refused(status: http.statusCode) }
+                throw error
             }
         }
 

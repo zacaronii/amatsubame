@@ -343,9 +343,37 @@ import Testing
 
         let away = FakeHost(hello: nil)
         away.refuse(true)
-        await #expect(throws: HachidoriError.notLinked) {
+        await #expect(throws: HachidoriError.unanswered(HachidoriLink.reason(URLError(.cannotConnectToHost)))) {
             try await HachidoriLink.probe(url: url, clientName: "Yomu", clientVersion: "0.3.0", transport: away, timeout: .milliseconds(200))
         }
+    }
+
+    /// Test Connection says why there's no link, as far as this side can tell.
+    @Test func aFailedProbeSaysWhy() async throws {
+        let url = URL(string: "ws://host.example:8771/link")!
+        func reason(_ host: FakeHost) async -> String? {
+            do {
+                _ = try await HachidoriLink.probe(url: url, clientName: "Yomu", clientVersion: "0.3.0", transport: host, timeout: .milliseconds(300))
+                return nil
+            } catch {
+                return error.errorDescription
+            }
+        }
+        let refused = FakeHost(hello: nil)
+        refused.refuse(true)
+        #expect(await reason(refused)?.hasPrefix("The connection was refused") == true)
+
+        let silent = FakeHost(hello: nil)
+        #expect(await reason(silent)?.contains("no Hachidori answered") == true, "the relay took it, no host said hello")
+
+        let newer = FakeHost(hello: try fixture("hello").replacingOccurrences(of: #""protocol": 1"#, with: #""protocol": 2"#))
+        #expect(await reason(newer) == "This Hachidori speaks link protocol 2; this app speaks 1. One of them needs an update.")
+
+        let garbled = FakeHost(hello: "not a frame")
+        #expect(await reason(garbled)?.contains("can't read") == true)
+
+        #expect(HachidoriLink.reason(SharingSocketError.refused(status: 403)).contains("HTTP 403"))
+        #expect(HachidoriLink.reason(URLError(.cannotFindHost)) == "The address wasn't found (DNS).")
     }
 }
 
@@ -365,6 +393,27 @@ struct LiveLinkTests {
 
         let hello = try await HachidoriLink.probe(url: url, clientName: "Amatsubame tests", clientVersion: "0.3.0")
         #expect(hello.dictionaryCount > 0)
+    }
+
+    /// Following Jitendex's redirects (as the apps do on a host's results) keeps the host's first
+    /// result first when it has its own entry (なあ, not 七), and opens the target for a bare redirect.
+    @Test func followedRedirectsKeepTheHostsFirstResult() async throws {
+        let url = try #require(ProcessInfo.processInfo.environment["HACHIDORI_LINK_URL"].flatMap(HachidoriLink.linkURL))
+        let link = HachidoriLink(url: url, clientName: "Amatsubame tests", clientVersion: "0.3.0")
+        await link.start()
+        func lookUp(_ text: String) async throws -> (host: TermLookupResult?, followed: TermLookupResult?) {
+            let results = try await link.lookup(text).results
+            var found: [String: [TermLookupResult]] = [:]
+            for term in Redirects.terms(in: results) { found[term] = try await link.lookup(term, maxResults: 8).results }
+            return (results.first, Redirects.follow(results, found: found).first)
+        }
+        for text in ["なあ", "な", "ねえ", "よお"] {
+            let (host, followed) = try await lookUp(text)
+            #expect(followed?.expression == host?.expression && followed?.reading == host?.reading, "\(text)")
+        }
+        let (host, followed) = try await lookUp("精いっぱい")
+        #expect(followed?.expression == Redirects.terms(in: [try #require(host)]).first)
+        await link.stop()
     }
 
     /// The relay answers WebSocket pings (how a silently dead link is found).

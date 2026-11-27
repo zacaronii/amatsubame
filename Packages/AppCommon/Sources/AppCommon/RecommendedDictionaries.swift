@@ -78,8 +78,6 @@ public enum RecommendedDictionaries {
 
     /// Setup can continue once this one is in.
     public static let required = "jitendex"
-    /// Sorts results when no frequency dictionary is chosen.
-    public static let frequency = "jiten"
 
     public static func entry(_ id: String) -> RecommendedDictionary? { (all + retired).first { $0.id == id } }
 

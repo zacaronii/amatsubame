@@ -10,8 +10,10 @@ struct PlayerSettingsView: View {
     private var showsKeyboardShortcuts: Bool {
         #if os(macOS)
         true
-        #else
+        #elseif DEBUG
         UIDevice.current.userInterfaceIdiom == .pad || ProcessInfo.processInfo.environment["UITEST_PLAYER"] != nil
+        #else
+        UIDevice.current.userInterfaceIdiom == .pad
         #endif
     }
 
@@ -31,11 +33,6 @@ struct PlayerSettingsView: View {
                 SettingsStatusCard(items: statusItems)
 
                 Section {
-                    NavigationLink(value: ServerKind.jellyfin) {
-                        SettingsRowLabel("Jellyfin", subtitle: accounts[.jellyfin]?.hostAndAccount ?? "Not set up",
-                                         systemImage: "server.rack", color: .indigo, dot: accounts[.jellyfin]?.dotColor)
-                    }
-                    .accessibilityIdentifier("settings.jellyfin")
                     NavigationLink {
                         JellyfinLibrariesSettingsView()
                     } label: {
@@ -48,22 +45,12 @@ struct PlayerSettingsView: View {
                         SettingsRowLabel("Subtitles", subtitle: subtitlesSummary, systemImage: "captions.bubble.fill", color: .indigo)
                     }
                     .accessibilityIdentifier("settings.subtitles")
-                    NavigationLink(value: ServerKind.kaku) {
-                        KakuSettingsRow(purpose: "Subtitles when Jimaku has none")
-                    }
-                    .accessibilityIdentifier("settings.kaku")
                     NavigationLink {
                         PlaybackSettingsView()
                     } label: {
-                        SettingsRowLabel("Playback", subtitle: "Skip intros, Japanese audio only", systemImage: "play.rectangle.fill", color: .red)
+                        SettingsRowLabel("Playback", subtitle: "Skip intros, quality, cellular", systemImage: "play.rectangle.fill", color: .red)
                     }
                     .accessibilityIdentifier("settings.playback")
-                    NavigationLink {
-                        Self.downloads
-                    } label: {
-                        SettingsRowLabel("Downloads", subtitle: "Wi-Fi or cellular", systemImage: "arrow.down.circle.fill", color: .blue)
-                    }
-                    .accessibilityIdentifier("settings.downloads")
                     if showsKeyboardShortcuts {
                         NavigationLink {
                             PlayerShortcutsView()
@@ -76,11 +63,29 @@ struct PlayerSettingsView: View {
                     Text("Watching")
                 }
 
-                LookupAndMiningSection {
+                LookupSection()
+
+                AnkiSection {
                     Self.anki(environment)
                 }
 
-                StatsSettingsLink()
+                ConnectionsSection {
+                    NavigationLink(value: ServerKind.jellyfin) {
+                        SettingsRowLabel("Jellyfin", subtitle: accounts[.jellyfin]?.hostAndAccount ?? "Not set up",
+                                         systemImage: "server.rack", color: .indigo, dot: accounts[.jellyfin]?.dotColor)
+                    }
+                    .accessibilityIdentifier("settings.jellyfin")
+                    NavigationLink {
+                        JimakuSettingsView()
+                    } label: {
+                        JimakuRow()
+                    }
+                    .accessibilityIdentifier("settings.jimaku")
+                    NavigationLink(value: ServerKind.kaku) {
+                        KakuSettingsRow()
+                    }
+                    .accessibilityIdentifier("settings.kaku")
+                }
 
                 SettingsFooterSection(storageTotal: storageTotal) {
                     StorageView()
@@ -122,11 +127,6 @@ struct PlayerSettingsView: View {
                              extraLogs: ["dev-setup.log", "nowplaying.log"].map { URL.applicationSupportDirectory.appending(path: $0) })
     }
 
-    static var downloads: some View {
-        Form { DownloadSettingsSection { _ in } }
-            .formStyle(.grouped)
-            .navigationTitle("Downloads")
-    }
 
     static func anki(_ environment: PlayerEnvironment) -> some View {
         AnkiSettingsPage(environment: environment.common) { CardPicturePicker() }
@@ -147,19 +147,19 @@ struct PlayerSettingsView: View {
     static func statusItems(_ environment: PlayerEnvironment) -> [StatusItem] {
         let accounts = environment.common.serverAccounts
         return [
-            StatusItem("Jellyfin", isSetUp: accounts[.jellyfin] != nil) {
+            StatusItem("Jellyfin", isSetUp: accounts[.jellyfin] != nil, opens: { AnyView(serverPage(.jellyfin, environment: environment)) }) {
                 _ = try await environment.jellyfinClient()?.currentUser()
             },
-            StatusItem("Anki", isSetUp: accounts[.anki] != nil) {
+            StatusItem("Anki", isSetUp: accounts[.anki] != nil, opens: { AnyView(serverPage(.anki, environment: environment)) }) {
                 _ = try await environment.common.ankiClient()?.version()
             },
-            StatusItem("Jimaku", isSetUp: ((try? environment.common.secrets.secret(for: .jimakuAPIKey)) ?? nil) != nil) {
+            StatusItem("Jimaku", isSetUp: ((try? environment.common.secrets.secret(for: .jimakuAPIKey)) ?? nil) != nil, opens: { AnyView(JimakuSettingsView()) }) {
                 _ = try await environment.jimakuClient()?.search(query: "テスト")
             },
-            StatusItem("Kaku", isSetUp: accounts[.kaku] != nil) {
+            StatusItem("Kaku", isSetUp: accounts[.kaku] != nil, opens: { AnyView(serverPage(.kaku, environment: environment)) }) {
                 _ = try await environment.kakuClient()?.health()
             },
-            StatusItem("kechimochi", isSetUp: ((try? environment.common.activity.kechimochiURL()) ?? nil) != nil) {
+            StatusItem("kechimochi", isSetUp: ((try? environment.common.activity.kechimochiURL()) ?? nil) != nil, opens: { AnyView(KechimochiPage()) }) {
                 try await environment.common.checkKechimochi()
             },
         ]
@@ -181,18 +181,22 @@ struct MacSettingsView: View {
         MacSettingsWindow(groups: [
             MacSettingsGroup(pages: [.overview(PlayerSettingsView.statusItems(environment))]),
             MacSettingsGroup("Watching", pages: [
-                MacSettingsPage("jellyfin", title: "Jellyfin", systemImage: "server.rack") { JellyfinSettingsView(environment: environment.common) },
-                MacSettingsPage("libraries", title: "Libraries", systemImage: "books.vertical") { JellyfinLibrariesSettingsView() },
-                MacSettingsPage("subtitles", title: "Subtitles", systemImage: "captions.bubble") { SubtitlesSettingsView() },
-                MacSettingsPage("kaku", title: "Kaku", systemImage: "text.quote") { KakuSettingsView(environment: environment.common) },
-                MacSettingsPage("playback", title: "Playback", systemImage: "play.rectangle") { PlaybackSettingsView() },
-                MacSettingsPage("downloads", title: "Downloads", systemImage: "arrow.down.circle") { PlayerSettingsView.downloads },
-                MacSettingsPage("shortcuts", title: "Keyboard Shortcuts", systemImage: "keyboard") { PlayerShortcutsView() },
+                MacSettingsPage("libraries", title: "Libraries", systemImage: "books.vertical",
+                                keywords: ["Japanese Audio Only"]) { JellyfinLibrariesSettingsView() },
+                MacSettingsPage("subtitles", title: "Subtitles", systemImage: "captions.bubble",
+                                keywords: ["Hide Until Tapped", "Pause Under the Pointer", "Position", "Size"]) { SubtitlesSettingsView() },
+                MacSettingsPage("playback", title: "Playback", systemImage: "play.rectangle",
+                                keywords: ["Skip Intros Automatically", "Streaming Quality"]) { PlaybackSettingsView() },
+                MacSettingsPage("shortcuts", title: "Keyboard Shortcuts", systemImage: "keyboard", keywords: ["Keys"]) { PlayerShortcutsView() },
             ]),
-        ] + MacSettingsGroup.shared {
+        ] + MacSettingsGroup.shared(servers: [
+            MacSettingsPage("jellyfin", title: "Jellyfin", systemImage: "server.rack") { JellyfinSettingsView(environment: environment.common) },
+            MacSettingsPage("jimaku", title: "Jimaku", systemImage: "captions.bubble") { JimakuSettingsView() },
+            MacSettingsPage("kaku", title: "Kaku", systemImage: "text.quote") { KakuSettingsView(environment: environment.common) },
+        ]) {
             PlayerSettingsView.anki(environment)
         } + [
-            .footer {
+            .footer(storageKeywords: ["Saved Subtitles"]) {
                 StorageView()
             } advanced: {
                 PlayerSettingsView.advanced
@@ -285,7 +289,8 @@ struct PlaybackSettingsView: View {
                 Text("Skips intros and recaps without the button, where Jellyfin knows them.")
             }
             StreamQualitySection()
-            JapaneseAudioOnlySection()
+            // Was its own Downloads page; the same stored setting.
+            DownloadSettingsSection { _ in }
         }
         .formStyle(.grouped)
         .navigationTitle("Playback")
@@ -306,7 +311,7 @@ struct StorageView: View {
         Form {
             Section {
                 StorageSummary(parts: [
-                    .init("Downloads", bytes: downloadBytes, color: .blue),
+                    .init("Downloaded", bytes: downloadBytes, color: .blue),
                     .init("Dictionaries", bytes: dictionaryBytes, color: .purple),
                     .init("Subtitles", bytes: subtitleBytes, color: .indigo),
                 ])
@@ -315,7 +320,7 @@ struct StorageView: View {
                 NavigationLink {
                     DownloadedEpisodesView()
                 } label: {
-                    SettingsRowLabel("Downloads", value: downloadBytes.storageText, systemImage: "arrow.down.circle.fill", color: .blue)
+                    SettingsRowLabel("Downloaded", value: downloadBytes.storageText, systemImage: "arrow.down.circle.fill", color: .blue)
                 }
                 .accessibilityIdentifier("storage.downloads")
                 NavigationLink {
@@ -343,21 +348,25 @@ struct SavedSubtitlesSection: View {
 
     var body: some View {
         Section {
-            LabeledContent("Saved subtitles", value: transcriptBytes.storageText)
-            Button("Clear Saved Subtitles", role: .destructive) { confirmsClear = true }
-                .disabled(transcriptBytes == 0)
-                .confirmationDialog("Clear saved subtitles?", isPresented: $confirmsClear, titleVisibility: .visible) {
-                    Button("Clear", role: .destructive) {
-                        try? environment.transcripts.clear()
-                        measure()
-                    }
-                } message: {
-                    Text("Lines will fetch an episode's subtitles again the next time you open it.")
+            HStack {
+                SettingsRowLabel("Saved Subtitles", value: transcriptBytes.storageText, systemImage: "captions.bubble.fill", color: .indigo)
+                Button("Clear", role: .destructive) { confirmsClear = true }
+                    #if os(iOS)
+                    .buttonStyle(.borderless)
+                    #endif
+                    .disabled(transcriptBytes == 0)
+                    .accessibilityIdentifier("storage.clearSubtitles")
+            }
+            .confirmationDialog("Clear saved subtitles?", isPresented: $confirmsClear, titleVisibility: .visible) {
+                Button("Clear Subtitles", role: .destructive) {
+                    try? environment.transcripts.clear()
+                    measure()
                 }
-        } header: {
-            Text("Saved Subtitles")
+            } message: {
+                Text("Lines will fetch an episode's subtitles again the next time you open it.")
+            }
         } footer: {
-            Text("Japanese subtitles of episodes you've watched or opened in Lines, for reading and search.")
+            Text("Subtitles of episodes you've watched or opened in Lines, for reading and search.")
         }
         .onAppear(perform: measure)
     }
@@ -415,7 +424,7 @@ struct StreamQualitySection: View {
             }
             .accessibilityIdentifier("settings.streamQuality")
         } footer: {
-            Text("Original plays the file as it is. A lower quality has Jellyfin make a smaller stream when the file is larger than that, for slow connections; the player's menu changes it while watching. Downloads and cards always use the original.")
+            Text("Original plays the file as it is. A lower quality has Jellyfin make a smaller stream of files above it, for slow connections; the player's menu changes it while watching. Downloads and cards always use the original.")
         }
         .onAppear { bitrate = PlayerSettings.load(environment.common.database).maxStreamBitrate }
         .onChange(of: bitrate) {

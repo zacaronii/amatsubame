@@ -30,6 +30,7 @@ let package = Package(
             "Lookup",
             .product(name: "CoreTestSupport", package: "Core"),
             .product(name: "DictionaryTestSupport", package: "Dictionary"),
-        ]),
+            .product(name: "HachidoriKit", package: "HachidoriKit"),
+        ], resources: [.copy("Fixtures")]),
     ]
 )

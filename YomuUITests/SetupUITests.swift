@@ -53,6 +53,119 @@ final class SetupUITests: XCTestCase {
         _ = key
     }
 
+    /// The bar with Continue covers what scrolls under it: on the dictionaries step the list
+    /// showed through the footer's text and the button. Connects the demo Kavita
+    /// (its config.json) to get there.
+    func testButtonBarCoversTheList() throws {
+        let v = try DemoServers.kavita()
+        let app = fresh()
+        app.launch()
+        app.buttons["setup.getStarted"].tap()
+        XCTAssertTrue(app.waitForTitle("Connect Kavita"))
+        app.type(v[0], into: "setup.server.url")
+        app.type(v[1], into: "setup.server.key")
+        app.buttons["setup.continue"].tap()
+        let connected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS 'found'"),
+                                                  object: app.element("setup.server.status"))
+        XCTAssertEqual(XCTWaiter.wait(for: [connected], timeout: 60), .completed)
+        app.tapContinue()
+        app.dismissSavePassword()
+        XCTAssertTrue(app.waitForTitle("Which libraries are Japanese?"))
+        app.tapContinue()
+        XCTAssertTrue(app.waitForTitle("Get dictionaries"))
+        sleep(2)
+        // The first line under the button: the download size, else the Import link.
+        let size = app.element("setup.dictionaries.size")
+        let button = app.buttons["setup.continue"].frame
+        let link = size.exists ? size.frame : app.element("setup.importDictionaries").frame
+        XCTAssertLessThan(button.maxY, link.minY)
+        let shot = app.screenshot()
+        let attachment = XCTAttachment(screenshot: shot)
+        attachment.name = "dictionaries-bar"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        // Between the button and the link: the page's own background only, no list rows.
+        guard let image = shot.image.cgImage, let data = image.dataProvider?.data, let bytes = CFDataGetBytePtr(data) else {
+            return XCTFail("no screenshot")
+        }
+        let scale = CGFloat(image.width) / app.windows.firstMatch.frame.width
+        let y = Int(((button.maxY + link.minY) / 2) * scale), perPixel = image.bitsPerPixel / 8
+        let first = bytes + y * image.bytesPerRow
+        var odd = 0
+        for x in stride(from: 0, to: image.width, by: 3) {
+            let pixel = first + x * perPixel
+            if (0..<3).contains(where: { abs(Int(pixel[$0]) - Int(first[$0])) > 12 }) { odd += 1 }
+        }
+        XCTAssertEqual(odd, 0, "the list shows through the bar under Continue")
+    }
+
+    /// The dictionaries step is a choice and nothing downloads by itself: skip (lookups then say
+    /// how to get one), import your own, or download the recommended ones, which finish in the
+    /// background while setup goes on. Connects the demo Kavita (its config.json).
+    func testDictionariesAreAChoice() throws {
+        let v = try DemoServers.kavita()
+        func reachDictionaries() -> XCUIApplication {
+            let app = fresh()
+            app.launch()
+            app.buttons["setup.getStarted"].tap()
+            XCTAssertTrue(app.waitForTitle("Connect Kavita"))
+            app.type(v[0], into: "setup.server.url")
+            app.type(v[1], into: "setup.server.key")
+            app.buttons["setup.continue"].tap()
+            let connected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS 'found'"),
+                                                      object: app.element("setup.server.status"))
+            XCTAssertEqual(XCTWaiter.wait(for: [connected], timeout: 60), .completed)
+            app.tapContinue()
+            app.dismissSavePassword()
+            XCTAssertTrue(app.waitForTitle("Which libraries are Japanese?"))
+            app.tapContinue()
+            XCTAssertTrue(app.waitForTitle("Get dictionaries"))
+            return app
+        }
+
+        // Skip: nothing started, the page says lookups need one, and Done says none yet.
+        var app = reachDictionaries()
+        sleep(3)
+        XCTAssertFalse(app.element("setup.dictionaries.progress").exists, "nothing downloads by itself")
+        XCTAssertTrue(app.buttons["setup.continue"].label.hasPrefix("Download"), "the main button downloads the recommended ones")
+        XCTAssertTrue(app.element("setup.dictionaries.size").label.contains("Wi-Fi"), "the size and a Wi-Fi hint")
+        XCTAssertTrue(app.element("setup.dictionaries.later").exists, "says lookups need one, and where to add it later")
+        app.buttons["setup.dictionaries.skip"].tap()
+        XCTAssertTrue(app.waitForTitle("Connect Anki"))
+        app.buttons["setup.anki.skip"].tap()
+        XCTAssertTrue(app.waitForTitle("Extras"))
+        app.tapContinue()
+        XCTAssertTrue(app.element("setup.checklist.Dictionaries").label.contains("None yet"))
+        app.buttons["setup.start"].tap()
+        app.tabBars.buttons["Dictionary"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["search.addRecommended"].firstMatch.waitForExistence(timeout: 10),
+                      "the Dictionary tab offers them")
+        app.terminate()
+
+        // Import My Own: the dictionaries page, with Import from Files.
+        app = reachDictionaries()
+        app.element("setup.importDictionaries").tap()
+        XCTAssertTrue(app.navigationBars["Dictionaries"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Import from Files…"].exists || app.buttons["Import from Files…"].exists)
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.waitForTitle("Get dictionaries"))
+        app.terminate()
+
+        // Download: setup goes on at once while they download, and Done says they're coming.
+        app = reachDictionaries()
+        app.buttons["setup.continue"].tap()
+        XCTAssertTrue(app.element("setup.dictionaries.progress").waitForExistence(timeout: 10))
+        XCTAssertEqual(app.buttons["setup.continue"].label, "Continue")
+        app.buttons["setup.continue"].tap()
+        XCTAssertTrue(app.waitForTitle("Connect Anki"), "Continue isn't held up by the downloads")
+        app.buttons["setup.anki.skip"].tap()
+        XCTAssertTrue(app.waitForTitle("Extras"))
+        app.tapContinue()
+        let dictionaries = app.element("setup.checklist.Dictionaries")
+        XCTAssertTrue(dictionaries.label.contains("Downloading") || dictionaries.label.contains("installed"), dictionaries.label)
+        app.terminate()
+    }
+
     /// Dictionaries from Hachidori (#40): the test host's address from `HACHIDORI_LINK_URL`, its
     /// dictionaries copied (after the recommended downloads that start on their own), then Done
     /// lists them. Several minutes: Hachidori's copies are a few hundred MB.
@@ -111,8 +224,12 @@ final class SetupUITests: XCTestCase {
 
         XCTAssertTrue(app.waitForTitle("Get dictionaries"), "no other app's setup to reuse; saw \(app.staticTexts["setup.title"].label)")
         XCTAssertEqual(app.element("recommended.jitendex").value as? String != nil, true)
-        // The whole set, live: several minutes on a simulator.
-        app.tapContinue(timeout: 900)
+        // The whole set, live: several minutes on a simulator. Waits here so Done can count them.
+        app.buttons["setup.continue"].tap()
+        let progress = app.element("setup.dictionaries.progress")
+        XCTAssertTrue(progress.waitForExistence(timeout: 10))
+        XCTAssertTrue(progress.waitForNonExistence(timeout: 900), "the downloads finish")
+        app.tapContinue()
 
         XCTAssertTrue(app.waitForTitle("Connect Anki"))
         // Leave mid-way: setup comes back at the same step.
@@ -143,7 +260,8 @@ final class SetupUITests: XCTestCase {
         app.launch()
         app.tabBars.buttons["Settings"].tap()
         app.element("settings.dictionaries").tap()
-        let checkNow = app.buttons["dictionaries.checkNow"]
+        // Below the installed dictionaries and Character Names: the list makes it once scrolled to.
+        let checkNow = app.revealSettingsRow("dictionaries.checkNow")
         XCTAssertTrue(checkNow.waitForExistence(timeout: 10))
         checkNow.tap()
         let updated = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS 'Updated Jitendex'"), object: checkNow)

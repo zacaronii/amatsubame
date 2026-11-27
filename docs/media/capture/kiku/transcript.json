@@ -1,0 +1,3674 @@
+{
+ "item": "demo-bocchan-capture",
+ "source": "LibriVox 坊っちゃん (public domain, read by ekzemplaro), 0:00–2:30",
+ "sentences": [
+  {
+   "start": 0.98,
+   "end": 6.25,
+   "text": "坊ちゃん、夏目漱石こちらはリブリボックスです。",
+   "confidence": 0.907,
+   "words": [
+    {
+     "text": "坊",
+     "start": 0.98,
+     "end": 1.26,
+     "confidence": 0.705
+    },
+    {
+     "text": "ちゃん、",
+     "start": 1.26,
+     "end": 1.5,
+     "confidence": 0.972
+    },
+    {
+     "text": "夏",
+     "start": 1.9,
+     "end": 2.42,
+     "confidence": 0.996
+    },
+    {
+     "text": "目",
+     "start": 2.42,
+     "end": 2.66,
+     "confidence": 1.0
+    },
+    {
+     "text": "漱",
+     "start": 2.66,
+     "end": 2.92,
+     "confidence": 0.99
+    },
+    {
+     "text": "石",
+     "start": 2.92,
+     "end": 3.94,
+     "confidence": 1.0
+    },
+    {
+     "text": "こちら",
+     "start": 4.39,
+     "end": 4.65,
+     "confidence": 0.498
+    },
+    {
+     "text": "は",
+     "start": 4.65,
+     "end": 5.21,
+     "confidence": 1.0
+    },
+    {
+     "text": "リ",
+     "start": 5.21,
+     "end": 5.27,
+     "confidence": 0.501
+    },
+    {
+     "text": "ブ",
+     "start": 5.27,
+     "end": 5.37,
+     "confidence": 0.994
+    },
+    {
+     "text": "リ",
+     "start": 5.37,
+     "end": 5.41,
+     "confidence": 1.0
+    },
+    {
+     "text": "ボ",
+     "start": 5.41,
+     "end": 5.59,
+     "confidence": 0.949
+    },
+    {
+     "text": "ック",
+     "start": 5.59,
+     "end": 5.71,
+     "confidence": 1.0
+    },
+    {
+     "text": "ス",
+     "start": 5.71,
+     "end": 5.83,
+     "confidence": 1.0
+    },
+    {
+     "text": "です。",
+     "start": 5.83,
+     "end": 6.25,
+     "confidence": 0.999
+    }
+   ]
+  },
+  {
+   "start": 7.25,
+   "end": 10.29,
+   "text": "リブリボックスの録音はすべてパブリックドメインです。",
+   "confidence": 0.959,
+   "words": [
+    {
+     "text": "リ",
+     "start": 7.25,
+     "end": 7.33,
+     "confidence": 0.884
+    },
+    {
+     "text": "ブ",
+     "start": 7.33,
+     "end": 7.39,
+     "confidence": 0.994
+    },
+    {
+     "text": "リ",
+     "start": 7.39,
+     "end": 7.45,
+     "confidence": 1.0
+    },
+    {
+     "text": "ボ",
+     "start": 7.45,
+     "end": 7.71,
+     "confidence": 0.971
+    },
+    {
+     "text": "ック",
+     "start": 7.71,
+     "end": 7.71,
+     "confidence": 1.0
+    },
+    {
+     "text": "ス",
+     "start": 7.71,
+     "end": 7.75,
+     "confidence": 1.0
+    },
+    {
+     "text": "の",
+     "start": 7.75,
+     "end": 7.89,
+     "confidence": 1.0
+    },
+    {
+     "text": "録",
+     "start": 7.89,
+     "end": 8.09,
+     "confidence": 0.995
+    },
+    {
+     "text": "音",
+     "start": 8.09,
+     "end": 8.15,
+     "confidence": 1.0
+    },
+    {
+     "text": "は",
+     "start": 8.15,
+     "end": 8.45,
+     "confidence": 1.0
+    },
+    {
+     "text": "す",
+     "start": 8.45,
+     "end": 8.81,
+     "confidence": 0.559
+    },
+    {
+     "text": "べ",
+     "start": 8.81,
+     "end": 9.01,
+     "confidence": 1.0
+    },
+    {
+     "text": "て",
+     "start": 9.01,
+     "end": 9.35,
+     "confidence": 1.0
+    },
+    {
+     "text": "パ",
+     "start": 9.35,
+     "end": 9.39,
+     "confidence": 0.729
+    },
+    {
+     "text": "ブ",
+     "start": 9.39,
+     "end": 9.49,
+     "confidence": 0.999
+    },
+    {
+     "text": "リ",
+     "start": 9.49,
+     "end": 9.63,
+     "confidence": 1.0
+    },
+    {
+     "text": "ック",
+     "start": 9.63,
+     "end": 9.77,
+     "confidence": 1.0
+    },
+    {
+     "text": "ド",
+     "start": 9.77,
+     "end": 9.85,
+     "confidence": 0.99
+    },
+    {
+     "text": "メ",
+     "start": 9.85,
+     "end": 9.93,
+     "confidence": 0.995
+    },
+    {
+     "text": "イ",
+     "start": 9.93,
+     "end": 9.93,
+     "confidence": 0.998
+    },
+    {
+     "text": "ン",
+     "start": 9.93,
+     "end": 9.95,
+     "confidence": 0.998
+    },
+    {
+     "text": "です。",
+     "start": 9.95,
+     "end": 10.29,
+     "confidence": 0.999
+    }
+   ]
+  },
+  {
+   "start": 11.48,
+   "end": 14.38,
+   "text": "ボランティアについてなど詳しくはサイトをご覧ください。",
+   "confidence": 0.982,
+   "words": [
+    {
+     "text": "ボ",
+     "start": 11.48,
+     "end": 11.5,
+     "confidence": 0.988
+    },
+    {
+     "text": "ラ",
+     "start": 11.5,
+     "end": 11.62,
+     "confidence": 1.0
+    },
+    {
+     "text": "ンテ",
+     "start": 11.62,
+     "end": 11.76,
+     "confidence": 1.0
+    },
+    {
+     "text": "ィ",
+     "start": 11.76,
+     "end": 11.76,
+     "confidence": 0.996
+    },
+    {
+     "text": "ア",
+     "start": 11.76,
+     "end": 11.82,
+     "confidence": 1.0
+    },
+    {
+     "text": "に",
+     "start": 11.82,
+     "end": 11.94,
+     "confidence": 1.0
+    },
+    {
+     "text": "つ",
+     "start": 11.94,
+     "end": 12.06,
+     "confidence": 0.999
+    },
+    {
+     "text": "いて",
+     "start": 12.06,
+     "end": 12.18,
+     "confidence": 0.997
+    },
+    {
+     "text": "な",
+     "start": 12.18,
+     "end": 12.32,
+     "confidence": 0.938
+    },
+    {
+     "text": "ど",
+     "start": 12.32,
+     "end": 12.98,
+     "confidence": 1.0
+    },
+    {
+     "text": "詳",
+     "start": 12.98,
+     "end": 13.06,
+     "confidence": 0.875
+    },
+    {
+     "text": "しく",
+     "start": 13.06,
+     "end": 13.26,
+     "confidence": 1.0
+    },
+    {
+     "text": "は",
+     "start": 13.26,
+     "end": 13.46,
+     "confidence": 1.0
+    },
+    {
+     "text": "サ",
+     "start": 13.46,
+     "end": 13.56,
+     "confidence": 0.998
+    },
+    {
+     "text": "イ",
+     "start": 13.56,
+     "end": 13.6,
+     "confidence": 1.0
+    },
+    {
+     "text": "ト",
+     "start": 13.6,
+     "end": 13.68,
+     "confidence": 1.0
+    },
+    {
+     "text": "を",
+     "start": 13.68,
+     "end": 13.82,
+     "confidence": 1.0
+    },
+    {
+     "text": "ご",
+     "start": 13.82,
+     "end": 13.88,
+     "confidence": 0.97
+    },
+    {
+     "text": "覧",
+     "start": 13.88,
+     "end": 13.94,
+     "confidence": 0.987
+    },
+    {
+     "text": "ください。",
+     "start": 13.94,
+     "end": 14.38,
+     "confidence": 0.888
+    }
+   ]
+  },
+  {
+   "start": 15.56,
+   "end": 20.93,
+   "text": "URLリブリボックス・ドット・オーグ。1、",
+   "confidence": 0.912,
+   "words": [
+    {
+     "text": "UR",
+     "start": 15.56,
+     "end": 15.72,
+     "confidence": 1.0
+    },
+    {
+     "text": "L",
+     "start": 15.72,
+     "end": 16.38,
+     "confidence": 0.999
+    },
+    {
+     "text": "リ",
+     "start": 16.43,
+     "end": 16.97,
+     "confidence": 0.41
+    },
+    {
+     "text": "ブ",
+     "start": 16.97,
+     "end": 17.07,
+     "confidence": 0.984
+    },
+    {
+     "text": "リ",
+     "start": 17.07,
+     "end": 17.09,
+     "confidence": 1.0
+    },
+    {
+     "text": "ボ",
+     "start": 17.09,
+     "end": 17.27,
+     "confidence": 0.803
+    },
+    {
+     "text": "ック",
+     "start": 17.27,
+     "end": 17.39,
+     "confidence": 0.993
+    },
+    {
+     "text": "ス",
+     "start": 17.39,
+     "end": 18.07,
+     "confidence": 1.0
+    },
+    {
+     "text": "・",
+     "start": 18.07,
+     "end": 18.07,
+     "confidence": 0.837
+    },
+    {
+     "text": "ド",
+     "start": 18.07,
+     "end": 18.25,
+     "confidence": 0.881
+    },
+    {
+     "text": "ット",
+     "start": 18.25,
+     "end": 18.49,
+     "confidence": 0.979
+    },
+    {
+     "text": "・",
+     "start": 18.49,
+     "end": 18.49,
+     "confidence": 0.966
+    },
+    {
+     "text": "オ",
+     "start": 18.49,
+     "end": 18.65,
+     "confidence": 0.975
+    },
+    {
+     "text": "ー",
+     "start": 18.65,
+     "end": 18.69,
+     "confidence": 0.993
+    },
+    {
+     "text": "グ。",
+     "start": 18.69,
+     "end": 19.63,
+     "confidence": 1.0
+    },
+    {
+     "text": "1、",
+     "start": 20.79,
+     "end": 20.93,
+     "confidence": 0.778
+    }
+   ]
+  },
+  {
+   "start": 22.26,
+   "end": 26.14,
+   "text": "親譲りのモテッポーで、子供の時から損ばかりしている。",
+   "confidence": 0.933,
+   "words": [
+    {
+     "text": "親",
+     "start": 22.26,
+     "end": 22.44,
+     "confidence": 0.971
+    },
+    {
+     "text": "譲",
+     "start": 22.44,
+     "end": 22.56,
+     "confidence": 0.818
+    },
+    {
+     "text": "り",
+     "start": 22.56,
+     "end": 22.7,
+     "confidence": 1.0
+    },
+    {
+     "text": "の",
+     "start": 22.7,
+     "end": 22.88,
+     "confidence": 0.999
+    },
+    {
+     "text": "モ",
+     "start": 22.88,
+     "end": 23.02,
+     "confidence": 0.452
+    },
+    {
+     "text": "テ",
+     "start": 23.02,
+     "end": 23.06,
+     "confidence": 1.0
+    },
+    {
+     "text": "ッ",
+     "start": 23.06,
+     "end": 23.18,
+     "confidence": 0.935
+    },
+    {
+     "text": "ポ",
+     "start": 23.18,
+     "end": 23.3,
+     "confidence": 0.989
+    },
+    {
+     "text": "ー",
+     "start": 23.3,
+     "end": 23.4,
+     "confidence": 0.819
+    },
+    {
+     "text": "で、",
+     "start": 23.4,
+     "end": 24.02,
+     "confidence": 1.0
+    },
+    {
+     "text": "子",
+     "start": 24.1,
+     "end": 24.3,
+     "confidence": 0.993
+    },
+    {
+     "text": "供",
+     "start": 24.3,
+     "end": 24.44,
+     "confidence": 0.979
+    },
+    {
+     "text": "の",
+     "start": 24.44,
+     "end": 24.56,
+     "confidence": 1.0
+    },
+    {
+     "text": "時",
+     "start": 24.56,
+     "end": 24.68,
+     "confidence": 0.675
+    },
+    {
+     "text": "から",
+     "start": 24.68,
+     "end": 24.98,
+     "confidence": 0.999
+    },
+    {
+     "text": "損",
+     "start": 24.98,
+     "end": 25.38,
+     "confidence": 0.988
+    },
+    {
+     "text": "ば",
+     "start": 25.38,
+     "end": 25.54,
+     "confidence": 0.999
+    },
+    {
+     "text": "か",
+     "start": 25.54,
+     "end": 25.68,
+     "confidence": 0.999
+    },
+    {
+     "text": "り",
+     "start": 25.68,
+     "end": 25.7,
+     "confidence": 1.0
+    },
+    {
+     "text": "して",
+     "start": 25.7,
+     "end": 25.88,
+     "confidence": 0.996
+    },
+    {
+     "text": "いる。",
+     "start": 25.88,
+     "end": 26.14,
+     "confidence": 0.995
+    }
+   ]
+  },
+  {
+   "start": 27.28,
+   "end": 33.61,
+   "text": "小学校にいる自分、学校の2階から飛び降りて1週間ほど腰を抜かしたことがある。",
+   "confidence": 0.963,
+   "words": [
+    {
+     "text": "小",
+     "start": 27.28,
+     "end": 27.44,
+     "confidence": 1.0
+    },
+    {
+     "text": "学",
+     "start": 27.44,
+     "end": 27.64,
+     "confidence": 1.0
+    },
+    {
+     "text": "校",
+     "start": 27.64,
+     "end": 27.76,
+     "confidence": 1.0
+    },
+    {
+     "text": "に",
+     "start": 27.76,
+     "end": 27.9,
+     "confidence": 1.0
+    },
+    {
+     "text": "いる",
+     "start": 27.9,
+     "end": 28.08,
+     "confidence": 0.94
+    },
+    {
+     "text": "自",
+     "start": 28.08,
+     "end": 28.26,
+     "confidence": 0.927
+    },
+    {
+     "text": "分、",
+     "start": 28.26,
+     "end": 28.42,
+     "confidence": 1.0
+    },
+    {
+     "text": "学",
+     "start": 29.04,
+     "end": 29.26,
+     "confidence": 0.99
+    },
+    {
+     "text": "校",
+     "start": 29.26,
+     "end": 29.38,
+     "confidence": 1.0
+    },
+    {
+     "text": "の",
+     "start": 29.38,
+     "end": 29.48,
+     "confidence": 1.0
+    },
+    {
+     "text": "2",
+     "start": 29.48,
+     "end": 29.62,
+     "confidence": 0.755
+    },
+    {
+     "text": "階",
+     "start": 29.62,
+     "end": 29.7,
+     "confidence": 0.993
+    },
+    {
+     "text": "から",
+     "start": 29.7,
+     "end": 30.02,
+     "confidence": 1.0
+    },
+    {
+     "text": "飛",
+     "start": 30.02,
+     "end": 30.18,
+     "confidence": 0.998
+    },
+    {
+     "text": "び",
+     "start": 30.18,
+     "end": 30.34,
+     "confidence": 1.0
+    },
+    {
+     "text": "降",
+     "start": 30.34,
+     "end": 30.34,
+     "confidence": 0.975
+    },
+    {
+     "text": "り",
+     "start": 30.34,
+     "end": 30.4,
+     "confidence": 1.0
+    },
+    {
+     "text": "て",
+     "start": 30.4,
+     "end": 30.66,
+     "confidence": 1.0
+    },
+    {
+     "text": "1",
+     "start": 30.66,
+     "end": 31.26,
+     "confidence": 0.41
+    },
+    {
+     "text": "週",
+     "start": 31.26,
+     "end": 31.52,
+     "confidence": 1.0
+    },
+    {
+     "text": "間",
+     "start": 31.52,
+     "end": 31.7,
+     "confidence": 1.0
+    },
+    {
+     "text": "ほど",
+     "start": 31.7,
+     "end": 31.9,
+     "confidence": 0.985
+    },
+    {
+     "text": "腰",
+     "start": 32.33,
+     "end": 32.61,
+     "confidence": 0.991
+    },
+    {
+     "text": "を",
+     "start": 32.61,
+     "end": 32.77,
+     "confidence": 1.0
+    },
+    {
+     "text": "抜",
+     "start": 32.77,
+     "end": 32.83,
+     "confidence": 0.986
+    },
+    {
+     "text": "か",
+     "start": 32.83,
+     "end": 33.01,
+     "confidence": 1.0
+    },
+    {
+     "text": "した",
+     "start": 33.01,
+     "end": 33.11,
+     "confidence": 1.0
+    },
+    {
+     "text": "こと",
+     "start": 33.11,
+     "end": 33.29,
+     "confidence": 0.948
+    },
+    {
+     "text": "が",
+     "start": 33.29,
+     "end": 33.51,
+     "confidence": 0.999
+    },
+    {
+     "text": "ある。",
+     "start": 33.51,
+     "end": 33.61,
+     "confidence": 1.0
+    }
+   ]
+  },
+  {
+   "start": 34.91,
+   "end": 38.75,
+   "text": "なぜそんな、悩みをしたと聞く人があるかもしれぬ。",
+   "confidence": 0.97,
+   "words": [
+    {
+     "text": "な",
+     "start": 34.91,
+     "end": 35.01,
+     "confidence": 0.753
+    },
+    {
+     "text": "ぜ",
+     "start": 35.01,
+     "end": 35.21,
+     "confidence": 1.0
+    },
+    {
+     "text": "そんな、",
+     "start": 35.21,
+     "end": 35.59,
+     "confidence": 0.958
+    },
+    {
+     "text": "悩",
+     "start": 35.71,
+     "end": 36.13,
+     "confidence": 0.939
+    },
+    {
+     "text": "み",
+     "start": 36.13,
+     "end": 36.25,
+     "confidence": 1.0
+    },
+    {
+     "text": "を",
+     "start": 36.25,
+     "end": 36.39,
+     "confidence": 0.999
+    },
+    {
+     "text": "した",
+     "start": 36.39,
+     "end": 36.51,
+     "confidence": 0.999
+    },
+    {
+     "text": "と",
+     "start": 36.51,
+     "end": 36.63,
+     "confidence": 0.984
+    },
+    {
+     "text": "聞",
+     "start": 36.63,
+     "end": 36.83,
+     "confidence": 0.959
+    },
+    {
+     "text": "く",
+     "start": 36.83,
+     "end": 36.97,
+     "confidence": 1.0
+    },
+    {
+     "text": "人",
+     "start": 36.97,
+     "end": 37.07,
+     "confidence": 0.982
+    },
+    {
+     "text": "が",
+     "start": 37.07,
+     "end": 37.31,
+     "confidence": 1.0
+    },
+    {
+     "text": "ある",
+     "start": 37.31,
+     "end": 37.45,
+     "confidence": 0.989
+    },
+    {
+     "text": "か",
+     "start": 37.45,
+     "end": 37.59,
+     "confidence": 1.0
+    },
+    {
+     "text": "もし",
+     "start": 37.59,
+     "end": 37.67,
+     "confidence": 0.926
+    },
+    {
+     "text": "れ",
+     "start": 37.67,
+     "end": 37.85,
+     "confidence": 1.0
+    },
+    {
+     "text": "ぬ。",
+     "start": 37.85,
+     "end": 38.75,
+     "confidence": 1.0
+    }
+   ]
+  },
+  {
+   "start": 38.96,
+   "end": 40.56,
+   "text": "別段、深い理由でもない。",
+   "confidence": 0.999,
+   "words": [
+    {
+     "text": "別",
+     "start": 38.96,
+     "end": 39.2,
+     "confidence": 1.0
+    },
+    {
+     "text": "段、",
+     "start": 39.2,
+     "end": 39.66,
+     "confidence": 1.0
+    },
+    {
+     "text": "深",
+     "start": 39.68,
+     "end": 39.86,
+     "confidence": 0.999
+    },
+    {
+     "text": "い",
+     "start": 39.86,
+     "end": 40.0,
+     "confidence": 1.0
+    },
+    {
+     "text": "理",
+     "start": 40.0,
+     "end": 40.12,
+     "confidence": 0.999
+    },
+    {
+     "text": "由",
+     "start": 40.12,
+     "end": 40.16,
+     "confidence": 1.0
+    },
+    {
+     "text": "でも",
+     "start": 40.16,
+     "end": 40.32,
+     "confidence": 1.0
+    },
+    {
+     "text": "ない。",
+     "start": 40.32,
+     "end": 40.56,
+     "confidence": 0.995
+    }
+   ]
+  },
+  {
+   "start": 41.74,
+   "end": 54.79,
+   "text": "新築の二階から首を出していたら、同級生の一人が冗談にいくら威張ってもそこから飛び降りることはできまい、湯浴し合いと生やした殻である。",
+   "confidence": 0.924,
+   "words": [
+    {
+     "text": "新",
+     "start": 41.74,
+     "end": 41.96,
+     "confidence": 0.99
+    },
+    {
+     "text": "築",
+     "start": 41.96,
+     "end": 42.06,
+     "confidence": 0.994
+    },
+    {
+     "text": "の",
+     "start": 42.06,
+     "end": 42.2,
+     "confidence": 1.0
+    },
+    {
+     "text": "二",
+     "start": 42.2,
+     "end": 42.38,
+     "confidence": 0.8
+    },
+    {
+     "text": "階",
+     "start": 42.38,
+     "end": 42.48,
+     "confidence": 1.0
+    },
+    {
+     "text": "から",
+     "start": 42.48,
+     "end": 43.06,
+     "confidence": 1.0
+    },
+    {
+     "text": "首",
+     "start": 43.06,
+     "end": 43.4,
+     "confidence": 0.55
+    },
+    {
+     "text": "を",
+     "start": 43.4,
+     "end": 43.54,
+     "confidence": 1.0
+    },
+    {
+     "text": "出",
+     "start": 43.54,
+     "end": 43.62,
+     "confidence": 0.977
+    },
+    {
+     "text": "して",
+     "start": 43.62,
+     "end": 43.78,
+     "confidence": 1.0
+    },
+    {
+     "text": "いた",
+     "start": 43.78,
+     "end": 43.94,
+     "confidence": 0.998
+    },
+    {
+     "text": "ら、",
+     "start": 43.94,
+     "end": 44.92,
+     "confidence": 1.0
+    },
+    {
+     "text": "同",
+     "start": 44.94,
+     "end": 45.06,
+     "confidence": 1.0
+    },
+    {
+     "text": "級",
+     "start": 45.06,
+     "end": 45.28,
+     "confidence": 0.999
+    },
+    {
+     "text": "生",
+     "start": 45.28,
+     "end": 45.4,
+     "confidence": 1.0
+    },
+    {
+     "text": "の",
+     "start": 45.4,
+     "end": 45.52,
+     "confidence": 1.0
+    },
+    {
+     "text": "一",
+     "start": 45.52,
+     "end": 45.58,
+     "confidence": 0.818
+    },
+    {
+     "text": "人",
+     "start": 45.58,
+     "end": 45.72,
+     "confidence": 1.0
+    },
+    {
+     "text": "が",
+     "start": 45.72,
+     "end": 46.06,
+     "confidence": 1.0
+    },
+    {
+     "text": "冗",
+     "start": 46.06,
+     "end": 46.18,
+     "confidence": 0.996
+    },
+    {
+     "text": "談",
+     "start": 46.18,
+     "end": 46.36,
+     "confidence": 1.0
+    },
+    {
+     "text": "に",
+     "start": 46.36,
+     "end": 46.6,
+     "confidence": 1.0
+    },
+    {
+     "text": "いく",
+     "start": 47.07,
+     "end": 47.43,
+     "confidence": 0.985
+    },
+    {
+     "text": "ら",
+     "start": 47.43,
+     "end": 47.63,
+     "confidence": 0.995
+    },
+    {
+     "text": "威",
+     "start": 47.63,
+     "end": 47.71,
+     "confidence": 0.991
+    },
+    {
+     "text": "張",
+     "start": 47.71,
+     "end": 47.73,
+     "confidence": 0.991
+    },
+    {
+     "text": "って",
+     "start": 47.73,
+     "end": 47.99,
+     "confidence": 0.999
+    },
+    {
+     "text": "も",
+     "start": 47.99,
+     "end": 48.61,
+     "confidence": 0.999
+    },
+    {
+     "text": "そ",
+     "start": 48.61,
+     "end": 48.79,
+     "confidence": 0.669
+    },
+    {
+     "text": "こ",
+     "start": 48.79,
+     "end": 48.89,
+     "confidence": 0.997
+    },
+    {
+     "text": "から",
+     "start": 48.89,
+     "end": 49.33,
+     "confidence": 1.0
+    },
+    {
+     "text": "飛",
+     "start": 49.33,
+     "end": 49.41,
+     "confidence": 0.995
+    },
+    {
+     "text": "び",
+     "start": 49.41,
+     "end": 49.61,
+     "confidence": 1.0
+    },
+    {
+     "text": "降",
+     "start": 49.61,
+     "end": 49.61,
+     "confidence": 0.865
+    },
+    {
+     "text": "り",
+     "start": 49.61,
+     "end": 49.73,
+     "confidence": 0.502
+    },
+    {
+     "text": "る",
+     "start": 49.73,
+     "end": 49.75,
+     "confidence": 0.999
+    },
+    {
+     "text": "こと",
+     "start": 49.75,
+     "end": 49.95,
+     "confidence": 0.96
+    },
+    {
+     "text": "は",
+     "start": 49.95,
+     "end": 50.17,
+     "confidence": 1.0
+    },
+    {
+     "text": "でき",
+     "start": 50.17,
+     "end": 50.27,
+     "confidence": 0.808
+    },
+    {
+     "text": "ま",
+     "start": 50.27,
+     "end": 50.45,
+     "confidence": 0.999
+    },
+    {
+     "text": "い、",
+     "start": 50.45,
+     "end": 51.03,
+     "confidence": 0.994
+    },
+    {
+     "text": "湯",
+     "start": 51.09,
+     "end": 51.21,
+     "confidence": 0.709
+    },
+    {
+     "text": "浴",
+     "start": 51.21,
+     "end": 51.29,
+     "confidence": 0.73
+    },
+    {
+     "text": "し",
+     "start": 51.29,
+     "end": 51.47,
+     "confidence": 0.844
+    },
+    {
+     "text": "合",
+     "start": 51.47,
+     "end": 51.61,
+     "confidence": 0.418
+    },
+    {
+     "text": "い",
+     "start": 51.61,
+     "end": 52.35,
+     "confidence": 0.995
+    },
+    {
+     "text": "と",
+     "start": 52.35,
+     "end": 52.75,
+     "confidence": 0.632
+    },
+    {
+     "text": "生",
+     "start": 52.75,
+     "end": 53.29,
+     "confidence": 0.924
+    },
+    {
+     "text": "や",
+     "start": 53.29,
+     "end": 53.49,
+     "confidence": 0.961
+    },
+    {
+     "text": "した",
+     "start": 53.49,
+     "end": 53.49,
+     "confidence": 0.994
+    },
+    {
+     "text": "殻",
+     "start": 53.49,
+     "end": 53.67,
+     "confidence": 0.893
+    },
+    {
+     "text": "で",
+     "start": 53.67,
+     "end": 53.81,
+     "confidence": 1.0
+    },
+    {
+     "text": "ある。",
+     "start": 53.81,
+     "end": 54.79,
+     "confidence": 0.999
+    }
+   ]
+  },
+  {
+   "start": 55.01,
+   "end": 64.04,
+   "text": "小遣いにおぶさって帰ってきたとき、親父が大きな目をして、二回ぐらいから飛び降りて腰を抜かす奴があるかと言ったから、",
+   "confidence": 0.943,
+   "words": [
+    {
+     "text": "小",
+     "start": 55.01,
+     "end": 55.19,
+     "confidence": 0.997
+    },
+    {
+     "text": "遣",
+     "start": 55.19,
+     "end": 55.23,
+     "confidence": 0.996
+    },
+    {
+     "text": "い",
+     "start": 55.23,
+     "end": 55.51,
+     "confidence": 0.998
+    },
+    {
+     "text": "に",
+     "start": 55.51,
+     "end": 55.75,
+     "confidence": 1.0
+    },
+    {
+     "text": "お",
+     "start": 55.75,
+     "end": 55.83,
+     "confidence": 0.379
+    },
+    {
+     "text": "ぶ",
+     "start": 55.83,
+     "end": 55.87,
+     "confidence": 0.969
+    },
+    {
+     "text": "さ",
+     "start": 55.87,
+     "end": 55.99,
+     "confidence": 0.977
+    },
+    {
+     "text": "って",
+     "start": 55.99,
+     "end": 56.19,
+     "confidence": 0.992
+    },
+    {
+     "text": "帰",
+     "start": 56.19,
+     "end": 56.39,
+     "confidence": 0.976
+    },
+    {
+     "text": "って",
+     "start": 56.39,
+     "end": 56.59,
+     "confidence": 1.0
+    },
+    {
+     "text": "きた",
+     "start": 56.59,
+     "end": 56.67,
+     "confidence": 0.904
+    },
+    {
+     "text": "と",
+     "start": 56.67,
+     "end": 56.85,
+     "confidence": 0.641
+    },
+    {
+     "text": "き、",
+     "start": 56.85,
+     "end": 57.47,
+     "confidence": 1.0
+    },
+    {
+     "text": "親",
+     "start": 57.87,
+     "end": 57.97,
+     "confidence": 0.718
+    },
+    {
+     "text": "父",
+     "start": 57.97,
+     "end": 58.05,
+     "confidence": 1.0
+    },
+    {
+     "text": "が",
+     "start": 58.05,
+     "end": 58.45,
+     "confidence": 1.0
+    },
+    {
+     "text": "大",
+     "start": 58.45,
+     "end": 58.79,
+     "confidence": 0.996
+    },
+    {
+     "text": "き",
+     "start": 58.79,
+     "end": 58.87,
+     "confidence": 1.0
+    },
+    {
+     "text": "な",
+     "start": 58.87,
+     "end": 59.01,
+     "confidence": 1.0
+    },
+    {
+     "text": "目",
+     "start": 59.01,
+     "end": 59.07,
+     "confidence": 0.948
+    },
+    {
+     "text": "を",
+     "start": 59.07,
+     "end": 59.19,
+     "confidence": 1.0
+    },
+    {
+     "text": "して、",
+     "start": 59.19,
+     "end": 59.45,
+     "confidence": 1.0
+    },
+    {
+     "text": "二",
+     "start": 60.21,
+     "end": 60.31,
+     "confidence": 0.629
+    },
+    {
+     "text": "回",
+     "start": 60.31,
+     "end": 60.41,
+     "confidence": 0.93
+    },
+    {
+     "text": "ぐ",
+     "start": 60.41,
+     "end": 60.53,
+     "confidence": 0.92
+    },
+    {
+     "text": "らい",
+     "start": 60.53,
+     "end": 60.67,
+     "confidence": 1.0
+    },
+    {
+     "text": "から",
+     "start": 60.67,
+     "end": 60.93,
+     "confidence": 1.0
+    },
+    {
+     "text": "飛",
+     "start": 60.93,
+     "end": 61.07,
+     "confidence": 0.997
+    },
+    {
+     "text": "び",
+     "start": 61.07,
+     "end": 61.21,
+     "confidence": 1.0
+    },
+    {
+     "text": "降",
+     "start": 61.21,
+     "end": 61.21,
+     "confidence": 0.846
+    },
+    {
+     "text": "り",
+     "start": 61.21,
+     "end": 61.25,
+     "confidence": 1.0
+    },
+    {
+     "text": "て",
+     "start": 61.25,
+     "end": 61.49,
+     "confidence": 1.0
+    },
+    {
+     "text": "腰",
+     "start": 61.9,
+     "end": 62.22,
+     "confidence": 0.995
+    },
+    {
+     "text": "を",
+     "start": 62.22,
+     "end": 62.4,
+     "confidence": 1.0
+    },
+    {
+     "text": "抜",
+     "start": 62.4,
+     "end": 62.48,
+     "confidence": 0.945
+    },
+    {
+     "text": "か",
+     "start": 62.48,
+     "end": 62.66,
+     "confidence": 1.0
+    },
+    {
+     "text": "す",
+     "start": 62.66,
+     "end": 62.7,
+     "confidence": 1.0
+    },
+    {
+     "text": "奴",
+     "start": 62.7,
+     "end": 62.84,
+     "confidence": 0.72
+    },
+    {
+     "text": "が",
+     "start": 62.84,
+     "end": 63.14,
+     "confidence": 1.0
+    },
+    {
+     "text": "ある",
+     "start": 63.14,
+     "end": 63.3,
+     "confidence": 0.996
+    },
+    {
+     "text": "か",
+     "start": 63.3,
+     "end": 63.44,
+     "confidence": 0.999
+    },
+    {
+     "text": "と",
+     "start": 63.44,
+     "end": 63.56,
+     "confidence": 0.996
+    },
+    {
+     "text": "言",
+     "start": 63.56,
+     "end": 63.62,
+     "confidence": 0.967
+    },
+    {
+     "text": "った",
+     "start": 63.62,
+     "end": 63.74,
+     "confidence": 1.0
+    },
+    {
+     "text": "から、",
+     "start": 63.74,
+     "end": 64.04,
+     "confidence": 1.0
+    }
+   ]
+  },
+  {
+   "start": 64.98,
+   "end": 68.74,
+   "text": "この次は抜かさずに飛んでみせますと答えた。",
+   "confidence": 0.96,
+   "words": [
+    {
+     "text": "この",
+     "start": 64.98,
+     "end": 65.02,
+     "confidence": 1.0
+    },
+    {
+     "text": "次",
+     "start": 65.02,
+     "end": 65.2,
+     "confidence": 1.0
+    },
+    {
+     "text": "は",
+     "start": 65.2,
+     "end": 65.74,
+     "confidence": 1.0
+    },
+    {
+     "text": "抜",
+     "start": 65.74,
+     "end": 65.86,
+     "confidence": 0.727
+    },
+    {
+     "text": "か",
+     "start": 65.86,
+     "end": 66.04,
+     "confidence": 0.996
+    },
+    {
+     "text": "さ",
+     "start": 66.04,
+     "end": 66.08,
+     "confidence": 1.0
+    },
+    {
+     "text": "ず",
+     "start": 66.08,
+     "end": 66.28,
+     "confidence": 1.0
+    },
+    {
+     "text": "に",
+     "start": 66.28,
+     "end": 66.64,
+     "confidence": 1.0
+    },
+    {
+     "text": "飛",
+     "start": 66.64,
+     "end": 66.74,
+     "confidence": 0.777
+    },
+    {
+     "text": "んで",
+     "start": 66.74,
+     "end": 66.92,
+     "confidence": 1.0
+    },
+    {
+     "text": "み",
+     "start": 66.92,
+     "end": 67.02,
+     "confidence": 0.826
+    },
+    {
+     "text": "せ",
+     "start": 67.02,
+     "end": 67.1,
+     "confidence": 0.998
+    },
+    {
+     "text": "ます",
+     "start": 67.1,
+     "end": 67.26,
+     "confidence": 1.0
+    },
+    {
+     "text": "と",
+     "start": 67.26,
+     "end": 67.46,
+     "confidence": 0.994
+    },
+    {
+     "text": "答",
+     "start": 67.46,
+     "end": 67.6,
+     "confidence": 0.997
+    },
+    {
+     "text": "え",
+     "start": 67.6,
+     "end": 67.78,
+     "confidence": 1.0
+    },
+    {
+     "text": "た。",
+     "start": 67.78,
+     "end": 68.74,
+     "confidence": 1.0
+    }
+   ]
+  },
+  {
+   "start": 69.37,
+   "end": 80.43,
+   "text": "親類の者から西洋製のナイフをもらって、綺麗な葉を日にかざして、友達に見せていたら…一人が光ることは光るが、切れそうもないと言った。",
+   "confidence": 0.951,
+   "words": [
+    {
+     "text": "親",
+     "start": 69.37,
+     "end": 69.55,
+     "confidence": 0.935
+    },
+    {
+     "text": "類",
+     "start": 69.55,
+     "end": 69.61,
+     "confidence": 1.0
+    },
+    {
+     "text": "の",
+     "start": 69.61,
+     "end": 69.75,
+     "confidence": 1.0
+    },
+    {
+     "text": "者",
+     "start": 69.75,
+     "end": 69.93,
+     "confidence": 0.689
+    },
+    {
+     "text": "から",
+     "start": 69.93,
+     "end": 70.47,
+     "confidence": 1.0
+    },
+    {
+     "text": "西",
+     "start": 70.47,
+     "end": 70.89,
+     "confidence": 0.593
+    },
+    {
+     "text": "洋",
+     "start": 70.89,
+     "end": 71.11,
+     "confidence": 1.0
+    },
+    {
+     "text": "製",
+     "start": 71.11,
+     "end": 71.29,
+     "confidence": 0.999
+    },
+    {
+     "text": "の",
+     "start": 71.29,
+     "end": 71.45,
+     "confidence": 1.0
+    },
+    {
+     "text": "ナ",
+     "start": 71.45,
+     "end": 71.59,
+     "confidence": 0.999
+    },
+    {
+     "text": "イ",
+     "start": 71.59,
+     "end": 71.59,
+     "confidence": 1.0
+    },
+    {
+     "text": "フ",
+     "start": 71.59,
+     "end": 71.69,
+     "confidence": 1.0
+    },
+    {
+     "text": "を",
+     "start": 71.69,
+     "end": 71.81,
+     "confidence": 0.999
+    },
+    {
+     "text": "も",
+     "start": 71.81,
+     "end": 71.85,
+     "confidence": 0.743
+    },
+    {
+     "text": "ら",
+     "start": 71.85,
+     "end": 72.03,
+     "confidence": 1.0
+    },
+    {
+     "text": "って、",
+     "start": 72.03,
+     "end": 72.29,
+     "confidence": 1.0
+    },
+    {
+     "text": "綺",
+     "start": 73.03,
+     "end": 73.07,
+     "confidence": 0.975
+    },
+    {
+     "text": "麗",
+     "start": 73.07,
+     "end": 73.15,
+     "confidence": 1.0
+    },
+    {
+     "text": "な",
+     "start": 73.15,
+     "end": 73.29,
+     "confidence": 1.0
+    },
+    {
+     "text": "葉",
+     "start": 73.29,
+     "end": 73.41,
+     "confidence": 0.853
+    },
+    {
+     "text": "を",
+     "start": 73.41,
+     "end": 73.59,
+     "confidence": 1.0
+    },
+    {
+     "text": "日",
+     "start": 73.59,
+     "end": 73.85,
+     "confidence": 0.923
+    },
+    {
+     "text": "に",
+     "start": 73.85,
+     "end": 74.03,
+     "confidence": 1.0
+    },
+    {
+     "text": "か",
+     "start": 74.03,
+     "end": 74.05,
+     "confidence": 0.88
+    },
+    {
+     "text": "ざ",
+     "start": 74.05,
+     "end": 74.19,
+     "confidence": 1.0
+    },
+    {
+     "text": "して、",
+     "start": 74.19,
+     "end": 74.51,
+     "confidence": 1.0
+    },
+    {
+     "text": "友",
+     "start": 75.05,
+     "end": 75.19,
+     "confidence": 0.998
+    },
+    {
+     "text": "達",
+     "start": 75.19,
+     "end": 75.35,
+     "confidence": 0.997
+    },
+    {
+     "text": "に",
+     "start": 75.35,
+     "end": 75.57,
+     "confidence": 1.0
+    },
+    {
+     "text": "見",
+     "start": 75.57,
+     "end": 75.69,
+     "confidence": 0.97
+    },
+    {
+     "text": "せて",
+     "start": 75.69,
+     "end": 75.85,
+     "confidence": 1.0
+    },
+    {
+     "text": "いた",
+     "start": 75.85,
+     "end": 76.01,
+     "confidence": 0.989
+    },
+    {
+     "text": "ら",
+     "start": 76.01,
+     "end": 76.51,
+     "confidence": 1.0
+    },
+    {
+     "text": "…",
+     "start": 76.51,
+     "end": 76.65,
+     "confidence": 0.972
+    },
+    {
+     "text": "一",
+     "start": 76.65,
+     "end": 77.09,
+     "confidence": 0.854
+    },
+    {
+     "text": "人",
+     "start": 77.09,
+     "end": 77.21,
+     "confidence": 1.0
+    },
+    {
+     "text": "が",
+     "start": 77.21,
+     "end": 77.77,
+     "confidence": 1.0
+    },
+    {
+     "text": "光",
+     "start": 77.77,
+     "end": 77.91,
+     "confidence": 0.597
+    },
+    {
+     "text": "る",
+     "start": 77.91,
+     "end": 78.07,
+     "confidence": 1.0
+    },
+    {
+     "text": "こと",
+     "start": 78.07,
+     "end": 78.25,
+     "confidence": 0.983
+    },
+    {
+     "text": "は",
+     "start": 78.25,
+     "end": 78.37,
+     "confidence": 1.0
+    },
+    {
+     "text": "光",
+     "start": 78.37,
+     "end": 78.51,
+     "confidence": 0.999
+    },
+    {
+     "text": "る",
+     "start": 78.51,
+     "end": 78.61,
+     "confidence": 0.998
+    },
+    {
+     "text": "が、",
+     "start": 78.61,
+     "end": 79.27,
+     "confidence": 1.0
+    },
+    {
+     "text": "切",
+     "start": 79.35,
+     "end": 79.45,
+     "confidence": 0.535
+    },
+    {
+     "text": "れ",
+     "start": 79.45,
+     "end": 79.53,
+     "confidence": 1.0
+    },
+    {
+     "text": "そう",
+     "start": 79.53,
+     "end": 79.67,
+     "confidence": 1.0
+    },
+    {
+     "text": "も",
+     "start": 79.67,
+     "end": 79.81,
+     "confidence": 1.0
+    },
+    {
+     "text": "ない",
+     "start": 79.81,
+     "end": 79.97,
+     "confidence": 0.995
+    },
+    {
+     "text": "と",
+     "start": 79.97,
+     "end": 80.09,
+     "confidence": 0.995
+    },
+    {
+     "text": "言",
+     "start": 80.09,
+     "end": 80.21,
+     "confidence": 0.963
+    },
+    {
+     "text": "った。",
+     "start": 80.21,
+     "end": 80.43,
+     "confidence": 1.0
+    }
+   ]
+  },
+  {
+   "start": 81.48,
+   "end": 84.9,
+   "text": "切れぬことがあるか、なんでも切ってみせると受け合った。",
+   "confidence": 0.908,
+   "words": [
+    {
+     "text": "切",
+     "start": 81.48,
+     "end": 81.62,
+     "confidence": 0.594
+    },
+    {
+     "text": "れ",
+     "start": 81.62,
+     "end": 81.7,
+     "confidence": 0.997
+    },
+    {
+     "text": "ぬ",
+     "start": 81.7,
+     "end": 81.78,
+     "confidence": 1.0
+    },
+    {
+     "text": "こと",
+     "start": 81.78,
+     "end": 81.98,
+     "confidence": 0.981
+    },
+    {
+     "text": "が",
+     "start": 81.98,
+     "end": 82.16,
+     "confidence": 0.999
+    },
+    {
+     "text": "ある",
+     "start": 82.16,
+     "end": 82.26,
+     "confidence": 1.0
+    },
+    {
+     "text": "か、",
+     "start": 82.26,
+     "end": 82.5,
+     "confidence": 1.0
+    },
+    {
+     "text": "なん",
+     "start": 83.26,
+     "end": 83.38,
+     "confidence": 0.657
+    },
+    {
+     "text": "でも",
+     "start": 83.38,
+     "end": 83.72,
+     "confidence": 1.0
+    },
+    {
+     "text": "切",
+     "start": 83.72,
+     "end": 83.88,
+     "confidence": 0.713
+    },
+    {
+     "text": "って",
+     "start": 83.88,
+     "end": 84.04,
+     "confidence": 1.0
+    },
+    {
+     "text": "み",
+     "start": 84.04,
+     "end": 84.1,
+     "confidence": 0.927
+    },
+    {
+     "text": "せ",
+     "start": 84.1,
+     "end": 84.32,
+     "confidence": 1.0
+    },
+    {
+     "text": "る",
+     "start": 84.32,
+     "end": 84.34,
+     "confidence": 1.0
+    },
+    {
+     "text": "と",
+     "start": 84.34,
+     "end": 84.48,
+     "confidence": 0.997
+    },
+    {
+     "text": "受",
+     "start": 84.48,
+     "end": 84.56,
+     "confidence": 0.522
+    },
+    {
+     "text": "け",
+     "start": 84.56,
+     "end": 84.66,
+     "confidence": 1.0
+    },
+    {
+     "text": "合",
+     "start": 84.66,
+     "end": 84.68,
+     "confidence": 0.868
+    },
+    {
+     "text": "った。",
+     "start": 84.68,
+     "end": 84.9,
+     "confidence": 0.999
+    }
+   ]
+  },
+  {
+   "start": 86.02,
+   "end": 88.68,
+   "text": "そんなら君の指を切ってみろと注文したから、",
+   "confidence": 0.964,
+   "words": [
+    {
+     "text": "そんな",
+     "start": 86.02,
+     "end": 86.22,
+     "confidence": 0.991
+    },
+    {
+     "text": "ら",
+     "start": 86.22,
+     "end": 86.8,
+     "confidence": 0.991
+    },
+    {
+     "text": "君",
+     "start": 86.8,
+     "end": 86.9,
+     "confidence": 0.511
+    },
+    {
+     "text": "の",
+     "start": 86.9,
+     "end": 87.06,
+     "confidence": 1.0
+    },
+    {
+     "text": "指",
+     "start": 87.06,
+     "end": 87.22,
+     "confidence": 1.0
+    },
+    {
+     "text": "を",
+     "start": 87.22,
+     "end": 87.36,
+     "confidence": 0.999
+    },
+    {
+     "text": "切",
+     "start": 87.36,
+     "end": 87.5,
+     "confidence": 0.978
+    },
+    {
+     "text": "って",
+     "start": 87.5,
+     "end": 87.6,
+     "confidence": 1.0
+    },
+    {
+     "text": "み",
+     "start": 87.6,
+     "end": 87.66,
+     "confidence": 0.998
+    },
+    {
+     "text": "ろ",
+     "start": 87.66,
+     "end": 87.8,
+     "confidence": 1.0
+    },
+    {
+     "text": "と",
+     "start": 87.8,
+     "end": 87.96,
+     "confidence": 0.999
+    },
+    {
+     "text": "注",
+     "start": 87.96,
+     "end": 88.16,
+     "confidence": 0.999
+    },
+    {
+     "text": "文",
+     "start": 88.16,
+     "end": 88.26,
+     "confidence": 1.0
+    },
+    {
+     "text": "した",
+     "start": 88.26,
+     "end": 88.44,
+     "confidence": 1.0
+    },
+    {
+     "text": "から、",
+     "start": 88.44,
+     "end": 88.68,
+     "confidence": 1.0
+    }
+   ]
+  },
+  {
+   "start": 89.72,
+   "end": 95.52,
+   "text": "なんだ指ぐらいこの通りだと右の手の親指の甲を蓮に切り込んだ。",
+   "confidence": 0.967,
+   "words": [
+    {
+     "text": "なんだ",
+     "start": 89.72,
+     "end": 89.86,
+     "confidence": 0.983
+    },
+    {
+     "text": "指",
+     "start": 89.86,
+     "end": 90.46,
+     "confidence": 0.923
+    },
+    {
+     "text": "ぐ",
+     "start": 90.46,
+     "end": 90.66,
+     "confidence": 0.998
+    },
+    {
+     "text": "らい",
+     "start": 90.66,
+     "end": 90.96,
+     "confidence": 1.0
+    },
+    {
+     "text": "この",
+     "start": 90.96,
+     "end": 91.12,
+     "confidence": 0.938
+    },
+    {
+     "text": "通",
+     "start": 91.12,
+     "end": 91.32,
+     "confidence": 0.882
+    },
+    {
+     "text": "り",
+     "start": 91.32,
+     "end": 91.38,
+     "confidence": 1.0
+    },
+    {
+     "text": "だ",
+     "start": 91.38,
+     "end": 91.5,
+     "confidence": 1.0
+    },
+    {
+     "text": "と",
+     "start": 91.5,
+     "end": 91.74,
+     "confidence": 0.999
+    },
+    {
+     "text": "右",
+     "start": 92.0,
+     "end": 92.36,
+     "confidence": 0.997
+    },
+    {
+     "text": "の",
+     "start": 92.36,
+     "end": 92.52,
+     "confidence": 0.999
+    },
+    {
+     "text": "手",
+     "start": 92.52,
+     "end": 92.62,
+     "confidence": 1.0
+    },
+    {
+     "text": "の",
+     "start": 92.62,
+     "end": 92.84,
+     "confidence": 1.0
+    },
+    {
+     "text": "親",
+     "start": 92.84,
+     "end": 92.94,
+     "confidence": 0.986
+    },
+    {
+     "text": "指",
+     "start": 92.94,
+     "end": 93.14,
+     "confidence": 1.0
+    },
+    {
+     "text": "の",
+     "start": 93.14,
+     "end": 93.32,
+     "confidence": 1.0
+    },
+    {
+     "text": "甲",
+     "start": 93.32,
+     "end": 93.48,
+     "confidence": 0.753
+    },
+    {
+     "text": "を",
+     "start": 93.48,
+     "end": 93.76,
+     "confidence": 1.0
+    },
+    {
+     "text": "蓮",
+     "start": 93.76,
+     "end": 94.06,
+     "confidence": 0.852
+    },
+    {
+     "text": "に",
+     "start": 94.06,
+     "end": 94.24,
+     "confidence": 1.0
+    },
+    {
+     "text": "切",
+     "start": 94.24,
+     "end": 94.34,
+     "confidence": 0.926
+    },
+    {
+     "text": "り",
+     "start": 94.34,
+     "end": 94.46,
+     "confidence": 1.0
+    },
+    {
+     "text": "込",
+     "start": 94.46,
+     "end": 94.5,
+     "confidence": 0.978
+    },
+    {
+     "text": "んだ。",
+     "start": 94.5,
+     "end": 95.52,
+     "confidence": 1.0
+    }
+   ]
+  },
+  {
+   "start": 95.8,
+   "end": 102.78,
+   "text": "幸いナイフが小さいのと、親指の骨が硬かったので、未だに親指は手についている。",
+   "confidence": 0.97,
+   "words": [
+    {
+     "text": "幸",
+     "start": 95.8,
+     "end": 96.0,
+     "confidence": 0.979
+    },
+    {
+     "text": "い",
+     "start": 96.0,
+     "end": 96.54,
+     "confidence": 1.0
+    },
+    {
+     "text": "ナ",
+     "start": 96.54,
+     "end": 96.64,
+     "confidence": 0.779
+    },
+    {
+     "text": "イ",
+     "start": 96.64,
+     "end": 96.7,
+     "confidence": 0.997
+    },
+    {
+     "text": "フ",
+     "start": 96.7,
+     "end": 96.8,
+     "confidence": 1.0
+    },
+    {
+     "text": "が",
+     "start": 96.8,
+     "end": 96.96,
+     "confidence": 1.0
+    },
+    {
+     "text": "小",
+     "start": 96.96,
+     "end": 97.16,
+     "confidence": 0.999
+    },
+    {
+     "text": "さい",
+     "start": 97.16,
+     "end": 97.26,
+     "confidence": 0.999
+    },
+    {
+     "text": "の",
+     "start": 97.26,
+     "end": 97.42,
+     "confidence": 1.0
+    },
+    {
+     "text": "と、",
+     "start": 97.42,
+     "end": 98.28,
+     "confidence": 1.0
+    },
+    {
+     "text": "親",
+     "start": 98.28,
+     "end": 98.42,
+     "confidence": 1.0
+    },
+    {
+     "text": "指",
+     "start": 98.42,
+     "end": 98.58,
+     "confidence": 1.0
+    },
+    {
+     "text": "の",
+     "start": 98.58,
+     "end": 98.74,
+     "confidence": 1.0
+    },
+    {
+     "text": "骨",
+     "start": 98.74,
+     "end": 98.88,
+     "confidence": 1.0
+    },
+    {
+     "text": "が",
+     "start": 98.88,
+     "end": 99.14,
+     "confidence": 1.0
+    },
+    {
+     "text": "硬",
+     "start": 99.14,
+     "end": 99.48,
+     "confidence": 0.832
+    },
+    {
+     "text": "かった",
+     "start": 99.48,
+     "end": 99.76,
+     "confidence": 1.0
+    },
+    {
+     "text": "ので、",
+     "start": 99.76,
+     "end": 100.1,
+     "confidence": 1.0
+    },
+    {
+     "text": "未",
+     "start": 100.7,
+     "end": 100.76,
+     "confidence": 0.843
+    },
+    {
+     "text": "だ",
+     "start": 100.76,
+     "end": 100.96,
+     "confidence": 1.0
+    },
+    {
+     "text": "に",
+     "start": 100.96,
+     "end": 101.52,
+     "confidence": 1.0
+    },
+    {
+     "text": "親",
+     "start": 101.52,
+     "end": 101.62,
+     "confidence": 0.998
+    },
+    {
+     "text": "指",
+     "start": 101.62,
+     "end": 101.78,
+     "confidence": 1.0
+    },
+    {
+     "text": "は",
+     "start": 101.78,
+     "end": 102.02,
+     "confidence": 0.999
+    },
+    {
+     "text": "手",
+     "start": 102.02,
+     "end": 102.16,
+     "confidence": 1.0
+    },
+    {
+     "text": "に",
+     "start": 102.16,
+     "end": 102.3,
+     "confidence": 1.0
+    },
+    {
+     "text": "つ",
+     "start": 102.3,
+     "end": 102.36,
+     "confidence": 0.723
+    },
+    {
+     "text": "いて",
+     "start": 102.36,
+     "end": 102.52,
+     "confidence": 1.0
+    },
+    {
+     "text": "いる。",
+     "start": 102.52,
+     "end": 102.78,
+     "confidence": 0.997
+    }
+   ]
+  },
+  {
+   "start": 103.68,
+   "end": 105.8,
+   "text": "しかし傷跡は死ぬまで消えぬ",
+   "confidence": 0.977,
+   "words": [
+    {
+     "text": "しか",
+     "start": 103.68,
+     "end": 103.82,
+     "confidence": 0.999
+    },
+    {
+     "text": "し",
+     "start": 103.82,
+     "end": 104.38,
+     "confidence": 1.0
+    },
+    {
+     "text": "傷",
+     "start": 104.38,
+     "end": 104.5,
+     "confidence": 0.818
+    },
+    {
+     "text": "跡",
+     "start": 104.5,
+     "end": 104.68,
+     "confidence": 0.944
+    },
+    {
+     "text": "は",
+     "start": 104.68,
+     "end": 105.02,
+     "confidence": 1.0
+    },
+    {
+     "text": "死",
+     "start": 105.02,
+     "end": 105.16,
+     "confidence": 0.987
+    },
+    {
+     "text": "ぬ",
+     "start": 105.16,
+     "end": 105.24,
+     "confidence": 1.0
+    },
+    {
+     "text": "まで",
+     "start": 105.24,
+     "end": 105.44,
+     "confidence": 1.0
+    },
+    {
+     "text": "消",
+     "start": 105.44,
+     "end": 105.62,
+     "confidence": 0.998
+    },
+    {
+     "text": "え",
+     "start": 105.62,
+     "end": 105.64,
+     "confidence": 1.0
+    },
+    {
+     "text": "ぬ",
+     "start": 105.64,
+     "end": 105.8,
+     "confidence": 1.0
+    }
+   ]
+  },
+  {
+   "start": 107.42,
+   "end": 116.65,
+   "text": "庭を東へ二十歩に行き尽くすと、南あがりにいささかばかりの菜園があって、真ん中に栗の木が一本立っている。",
+   "confidence": 0.94,
+   "words": [
+    {
+     "text": "庭",
+     "start": 107.42,
+     "end": 107.74,
+     "confidence": 0.988
+    },
+    {
+     "text": "を",
+     "start": 107.74,
+     "end": 108.02,
+     "confidence": 0.999
+    },
+    {
+     "text": "東",
+     "start": 108.02,
+     "end": 108.28,
+     "confidence": 0.993
+    },
+    {
+     "text": "へ",
+     "start": 108.28,
+     "end": 108.62,
+     "confidence": 0.999
+    },
+    {
+     "text": "二",
+     "start": 108.62,
+     "end": 108.8,
+     "confidence": 0.695
+    },
+    {
+     "text": "十",
+     "start": 108.8,
+     "end": 108.92,
+     "confidence": 0.997
+    },
+    {
+     "text": "歩",
+     "start": 108.92,
+     "end": 109.02,
+     "confidence": 0.994
+    },
+    {
+     "text": "に",
+     "start": 109.02,
+     "end": 109.32,
+     "confidence": 1.0
+    },
+    {
+     "text": "行",
+     "start": 109.32,
+     "end": 109.46,
+     "confidence": 0.908
+    },
+    {
+     "text": "き",
+     "start": 109.46,
+     "end": 109.56,
+     "confidence": 0.999
+    },
+    {
+     "text": "尽",
+     "start": 109.56,
+     "end": 109.56,
+     "confidence": 0.88
+    },
+    {
+     "text": "く",
+     "start": 109.56,
+     "end": 109.66,
+     "confidence": 0.999
+    },
+    {
+     "text": "す",
+     "start": 109.66,
+     "end": 109.72,
+     "confidence": 1.0
+    },
+    {
+     "text": "と、",
+     "start": 109.72,
+     "end": 110.8,
+     "confidence": 1.0
+    },
+    {
+     "text": "南",
+     "start": 110.97,
+     "end": 111.09,
+     "confidence": 0.999
+    },
+    {
+     "text": "あ",
+     "start": 111.09,
+     "end": 111.31,
+     "confidence": 0.368
+    },
+    {
+     "text": "が",
+     "start": 111.31,
+     "end": 111.45,
+     "confidence": 0.996
+    },
+    {
+     "text": "り",
+     "start": 111.45,
+     "end": 111.49,
+     "confidence": 0.677
+    },
+    {
+     "text": "に",
+     "start": 111.49,
+     "end": 112.13,
+     "confidence": 1.0
+    },
+    {
+     "text": "い",
+     "start": 112.13,
+     "end": 112.13,
+     "confidence": 0.712
+    },
+    {
+     "text": "さ",
+     "start": 112.13,
+     "end": 112.33,
+     "confidence": 0.986
+    },
+    {
+     "text": "さ",
+     "start": 112.33,
+     "end": 112.37,
+     "confidence": 0.765
+    },
+    {
+     "text": "か",
+     "start": 112.37,
+     "end": 112.49,
+     "confidence": 1.0
+    },
+    {
+     "text": "ば",
+     "start": 112.49,
+     "end": 112.57,
+     "confidence": 1.0
+    },
+    {
+     "text": "か",
+     "start": 112.57,
+     "end": 112.73,
+     "confidence": 0.993
+    },
+    {
+     "text": "り",
+     "start": 112.73,
+     "end": 112.75,
+     "confidence": 0.999
+    },
+    {
+     "text": "の",
+     "start": 112.75,
+     "end": 112.95,
+     "confidence": 0.999
+    },
+    {
+     "text": "菜",
+     "start": 112.95,
+     "end": 113.13,
+     "confidence": 0.901
+    },
+    {
+     "text": "園",
+     "start": 113.13,
+     "end": 113.19,
+     "confidence": 1.0
+    },
+    {
+     "text": "が",
+     "start": 113.19,
+     "end": 113.35,
+     "confidence": 0.999
+    },
+    {
+     "text": "あ",
+     "start": 113.35,
+     "end": 113.43,
+     "confidence": 0.993
+    },
+    {
+     "text": "って、",
+     "start": 113.43,
+     "end": 114.35,
+     "confidence": 1.0
+    },
+    {
+     "text": "真",
+     "start": 114.41,
+     "end": 114.57,
+     "confidence": 0.984
+    },
+    {
+     "text": "ん",
+     "start": 114.57,
+     "end": 114.57,
+     "confidence": 0.993
+    },
+    {
+     "text": "中",
+     "start": 114.57,
+     "end": 114.79,
+     "confidence": 1.0
+    },
+    {
+     "text": "に",
+     "start": 114.79,
+     "end": 115.37,
+     "confidence": 1.0
+    },
+    {
+     "text": "栗",
+     "start": 115.37,
+     "end": 115.55,
+     "confidence": 0.962
+    },
+    {
+     "text": "の",
+     "start": 115.55,
+     "end": 115.69,
+     "confidence": 0.991
+    },
+    {
+     "text": "木",
+     "start": 115.69,
+     "end": 115.71,
+     "confidence": 0.978
+    },
+    {
+     "text": "が",
+     "start": 115.71,
+     "end": 115.83,
+     "confidence": 0.998
+    },
+    {
+     "text": "一",
+     "start": 115.83,
+     "end": 115.99,
+     "confidence": 0.913
+    },
+    {
+     "text": "本",
+     "start": 115.99,
+     "end": 116.11,
+     "confidence": 1.0
+    },
+    {
+     "text": "立",
+     "start": 116.11,
+     "end": 116.29,
+     "confidence": 0.687
+    },
+    {
+     "text": "って",
+     "start": 116.29,
+     "end": 116.45,
+     "confidence": 0.979
+    },
+    {
+     "text": "いる。",
+     "start": 116.45,
+     "end": 116.65,
+     "confidence": 1.0
+    }
+   ]
+  },
+  {
+   "start": 118.07,
+   "end": 119.99,
+   "text": "これは命より大事な栗だ。",
+   "confidence": 0.977,
+   "words": [
+    {
+     "text": "これは",
+     "start": 118.07,
+     "end": 118.25,
+     "confidence": 0.99
+    },
+    {
+     "text": "命",
+     "start": 118.25,
+     "end": 118.93,
+     "confidence": 0.934
+    },
+    {
+     "text": "よ",
+     "start": 118.93,
+     "end": 119.11,
+     "confidence": 1.0
+    },
+    {
+     "text": "り",
+     "start": 119.11,
+     "end": 119.33,
+     "confidence": 1.0
+    },
+    {
+     "text": "大",
+     "start": 119.33,
+     "end": 119.45,
+     "confidence": 0.998
+    },
+    {
+     "text": "事",
+     "start": 119.45,
+     "end": 119.53,
+     "confidence": 1.0
+    },
+    {
+     "text": "な",
+     "start": 119.53,
+     "end": 119.69,
+     "confidence": 0.998
+    },
+    {
+     "text": "栗",
+     "start": 119.69,
+     "end": 119.81,
+     "confidence": 0.875
+    },
+    {
+     "text": "だ。",
+     "start": 119.81,
+     "end": 119.99,
+     "confidence": 0.998
+    }
+   ]
+  },
+  {
+   "start": 121.04,
+   "end": 127.85,
+   "text": "身の熟する自分は起き抜けにセドを出て落ちた奴を拾ってきて学校で行く。",
+   "confidence": 0.929,
+   "words": [
+    {
+     "text": "身",
+     "start": 121.04,
+     "end": 121.16,
+     "confidence": 0.958
+    },
+    {
+     "text": "の",
+     "start": 121.16,
+     "end": 121.26,
+     "confidence": 1.0
+    },
+    {
+     "text": "熟",
+     "start": 121.26,
+     "end": 121.4,
+     "confidence": 0.98
+    },
+    {
+     "text": "する",
+     "start": 121.4,
+     "end": 121.58,
+     "confidence": 0.998
+    },
+    {
+     "text": "自",
+     "start": 121.58,
+     "end": 121.78,
+     "confidence": 0.997
+    },
+    {
+     "text": "分",
+     "start": 121.78,
+     "end": 121.8,
+     "confidence": 1.0
+    },
+    {
+     "text": "は",
+     "start": 121.8,
+     "end": 122.08,
+     "confidence": 1.0
+    },
+    {
+     "text": "起",
+     "start": 122.33,
+     "end": 122.63,
+     "confidence": 0.979
+    },
+    {
+     "text": "き",
+     "start": 122.63,
+     "end": 122.73,
+     "confidence": 1.0
+    },
+    {
+     "text": "抜",
+     "start": 122.73,
+     "end": 122.77,
+     "confidence": 0.943
+    },
+    {
+     "text": "け",
+     "start": 122.77,
+     "end": 122.97,
+     "confidence": 1.0
+    },
+    {
+     "text": "に",
+     "start": 122.97,
+     "end": 123.45,
+     "confidence": 1.0
+    },
+    {
+     "text": "セ",
+     "start": 123.45,
+     "end": 123.59,
+     "confidence": 0.354
+    },
+    {
+     "text": "ド",
+     "start": 123.59,
+     "end": 123.67,
+     "confidence": 1.0
+    },
+    {
+     "text": "を",
+     "start": 123.67,
+     "end": 123.77,
+     "confidence": 0.928
+    },
+    {
+     "text": "出",
+     "start": 123.77,
+     "end": 123.89,
+     "confidence": 0.997
+    },
+    {
+     "text": "て",
+     "start": 123.89,
+     "end": 124.29,
+     "confidence": 1.0
+    },
+    {
+     "text": "落",
+     "start": 124.29,
+     "end": 124.29,
+     "confidence": 0.568
+    },
+    {
+     "text": "ち",
+     "start": 124.29,
+     "end": 124.71,
+     "confidence": 1.0
+    },
+    {
+     "text": "た",
+     "start": 124.71,
+     "end": 124.83,
+     "confidence": 1.0
+    },
+    {
+     "text": "奴",
+     "start": 124.83,
+     "end": 124.97,
+     "confidence": 0.719
+    },
+    {
+     "text": "を",
+     "start": 124.97,
+     "end": 125.15,
+     "confidence": 0.999
+    },
+    {
+     "text": "拾",
+     "start": 125.15,
+     "end": 125.27,
+     "confidence": 0.999
+    },
+    {
+     "text": "って",
+     "start": 125.27,
+     "end": 125.47,
+     "confidence": 1.0
+    },
+    {
+     "text": "き",
+     "start": 125.47,
+     "end": 125.55,
+     "confidence": 0.916
+    },
+    {
+     "text": "て",
+     "start": 125.55,
+     "end": 126.31,
+     "confidence": 1.0
+    },
+    {
+     "text": "学",
+     "start": 126.31,
+     "end": 126.39,
+     "confidence": 0.555
+    },
+    {
+     "text": "校",
+     "start": 126.39,
+     "end": 126.63,
+     "confidence": 1.0
+    },
+    {
+     "text": "で",
+     "start": 126.63,
+     "end": 126.85,
+     "confidence": 1.0
+    },
+    {
+     "text": "行",
+     "start": 126.85,
+     "end": 126.95,
+     "confidence": 0.921
+    },
+    {
+     "text": "く。",
+     "start": 126.95,
+     "end": 127.85,
+     "confidence": 0.999
+    }
+   ]
+  },
+  {
+   "start": 128.33,
+   "end": 132.07,
+   "text": "菜園の西側が山城屋という七夜続きで、",
+   "confidence": 0.893,
+   "words": [
+    {
+     "text": "菜",
+     "start": 128.33,
+     "end": 128.55,
+     "confidence": 0.5
+    },
+    {
+     "text": "園",
+     "start": 128.55,
+     "end": 128.63,
+     "confidence": 1.0
+    },
+    {
+     "text": "の",
+     "start": 128.63,
+     "end": 128.81,
+     "confidence": 1.0
+    },
+    {
+     "text": "西",
+     "start": 128.81,
+     "end": 128.93,
+     "confidence": 0.998
+    },
+    {
+     "text": "側",
+     "start": 128.93,
+     "end": 129.13,
+     "confidence": 1.0
+    },
+    {
+     "text": "が",
+     "start": 129.13,
+     "end": 129.95,
+     "confidence": 1.0
+    },
+    {
+     "text": "山",
+     "start": 129.95,
+     "end": 130.13,
+     "confidence": 0.712
+    },
+    {
+     "text": "城",
+     "start": 130.13,
+     "end": 130.29,
+     "confidence": 0.993
+    },
+    {
+     "text": "屋",
+     "start": 130.29,
+     "end": 130.43,
+     "confidence": 0.994
+    },
+    {
+     "text": "という",
+     "start": 130.43,
+     "end": 130.93,
+     "confidence": 0.997
+    },
+    {
+     "text": "七",
+     "start": 130.93,
+     "end": 131.15,
+     "confidence": 0.61
+    },
+    {
+     "text": "夜",
+     "start": 131.15,
+     "end": 131.33,
+     "confidence": 1.0
+    },
+    {
+     "text": "続",
+     "start": 131.33,
+     "end": 131.71,
+     "confidence": 0.594
+    },
+    {
+     "text": "き",
+     "start": 131.71,
+     "end": 131.89,
+     "confidence": 0.997
+    },
+    {
+     "text": "で、",
+     "start": 131.89,
+     "end": 132.07,
+     "confidence": 1.0
+    }
+   ]
+  },
+  {
+   "start": 132.99,
+   "end": 136.49,
+   "text": "この七夜に勘太郎という十三氏のせがりがいた",
+   "confidence": 0.95,
+   "words": [
+    {
+     "text": "この",
+     "start": 132.99,
+     "end": 133.05,
+     "confidence": 0.999
+    },
+    {
+     "text": "七",
+     "start": 133.05,
+     "end": 133.25,
+     "confidence": 0.91
+    },
+    {
+     "text": "夜",
+     "start": 133.25,
+     "end": 133.41,
+     "confidence": 1.0
+    },
+    {
+     "text": "に",
+     "start": 133.41,
+     "end": 133.85,
+     "confidence": 0.981
+    },
+    {
+     "text": "勘",
+     "start": 133.85,
+     "end": 134.21,
+     "confidence": 0.697
+    },
+    {
+     "text": "太",
+     "start": 134.21,
+     "end": 134.39,
+     "confidence": 0.999
+    },
+    {
+     "text": "郎",
+     "start": 134.39,
+     "end": 134.39,
+     "confidence": 0.999
+    },
+    {
+     "text": "という",
+     "start": 134.39,
+     "end": 134.81,
+     "confidence": 0.979
+    },
+    {
+     "text": "十",
+     "start": 134.81,
+     "end": 135.55,
+     "confidence": 0.979
+    },
+    {
+     "text": "三",
+     "start": 135.55,
+     "end": 135.65,
+     "confidence": 1.0
+    },
+    {
+     "text": "氏",
+     "start": 135.65,
+     "end": 135.79,
+     "confidence": 0.954
+    },
+    {
+     "text": "の",
+     "start": 135.79,
+     "end": 135.91,
+     "confidence": 0.999
+    },
+    {
+     "text": "せ",
+     "start": 135.91,
+     "end": 136.01,
+     "confidence": 0.764
+    },
+    {
+     "text": "が",
+     "start": 136.01,
+     "end": 136.15,
+     "confidence": 0.999
+    },
+    {
+     "text": "り",
+     "start": 136.15,
+     "end": 136.17,
+     "confidence": 0.935
+    },
+    {
+     "text": "が",
+     "start": 136.17,
+     "end": 136.49,
+     "confidence": 1.0
+    },
+    {
+     "text": "いた",
+     "start": 136.49,
+     "end": 136.49,
+     "confidence": 0.959
+    }
+   ]
+  },
+  {
+   "start": 137.67,
+   "end": 140.11,
+   "text": "勘太郎は、無論弱虫である。",
+   "confidence": 0.912,
+   "words": [
+    {
+     "text": "勘",
+     "start": 137.67,
+     "end": 137.95,
+     "confidence": 0.71
+    },
+    {
+     "text": "太",
+     "start": 137.95,
+     "end": 138.05,
+     "confidence": 1.0
+    },
+    {
+     "text": "郎",
+     "start": 138.05,
+     "end": 138.17,
+     "confidence": 1.0
+    },
+    {
+     "text": "は、",
+     "start": 138.17,
+     "end": 138.79,
+     "confidence": 1.0
+    },
+    {
+     "text": "無",
+     "start": 138.79,
+     "end": 138.89,
+     "confidence": 0.5
+    },
+    {
+     "text": "論",
+     "start": 138.89,
+     "end": 139.09,
+     "confidence": 1.0
+    },
+    {
+     "text": "弱",
+     "start": 139.09,
+     "end": 139.23,
+     "confidence": 0.915
+    },
+    {
+     "text": "虫",
+     "start": 139.23,
+     "end": 139.41,
+     "confidence": 1.0
+    },
+    {
+     "text": "で",
+     "start": 139.41,
+     "end": 139.53,
+     "confidence": 0.999
+    },
+    {
+     "text": "ある。",
+     "start": 139.53,
+     "end": 140.11,
+     "confidence": 0.999
+    }
+   ]
+  },
+  {
+   "start": 140.64,
+   "end": 145.62,
+   "text": "弱虫のくせに四つ目垣を乗り越えて、栗を盗みに来る。",
+   "confidence": 0.948,
+   "words": [
+    {
+     "text": "弱",
+     "start": 140.64,
+     "end": 140.92,
+     "confidence": 0.987
+    },
+    {
+     "text": "虫",
+     "start": 140.92,
+     "end": 141.1,
+     "confidence": 0.999
+    },
+    {
+     "text": "の",
+     "start": 141.1,
+     "end": 141.22,
+     "confidence": 0.999
+    },
+    {
+     "text": "く",
+     "start": 141.22,
+     "end": 141.32,
+     "confidence": 0.825
+    },
+    {
+     "text": "せ",
+     "start": 141.32,
+     "end": 141.42,
+     "confidence": 1.0
+    },
+    {
+     "text": "に",
+     "start": 141.42,
+     "end": 142.14,
+     "confidence": 1.0
+    },
+    {
+     "text": "四",
+     "start": 142.14,
+     "end": 142.28,
+     "confidence": 0.52
+    },
+    {
+     "text": "つ",
+     "start": 142.28,
+     "end": 142.4,
+     "confidence": 0.993
+    },
+    {
+     "text": "目",
+     "start": 142.4,
+     "end": 142.48,
+     "confidence": 0.98
+    },
+    {
+     "text": "垣",
+     "start": 142.48,
+     "end": 142.64,
+     "confidence": 0.995
+    },
+    {
+     "text": "を",
+     "start": 142.64,
+     "end": 142.8,
+     "confidence": 0.998
+    },
+    {
+     "text": "乗",
+     "start": 142.8,
+     "end": 142.98,
+     "confidence": 1.0
+    },
+    {
+     "text": "り",
+     "start": 142.98,
+     "end": 143.12,
+     "confidence": 1.0
+    },
+    {
+     "text": "越",
+     "start": 143.12,
+     "end": 143.12,
+     "confidence": 0.986
+    },
+    {
+     "text": "えて、",
+     "start": 143.12,
+     "end": 143.88,
+     "confidence": 0.996
+    },
+    {
+     "text": "栗",
+     "start": 143.94,
+     "end": 144.08,
+     "confidence": 0.962
+    },
+    {
+     "text": "を",
+     "start": 144.08,
+     "end": 144.22,
+     "confidence": 1.0
+    },
+    {
+     "text": "盗",
+     "start": 144.22,
+     "end": 144.4,
+     "confidence": 1.0
+    },
+    {
+     "text": "み",
+     "start": 144.4,
+     "end": 144.52,
+     "confidence": 0.835
+    },
+    {
+     "text": "に",
+     "start": 144.52,
+     "end": 144.64,
+     "confidence": 0.999
+    },
+    {
+     "text": "来",
+     "start": 144.64,
+     "end": 144.7,
+     "confidence": 0.782
+    },
+    {
+     "text": "る。",
+     "start": 144.7,
+     "end": 145.62,
+     "confidence": 1.0
+    }
+   ]
+  },
+  {
+   "start": 146.15,
+   "end": 149.97,
+   "text": "ある日の夕方、織田の会に隠れて、とうとう…",
+   "confidence": 0.916,
+   "words": [
+    {
+     "text": "ある",
+     "start": 146.15,
+     "end": 146.25,
+     "confidence": 0.874
+    },
+    {
+     "text": "日",
+     "start": 146.25,
+     "end": 146.37,
+     "confidence": 0.998
+    },
+    {
+     "text": "の",
+     "start": 146.37,
+     "end": 146.51,
+     "confidence": 1.0
+    },
+    {
+     "text": "夕",
+     "start": 146.51,
+     "end": 146.61,
+     "confidence": 0.997
+    },
+    {
+     "text": "方、",
+     "start": 146.61,
+     "end": 146.89,
+     "confidence": 1.0
+    },
+    {
+     "text": "織",
+     "start": 147.43,
+     "end": 147.59,
+     "confidence": 0.902
+    },
+    {
+     "text": "田",
+     "start": 147.59,
+     "end": 147.65,
+     "confidence": 0.878
+    },
+    {
+     "text": "の",
+     "start": 147.65,
+     "end": 147.79,
+     "confidence": 0.932
+    },
+    {
+     "text": "会",
+     "start": 147.79,
+     "end": 147.93,
+     "confidence": 0.755
+    },
+    {
+     "text": "に",
+     "start": 147.93,
+     "end": 148.13,
+     "confidence": 0.994
+    },
+    {
+     "text": "隠",
+     "start": 148.13,
+     "end": 148.29,
+     "confidence": 0.999
+    },
+    {
+     "text": "れて、",
+     "start": 148.29,
+     "end": 148.67,
+     "confidence": 1.0
+    },
+    {
+     "text": "とう",
+     "start": 149.35,
+     "end": 149.39,
+     "confidence": 0.98
+    },
+    {
+     "text": "とう",
+     "start": 149.39,
+     "end": 149.65,
+     "confidence": 0.999
+    },
+    {
+     "text": "…",
+     "start": 149.65,
+     "end": 149.97,
+     "confidence": 0.429
+    }
+   ]
+  }
+ ]
+}

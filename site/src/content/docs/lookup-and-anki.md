@@ -60,11 +60,11 @@ definition and a search you settle on each count once; going **Back**, or search
 doesn't. The counts work like [Hachidori](https://github.com/bee-san/hachidori)'s, and apps that share
 their setup add to the same counts.
 
-Settings ▸ Lookup and Mining ▸ **Popup** turns them off (your past counts are kept) or resets them.
+Settings ▸ Lookup ▸ **Popup** turns them off (your past counts are kept) or resets them.
 
 ### Background opacity
 
-The popup is like frosted glass: what's behind it is always blurred. Settings ▸ Lookup and Mining ▸
+The popup is like frosted glass: what's behind it is always blurred. Settings ▸ Lookup ▸
 **Popup** ▸ **Background Opacity** sets how much of the popup's colour lies over that blur, from 0 to
 100% (85% by default, as in Hachidori): the lower it is, the more of the page, video or transcript
 shows through. The text always stays solid, and at low opacity it gets a soft halo (dark in dark mode,
@@ -72,7 +72,7 @@ light in light mode) so it stays readable over anything; the halo fades out as t
 
 ### Brief definitions
 
-Settings ▸ Lookup and Mining ▸ **Popup** ▸ **Show Brief Definitions Beside the Headword** puts a
+Settings ▸ Lookup ▸ **Popup** ▸ **Show Brief Definitions Beside the Headword** puts a
 word's first few meanings next to it, so several results are quick to scan; the full definitions
 stay below. As in Hachidori, a new installation starts with it on and two snippets (1–6 under
 **Snippets**); setups from before version 0.3.0 keep it off until you turn it on. The snippets come
@@ -81,7 +81,7 @@ the same way as Hachidori's.
 
 ### Word audio
 
-Word audio comes from the sources in **Settings ▸ Lookup and Mining ▸ Audio Sources**. JapanesePod101
+Word audio comes from the sources in **Settings ▸ Lookup ▸ Audio Sources**. JapanesePod101
 is built in. You can add your own, of two types:
 
 - **Audio file URL**: an address that returns an audio file, with `{term}` and `{reading}` filled in
@@ -117,17 +117,18 @@ Each keeps its own licence; they're listed in **Settings ▸ About**.
 
 ### Managing dictionaries
 
-Open **Settings ▸ Lookup and Mining ▸ Dictionaries**:
+Open **Settings ▸ Lookup ▸ Dictionaries**:
 
 - **Installed** lists each dictionary with what it holds (Terms, Frequency, Pitch, Kanji), its size,
   and a switch to turn it off without deleting it. Results follow this order: on iPhone and iPad tap
   **Edit** and drag; on the Mac drag a row by its handle or right-click it. On iPhone and iPad, swipe a
   dictionary to delete it.
-- **Sort Results By** picks which frequency dictionary orders the results. **Automatic** (the default)
-  uses the first frequency dictionary in your list. Words that read the same, like 隕石 and 引責 for
-  いんせき, come in the order that dictionary gives them: the most common first. It reads its numbers
-  the way the dictionary says (ranks or counts), and with Hachidori linked, Hachidori's own order
-  setting applies.
+- **Frequency Sorting** works as in Hachidori. By default nothing sorts by frequency: results keep
+  your dictionary order (with Jitendex, いんせき shows 引責 before 隕石). **Sort by Frequency
+  Dictionary** picks one to sort by, and words that read the same then come most common first (with
+  Jiten, 隕石 before 引責); choosing it sets **Sort Order** to the way its numbers run (ranks
+  ascending, counts descending), and you can change that. **Automatic** keeps dictionary order and
+  **Disabled** turns sorting off. With Hachidori linked, its own frequency sorting applies.
 - Longer matches come first. One exception when you tap text: a name from JMnedict that only matched
   by reading hiragana as katakana (たと as the name タト) goes after the other results. Searching for
   a name still finds it first.
@@ -154,7 +155,9 @@ show **Auto**.
 While you read a series in Yomu (and, soon, watch a show in Miru), the names of its characters are
 looked up too: a tap on a character's full name or just their given name shows who it is, with their picture, the romaji
 name and whether they're a main or supporting character. They come from AniList, for the series
-you have open only, and appear as the **Character Names** dictionary, just above JMnedict.
+you have open only, and appear as the **Character Names** dictionary. When a tap matches a name and
+an ordinary word of the same length, the name comes first: in that series it's almost always who's
+meant. A longer match still comes first.
 
 - The apps find the series on AniList from what Kavita knows (its AniList or MyAnimeList link), from
   MangaBaka by title, or from AniList's own search when exactly one title matches. If they can't
@@ -170,7 +173,7 @@ you have open only, and appear as the **Character Names** dictionary, just above
 ## Hachidori
 
 If you use [Hachidori](https://github.com/bee-san/hachidori) in your browser and share it from a
-computer or a Docker host, the apps can link to it: Settings ▸ Lookup and Mining ▸ **Hachidori**. Turn
+computer or a Docker host, the apps can link to it: Settings ▸ Connections ▸ **Hachidori**. Turn
 on **Use Hachidori** and enter the address of the computer sharing it (port 8771 unless you changed
 it). **Test Connection** checks an address before you link to it: it shows the host's name, its
 Hachidori version and how many dictionaries it has. While linked, the Status section shows the same.
@@ -182,7 +185,7 @@ Hachidori** to link to it and copy its dictionaries there and then. Setup starts
 recommended dictionaries by itself unless an address is already known (from another app's setup); the
 copy waits for those to finish and then only fetches what differs.
 
-While linked, Settings ▸ Lookup and Mining ▸ **Dictionaries** ▸ **Copy from Hachidori** lists
+While linked, Settings ▸ Lookup ▸ **Dictionaries** ▸ **Copy from Hachidori** lists
 Hachidori's dictionaries and whether each is new to this device, newer than the copy here, or the
 same. Tap **Copy** to download what's new or newer, at exactly Hachidori's versions (a dictionary you
 pinned to an older release stays on that release), then match Hachidori's order and which ones are
@@ -204,8 +207,8 @@ On every device:
 
 - Lookup counts are Hachidori's, so a word you look up in the browser and in Yomu counts in the same
   place. Lookups made while Hachidori can't be reached are counted there once it's back (at that
-  time: Hachidori keeps no other time for them). Settings ▸ Hachidori shows how many words are
-  waiting, when the apps last heard from Hachidori, and **Sync Now**.
+  time: Hachidori keeps no other time for them). Settings ▸ Connections ▸ Hachidori shows how many words are
+  waiting and when the apps last heard from Hachidori; **Sync Now** at the top of Settings sends them.
 - The popup follows Hachidori's settings (brief definitions, lookup counts, background opacity), and
   keeps them while Hachidori can't be reached. The Popup page shows them; you change them in
   Hachidori.
@@ -224,7 +227,7 @@ Tailscale, never over the internet. The setting is shared by the apps that share
 
 ## Word marks
 
-With **Mark Words by Anki State** on (in Settings ▸ Anki, under Word Marks), the apps underline words by
+With **Mark Words by Anki State** on (in Settings ▸ Lookup ▸ Word Marks), the apps underline words by
 where they stand in your Anki mining deck: words you haven't mined, and words you're still learning,
 are underlined; words you know stay plain. A word counts as known once its card's interval is 21 days
 or more, and stops counting while you relearn it after forgetting it. Cards waiting to be sent count as
@@ -236,7 +239,7 @@ Marks show in Yomu's books (not on manga pages), Miru's subtitles, Kiku's transc
 in Hiku. The apps refresh them from Anki when they open and every 30 minutes after that.
 
 If you also study from other decks (a premade vocabulary deck, say), add them in the Anki settings
-under **Word Marks ▸ Also Mark Words From**. Words you've started studying in those decks show as
+under **Settings ▸ Lookup ▸ Word Marks ▸ Also Mark Words From**. Words you've started studying in those decks show as
 known.
 
 ### Known and ignored words
@@ -250,7 +253,7 @@ Hachidori's **Mark as known** and **Ignore**:
 Tap the pressed one again to clear it. Known and ignored words are never underlined, whatever their
 Anki cards say. The list is shared by every app that shares a setup (Hiku's popup has the buttons
 too), and you can see it, remove words from it, or paste in a list of words you know (one per line,
-in dictionary form) in Settings ▸ Anki ▸ **Known and Ignored Words**.
+in dictionary form) in Settings ▸ Lookup ▸ Word Marks ▸ **Known and Ignored Words**.
 
 With Hachidori on, the list is Hachidori's as well. A word you mark in the apps goes to Hachidori (or
 waits until it's reachable), and words marked in Hachidori come to the apps. When you turn Hachidori
@@ -269,7 +272,7 @@ By default AnkiConnect only accepts connections from the computer it runs on. It
 setting (in the add-on's config in Anki) controls which addresses it listens on.
 :::
 
-Open **Settings ▸ Lookup and Mining ▸ Anki** (or the Connect Anki step in setup):
+Open **Settings ▸ Anki** (or the Connect Anki step in setup):
 
 1. Enter the **Server URL**, for example `http://anki.example.com:8765`.
 2. If you set an `apiKey` in AnkiConnect's config, enter the same key. Otherwise leave it blank.
@@ -283,7 +286,7 @@ Once connected, the same page has the **Cards** section:
 - **Fields**: what goes into each field of the note type. Each field can hold nothing, one of the
   pieces below, or fixed text. **Reset to Default** puts the preset back.
 - **Tags**, separated by spaces. The default is `amatsubame`.
-- **Picture size**, the longest side of the card's picture (not in Miru, which has its own Card
+- **Picture Size**, the longest side of the card's picture (not in Miru, which has its own Card
   Picture setting).
 
 The pieces a field can hold are: Word, Word with furigana, Reading, Word audio, Main definition, Short
@@ -312,6 +315,10 @@ filled in the way Yomitan's Lapis setup does, and each card is a word and senten
 | FreqSort | Frequency sort value |
 | MiscInfo | Source |
 
+The short definition is a few numbered meanings: up to three senses from the first dictionary, each
+with its first glosses. When that dictionary has only one sense, the next dictionaries' senses follow
+it (in your dictionary order), leaving out glosses it already has.
+
 For another note type, the apps fill in any Lapis field names it has; otherwise the word goes in the
 first field and the sentence in a field called Sentence. Check **Fields** and adjust the rest.
 
@@ -324,7 +331,7 @@ sentence it came from. The rest depends on the app:
 | --- | --- | --- | --- | --- |
 | Yomu, manga | The recognised text | The page | | Series, chapter and page |
 | Yomu, books | The sentence | The book's cover | With read-along: the spoken sentence | Series, volume and section |
-| Miru | The subtitle line | A screenshot, or the line as an animated GIF (Card Picture) | The line | Show, episode and time |
+| Miru | The subtitle line | The line as an animated GIF, or a screenshot (Card Picture) | The line | Show, episode and time |
 | Kiku | The transcript line | The episode's cover | The line | Show, episode and time |
 | Hiku | The sentence | | | The page's title and address |
 
@@ -338,13 +345,14 @@ Card**.
 
 When AnkiConnect can't be reached (you're away from home, or the computer is asleep) cards wait on the
 device and send themselves when it's back. The top of Settings shows what's waiting, with **Sync
-Now**; **Settings ▸ Advanced ▸ Waiting to Sync** lists them by kind.
+Now**; **Settings ▸ Advanced ▸ Waiting to Sync** lists them by kind. Tap a server's name there to
+open its settings.
 
 ### Syncing
 
 In the Anki settings, **Sync After Adding** asks the Anki behind AnkiConnect to sync about 10 seconds
 after new cards arrive (once for a batch), so they reach AnkiMobile and your other devices. It syncs
-with whatever sync server that Anki uses: AnkiWeb, or your own. **Sync Anki Now** syncs straight away.
+with whatever sync server that Anki uses: AnkiWeb, or your own. **Sync Anki Collection** runs it straight away.
 
 - **Anki on a computer:** sign in to sync in Anki first (**Sync** in the main window).
 - **A headless AnkiConnect server** that syncs after every change on its own (Hachidori's does) needs

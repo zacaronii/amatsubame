@@ -10,6 +10,13 @@ struct JellyfinSettingsView: View {
 
     var body: some View {
         Form {
+            if model.isDemo {
+                DemoServerSection {
+                    Task { await model.signOut() }
+                    model.isDemo = false
+                    model.urlText = ""
+                }
+            }
             Section {
                 TextField("Server URL", text: $model.urlText, prompt: Text(verbatim: "https://jellyfin.example.ts.net"))
                     .urlEntry()
@@ -35,6 +42,7 @@ struct JellyfinSettingsView: View {
                 } else {
                     Button("Sign In") { Task { await model.signIn() } }
                         .disabled(!model.canSignIn)
+                        .textButtonTint()
                     ConnectionTestRow(status: model.status, disabled: model.urlText.isEmpty || model.status == .working) {
                         Task { await model.testConnection() }
                     }

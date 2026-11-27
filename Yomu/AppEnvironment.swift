@@ -57,7 +57,7 @@ final class AppEnvironment {
     /// Each EPUB volume's characters, for the library's progress (`BookLengthCounter`).
     let bookLengths: BookLengths
     @ObservationIgnored private var counter: BookLengthCounter?
-    /// Counts Japanese books' characters (Settings ▸ Character Counts).
+    /// Counts Japanese books' characters (Settings ▸ Advanced ▸ Character Counts).
     var bookCounter: BookLengthCounter {
         if let counter { return counter }
         let made = BookLengthCounter(environment: self)
@@ -318,7 +318,11 @@ final class AppEnvironment {
             settings.deck = ankiDeck
             settings.tags = ["amatsubame", "amatsubame-test"]
             try? environment.common.ankiSettings.save(settings)
+        } else if let ankiURL {
+            // Settings ▸ Anki's form only: a server saved, nothing sent (no scratch deck).
+            try? environment.accounts.save(ServerAccount(kind: .anki, baseURL: ankiURL, serverName: "AnkiConnect"))
         }
+        if let key = env["UITEST_ANKI_KEY"] { try? environment.secrets.setSecret(key, for: .ankiAPIKey) }
         environment.common.pendingDictionaryImports = dictionaryZips
         if env["UITEST_STATS"] != nil { seedStats(environment.common.activity, kind: .reading) }
         // In-memory UI tests start set up.
@@ -705,5 +709,23 @@ enum ReadingListSkip {
             }
         }
         return "skipped " + parts.joined(separator: " · ")
+    }
+}
+
+extension AppEnvironment {
+    /// The demo Kavita's sign-in, if its key changed with a reset (`DemoRenewal`).
+    func renewDemo() async {
+        await DemoRenewal.renew(common, kind: .kavita) {
+            guard let client = kavitaClient() else { return .unknown }
+            return await DemoRenewal.check { _ = try await client.testConnection() }
+        } signIn: { config in
+            guard let demo = config.kavita else { return false }
+            let model = KavitaSettingsModel(environment: common)
+            model.isDemo = true
+            model.urlText = demo.url.absoluteString
+            model.authKey = demo.apiKey
+            await model.testAndSave()
+            if case .ok = model.status { return true } else { return false }
+        }
     }
 }

@@ -377,7 +377,7 @@ public final class MangaReaderModel {
         let offset = String(block.text.prefix(characterIndex)).utf16.count
         let started = ContinuousClock.now
         Task {
-            let result = await lookup.lookup(text: block.text, utf16Offset: offset, showSource: true)
+            let result = await lookup.lookup(text: block.text, utf16Offset: offset, keepsSource: true)
             lastTimings = LookupTimings(ocr: nil, lookup: ContinuousClock.now - started)
             popupAnchor = anchor
             popupPage = page
@@ -447,7 +447,7 @@ public final class MangaReaderModel {
     @ObservationIgnored private var lookupBlock: (page: Int, block: OCRBlock)?
 
     /// While the popup is open: the block the word is in, and which of its characters the word
-    /// showing covers (it follows taps in the popup's sentence too), to mark on the page.
+    /// showing covers, to mark on the page.
     public func textOverlay(page: Int) -> (block: OCRBlock, highlight: Range<Int>?)? {
         guard settings.showsTextOverlay, let popup, let lookupBlock, lookupBlock.page == page else { return nil }
         let text = lookupBlock.block.text
@@ -513,7 +513,7 @@ public final class MangaReaderModel {
                     return
                 }
                 let lookupStart = ContinuousClock.now
-                let result = await lookup.lookup(text: block.text, utf16Offset: 0, showSource: true)
+                let result = await lookup.lookup(text: block.text, utf16Offset: 0, keepsSource: true)
                 lastTimings = LookupTimings(ocr: ocrTime, lookup: ContinuousClock.now - lookupStart)
                 popupAnchor = anchor
                 popupPage = page

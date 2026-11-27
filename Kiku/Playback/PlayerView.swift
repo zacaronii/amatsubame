@@ -246,9 +246,11 @@ struct PlayerView: View {
     private func topBar(showsEpisode: Bool) -> some View {
         HStack(spacing: 12) {
             Button { environment.showsPlayer = false } label: {
-                Image(systemName: "chevron.down").font(.title3.weight(.semibold)).frame(width: 36, height: 36)
+                // 44 pt to tap, laid out as 36.
+                Image(systemName: "chevron.down").font(.title3.weight(.semibold)).frame(width: 44, height: 44).contentShape(.rect)
             }
             .buttonStyle(.plain)
+            .padding(-4)
             .accessibilityLabel("Close player")
             .accessibilityIdentifier("player.close")
             .keyboardShortcut(.cancelAction)
@@ -263,9 +265,10 @@ struct PlayerView: View {
             }
             Spacer(minLength: 8)
             Button { environment.mark(.player) } label: {
-                Image(systemName: "bookmark").font(.title3).frame(width: 36, height: 36)
+                Image(systemName: "bookmark").font(.title3).frame(width: 44, height: 44).contentShape(.rect)
             }
             .buttonStyle(.plain)
+            .padding(-4)
             .keyboardShortcut("m", modifiers: [])
             .accessibilityLabel("Mark")
             .accessibilityIdentifier("player.mark")
@@ -391,7 +394,7 @@ struct PlayerView: View {
                             Label("Back to Now", systemImage: "arrow.down.to.line")
                                 .font(.subheadline.weight(.semibold))
                                 .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
+                                .padding(.vertical, 12)
                                 .glassEffect(.regular.interactive(), in: .capsule)
                         }
                         .buttonStyle(.plain)
@@ -427,17 +430,24 @@ struct PlayerView: View {
             ShowCover(itemId: model.entry.itemId, cornerRadius: 24) { image in tint = CoverTint.color(of: image) }
                 .frame(maxWidth: 320)
                 .shadow(color: .black.opacity(0.35), radius: 24, y: 12)
+                .accessibilityIdentifier("player.artwork")
             VStack(spacing: 4) {
                 Text(model.entry.episode.title).font(.title3.bold()).multilineTextAlignment(.center).lineLimit(2)
                 Text(model.currentChapter?.title ?? model.entry.showTitle).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
             }
             if showsLine {
                 Button { model.setShowsTranscript(true) } label: {
+                    // Always two rows high, whatever the line, so the artwork above keeps its size
+                    // as the lines go by (a longer line ends in "…").
                     VStack(spacing: 4) {
                         Text(model.currentIndex.map { model.sentences[$0].text } ?? " ")
-                            .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).lineLimit(2)
-                        Text("current line · tap to open the transcript").font(.caption).foregroundStyle(.tertiary)
+                            .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                            .lineLimit(2, reservesSpace: true)
+                        Text("current line · tap to open the transcript").font(.caption).foregroundStyle(.tertiary).lineLimit(1)
                     }
+                    // A faint preview (the transcript it opens follows the text size): capped, so
+                    // its two rows leave the artwork room on a small screen at the largest sizes.
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                     .padding(.horizontal, 8)
                     .contentShape(.rect)
                 }
@@ -622,13 +632,18 @@ struct PlayerView: View {
                     Toggle(model.entry.isBook ? "Only for This Book" : "Only for This Show",
                            isOn: Binding(get: { model.usesShowSpeed }, set: { model.setUsesShowSpeed($0) }))
                 } label: {
+                    // A fixed capsule among fixed controls: its text grows only so far (the large
+                    // content viewer shows it bigger when held).
                     Text(Self.speedText(Double(model.audio.rate)))
                         .font(.subheadline.weight(.semibold).monospacedDigit())
+                        .dynamicTypeSize(...DynamicTypeSize.xLarge)
                         .frame(width: 56, height: 36)
                         .background(.quaternary, in: .capsule)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Speed")
+                .accessibilityValue(Self.speedText(Double(model.audio.rate)))
+                .accessibilityShowsLargeContentViewer()
                 Spacer()
                 lineButton(model.sentences.isEmpty ? "gobackward.15" : "backward.end.fill", label: "Previous line") { model.previousLine() }
                     .keyboardShortcut(.leftArrow, modifiers: [])
@@ -706,11 +721,16 @@ private struct SentenceRow: View {
     let onTap: (Int) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 0) {
+            // 44 pt to tap, in its own space above the text (so holding the text still opens
+            // Copy Line); the time sits at its bottom, by its text, so the air it adds falls
+            // between lines.
             Button(action: onTime) {
                 Text(sentence.start.clockText)
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(isCurrent ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                    .frame(minWidth: 44, minHeight: 44, alignment: .bottomLeading)
+                    .contentShape(.rect)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Play from \(sentence.start.clockText)")
@@ -721,7 +741,7 @@ private struct SentenceRow: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.bottom, 10)
         .background(isCurrent ? AnyShapeStyle(.tint.opacity(0.18)) : AnyShapeStyle(.clear), in: .rect(cornerRadius: 18))
         .overlay { if isFound { RoundedRectangle(cornerRadius: 18).strokeBorder(.tint, lineWidth: 2) } }
         .animation(.easeInOut(duration: 0.2), value: isCurrent)
@@ -870,9 +890,12 @@ struct MiniPlayer: View {
                         Image(systemName: model.audio.isPlaying ? "pause.fill" : "play.fill").font(.title3)
                     }
                 }
-                .frame(width: 36, height: 36)
+                // 44 pt to tap, laid out as the 36 pt it looks.
+                .frame(width: 44, height: 44)
+                .contentShape(.rect)
             }
             .buttonStyle(.plain)
+            .padding(-4)
             .accessibilityLabel(model.audio.isPlaying ? "Pause" : "Play")
             .accessibilityIdentifier("mini.playPause")
         }

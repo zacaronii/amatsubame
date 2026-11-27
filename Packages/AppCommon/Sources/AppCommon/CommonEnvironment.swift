@@ -56,6 +56,10 @@ public final class CommonEnvironment {
     public private(set) var serverAccounts: [ServerKind: ServerAccount] = [:]
     /// The saved accounts have been read (until then `serverAccounts` is empty, not unset).
     public private(set) var accountsLoaded = false
+    /// Outbox kinds kept on this device: writes to a demo server (`ServerAccount.isDemo`).
+    public private(set) var heldKinds: Set<OutboxJobKind> = []
+    @ObservationIgnored private var ownAccountsLoaded = false
+    @ObservationIgnored private var sharedAccountsLoaded = false
     /// Sharing the setup with the other apps (nil without the App Group).
     public let setupSharing: SetupSharing?
     /// What this launch uses (nil without the App Group).
@@ -222,14 +226,25 @@ public final class CommonEnvironment {
         if setupMode == .shared { startSharingSetup() }
 
         async let summary: Void = observe(outbox.observeSummary()) { $0.outboxSummary = $1 }
-        async let own: Void = observe(accounts.observeAll()) { $0.ownAccounts = $1; $0.mergeAccounts(); $0.accountsLoaded = true }
-        async let shared: Void = observe(accounts.observeShared()) { $0.sharedAccounts = $1; $0.mergeAccounts() }
+        async let own: Void = observe(accounts.observeAll()) {
+            $0.ownAccounts = $1; $0.ownAccountsLoaded = true; $0.mergeAccounts(); $0.accountsLoaded = true
+        }
+        async let shared: Void = observe(accounts.observeShared()) { $0.sharedAccounts = $1; $0.sharedAccountsLoaded = true; $0.mergeAccounts() }
         _ = await (summary, own, shared)
     }
 
     private func mergeAccounts() {
         serverAccounts = ownAccounts.merging(sharedAccounts) { _, shared in shared }
         mining.ankiConnected = serverAccounts[.anki] != nil
+        // Only once both lists are read: a half-read list would look like leaving the demo.
+        guard ownAccountsLoaded, sharedAccountsLoaded else { return }
+        let demo = Set(serverAccounts.values.filter(\.isDemo).map(\.kind))
+        let held = Set(OutboxJobKind.allCases.filter { $0.server.map(demo.contains) == true })
+        if held != heldKinds {
+            // Leaving a demo server discards what it held; joining one holds from now on.
+            try? outbox.setHeld(held)
+            heldKinds = held
+        }
     }
 
     // MARK: Shared setup
@@ -318,6 +333,12 @@ public final class CommonEnvironment {
 
     /// Settings ▸ Hachidori ▸ Sync Now: links again at once if it isn't linked, and sends what's
     /// waiting (the host's records come in by themselves while linked).
+    /// The status card's Sync Now: everything waiting, and Hachidori reconnected with its
+    /// pending word statuses queued when it's linked.
+    public func syncEverything() {
+        if hachidoriSettings.enabled { syncHachidori() } else { syncNow(retryWaiting: true) }
+    }
+
     public func syncHachidori() {
         hachidori?.reconnectNow()
         sendWaitingToHachidori()
@@ -430,7 +451,7 @@ public final class CommonEnvironment {
         _ = try await kechimochiClient()?.version()
     }
 
-    /// kechimochi's API, on the same host as the page set in Settings ▸ Stats.
+    /// kechimochi's API, on the same host as the page set in Settings ▸ Connections ▸ kechimochi.
     func kechimochiClient() -> KechimochiClient? {
         guard let address = (try? activity.kechimochiURL()) ?? nil, let webURL = URL(string: address),
               var components = URLComponents(url: webURL, resolvingAgainstBaseURL: false) else { return nil }

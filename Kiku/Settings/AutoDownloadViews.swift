@@ -32,12 +32,9 @@ struct KikuDownloadSettingsView: View {
                     Text("Download ahead keeps the next episodes of shows you've played lately; Download Once Started keeps what you start playing. Off for every library unless you turn it on.")
                 }
             }
-            #if os(iOS)
-            WatchRulesSection()
-            #endif
         }
         .formStyle(.grouped)
-        .navigationTitle("Downloads")
+        .navigationTitle("Download Rules")
         .task { if environment.library.libraries.isEmpty { await environment.library.refreshLibraries() } }
     }
 }
@@ -263,7 +260,7 @@ struct ShowPlaybackSection: View {
 
 #if os(iOS)
 /// Apple Watch's automatic rules (docs/KIKU_PLAN.md milestone 4), built from the lists above.
-private struct WatchRulesSection: View {
+struct WatchRulesSection: View {
     @Environment(KikuEnvironment.self) private var environment
 
     var body: some View {

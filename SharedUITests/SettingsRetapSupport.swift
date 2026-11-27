@@ -25,3 +25,13 @@ func checkSettingsTabRetap(_ app: XCUIApplication, file: StaticString = #filePat
     advanced.tap()
     XCTAssertTrue(app.navigationBars["Advanced"].waitForExistence(timeout: 5), "the next tap opens a screen", file: file, line: line)
 }
+
+extension XCUIApplication {
+    /// A row of Settings' list, scrolled into view first: the list is lazy, so rows below the fold
+    /// (the servers under Connections) only exist once scrolled to.
+    func revealSettingsRow(_ identifier: String) -> XCUIElement {
+        let row = descendants(matching: .any)[identifier].firstMatch
+        for _ in 0..<8 where !(row.exists && row.isHittable) { swipeUp(velocity: .slow) }
+        return row
+    }
+}

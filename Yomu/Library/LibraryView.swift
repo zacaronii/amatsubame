@@ -118,6 +118,8 @@ final class LibraryModel {
 struct LibraryView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.scenePhase) private var scenePhase
+    /// At the accessibility text sizes a shelf's name goes above See All, not beside it.
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// When coming back to the foreground last reloaded the home screen.
     @State private var lastActiveLoad = Date()
     @State private var model = LibraryModel()
@@ -130,11 +132,16 @@ struct LibraryView: View {
                     // The server details are still being read: not "no server" yet.
                     ProgressView()
                 } else if environment.serverAccounts[.kavita] == nil {
-                    ContentUnavailableView(
-                        "Connect Kavita",
-                        systemImage: "books.vertical",
-                        description: Text("Add your Kavita server in Settings to browse your manga and books.")
-                    )
+                    ContentUnavailableView {
+                        Label("Connect Kavita", systemImage: "books.vertical")
+                    } description: {
+                        Text("Add your Kavita server in Settings to browse your manga and books.")
+                    } actions: {
+                        Button("Open Settings") { environment.selectedTab = .settings }
+                            .buttonStyle(.borderedProminent)
+                            .filledButtonTint()
+                            .accessibilityIdentifier("library.openSettings")
+                    }
                 } else {
                     content
                 }
@@ -291,13 +298,16 @@ struct LibraryView: View {
         ForEach(libraries) { library in
             let series = (model.shelves[library.id] ?? []).filter { !offline || downloaded.contains($0.id) }
             VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .firstTextBaseline) {
+                let header = dynamicTypeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4)) : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
+                header {
                     NavigationLink(value: library) {
                         Text(library.name).font(.title2.bold()).foregroundStyle(.primary)
                     }
                     .buttonStyle(.plain)
-                    Spacer()
+                    if !dynamicTypeSize.isAccessibilitySize { Spacer() }
                     NavigationLink(value: library) { Text("See All") }
+                        .textButtonTint()
                         .accessibilityIdentifier("library.seeAll.\(library.name)")
                 }
                 if !series.isEmpty {

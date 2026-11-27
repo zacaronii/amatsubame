@@ -42,6 +42,11 @@ public struct AnkiConnectClient: Sendable {
 
     private struct NoParams: Encodable {}
 
+    static let needsKey = "AnkiConnect needs its API key: enter it in Settings ▸ Anki."
+    static let wrongKey = "AnkiConnect didn't accept the API key: check it in Settings ▸ Anki."
+    static let refusedByProxy = "The server (or a proxy in front of AnkiConnect) refused this device with HTTP 401/403."
+        + " If it only allows your home network, connect to it (or Tailscale)."
+
     public func invoke<Result: Decodable>(
         _ action: String,
         as type: Result.Type = Result.self
@@ -65,9 +70,13 @@ public struct AnkiConnectClient: Sendable {
             response = try await http.decode(Response<Result>.self, from: request)
         } catch .unexpectedResponse, .server(status: 404), .server(status: 405) {
             throw .notThisService("Expected an AnkiConnect server.")
+        } catch .unauthorized {
+            // AnkiConnect itself never answers 401/403 (a wrong key is an `error` in a 200): this is
+            // something in front of it, like a proxy that only lets the home network in.
+            throw .message(Self.refusedByProxy)
         }
         if let error = response.error {
-            if error.localizedCaseInsensitiveContains("api key") { throw .unauthorized }
+            if error.localizedCaseInsensitiveContains("api key") { throw .message(apiKey == nil ? Self.needsKey : Self.wrongKey) }
             throw .message(Self.prefix + error)
         }
         if let result = response.result { return result }

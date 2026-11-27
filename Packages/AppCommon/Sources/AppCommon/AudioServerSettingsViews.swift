@@ -13,6 +13,13 @@ public struct AudiobookshelfSettingsView: View {
 
     public var body: some View {
         Form {
+            if model.isDemo {
+                DemoServerSection {
+                    model.signOut()
+                    model.isDemo = false
+                    model.urlText = ""
+                }
+            }
             Section {
                 TextField("Server URL", text: $model.urlText, prompt: Text(verbatim: "https://audiobookshelf.example.ts.net"))
                     .urlEntry()
@@ -54,6 +61,7 @@ public struct AudiobookshelfSettingsView: View {
                     ConfirmedRemoveButton.signOut("Audiobookshelf") { model.signOut() }
                 } else {
                     Button("Sign In") { Task { await model.signIn() } }
+                        .textButtonTint()
                         .disabled(!model.canSignIn)
                         .accessibilityIdentifier("audiobookshelf.signIn")
                     ConnectionTestRow(status: model.status, disabled: model.urlText.isEmpty || model.status == .working) {
@@ -147,7 +155,7 @@ struct KakuConnectionSections: View {
                 .credentialEntry()
                 .accessibilityIdentifier("kaku.token")
         } footer: {
-            Text("Kaku transcribes your Audiobookshelf podcasts and audiobooks, and Jellyfin episodes Jimaku has no subtitles for. The token is KAKU_API_TOKEN from its server settings.")
+            Text("Your own transcription server, for Audiobookshelf podcasts and audiobooks, and Jellyfin episodes Jimaku has no subtitles for. The token is the one set on your Kaku server.")
         }
         Section {
             ConnectionTestRow(status: model.status, disabled: !model.canTest, identifier: "kaku.test") { Task { await model.testAndSave() } }

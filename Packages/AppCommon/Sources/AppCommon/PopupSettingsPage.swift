@@ -2,15 +2,19 @@ import Core
 import Lookup
 import SwiftUI
 
-/// Settings ▸ Lookup and Mining ▸ Popup: how the lookup popup looks and what it keeps,
+/// Settings ▸ Lookup ▸ Popup: how the lookup popup looks and what it keeps,
 /// following Hachidori's own settings and wording.
 public struct PopupSettingsPage: View {
     @Environment(CommonEnvironment.self) private var environment
     @State private var confirmsReset = false
     @State private var resetDone = false
     @State private var dictionaries: [DictionaryRecord] = []
+    /// The app's own rows, last (Yomu's Show Lookup Timings).
+    private let extras: AnyView?
 
-    public init() {}
+    public init(extras: AnyView? = nil) {
+        self.extras = extras
+    }
 
     /// Hachidori is on: its settings apply, and are kept for when it's away.
     private var followsHachidori: Bool { environment.hachidori != nil }
@@ -98,6 +102,7 @@ public struct PopupSettingsPage: View {
                      : "See how often you look up a word. Turning this off keeps your past counts. Counts are shared by the apps that share this setup.")
             }
             .disabled(followsHachidori)
+            if let extras { Section { extras } }
         }
         .formStyle(.grouped)
         .navigationTitle("Popup")

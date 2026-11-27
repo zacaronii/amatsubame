@@ -181,9 +181,6 @@ public final class DictionaryUpdater {
             AppLog.info(.dictionaries, "Installed \(outcome.dictionary.title)")
             // Unforgotten if it had been deleted before: the user asked for it again.
             try? await library.updateSettings { $0.removedRecommended.removeAll { $0 == entry.id } }
-            if entry.id == RecommendedDictionaries.frequency, (try? library.settings().frequencySortTitle) == nil {
-                try? await library.setFrequencySortDictionary(outcome.dictionary.title)
-            }
         } catch DictionaryError.alreadyInstalled {
             // Imported separately under the same name: it counts as installed.
         }

@@ -238,6 +238,28 @@ final class ReaderUITests: XCTestCase {
         snapshot("ocr-lookup")
     }
 
+    /// A lookup leaves the page as it was: on the iPhone Duo's outer screen (a side safe area)
+    /// the page shrank as the popup opened. Run it there, or on an iPhone in landscape.
+    func testLookupKeepsThePageSize() throws {
+        try enableOCR()
+        app.launch()
+        openReader()
+        let block = app.descendants(matching: .any).matching(identifier: "ocr.block").firstMatch
+        XCTAssertTrue(block.waitForExistence(timeout: 90), "OCR found text on the page")
+        // Accessibility already has the new layout while the stale one is on screen, so this
+        // looks at the screen: the right edge above the popup is page or black, and stays so.
+        let before = rightEdgeIsBlack()
+        snapshot("page-before-lookup")
+        block.tap()
+        XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 15), "lookup popup opened")
+        sleep(1)
+        snapshot("page-with-popup")
+        XCTAssertEqual(rightEdgeIsBlack(), before, "the page changed size with the popup open")
+        app.closeLookup()
+        sleep(1)
+        XCTAssertEqual(rightEdgeIsBlack(), before, "the page changed size after the popup closed")
+    }
+
     /// A lookup marks the word on the page's own lettering (nothing else is drawn over it).
     func testLookupMarksTheWordOnThePage() throws {
         try enableOCR()
@@ -301,7 +323,8 @@ final class ReaderUITests: XCTestCase {
         XCTAssertEqual(try pageCounter(), start, "the long press must not turn the page")
     }
 
-    /// Mines the tapped word. With `UITEST_ANKI_URL` and `UITEST_ANKI_DECK` (a scratch deck)
+    /// Mines the tapped word. With `UITEST_ANKI_URL` and `UITEST_ANKI_DECK` (a scratch deck; and
+    /// `UITEST_ANKI_KEY` for a keyed AnkiConnect)
     /// the card is also sent; otherwise it stays queued in the in-memory outbox.
     func testMiningAWordFromAPage() throws {
         try enableOCR()
@@ -309,6 +332,7 @@ final class ReaderUITests: XCTestCase {
         if let anki = env["UITEST_ANKI_URL"], let deck = env["UITEST_ANKI_DECK"] {
             app.launchEnvironment["UITEST_ANKI_URL"] = anki
             app.launchEnvironment["UITEST_ANKI_DECK"] = deck
+            if let key = env["UITEST_ANKI_KEY"] { app.launchEnvironment["UITEST_ANKI_KEY"] = key }
         }
         app.launch()
         openReader()
@@ -337,6 +361,8 @@ final class ReaderUITests: XCTestCase {
         }
         app.launchEnvironment["UITEST_ANKI_URL"] = "http://127.0.0.1:9"
         app.launchEnvironment["UITEST_ANKI_DECK"] = deck
+        // AnkiConnect's key (saved now, used once the real address is entered).
+        if let key = env["UITEST_ANKI_KEY"] { app.launchEnvironment["UITEST_ANKI_KEY"] = key }
         app.launch()
         openReader()
         let block = app.descendants(matching: .any).matching(identifier: "ocr.block").firstMatch
@@ -356,25 +382,40 @@ final class ReaderUITests: XCTestCase {
         let close = app.buttons["reader.close"].firstMatch
         XCTAssertTrue(close.waitForExistence(timeout: 5), "reader controls")
         close.tap()
-        app.tabBars.buttons["Settings"].tap()
-        app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Queue'")).firstMatch.tap()
+        // Settings ▸ Advanced ▸ Waiting to Sync ▸ Cards for Anki (the queue since the Settings rework).
+        func openCardsWaiting() {
+            app.tabBars.buttons["Settings"].tap()
+            app.revealSettingsRow("settings.advanced").tap()
+            let cards = app.descendants(matching: .any)["advanced.waiting.ankiNote"].firstMatch
+            XCTAssertTrue(cards.waitForExistence(timeout: 10), "Advanced ▸ Cards for Anki")
+            cards.tap()
+        }
+        func backToSettings() {
+            for _ in 0..<3 where !app.navigationBars["Settings"].exists { app.buttons["BackButton"].firstMatch.tap(); sleep(1) }
+        }
+        openCardsWaiting()
         let card = app.descendants(matching: .any)["queue.card"].firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 10), "the card is queued")
         XCTAssertTrue(card.label.contains("Waiting to retry"), "offline send failed and will retry: \(card.label)")
         snapshot("queued-offline")
 
-        // Reconnect: enter the real address in Settings.
-        app.navigationBars.buttons.firstMatch.tap()
-        app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'AnkiConnect'")).firstMatch.tap()
-        let url = app.textFields.firstMatch
+        // Reconnect: the real address on Settings ▸ Anki.
+        backToSettings()
+        app.revealSettingsRow("settings.anki").tap()
+        let url = app.textFields["anki.url"].firstMatch
         XCTAssertTrue(url.waitForExistence(timeout: 5))
         url.tap()
         url.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 40) + anki)
-        app.buttons["Test Connection"].tap()
+        app.buttons["anki.test"].firstMatch.tap()
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'AnkiConnect v'")).firstMatch.waitForExistence(timeout: 20))
-        app.navigationBars.buttons.firstMatch.tap()
-        app.buttons["Sync Now"].firstMatch.tap()
-        app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Queue'")).firstMatch.tap()
+        backToSettings()
+        // The status card's Sync Now, at the top of Settings.
+        app.tabBars.buttons["Settings"].tap()
+        let syncNow = app.buttons["Sync Now"].firstMatch
+        for _ in 0..<4 where !(syncNow.exists && syncNow.isHittable) { app.swipeDown() }
+        syncNow.tap()
+        backToSettings()
+        openCardsWaiting()
         let sent = app.descendants(matching: .any).matching(NSPredicate(format: "identifier == 'queue.card' AND label CONTAINS 'Sent'")).firstMatch
         XCTAssertTrue(sent.waitForExistence(timeout: 60), "the card reached Anki")
         snapshot("sent-after-reconnect")
@@ -426,6 +467,30 @@ final class ReaderUITests: XCTestCase {
         wait(for: [again], timeout: 30)
         app.buttons["autoScroll.close"].firstMatch.tap()
         XCTAssertTrue(playPause.waitForNonExistence(timeout: 5))
+    }
+
+    /// The README's GIF (`UITEST_CAPTURE=1`, recorded with `simctl io recordVideo`): a page with
+    /// dialogue, a tap on a bubble, and the popup's results held for a moment.
+    func testReadmeCapture() throws {
+        guard ProcessInfo.processInfo.environment["UITEST_CAPTURE"] != nil else { throw XCTSkip("Set UITEST_CAPTURE=1 to record.") }
+        try enableOCR()
+        app.launch()
+        openReader()
+        let dialogue = app.descendants(matching: .any).matching(identifier: "ocr.block")
+            .matching(NSPredicate(format: "label MATCHES %@", ".*[ぁ-んァ-ヶ一-龠]{6,}.*"))
+        for _ in 0..<12 {
+            reader.swipeRight()
+            if dialogue.firstMatch.waitForExistence(timeout: 30),
+               dialogue.allElementsBoundByIndex.filter({ $0.exists && $0.isHittable }).count >= 2 { break }
+        }
+        sleep(2)
+        // The bubble's second line ("…これで / 出来上がり" on the first such page): its first word.
+        let bubbles = dialogue.allElementsBoundByIndex.filter { $0.exists && $0.isHittable }
+        let bubble = try XCTUnwrap(bubbles.first { $0.label.contains("出来上が") } ?? bubbles.first, "a bubble with dialogue")
+        bubble.coordinate(withNormalizedOffset: CGVector(dx: 0.03, dy: 0.75)).tap()
+        let results = app.webViews.firstMatch.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Jitendex'")).firstMatch
+        XCTAssertTrue(results.waitForExistence(timeout: 20), "dictionary results")
+        sleep(4)
     }
 
     private func enableOCR() throws {
@@ -1156,6 +1221,23 @@ final class ReaderUITests: XCTestCase {
         let value = reader.value as? String ?? ""
         let number = value.split(separator: " ").dropFirst().first.flatMap { Int($0) }
         return try XCTUnwrap(number, "reader value: \(value)")
+    }
+
+    /// Whether a strip down the screen's right edge, in its upper third (above the popup's
+    /// panel), is all black: no page drawn there.
+    private func rightEdgeIsBlack() -> Bool {
+        guard let image = app.screenshot().image.cgImage,
+              let data = image.dataProvider?.data, let bytes = CFDataGetBytePtr(data) else { return false }
+        let perPixel = image.bitsPerPixel / 8
+        let scale = CGFloat(image.width) / app.windows.firstMatch.frame.width
+        let x0 = image.width - Int(40 * scale), y0 = image.height / 6, y1 = image.height / 3
+        for y in stride(from: y0, to: y1, by: 4) {
+            for x in stride(from: x0, to: image.width - Int(4 * scale), by: 4) {
+                let pixel = bytes + y * image.bytesPerRow + x * perPixel
+                if max(pixel[0], pixel[1], pixel[2]) > 40 { return false }
+            }
+        }
+        return true
     }
 
     private func snapshot(_ name: String) {

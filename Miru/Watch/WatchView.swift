@@ -81,12 +81,17 @@ struct WatchView: View {
         NavigationStack(path: $path) {
             Group {
                 if common.serverAccounts[.jellyfin]?.userId == nil {
-                    ContentUnavailableView(
-                        "Connect Jellyfin",
-                        systemImage: "play.rectangle",
-                        description: Text("Sign in to your Jellyfin server in Settings.")
-                    )
-                    .accessibilityIdentifier("watch.placeholder")
+                    ContentUnavailableView {
+                        Label("Connect Jellyfin", systemImage: "play.rectangle")
+                            .accessibilityIdentifier("watch.placeholder")
+                    } description: {
+                        Text("Sign in to your Jellyfin server in Settings to see your anime and films.")
+                    } actions: {
+                        Button("Open Settings") { environment.selectedTab = .settings }
+                            .buttonStyle(.borderedProminent)
+                            .filledButtonTint()
+                            .accessibilityIdentifier("watch.openSettings")
+                    }
                 } else {
                     home
                 }
@@ -193,6 +198,7 @@ struct WatchView: View {
                                     ScrollView { nextUpRows(allNextUp).padding() }
                                         .navigationTitle("Next Up")
                                 }
+                                .textButtonTint()
                                 .accessibilityIdentifier("nextUp.seeAll")
                             }
                         }
@@ -331,6 +337,7 @@ private struct LibraryShelf: View {
                 .buttonStyle(.plain)
                 Spacer()
                 NavigationLink("See All", value: library)
+                    .textButtonTint()
                     .accessibilityIdentifier("library.\(library.name)")
             }
             if !items.isEmpty {

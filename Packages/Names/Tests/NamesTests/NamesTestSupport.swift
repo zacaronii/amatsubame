@@ -8,7 +8,7 @@ import UniformTypeIdentifiers
 
 /// JMnedict's readings for the made-up names.
 struct FakeReadings: NameReadingSource {
-    var known: [String: [String]] = ["架空": ["かくう", "かそら"], "太郎": ["たろう"], "夢見": ["ゆめみ"], "大石": ["おおいし"]]
+    var known: [String: [String]] = ["架空": ["かくう", "かそら"], "太郎": ["たろう"], "夢見": ["ゆめみ"], "大石": ["おおいし"], "灰原": ["はいばら"]]
     func readings(of expression: String) async -> [String] { known[expression] ?? [] }
 }
 
