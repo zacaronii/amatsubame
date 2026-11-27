@@ -1,5 +1,21 @@
 # Miru: moving playback from mpv to AetherEngine
 
+> **Status: paused (2026-11-27).** The owner paused the move to AetherEngine: it isn't an engine
+> to rely on while it releases as often as it does (7.73 → 7.76 in days during the spike). mpv stays
+> Miru's only engine.
+> - **What stays:** phase 1's `PlayerEngine` seam (#328), so another engine (or an MPVUI-style mpv
+>   with native picture in picture) stays one conformance away; the mpv backup from phase 0
+>   (`mpv-final-2026-11-27`, `miru@mpv`).
+> - **Picture in picture and AirPlay video** stay on the hand-off to AVPlayer with a Jellyfin stream.
+> - **Kept for reference, not merged:** branch `phase2/aether-opt-in` (AetherEngine behind the seam,
+>   the Engine switch, its own picture in picture and AirPlay; all 19 player UI tests passed on both
+>   engines in the iPhone simulator) and the spike branch `spike/aetherengine`. Lessons in them:
+>   AetherEngine has to sit in its own framework with an `internal import`, the protocol in a
+>   dynamic library, and the Mac sandbox needs `network.server` for its local HLS server, which
+>   listens on all interfaces.
+> - **Native mpv picture in picture** (MPVUI's sample-buffer approach) is a later project, once MPVUI
+>   has matured.
+
 This is the plan for moving Miru's player from mpv (MPVKit) to
 [AetherEngine](https://github.com/superuser404notfound/AetherEngine). Nothing in it is built
 yet beyond phase 0. The battery comparison (Miru 202611271629) is in (below), phase 0 is done,
