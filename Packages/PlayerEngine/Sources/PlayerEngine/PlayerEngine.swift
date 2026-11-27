@@ -141,14 +141,19 @@ public struct PlayerTrack: Identifiable, Equatable, Sendable {
 
 /// `PlayerEngine.setTimeBoundary` for an engine that reports its time in steps (mpv's time
 /// events): fires on the first step that crosses the time going forward, and not on a jump.
-struct TimeBoundary {
+public struct TimeBoundary {
     /// Further than this in one step is a seek, not playback.
-    static let jump = 2.0
-    var time: Double
-    var action: @MainActor () -> Void
+    public static let jump = 2.0
+    public var time: Double
+    public var action: @MainActor () -> Void
+
+    public init(time: Double, action: @escaping @MainActor () -> Void) {
+        self.time = time
+        self.action = action
+    }
 
     /// Whether moving from `old` to `new` reaches the boundary.
-    func isCrossed(from old: Double, to new: Double) -> Bool {
+    public func isCrossed(from old: Double, to new: Double) -> Bool {
         old < time && new >= time && new - old <= Self.jump
     }
 }

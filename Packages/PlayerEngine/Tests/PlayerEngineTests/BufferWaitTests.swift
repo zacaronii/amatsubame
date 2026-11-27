@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import PlayerKit
+@testable import PlayerEngine
 
 struct BufferWaitTests {
     @Test func gathersMoreEachTimeTheStreamRunsDryAgainSoon() {
