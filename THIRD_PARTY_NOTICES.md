@@ -30,6 +30,10 @@ They include or use the following. Each keeps its own license; the full texts ar
 | [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) | MIT |
 | [zstd](https://github.com/facebook/zstd) | BSD-3-Clause (dual BSD/GPL-2.0) |
 | [MPVKit](https://github.com/mpvkit/MPVKit) (LGPL build) with mpv, FFmpeg and MoltenVK | LGPL-3.0 (MPVKit), LGPL-2.1+ (mpv, FFmpeg), Apache-2.0 (MoltenVK), plus the licenses of the libraries MPVKit bundles |
+| [AetherEngine](https://github.com/zacaronii/AetherEngine) (the owner's fork of [superuser404notfound/AetherEngine](https://github.com/superuser404notfound/AetherEngine); spike only) | LGPL-3.0 with an App Store / DRM exception |
+| [FFmpegBuild](https://github.com/zacaronii/FFmpegBuild) (fork) with FFmpeg, dav1d, zimg and libzvbi, for AetherEngine | LGPL-2.1 (FFmpeg, libzvbi), BSD-2-Clause (dav1d), WTFPL (zimg), MIT (libzvbi's URE code) |
+| [LibDovi](https://github.com/superuser404notfound/LibDovi) (dovi_tool's libdovi), for AetherEngine | MIT |
+| [SMBClient](https://github.com/kishikawakatsumi/SMBClient), for AetherEngine | MIT |
 
 ## Followed, not copied
 - [Hachidori](https://github.com/bee-san/hachidori) (GPL-3.0): how lookups are counted and the

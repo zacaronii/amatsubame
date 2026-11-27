@@ -66,10 +66,11 @@ packages:
     path: Packages/Names
   PlayerEngine:
     path: Packages/PlayerEngine
-  # Spike only (never merged): AetherEngine, pinned.
+  # Spike only (never merged): AetherEngine from the owner's fork, at a tag whose manifest pins
+  # its dependencies exactly, FFmpegBuild from its fork too (docs/AETHER_PLAN.md ▸ Version pinning).
   AetherEngine:
-    url: https://github.com/superuser404notfound/AetherEngine
-    exactVersion: 7.76.0
+    url: https://github.com/zacaronii/AetherEngine
+    exactVersion: 7.76.0-amatsubame.1
 
 targets:
   # Spike: AetherEngine in a dynamic framework of its own, so it binds to its own FFmpeg
