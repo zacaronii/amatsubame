@@ -492,6 +492,7 @@ targets:
       - package: AppCommon
       - package: Core
       - package: JellyfinKit
+      - package: Lookup
       - package: PlayerEngine
       # Linked only: the host app (Miru) already embeds it.
       - target: AetherBridge

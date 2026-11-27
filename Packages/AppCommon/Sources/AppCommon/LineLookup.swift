@@ -16,18 +16,23 @@ public final class LineLookup {
     }
 
     /// Looks up the word at `characterIndex` of `text` (newlines are dropped first) and
-    /// opens the popup; cards mined from it get `context`.
-    public func lookUp(_ text: String, characterIndex: Int, key: String, context: (any MiningContext)?) {
+    /// opens the popup; cards mined from it get `context`. `shown` runs once the popup is set,
+    /// with how long the dictionary lookup took (for timing slow lookups).
+    public func lookUp(_ text: String, characterIndex: Int, key: String, context: (any MiningContext)?,
+                       shown: (@MainActor (_ lookupSeconds: Double) -> Void)? = nil) {
         let sentence = TappableLine.sentence(text)
         let offset = String(sentence.prefix(characterIndex)).utf16.count
         let anchor = TappableLine.lastTap
         TappableLine.lastTap = nil
         Task {
+            let started = Date()
             let page = await service.lookup(text: sentence, utf16Offset: offset, keepsSource: true)
+            let lookupSeconds = Date().timeIntervalSince(started)
             self.key = key
             let popup = LookupPopupModel(page: page, context: context)
             popup.anchor = anchor
             self.popup = popup
+            shown?(lookupSeconds)
         }
     }
 

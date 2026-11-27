@@ -65,6 +65,40 @@ import Testing
         #expect(engine.pausedAt.isEmpty)
     }
 
+    /// A word tapped just before a line's end, while playing (the owner's lookup hangs): the
+    /// engine reports the pause a frame or two late, and the line-end boundary fires in between.
+    /// Both pauses land, the popup opens, and closing it plays on without pausing at that line again.
+    @Test func aLookupAtALinesEndStillResumesWhenClosed() async throws {
+        let (model, engine) = model(separate)
+        engine.play(to: 1.7, model)
+        #expect(engine.boundary == 2 - 0.12)
+        engine.pausesLate = true
+        model.lookUp(separate.cues[0], characterIndex: 0)
+        #expect(!engine.isPaused, "mpv hasn't reported the pause yet")
+        engine.play(to: 1.95, model)
+        #expect(engine.pausedAt.isEmpty, "the boundary fired, but the pause still isn't reported")
+        engine.reportPause(model)
+        #expect(engine.isPaused)
+        for _ in 0..<50 where model.popup == nil { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(model.popup != nil, "the popup opens")
+        model.popupClosed()
+        engine.reportPause(model)
+        #expect(!engine.isPaused, "closing the popup plays again")
+        engine.play(to: 2.5, model)
+        #expect(!engine.isPaused, "and doesn't stop again for the line it paused at")
+    }
+
+    @Test func aLookupAfterALinePauseStaysPausedWhenClosed() async throws {
+        let (model, engine) = model(separate)
+        engine.play(to: 0.5, model)
+        engine.play(to: 1.95, model)
+        #expect(engine.isPaused, "paused at the line's end")
+        model.lookUp(separate.cues[0], characterIndex: 0)
+        for _ in 0..<50 where model.popup == nil { try await Task.sleep(for: .milliseconds(10)) }
+        model.popupClosed()
+        #expect(engine.isPaused, "it was paused before the tap, so it stays paused")
+    }
+
     @Test func fasterSpeedsStopEarlier() {
         let (model, engine) = model(separate)
         engine.setSpeed(2)
@@ -102,6 +136,18 @@ final class FakeEngine: PlayerEngine {
     @ObservationIgnored private(set) var boundary: Double?
     @ObservationIgnored private var boundaryAction: (@MainActor () -> Void)?
     @ObservationIgnored private(set) var pausedAt: [Double] = []
+    /// Like mpv: `setPaused` takes effect when the engine reports it (`reportPause`), not at once.
+    @ObservationIgnored var pausesLate = false
+    @ObservationIgnored private var pendingPause: Bool?
+
+    /// The engine reports the pause state it was asked for, as the player's onChange tells the model.
+    func reportPause(_ model: PlaybackModel) {
+        guard let paused = pendingPause else { return }
+        pendingPause = nil
+        if paused, !isPaused { pausedAt.append(timePosition) }
+        isPaused = paused
+        model.pauseChanged(paused)
+    }
 
     /// Plays forward to `time` (firing a boundary on the way), then tells the model, as the
     /// player's `onChange(of: timePosition)` does.
@@ -129,6 +175,10 @@ final class FakeEngine: PlayerEngine {
     func load(_ url: URL, headers: [String: String], start: Double) {}
     func shutdown() {}
     func setPaused(_ paused: Bool) {
+        if pausesLate {
+            pendingPause = paused
+            return
+        }
         if paused, !isPaused { pausedAt.append(timePosition) }
         isPaused = paused
     }
