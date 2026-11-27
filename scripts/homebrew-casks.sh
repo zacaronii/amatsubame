@@ -1,17 +1,45 @@
 # Sourced by upload-dev.sh, release.sh and scripts/tests/homebrew-casks-test.sh: the casks in the
 # Homebrew tap (github.com/<owner>/homebrew-amatsubame). Needs fail().
 
+# cask_list <cask ...> is a conflicts_with value: "a" for one cask, ["a", "b"] for more.
+cask_list() {
+  if [ $# = 1 ]; then
+    echo "\"$1\""
+  else
+    local list="" cask
+    for cask in "$@"; do list+="${list:+, }\"$cask\""; done
+    echo "[$list]"
+  fi
+}
+
+# set_conflicts <cask.rb> <cask ...> makes the cask's conflicts_with list exactly those casks,
+# replacing the line it has or adding one above the first depends_on.
+set_conflicts() {
+  local cask=$1 line
+  shift
+  line="  conflicts_with cask: $(cask_list "$@")"
+  if grep -q '^  conflicts_with cask: ' "$cask"; then
+    LINE=$line awk '/^  conflicts_with cask: /{print ENVIRON["LINE"]; next} {print}' "$cask" >"$cask.new"
+  else
+    LINE=$line awk '!done && /^  depends_on /{print ENVIRON["LINE"]; done=1} {print}' "$cask" >"$cask.new"
+  fi
+  mv "$cask.new" "$cask"
+}
+
 # write_dev_cask <App> <tap folder> <zip> points <app>@dev at this build's zip on the tap's dev
-# release, and makes sure the release cask and the dev cask can't both be installed (they're the
-# same app). The rest is copied from the release cask, so both describe the app the same way. Needs
-# $version, $build and $tap_repo.
+# release, and makes sure the release cask, the dev cask and a pinned backup (<app>@mpv for Miru's
+# mpv build, docs/AETHER_PLAN.md) can't be installed together (they're the same app). The rest is
+# copied from the release cask, so both describe the app the same way. Needs $version, $build and
+# $tap_repo.
 write_dev_cask() {
-  local app=$1 tap=$2 zip=$3 name cask release sha
+  local app=$1 tap=$2 zip=$3 name cask release sha backup
   name=$(tr '[:upper:]' '[:lower:]' <<<"$app")
   release="$tap/Casks/$name.rb"
   cask="$tap/Casks/$name@dev.rb"
   [ -f "$release" ] || fail "$tap_repo has no Casks/$name.rb to copy the dev cask from."
   sha=$(shasum -a 256 "$zip" | cut -d' ' -f1)
+  backup=()
+  [ -f "$tap/Casks/$name@mpv.rb" ] && backup=("$name@mpv")
   {
     echo "cask \"$name@dev\" do"
     echo "  version \"$version,$build\""
@@ -26,7 +54,7 @@ write_dev_cask() {
     echo "    skip \"Dev builds come from scripts/upload-dev.sh\""
     echo "  end"
     echo
-    echo "  conflicts_with cask: \"$name\""
+    echo "  conflicts_with cask: $(cask_list "$name" ${backup[@]+"${backup[@]}"})"
     grep -E '^  depends_on ' "$release"
     echo
     echo "  app \"$app.app\""
@@ -35,10 +63,16 @@ write_dev_cask() {
     awk '/^  # The setup the apps share|^  zap /{on=1} /^end$/{on=0} on' "$release"
     echo "end"
   } >"$cask"
-  if ! grep -q "conflicts_with cask: \"$name@dev\"" "$release"; then
-    sed -i '' -E "s/^(  depends_on arch: .*)$/  conflicts_with cask: \"$name@dev\"\\
-\\1/" "$release"
-  fi
+  set_conflicts "$release" "$name@dev" ${backup[@]+"${backup[@]}"}
+}
+
+# tap_git <tap folder> <git args ...> runs git in the tap clone as the app repo's committer, so the
+# tap's history gets the same (public) identity as this repo's, not a global one with the Mac's
+# host name in it.
+tap_git() {
+  local tap=$1
+  shift
+  git -C "$tap" -c user.name="$(git config user.name)" -c user.email="$(git config user.email)" "$@"
 }
 
 # check_casks <cask.rb ...> stops before anything is pushed when a cask isn't valid Ruby, or when

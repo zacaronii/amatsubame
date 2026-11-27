@@ -1,7 +1,8 @@
 # Kaku's Docker image on GitHub's container registry (ghcr.io/<owner>/amatsubame-kaku), so a
 # release pins which Kaku goes with which apps (docs/kaku.md ▸ Running it).
 # - A release (scripts/release.sh publishes it) pushes the image tagged with the suite version
-#   (0.4.0), Kaku's own version (kaku/__init__.py, e.g. 1.4.2) and latest.
+#   (0.4.0), Kaku's own version (kaku/__init__.py, e.g. 1.4.2) and latest. Only for v<version>
+#   releases: another release (a pinned backup like mpv-final-<date>) mustn't move latest.
 # - Run by hand (Actions ▸ Kaku image) to push the current commit as edge.
 # - A pull request that touches Kaku only builds it, to catch a broken Dockerfile.
 name: Kaku image
@@ -25,6 +26,7 @@ concurrency:
 
 jobs:
   image:
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
