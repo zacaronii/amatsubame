@@ -180,8 +180,15 @@ out whether an older build opens a database a newer build migrated.
 for the episode, remembered per file. Settings ▸ Playback ▸ Engine stays, as a global "mpv
 only".
 
+**Expected share on mpv:** routing by design sends styled ASS to mpv, and the library
+measurement (Styled ASS, below) puts that near 40% of anime episodes whenever their English ASS
+track is shown. That share is expected, and it isn't counted as a fallback. The log keeps the two
+apart: `routed` (the table above sent it to mpv) and `fallback` (AetherEngine was tried and
+failed, or the user switched).
+
 **Gate to phase 4:**
 - The fallback rate is below 5% of plays over two weeks (logged per play: engine, route, reason).
+  Routed plays don't count towards it.
 - Every fallback has a known cause.
 - The owner's checklist from phase 2 still passes.
 
@@ -192,6 +199,13 @@ only".
 - New installs and the owner's devices default to per-file routing (phase 3). mpv only plays
   what the routing or a fallback sends it.
 - One Dev build cycle of at least two weeks before a release carries it.
+
+**Gate to starting phase 4:** a decision on styled ASS. With routing alone, "AetherEngine by
+default" still leaves about 40% of anime on mpv whenever the English track is shown, so the
+owner chooses before phase 4 starts:
+- build the libass overlay (Styled ASS, step 3) first, and start phase 4 once it passes phase 2's
+  checklist with styled tracks; or
+- start phase 4 with routing alone, accepting that styled ASS stays on mpv.
 
 **Gate to a release:**
 - Phase 3's numbers hold.
@@ -239,12 +253,23 @@ newlines and override tags stripped):
    - Miru reads the track's header and first events once, then caches the answer per media
      source.
    - Plain ASS (dialogue only) plays fine with AetherEngine.
-2. **Measure it.** Log how often routing picks mpv for styled ASS. If it's most anime, phase 5
-   needs step 3; if it's rare, routing is enough.
-3. **Later, if needed: libass over AVPlayer.** Render the styled track with libass, which MPVKit
+2. **Measured (2026-11-27), read-only from Jellyfin.** One episode per series was fetched as
+   ASS and counted as styled with 6 or more styles, or more than 5% of Dialogue lines carrying
+   `\pos`, `\move`, `\an`, drawing, karaoke, `\fad`, `\clip`, `\org`, `\frz` or `\t`:
+   - **Library:** of 11,751 anime items, 44% have an English or undefined-language ASS/SSA
+     track, 30% have only text (SRT-like) subtitles and 26% have none.
+   - **Series:** 137 have an English/undefined ASS track. Of the 101 sampled, 94 (93%) are
+     styled, and they hold 95% of the sampled series' episodes.
+   - **So:** styled ASS is the norm wherever ASS exists. Routing would send roughly 40% of the
+     anime library to mpv whenever that track is shown, which makes step 3 the real question
+     for phase 4 (its start gate), not an edge case for phase 5.
+   - It's an upper bound for plays: Miru's Japanese lines don't use these tracks, so an episode
+     only routes to mpv when its English ASS track is actually shown. Phase 3's log (`routed`)
+     gives the real share.
+3. **Before phase 4, if the owner chooses it: libass over AVPlayer.** Render the styled track with libass, which MPVKit
    already ships, into a transparent layer above the video, timed by AVPlayer's clock. This is
-   how other AVPlayer-based players keep ASS. It's a separate project of 1–2 weeks and decided
-   on its own.
+   how other AVPlayer-based players keep ASS. It's a separate project of 1–2 weeks, decided at
+   phase 4's start gate.
 4. **Upstream.** Ask AetherEngine for styled ASS events (or the raw packets) through its subtitle
    API. That would make step 3 simpler, but the plan doesn't depend on it.
 
@@ -324,7 +349,8 @@ Phase 2 adds:
 | 2 | 1.5–2 weeks: AetherEngine conformance, AVPlayerViewController hosting, software-route PiP, engine info, device lab |
 | 3 | 1 week: routing, styled-ASS detection, runtime fallback, per-file memory, logging |
 | 4 | days of work, two weeks of use |
-| 5 | not planned; libass overlay 1–2 weeks if ever needed |
+| 4a | 1–2 weeks if chosen at phase 4's start gate: libass overlay over AVPlayer |
+| 5 | not planned |
 
 Phases 1–3 take about 3–4 weeks, the same as the spike's estimate. The two-week gates add time,
 not work.
@@ -336,5 +362,6 @@ not work.
 - **Mac:** AetherEngine's AVPlayer route on macOS hasn't been run outside the lab. Phase 2's
   checklist covers it. If the Mac lags, routing can keep the Mac on mpv longer than iOS.
 - **iPad external display and Stage Manager** with AVPlayerViewController: untested.
-- **Styled ASS:** how much of the owner's anime library has it as the visible track. Phase 3's
-  log answers this.
+- **Styled ASS:** measured (above): 93% of sampled series with English ASS are styled, about 40%
+  of the anime library. Still open: how often the owner actually shows that track (phase 3's
+  `routed` log), and whether to build the libass overlay before phase 4.
