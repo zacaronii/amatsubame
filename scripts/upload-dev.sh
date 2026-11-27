@@ -101,49 +101,12 @@ tag_build() {
 }
 
 . scripts/mac-developer-id.sh
+. scripts/homebrew-casks.sh
 
 # The Mac apps' zips go on one release in the tap, tagged "dev", which every Dev build overwrites:
 # the app repo's own releases stay the versions, and nothing old piles up.
 owner=$(gh repo view --json owner -q .owner.login)
 tap_repo="$owner/homebrew-amatsubame"
-
-# Points <app>@dev at this build's zip on the tap's dev release, and makes sure the release cask and
-# the dev cask can't both be installed (they're the same app). The rest is copied from the release
-# cask, so both describe the app the same way.
-write_dev_cask() {
-  local app=$1 tap=$2 zip=$3 name cask release sha
-  name=$(tr '[:upper:]' '[:lower:]' <<<"$app")
-  release="$tap/Casks/$name.rb"
-  cask="$tap/Casks/$name@dev.rb"
-  [ -f "$release" ] || fail "$tap_repo has no Casks/$name.rb to copy the dev cask from."
-  sha=$(shasum -a 256 "$zip" | cut -d' ' -f1)
-  {
-    echo "cask \"$name@dev\" do"
-    echo "  version \"$version,$build\""
-    echo "  sha256 \"$sha\""
-    echo
-    echo "  url \"https://github.com/$tap_repo/releases/download/dev/$app-#{version.csv.first}-#{version.csv.second}.zip\""
-    echo "  name \"$app (Dev)\""
-    grep -E '^  (desc|homepage) ' "$release"
-    echo
-    echo "  # Each Dev build replaces the last one: brew upgrade --cask $name@dev."
-    echo "  livecheck do"
-    echo "    skip \"Dev builds come from scripts/upload-dev.sh\""
-    echo "  end"
-    echo
-    echo "  conflicts_with cask: \"$name\""
-    grep -E '^  depends_on ' "$release"
-    echo
-    echo "  app \"$app.app\""
-    echo
-    grep -E '^  # The setup the apps share|^  zap ' "$release"
-    echo "end"
-  } >"$cask"
-  if ! grep -q "conflicts_with cask: \"$name@dev\"" "$release"; then
-    sed -i '' -E "s/^(  depends_on arch: .*)$/  conflicts_with cask: \"$name@dev\"\\
-\\1/" "$release"
-  fi
-}
 
 # The zips onto the dev release (replacing those apps' older ones), then the casks.
 publish_mac() {
@@ -161,6 +124,7 @@ publish_mac() {
     done
     write_dev_cask "$app" "$tap" "$zip"
   done
+  check_casks "$tap"/Casks/*.rb
   git -C "$tap" add Casks
   git -C "$tap" commit -q -m "Dev build $build: ${mac_apps[*]}"
   git -C "$tap" push -q

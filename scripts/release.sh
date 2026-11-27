@@ -116,6 +116,7 @@ mac_apps() {
 update_tap() {
   step "Homebrew tap"
   local repo tap app cask sha
+  . scripts/homebrew-casks.sh
   repo="$(gh repo view --json owner -q .owner.login)/homebrew-amatsubame"
   tap="$root/build.noindex/homebrew-tap"
   rm -rf "$tap"
@@ -126,6 +127,7 @@ update_tap() {
     sha=$(shasum -a 256 "$mac_out/$app-$version.zip" | cut -d' ' -f1)
     sed -i '' -E "s/^(  version )\".*\"/\1\"$version\"/; s/^(  sha256 )\".*\"/\1\"$sha\"/" "$cask"
   done
+  check_casks "$tap"/Casks/*.rb
   if git -C "$tap" diff --quiet; then
     echo "  already at $version"
   else

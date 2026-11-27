@@ -11,7 +11,9 @@ the upload time, which only goes up.
   [zacaronii/homebrew-amatsubame](https://github.com/zacaronii/homebrew-amatsubame) (each Dev build
   replaces the last), and the `@dev` casks (`yomu@dev`, `miru@dev`, `kiku@dev`, `hiku@dev`) point at
   them. The script writes the `@dev` casks from the release casks, and each pair conflicts, since
-  they're the same app. A release doesn't rebuild: it promotes a Dev build that has been in use, once
+  they're the same app (`scripts/homebrew-casks.sh`; `scripts/tests/homebrew-casks-test.sh` tests
+  it offline). Both scripts check every cask with `ruby -c` and `brew style` before pushing the tap,
+  since one broken cask stops every brew command that reads it. A release doesn't rebuild: it promotes a Dev build that has been in use, once
   `dev` has been merged into `main`.
 - `scripts/release.sh <build number>` checks that build's commit, tags it `v<version>`, creates the
   GitHub pre-release with generated notes, and opens the pull request that moves `dev` to the next
