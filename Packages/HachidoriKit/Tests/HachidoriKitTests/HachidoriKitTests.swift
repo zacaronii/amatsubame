@@ -395,6 +395,27 @@ struct LiveLinkTests {
         #expect(hello.dictionaryCount > 0)
     }
 
+    /// Following Jitendex's redirects (as the apps do on a host's results) keeps the host's first
+    /// result first when it has its own entry (なあ, not 七), and opens the target for a bare redirect.
+    @Test func followedRedirectsKeepTheHostsFirstResult() async throws {
+        let url = try #require(ProcessInfo.processInfo.environment["HACHIDORI_LINK_URL"].flatMap(HachidoriLink.linkURL))
+        let link = HachidoriLink(url: url, clientName: "Amatsubame tests", clientVersion: "0.3.0")
+        await link.start()
+        func lookUp(_ text: String) async throws -> (host: TermLookupResult?, followed: TermLookupResult?) {
+            let results = try await link.lookup(text).results
+            var found: [String: [TermLookupResult]] = [:]
+            for term in Redirects.terms(in: results) { found[term] = try await link.lookup(term, maxResults: 8).results }
+            return (results.first, Redirects.follow(results, found: found).first)
+        }
+        for text in ["なあ", "な", "ねえ", "よお"] {
+            let (host, followed) = try await lookUp(text)
+            #expect(followed?.expression == host?.expression && followed?.reading == host?.reading, "\(text)")
+        }
+        let (host, followed) = try await lookUp("精いっぱい")
+        #expect(followed?.expression == Redirects.terms(in: [try #require(host)]).first)
+        await link.stop()
+    }
+
     /// The relay answers WebSocket pings (how a silently dead link is found).
     @Test func aRealHostAnswersPings() async throws {
         let url = try #require(ProcessInfo.processInfo.environment["HACHIDORI_LINK_URL"].flatMap(HachidoriLink.linkURL))
