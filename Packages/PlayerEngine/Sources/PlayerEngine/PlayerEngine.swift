@@ -1,6 +1,9 @@
 import Foundation
 import Observation
 import SwiftUI
+#if os(iOS)
+import AVKit
+#endif
 
 /// What Miru's player needs from a video engine. `PlaybackModel` and the views talk to this, never
 /// to an engine directly, so another engine is one more conformance (docs/AETHER_PLAN.md). Today
@@ -97,10 +100,34 @@ import SwiftUI
     var streamInfo: [(label: String, value: String)] { get }
     /// A note for UI tests: which of the engine's subtitle tracks it shows and the line it draws.
     var subtitleNote: String { get }
+
+    // MARK: What the engine does itself (each defaults to "no": the player does it, as for mpv)
+    /// The English line now, when the engine leaves drawing it to the player (at the top); nil when
+    /// it draws its own (mpv) or no line shows.
+    var secondaryLine: String? { get }
+    /// AirPlay video goes through the engine (AVPlayer's own external playback), so the player
+    /// doesn't hand it to a stand-in.
+    var playsAirPlayItself: Bool { get }
+    /// The engine runs picture in picture on its own picture (`makePictureInPictureController`).
+    var runsPictureInPicture: Bool { get }
+    #if os(iOS)
+    /// Picture in picture on the engine's own picture, or nil: the player hands the video to
+    /// AVPlayer for it (mpv).
+    func makePictureInPictureController() -> AVPictureInPictureController?
+    /// The engine's own picture in picture started or ended.
+    func pictureInPictureChanged(active: Bool)
+    #endif
 }
 
 public extension PlayerEngine {
     var engineDetail: String? { nil }
+    var secondaryLine: String? { nil }
+    var playsAirPlayItself: Bool { false }
+    var runsPictureInPicture: Bool { false }
+    #if os(iOS)
+    func makePictureInPictureController() -> AVPictureInPictureController? { nil }
+    func pictureInPictureChanged(active: Bool) {}
+    #endif
     /// "AetherEngine, loopback route", or just the name.
     var engineSummary: String { [engineName, engineDetail].compactMap { $0 }.joined(separator: ", ") }
     func togglePause() { setPaused(!isPaused) }

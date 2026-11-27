@@ -334,6 +334,8 @@ final class PlaybackModel {
     /// stream from Jellyfin (directly or transcoded), or a download AVPlayer opens (not MKV).
     var canPictureInPicture: Bool {
         guard PictureInPicture.isSupported, item != nil, engine.hasStarted, airPlayState == .off else { return false }
+        // The engine's own (AetherEngine): no hand-off, so no source to check.
+        if engine.runsPictureInPicture { return true }
         if mediaSourceId == "local" { return true } // UI tests: a local test video
         if let localFile {
             let codecs = playingCodecs
@@ -343,7 +345,12 @@ final class PlaybackModel {
     }
 
     func startPictureInPicture() {
-        guard pipState == .off, canPictureInPicture, let item else { return }
+        guard pipState == .off, canPictureInPicture else { return }
+        if engine.runsPictureInPicture {
+            startEnginePictureInPicture()
+            return
+        }
+        guard let item else { return }
         let time = engine.timePosition, rate = Float(engine.speed)
         let wasPlaying = !engine.isPaused
         engine.setPaused(true)
@@ -401,6 +408,36 @@ final class PlaybackModel {
     }
 
     func stopPictureInPicture() { pip.stop() }
+
+    /// The engine's own picture in picture (AetherEngine): it keeps playing its own picture in the
+    /// small window, so nothing is handed over and nothing comes back but the state.
+    private func startEnginePictureInPicture() {
+        guard let controller = engine.makePictureInPictureController() else {
+            showOSD("Picture in Picture isn't available for this video")
+            return
+        }
+        pipState = .starting
+        pip.use(engineController: controller)
+        engine.pictureInPictureChanged(active: true)
+        let ended = { [weak self] in
+            guard let self else { return }
+            self.pipState = .off
+            self.engine.pictureInPictureChanged(active: false)
+            self.pip.use(engineController: nil)
+        }
+        pip.onStart = { [weak self] in self?.pipState = .on }
+        pip.onFailure = { [weak self] in
+            ended()
+            self?.showOSD("Picture in Picture couldn't start")
+        }
+        pip.onStop = { [weak self] _ in
+            ended()
+            // Closed while away, paused: the session ends as it would have.
+            guard let self else { return }
+            if self.inBackground, self.engine.isPaused { self.endSessionInBackground() }
+        }
+        pip.start()
+    }
 
     /// UITEST_PLAYER_PIP=<seconds>: picture in picture that many seconds after `start` (the
     /// menu's items can't be reached by a UI test); says why when it isn't offered.
@@ -520,6 +557,8 @@ final class PlaybackModel {
     /// The output changed (an AirPlay receiver picked, or this device again), or the video
     /// started: a TV gets the picture.
     func airPlayRouteChanged() {
+        // AVPlayer's own external playback takes the video there (AetherEngine).
+        guard !engine.playsAirPlayItself else { return }
         guard let route = airPlayRoute else {
             airPlayTriedRoute = nil
             return
@@ -1111,6 +1150,10 @@ final class PlaybackModel {
                     self.unloggedSeconds += Self.saveInterval
                     self.logWatching()
                 }
+                // The engine's own picture in picture plays on its clock; with the app away the
+                // view may not pass time changes on, so take them here too (the time since the
+                // last one counts once either way).
+                if self.pipState == .on, self.engine.runsPictureInPicture { self.timeChanged() }
                 #endif
             }
         }

@@ -2,6 +2,9 @@
 // framework next to PlayerKit (MPVKit's FFmpeg), or their C headers clash.
 internal import AetherEngine
 import AVFoundation
+#if os(iOS)
+import AVKit
+#endif
 import Combine
 import Foundation
 import Observation
@@ -50,6 +53,13 @@ public final class AetherPlayerEngine: PlayerEngine {
     @ObservationIgnored private var boundary: TimeBoundary?
     @ObservationIgnored private var boundaryObserver: (player: AVPlayer, token: Any)?
     @ObservationIgnored private var videoEnabled = true
+    /// The English file `showSubtitles` added (AetherEngine's secondary sidecar), shown to the player
+    /// as an external subtitle track with `sidecarId`, as mpv's added file is.
+    @ObservationIgnored private var sidecar: (url: URL, headers: [String: String])?
+    private var sidecarShown = false
+    static let sidecarId = -100
+    /// The English lines in force (the secondary track's), for `secondaryLine`.
+    private var englishCues: [(start: Double, end: Double, text: String)] = []
 
     public init() throws {
         engine = try AetherEngine()
@@ -99,6 +109,10 @@ public final class AetherPlayerEngine: PlayerEngine {
         onMain(engine.$sourceVideoWidth) { me, _ in me.updateAspect() }
         onMain(engine.$sourceVideoHeight) { me, _ in me.updateAspect() }
         onMain(engine.$sourceVideoBitrate) { me, bitrate in me.averageBitRate = bitrate > 0 ? Double(bitrate) : nil }
+        onMain(engine.$secondarySubtitleCues) { me, cues in
+            me.englishCues = cues.map { (start: $0.startTime, end: $0.endTime, text: Self.text($0)) }
+        }
+        onMain(engine.$activeSecondarySubtitleTrackIndex) { me, _ in me.updateTracks() }
     }
 
     private func updateTracks() {
@@ -110,7 +124,10 @@ public final class AetherPlayerEngine: PlayerEngine {
             PlayerTrack(id: $0.id, type: "sub", language: $0.language, title: $0.name.isEmpty ? nil : $0.name,
                         codec: $0.codec, isSelected: $0.id == engine.activeSecondarySubtitleTrackIndex, ffIndex: $0.id)
         }
-        let all = audio + subtitles
+        var all = audio + subtitles
+        if sidecar != nil {
+            all.append(PlayerTrack(id: Self.sidecarId, type: "sub", language: "en", isExternal: true, isSelected: sidecarShown))
+        }
         if all != tracks { tracks = all }
     }
 
@@ -156,6 +173,8 @@ public final class AetherPlayerEngine: PlayerEngine {
         hasStarted = false
         lastError = nil
         isBuffering = false
+        sidecar = nil
+        sidecarShown = false
         setLoop(start: nil, end: nil)
         var options = LoadOptions()
         options.httpHeaders = headers
@@ -283,20 +302,52 @@ public final class AetherPlayerEngine: PlayerEngine {
         engine.selectAudioTrack(index: id)
     }
 
-    /// The engine's own subtitle track Miru shows (English, at the top), or none.
+    /// The subtitle track Miru shows (English, at the top): the file `showSubtitles` added, one of
+    /// the video's own, or none.
     public func selectSubtitle(_ id: Int?) {
-        if let id { engine.selectSecondarySubtitleTrack(index: id) } else { engine.clearSecondarySubtitle() }
+        sidecarShown = false
+        switch id {
+        case Self.sidecarId?:
+            if let sidecar {
+                engine.selectSecondarySidecarSubtitle(url: sidecar.url, httpHeaders: sidecar.headers.isEmpty ? nil : sidecar.headers)
+                sidecarShown = true
+            }
+        case let id?: engine.selectSecondarySubtitleTrack(index: id)
+        case nil: engine.clearSecondarySubtitle()
+        }
         updateTracks()
     }
 
     public func showSubtitles(from url: URL?, headers: [String: String]) {
-        if let url {
-            engine.selectSecondarySidecarSubtitle(url: url, httpHeaders: headers.isEmpty ? nil : headers)
-        } else {
-            engine.clearSecondarySubtitle()
+        guard let url else {
+            selectSubtitle(nil)
+            return
         }
-        updateTracks()
+        sidecar = (url, headers)
+        selectSubtitle(Self.sidecarId)
     }
+
+    public var secondaryLine: String? {
+        guard engine.activeSecondarySubtitleTrackIndex != nil || sidecarShown else { return nil }
+        let time = timePosition
+        let line = englishCues.filter { $0.start <= time && time < $0.end }.map(\.text).joined(separator: "\n")
+        return line.isEmpty ? nil : line
+    }
+
+    /// AVPlayer's own external playback carries the video to an AirPlay receiver.
+    public var playsAirPlayItself: Bool { true }
+    public var runsPictureInPicture: Bool { true }
+
+    #if os(iOS)
+    public func makePictureInPictureController() -> AVPictureInPictureController? {
+        if route == "software" { return engine.softwarePiPSource?.makePictureInPictureController() }
+        return engine.nativePlayerLayer.flatMap(AVPictureInPictureController.init(playerLayer:))
+    }
+
+    public func pictureInPictureChanged(active: Bool) {
+        engine.pictureInPictureActive = active
+    }
+    #endif
 
     // MARK: Another player in the engine's place
 

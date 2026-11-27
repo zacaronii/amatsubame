@@ -780,10 +780,10 @@ struct PlaybackView: View {
             }
             .accessibilityElement(children: .combine)
         } else {
-            model.engine.videoView(fills: fills(screen))
+            EngineVideo(engine: model.engine, fills: fills(screen))
         }
         #else
-        model.engine.videoView(fills: fills(screen))
+        EngineVideo(engine: model.engine, fills: fills(screen))
         #endif
     }
 
@@ -1438,5 +1438,38 @@ private extension SubtitleOverlay {
         overlay.concealed = model.look.concealsSubtitles
         overlay.onHover = hover
         return overlay
+    }
+}
+
+/// The engine's picture, and the English line at the top when the engine leaves drawing it to
+/// the player (AetherEngine draws none; mpv draws its own).
+struct EngineVideo: View {
+    let engine: any PlayerEngine
+    let fills: Bool
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            engine.videoView(fills: fills)
+            EngineEnglishLine(engine: engine)
+        }
+    }
+}
+
+/// Its own view, so only the line redraws as the English lines change, not the picture.
+private struct EngineEnglishLine: View {
+    let engine: any PlayerEngine
+
+    var body: some View {
+        if let line = engine.secondaryLine {
+            Text(line)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+                .shadow(color: .black, radius: 2)
+                .padding(.horizontal, 24)
+                .padding(.top, 24)
+                .allowsHitTesting(false)
+                .accessibilityIdentifier("player.englishLine")
+        }
     }
 }

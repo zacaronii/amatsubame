@@ -96,6 +96,17 @@ final class PictureInPicture: NSObject, AVPictureInPictureControllerDelegate {
         controller?.canStartPictureInPictureAutomaticallyFromInline = false
         return controller
     }()
+    /// The engine's own controller, when it runs picture in picture on its own picture
+    /// (AetherEngine); otherwise `controller`, on `avPlayer`'s layer.
+    private var engineController: AVPictureInPictureController?
+    private var active: AVPictureInPictureController? { engineController ?? controller }
+
+    func use(engineController: AVPictureInPictureController?) {
+        engineController?.delegate = self
+        engineController?.canStartPictureInPictureAutomaticallyFromInline = false
+        self.engineController = engineController
+    }
+
     /// Picture in picture ended; `restored`: by its button back to the app (else its ×).
     var onStop: ((_ restored: Bool) -> Void)?
     var onStart: (() -> Void)?
@@ -108,7 +119,7 @@ final class PictureInPicture: NSObject, AVPictureInPictureControllerDelegate {
     func start() {
         restoring = false
         started = false
-        guard let controller else { onFailure?(); return }
+        guard let controller = active else { onFailure?(); return }
         // The controller needs a moment after the layer gets its item, and a start asked for
         // too early is dropped without a word (no delegate call): ask again until it opens.
         Task {
@@ -124,7 +135,7 @@ final class PictureInPicture: NSObject, AVPictureInPictureControllerDelegate {
     /// Back to the app (its "Back Here", or the episode ending).
     func stop() {
         restoring = true
-        controller?.stopPictureInPicture()
+        active?.stopPictureInPicture()
     }
 
     nonisolated func pictureInPictureControllerWillStartPictureInPicture(_ controller: AVPictureInPictureController) {

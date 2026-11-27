@@ -1,8 +1,8 @@
 import XCTest
 
 extension XCTestCase {
-    /// The options menu's English Subtitles: mpv's English line on, off and on again (debug
-    /// builds put the line mpv draws in the picture's accessibility value). Checked paused: while
+    /// The options menu's English Subtitles: the English line on, off and on again (debug
+    /// builds put the engine's English track and line in the picture's accessibility value). Checked paused: while
     /// the video plays, that value changes ten times a second, XCTest waits for the app to go
     /// idle before each tap (about 55 s), and the video ends before a line can show (#314). mpv
     /// draws the line at the paused frame, so it needs a line there.
@@ -12,8 +12,8 @@ extension XCTestCase {
         func shows(_ english: Bool) -> Bool {
             let predicate = NSPredicate { _, _ in
                 let value = player.value as? String ?? ""
-                return english ? !value.contains("mpv sid: no") && value.contains("mpv line: ")
-                    : value.contains("mpv sid: no") && !value.contains("mpv line: ")
+                return english ? !value.contains("sid: no") && value.contains(" line: ")
+                    : value.contains("sid: no") && !value.contains(" line: ")
             }
             return XCTWaiter().wait(for: [expectation(for: predicate, evaluatedWith: nil)], timeout: english ? 30 : 8) == .completed
         }
@@ -61,10 +61,10 @@ extension XCTestCase {
         toggle()
         sleep(25)
         let value = player.value as? String ?? ""
-        XCTAssertTrue(value.contains("mpv sid: no") && !value.contains("mpv line: "), "still off once the file came: \(value)")
+        XCTAssertTrue(value.contains("sid: no") && !value.contains(" line: "), "still off once the file came: \(value)")
         // And on again works.
         toggle()
-        let on = NSPredicate { _, _ in (player.value as? String ?? "").contains("mpv line: ") }
+        let on = NSPredicate { _, _ in (player.value as? String ?? "").contains(" line: ") }
         XCTAssertEqual(XCTWaiter().wait(for: [expectation(for: on, evaluatedWith: nil)], timeout: 20), .completed, "on again")
     }
 }
