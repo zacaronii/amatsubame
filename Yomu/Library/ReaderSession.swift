@@ -65,8 +65,6 @@ struct ReaderContainer: View {
                                 }
                             } barItem: {
                                 ReadAlongSwitch(model: readAlong)
-                            } popupHeader: {
-                                ReadAlongClipRow(model: readAlong)
                             }
                         } else {
                             BookReaderView(model: model, onClose: closeReader, onOpenChapter: open)
