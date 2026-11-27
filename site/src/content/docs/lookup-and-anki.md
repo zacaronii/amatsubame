@@ -123,11 +123,12 @@ Open **Settings ▸ Lookup ▸ Dictionaries**:
   and a switch to turn it off without deleting it. Results follow this order: on iPhone and iPad tap
   **Edit** and drag; on the Mac drag a row by its handle or right-click it. On iPhone and iPad, swipe a
   dictionary to delete it.
-- **Sort Results By** picks which frequency dictionary orders the results. **Automatic** (the default)
-  uses the first frequency dictionary in your list. Words that read the same, like 隕石 and 引責 for
-  いんせき, come in the order that dictionary gives them: the most common first. It reads its numbers
-  the way the dictionary says (ranks or counts), and with Hachidori linked, Hachidori's own order
-  setting applies.
+- **Frequency Sorting** works as in Hachidori. By default nothing sorts by frequency: results keep
+  your dictionary order (with Jitendex, いんせき shows 引責 before 隕石). **Sort by Frequency
+  Dictionary** picks one to sort by, and words that read the same then come most common first (with
+  Jiten, 隕石 before 引責); choosing it sets **Sort Order** to the way its numbers run (ranks
+  ascending, counts descending), and you can change that. **Automatic** keeps dictionary order and
+  **Disabled** turns sorting off. With Hachidori linked, its own frequency sorting applies.
 - Longer matches come first. One exception when you tap text: a name from JMnedict that only matched
   by reading hiragana as katakana (たと as the name タト) goes after the other results. Searching for
   a name still finds it first.

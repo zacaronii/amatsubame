@@ -1160,6 +1160,14 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v72_frequency_sort_order") { db in
+            // Hachidori's Sort order beside its Sort by frequency dictionary. Left empty here: a
+            // dictionary chosen before keeps its own direction (what choosing one sets).
+            try db.alter(table: "dictionarySettings") { t in
+                t.add(column: "frequencySortOrder", .text)
+            }
+        }
+
         return migrator
     }
 }

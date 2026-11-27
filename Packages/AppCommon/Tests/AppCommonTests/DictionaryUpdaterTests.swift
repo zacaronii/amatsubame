@@ -187,14 +187,15 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
         #expect(updater.installedRecommended() == ["jitendex"], "Jiten (Anime) isn't the global list")
     }
 
-    @Test func theRecommendedSetInstallsAndSetsTheFrequencySort() async throws {
+    /// Installing Jiten doesn't choose it to sort by: as in Hachidori, nothing sorts until chosen.
+    @Test func theRecommendedSetInstallsWithoutChoosingAFrequencySort() async throws {
         let library = library()
         let updater = updater(library)
         let jiten = try #require(RecommendedDictionaries.entry("jiten"))
         StubURLProtocol.responses = [jiten.downloadURL.absoluteString: try frequency("Jiten", revision: "Jiten 26-11-01")]
         await updater.installRecommended(["jiten"])
         #expect(updater.items["jiten"] == .installed)
-        #expect(try library.settings().frequencySortTitle == "Jiten")
+        #expect(try library.settings().frequencySortTitle == nil)
         #expect(updater.installedRecommended() == ["jiten"])
         let id = try #require(try library.dictionaries().first?.id)
         try await library.delete(id)

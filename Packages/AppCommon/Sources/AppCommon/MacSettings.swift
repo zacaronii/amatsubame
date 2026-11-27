@@ -135,7 +135,7 @@ public extension MacSettingsPage {
     static func lookup(wordMarksNote: String?, popupExtras: AnyView?) -> [MacSettingsPage] {
         [
             MacSettingsPage("dictionaries", title: "Dictionaries", systemImage: "character.book.closed.ja",
-                            keywords: ["Sort Results By", "Frequency", "Add Recommended", "Import from Files", "Import from URL",
+                            keywords: ["Frequency Sorting", "Sort by Frequency Dictionary", "Sort Order", "Frequency", "Add Recommended", "Import from Files", "Import from URL",
                                        "Copy from Hachidori"]) { DictionariesView() },
             MacSettingsPage("popup", title: "Popup", systemImage: "text.bubble",
                             keywords: ["Snippets", "Summary Dictionary", "Background Opacity", "Look Up on Hover",
