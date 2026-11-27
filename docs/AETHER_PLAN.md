@@ -2,11 +2,28 @@
 
 This is the plan for moving Miru's player from mpv (MPVKit) to
 [AetherEngine](https://github.com/superuser404notfound/AetherEngine). Nothing in it is built
-yet. It starts only after the battery comparison (Miru 202611271629) is in, and the owner
-decides whether to go ahead. The evidence so far is the spike on `spike/aetherengine`
+yet. The battery comparison (Miru 202611271629) is in (below); it starts when the owner decides
+to go ahead. The evidence so far is the spike on `spike/aetherengine`
 (`docs/spikes/aetherengine.md` there):
 - a Mac lab run against 7.73.0, then 7.76.0;
-- the owner's device run on 7.76.0 ("everything seemed to work well").
+- the owner's device run on 7.76.0 ("everything seemed to work well");
+- the battery comparison on the iPhone.
+
+## Battery comparison (2026-11-27)
+
+The owner played the same episode for 25 minutes with each engine on the spike build
+202611271629, with Settings ▸ Test ▸ "Don't record playback" on for the mpv run, so neither run
+reached Stats, Jellyfin or kechimochi.
+
+| Engine | Battery | Drain |
+| --- | --- | --- |
+| AetherEngine | 90% → 88% | 2 points |
+| mpv | 88% → 85% | 3 points |
+
+iOS shows the battery in whole points, so each reading can be off by up to a point: this says
+AetherEngine is level with mpv or slightly better, not by how much. It passes phase 0's battery
+bar. It was one file, so it covers the route that file took; the software route's cost is
+measured per codec in phase 2's device testing (below).
 
 ## Why, and why carefully
 
@@ -83,8 +100,8 @@ Check that Stats, downloads, resume points and settings survive both ways. This 
 out whether an older build opens a database a newer build migrated.
 
 **Gate to phase 1:**
-- The battery comparison shows AetherEngine no worse than mpv. The proposed bar is within 10% of
-  mpv's drain over the same 15 minutes.
+- The battery comparison shows AetherEngine no worse than mpv: within 10% of mpv's drain on the
+  same file. **Met** on 2026-11-27 (2 points against 3 over 25 minutes; above).
 - The owner says go.
 - The backup can be installed from the steps below on the iPhone, the iPad and the Mac.
 
@@ -314,9 +331,8 @@ not work.
 
 ## Open questions
 
-- **Battery:** does AetherEngine's native route save power over mpv on the iPhone, and how much
-  does the software route cost? This comes from the battery comparison, and it decides phase 0's
-  gate.
+- **Battery:** answered for phase 0 (AetherEngine level with mpv or slightly better; above). Still
+  open: how much the software route costs, which phase 2's device testing measures per codec.
 - **Mac:** AetherEngine's AVPlayer route on macOS hasn't been run outside the lab. Phase 2's
   checklist covers it. If the Mac lags, routing can keep the Mac on mpv longer than iOS.
 - **iPad external display and Stage Manager** with AVPlayerViewController: untested.
