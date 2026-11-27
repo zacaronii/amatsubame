@@ -131,7 +131,7 @@ update_tap() {
   if git -C "$tap" diff --quiet; then
     echo "  already at $version"
   else
-    git -C "$tap" commit -q -am "Amatsubame $version"
+    tap_git "$tap" commit -q -am "Amatsubame $version"
     git -C "$tap" push -q
     echo "  $repo: $version"
   fi

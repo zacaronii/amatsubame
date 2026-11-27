@@ -66,6 +66,15 @@ write_dev_cask() {
   set_conflicts "$release" "$name@dev" ${backup[@]+"${backup[@]}"}
 }
 
+# tap_git <tap folder> <git args ...> runs git in the tap clone as the app repo's committer, so the
+# tap's history gets the same (public) identity as this repo's, not a global one with the Mac's
+# host name in it.
+tap_git() {
+  local tap=$1
+  shift
+  git -C "$tap" -c user.name="$(git config user.name)" -c user.email="$(git config user.email)" "$@"
+}
+
 # check_casks <cask.rb ...> stops before anything is pushed when a cask isn't valid Ruby, or when
 # brew style (if Homebrew is installed) finds a problem: a broken cask stops every brew command
 # that reads the tap.

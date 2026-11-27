@@ -126,4 +126,11 @@ check_casks "$tap"/Casks/*.rb
 release_cask broken Broken '  zap trash: [' >"$tap/Casks/broken.rb"
 if (check_casks "$tap/Casks/broken.rb") 2>/dev/null; then fail "check_casks passed a cask with an unclosed list"; fi
 
+# Tap commits carry this repo's identity, whatever the global one is.
+git -C "$tap" init -q
+tap_git "$tap" add Casks
+HOME="$work" tap_git "$tap" commit -q -m test
+[ "$(git -C "$tap" log -1 --format='%an <%ae>')" = "$(git config user.name) <$(git config user.email)>" ] \
+  || fail "tap_git didn't commit as this repo's identity"
+
 echo "homebrew-casks: all passed"

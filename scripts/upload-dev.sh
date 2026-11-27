@@ -130,7 +130,7 @@ publish_mac() {
   done
   check_casks "$tap"/Casks/*.rb
   git -C "$tap" add Casks
-  git -C "$tap" commit -q -m "Dev build $build: ${mac_apps[*]}"
+  tap_git "$tap" commit -q -m "Dev build $build: ${mac_apps[*]}"
   git -C "$tap" push -q
 }
 
