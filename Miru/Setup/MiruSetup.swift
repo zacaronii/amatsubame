@@ -14,11 +14,11 @@ enum MiruSetup {
         let jimaku = ((try? common.secrets.secret(for: .jimakuAPIKey)) ?? nil) != nil
         let kechimochi = ((try? common.activity.kechimochiURL()) ?? nil) != nil
         return [
-            SetupChecklistItem.server("Jellyfin", account: common.serverAccounts[.jellyfin], settings: "Settings → Watching"),
-            SetupChecklistItem("Jimaku subtitles", detail: jimaku ? "Key set" : "In Settings → Watching → Subtitles", isDone: jimaku),
-            SetupChecklistItem("Kaku subtitles", detail: common.serverAccounts[.kaku] != nil ? "Connected" : "In Settings → Watching → Subtitles",
+            SetupChecklistItem.server("Jellyfin", account: common.serverAccounts[.jellyfin], settings: "Settings → Connections"),
+            SetupChecklistItem("Jimaku subtitles", detail: jimaku ? "Key set" : "In Settings → Connections → Jimaku", isDone: jimaku),
+            SetupChecklistItem("Kaku subtitles", detail: common.serverAccounts[.kaku] != nil ? "Connected" : "In Settings → Connections → Kaku",
                                isDone: common.serverAccounts[.kaku] != nil),
-            SetupChecklistItem("kechimochi", detail: kechimochi ? "Linked from Stats" : "Optional · In Settings → Stats", isDone: kechimochi),
+            SetupChecklistItem("kechimochi", detail: kechimochi ? "Linked from Stats" : "Optional · In Settings → Connections", isDone: kechimochi),
         ]
     }
 }
@@ -40,25 +40,29 @@ struct MiruServerStep: View {
                       action: {
                           if connected { flow.advance(from: .server) } else { Task { await connect(model) } }
                       }) {
-                SetupCard {
-                    TextField("Server URL", text: $model.urlText, prompt: Text(verbatim: "https://jellyfin.example.ts.net"))
-                        .urlEntry()
-                        .padding(.horizontal, 16).padding(.vertical, 10)
-                        .accessibilityIdentifier("setup.server.url")
-                    Divider().padding(.leading, 16)
-                    TextField("Username", text: $model.username)
-                        .credentialEntry()
-                        .textContentType(.username)
-                        .padding(.horizontal, 16).padding(.vertical, 10)
-                        .accessibilityIdentifier("setup.server.username")
-                    Divider().padding(.leading, 16)
-                    SecureField("Password", text: $model.password)
-                        .textContentType(.password)
-                        .padding(.horizontal, 16).padding(.vertical, 10)
-                        .accessibilityIdentifier("setup.server.password")
+                if model.isDemo {
+                    SetupDemoServerCard(serverName: "Jellyfin") { useOwnServer(model) }
+                } else {
+                    SetupCard {
+                        TextField("Server URL", text: $model.urlText, prompt: Text(verbatim: "https://jellyfin.example.ts.net"))
+                            .urlEntry()
+                            .padding(.horizontal, 16).padding(.vertical, 10)
+                            .accessibilityIdentifier("setup.server.url")
+                        Divider().padding(.leading, 16)
+                        TextField("Username", text: $model.username)
+                            .credentialEntry()
+                            .textContentType(.username)
+                            .padding(.horizontal, 16).padding(.vertical, 10)
+                            .accessibilityIdentifier("setup.server.username")
+                        Divider().padding(.leading, 16)
+                        SecureField("Password", text: $model.password)
+                            .textContentType(.password)
+                            .padding(.horizontal, 16).padding(.vertical, 10)
+                            .accessibilityIdentifier("setup.server.password")
+                    }
+                    Text("Only a sign-in token is kept, never the password.")
+                        .font(.footnote).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
                 }
-                Text("Only a sign-in token is kept, never the password.")
-                    .font(.footnote).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
                 Group {
                     if let found, case .ok = model.status {
                         Label(found, systemImage: "checkmark").foregroundStyle(.green)
@@ -72,6 +76,7 @@ struct MiruServerStep: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityIdentifier("setup.server.status")
             }
+            .task { await signInToDemo(model) }
         } else {
             Color.clear.onAppear {
                 model = JellyfinSettingsModel(environment: environment.common)
@@ -81,6 +86,26 @@ struct MiruServerStep: View {
 
     private func isFailed(_ status: ConnectionStatus) -> Bool {
         if case .failed = status { true } else { false }
+    }
+
+    /// Try It with the Demo Servers: signs in to the demo Jellyfin once, as a demo account.
+    private func signInToDemo(_ model: JellyfinSettingsModel) async {
+        guard let demo = flow.demo?.jellyfin, !model.isSignedIn, !model.isDemo else { return }
+        model.isDemo = true
+        model.urlText = demo.url.absoluteString
+        model.username = demo.user
+        model.password = demo.password
+        await connect(model)
+    }
+
+    private func useOwnServer(_ model: JellyfinSettingsModel) {
+        if model.isSignedIn { Task { await model.signOut() } }
+        model.isDemo = false
+        model.urlText = ""
+        model.username = ""
+        model.password = ""
+        flow.demo = nil
+        found = nil
     }
 
     private func connect(_ model: JellyfinSettingsModel) async {
@@ -152,7 +177,7 @@ struct MiruSetupExtras: View {
         Divider().padding(.leading, 16)
         SetupExtraRow("Kaku", detail: "Makes subtitles from the Japanese audio when Jimaku has none", recommended: true,
                       isDone: common.serverAccounts[.kaku] != nil) {
-            KakuSettingsView(environment: common)
+            KakuConnectionView(environment: common)
         }
         Divider().padding(.leading, 16)
         SetupExtraRow("kechimochi", detail: "Your immersion log, linked from Stats",

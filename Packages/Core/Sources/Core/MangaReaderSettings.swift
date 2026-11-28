@@ -1,6 +1,16 @@
 import Foundation
 import GRDB
 
+/// What a tap on the left and right of a page does in the readers.
+public enum ReaderTapZones: String, Codable, CaseIterable, Sendable {
+    /// Toward the next page on the side the book reads to (the left, in a right-to-left book).
+    case standard
+    /// The sides swapped (for the other hand).
+    case inverted
+    /// Taps never turn pages (swipe instead): they only look words up and show the controls.
+    case off
+}
+
 public struct MangaReaderSettings: Codable, Equatable, Sendable {
     public enum Mode: String, Codable, CaseIterable, Sendable { case paged, longStrip }
     public enum Direction: String, Codable, CaseIterable, Sendable { case rightToLeft, leftToRight }
@@ -15,13 +25,26 @@ public struct MangaReaderSettings: Codable, Equatable, Sendable {
     public var stripWidth: Double = 1
     /// Outline detected text blocks on the page.
     public var showsTextBoxes: Bool = false
+    /// While a word is looked up, the bubble's recognized text is typeset over it, so the next
+    /// tap lands on an exact character.
+    public var showsTextOverlay: Bool = true
+    public var tapZones: ReaderTapZones = .standard
+    /// A double tap zooms into the page (and back). Off by default: with it on, a single tap
+    /// waits a moment to see whether a second follows.
+    public var doubleTapZooms: Bool = false
     /// How many pages after the current one to OCR in advance.
     public var ocrAhead: Int = 3
+    /// In a portrait reader, a two-page scan (Kavita's wide page) is shown one half at a time.
+    public var splitsWidePages: Bool = true
+    /// The paged reader trims a page's blank margins (white or black) off the screen.
+    public var cropsBorders: Bool = false
+    /// Auto-scroll's speed in the long strip, 1 (slow) to 10.
+    public var autoScrollLevel: Int = 5
 
     public init() {}
 
     enum CodingKeys: String, CodingKey {
-        case mode, direction, spreads, coverAlone, stripWidth, showsTextBoxes, ocrAhead
+        case mode, direction, spreads, coverAlone, stripWidth, showsTextBoxes, ocrAhead, showsTextOverlay, tapZones, doubleTapZooms, splitsWidePages, autoScrollLevel, cropsBorders
     }
 
     /// Missing keys (settings saved by an older version) keep their defaults.
@@ -33,6 +56,12 @@ public struct MangaReaderSettings: Codable, Equatable, Sendable {
         coverAlone = try container.decodeIfPresent(Bool.self, forKey: .coverAlone) ?? coverAlone
         stripWidth = try container.decodeIfPresent(Double.self, forKey: .stripWidth) ?? stripWidth
         showsTextBoxes = try container.decodeIfPresent(Bool.self, forKey: .showsTextBoxes) ?? showsTextBoxes
+        showsTextOverlay = try container.decodeIfPresent(Bool.self, forKey: .showsTextOverlay) ?? showsTextOverlay
+        tapZones = try container.decodeIfPresent(ReaderTapZones.self, forKey: .tapZones) ?? tapZones
+        doubleTapZooms = try container.decodeIfPresent(Bool.self, forKey: .doubleTapZooms) ?? doubleTapZooms
+        splitsWidePages = try container.decodeIfPresent(Bool.self, forKey: .splitsWidePages) ?? splitsWidePages
+        autoScrollLevel = try container.decodeIfPresent(Int.self, forKey: .autoScrollLevel) ?? autoScrollLevel
+        cropsBorders = try container.decodeIfPresent(Bool.self, forKey: .cropsBorders) ?? cropsBorders
         ocrAhead = try container.decodeIfPresent(Int.self, forKey: .ocrAhead) ?? ocrAhead
     }
 

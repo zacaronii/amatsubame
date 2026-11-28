@@ -1,0 +1,4 @@
+{"version": 1,
+ "kavita": {"url": "https://kavita.demo.invalid", "apiKey": "made-up"},
+ "jellyfin": {"url": "https://jellyfin.demo.invalid", "user": "visitor", "password": "made-up"},
+ "audiobookshelf": {"url": "https://abs.demo.invalid", "user": "visitor", "password": "made-up"}}

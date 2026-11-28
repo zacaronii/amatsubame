@@ -3,10 +3,38 @@ import GRDB
 
 public enum OutboxJobKind: String, Codable, CaseIterable, Sendable, DatabaseValueConvertible {
     case ankiNote, kavitaProgress, jellyfinProgress, jellyfinSubtitle, audiobookshelfProgress
+    /// An item marked watched or unwatched by hand (`JellyfinPlayedPayload`).
+    case jellyfinPlayed
+    /// A listening session for Audiobookshelf's stats (`AudiobookshelfSessionPayload`).
+    case audiobookshelfSession
     /// Lookups to count on a linked Hachidori host (`HostLookupCountJob`).
     case hachidoriLookupCount
     /// A word marked known or ignored (or cleared) to tell the Hachidori host (`WordStatusJob`).
     case hachidoriWordStatus
+    /// A Yomu bookmark or highlight to bring up to date on Kavita (`ReaderMarkJob`).
+    case kavitaReaderMark
+    /// A series added to or removed from Kavita's Want to Read (`WantToReadJob`).
+    case kavitaWantToRead
+    /// A Kavita collection made or deleted, or a series added to or taken out of one (`CollectionJob`).
+    case kavitaCollection
+    /// A Kavita reading list made or deleted, an item added or taken out, or a move (`ReadingListJob`).
+    case kavitaReadingList
+    /// Kiku's Up Next for a podcast library, as a whole list to make Audiobookshelf's "Up Next"
+    /// playlist match (`AudiobookshelfUpNextPayload`).
+    case audiobookshelfUpNext
+}
+
+extension OutboxJobKind {
+    /// The server a job writes to (nil: a Hachidori host, linked rather than signed in).
+    public var server: ServerKind? {
+        switch self {
+        case .ankiNote: .anki
+        case .kavitaProgress, .kavitaReaderMark, .kavitaWantToRead, .kavitaCollection, .kavitaReadingList: .kavita
+        case .jellyfinProgress, .jellyfinSubtitle, .jellyfinPlayed: .jellyfin
+        case .audiobookshelfProgress, .audiobookshelfSession, .audiobookshelfUpNext: .audiobookshelf
+        case .hachidoriLookupCount, .hachidoriWordStatus: nil
+        }
+    }
 }
 
 public enum OutboxJobState: String, Codable, Sendable, DatabaseValueConvertible {
@@ -27,6 +55,8 @@ public struct OutboxJob: Codable, Equatable, Identifiable, Sendable, FetchableRe
     public var state: OutboxJobState
     public var attempts: Int
     public var lastError: String?
+    /// Set while the job waits for another one (`OutboxWait`): not a failure, and no attempt.
+    public var waitingFor: String?
     public var nextAttemptAt: Date
     public var createdAt: Date
     public var updatedAt: Date
@@ -35,7 +65,7 @@ public struct OutboxJob: Codable, Equatable, Identifiable, Sendable, FetchableRe
 
     public init(
         id: Int64? = nil, kind: OutboxJobKind, coalesceKey: String? = nil, payload: Data, state: OutboxJobState,
-        attempts: Int = 0, lastError: String? = nil, nextAttemptAt: Date, createdAt: Date, updatedAt: Date
+        attempts: Int = 0, lastError: String? = nil, waitingFor: String? = nil, nextAttemptAt: Date, createdAt: Date, updatedAt: Date
     ) {
         self.id = id
         self.kind = kind
@@ -44,6 +74,7 @@ public struct OutboxJob: Codable, Equatable, Identifiable, Sendable, FetchableRe
         self.state = state
         self.attempts = attempts
         self.lastError = lastError
+        self.waitingFor = waitingFor
         self.nextAttemptAt = nextAttemptAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt
@@ -117,6 +148,9 @@ public struct OutboxStore: Sendable {
         self.now = now
     }
 
+    /// The shortest wait `markWaiting` schedules.
+    public static let minimumWait: TimeInterval = 1
+
     /// Delay before the next attempt after `attempts` failures: 30s, 60s, 120s… capped at 6h.
     public static func backoff(afterAttempts attempts: Int) -> TimeInterval {
         let exponent = Double(max(attempts - 1, 0))
@@ -151,29 +185,42 @@ public struct OutboxStore: Sendable {
         }
         let now = now()
         return try database.writer.write { db in
-            if let coalesceKey,
-               var existing = try OutboxJob
-                   .filter(Column("coalesceKey") == coalesceKey && Column("state") == OutboxJobState.pending)
-                   .fetchOne(db) {
-                existing.payload = payload
-                existing.attempts = 0
-                existing.lastError = nil
-                existing.nextAttemptAt = now
-                existing.updatedAt = now
-                try existing.update(db)
-                return existing.id!
-            }
-            var job = OutboxJob(
-                kind: kind, coalesceKey: coalesceKey, payload: payload, state: .pending,
-                attempts: 0, lastError: nil, nextAttemptAt: max(notBefore ?? now, now), createdAt: now, updatedAt: now
-            )
-            try job.insert(db)
-            for item in media {
-                var row = OutboxMedia(jobId: job.id!, field: item.field, filename: item.filename)
-                try row.insert(db)
-            }
-            return job.id!
+            try Self.insert(db, kind: kind, payload: payload, coalesceKey: coalesceKey, media: media, notBefore: notBefore, now: now)
         }
+    }
+
+    /// Adds a job inside a write already open on this outbox's database, so a row and the job
+    /// that sends it are saved together (a refresh can never see one without the other).
+    @discardableResult
+    public func enqueue(_ payload: some Encodable, kind: OutboxJobKind, coalesceKey: String, in db: Database) throws -> Int64 {
+        try Self.insert(db, kind: kind, payload: JSONEncoder().encode(payload), coalesceKey: coalesceKey, media: [], notBefore: nil, now: now())
+    }
+
+    private static func insert(_ db: Database, kind: OutboxJobKind, payload: Data, coalesceKey: String?, media: [OutboxMediaInput],
+                               notBefore: Date?, now: Date) throws -> Int64 {
+        if let coalesceKey,
+           var existing = try OutboxJob
+               .filter(Column("coalesceKey") == coalesceKey && Column("state") == OutboxJobState.pending)
+               .fetchOne(db) {
+            existing.payload = payload
+            existing.attempts = 0
+            existing.lastError = nil
+            existing.waitingFor = nil
+            existing.nextAttemptAt = now
+            existing.updatedAt = now
+            try existing.update(db)
+            return existing.id!
+        }
+        var job = OutboxJob(
+            kind: kind, coalesceKey: coalesceKey, payload: payload, state: .pending,
+            attempts: 0, lastError: nil, nextAttemptAt: max(notBefore ?? now, now), createdAt: now, updatedAt: now
+        )
+        try job.insert(db)
+        for item in media {
+            var row = OutboxMedia(jobId: job.id!, field: item.field, filename: item.filename)
+            try row.insert(db)
+        }
+        return job.id!
     }
 
     /// Atomically marks due pending jobs of the given kinds as in flight and returns them, oldest first.
@@ -219,6 +266,7 @@ public struct OutboxStore: Sendable {
             guard var job = try OutboxJob.fetchOne(db, key: id) else { throw OutboxError.jobNotFound }
             job.state = .sent
             job.lastError = nil
+            job.waitingFor = nil
             job.updatedAt = now
             try job.update(db)
             let media = try OutboxMedia.filter(Column("jobId") == id).fetchAll(db)
@@ -234,8 +282,24 @@ public struct OutboxStore: Sendable {
             guard var job = try OutboxJob.fetchOne(db, key: id) else { throw OutboxError.jobNotFound }
             job.attempts += 1
             job.lastError = error
+            job.waitingFor = nil
             job.updatedAt = now
             job.nextAttemptAt = now.addingTimeInterval(Self.backoff(afterAttempts: job.attempts))
+            try returnToPending(&job, db)
+        }
+    }
+
+    /// The job waits for another one to go first (`OutboxWait`): looked at again after `delay`
+    /// (at least `minimumWait`, so a lane never claims it again at once and spins), with no
+    /// attempt counted, so a long wait never grows its back-off and never reads as a failure.
+    public func markWaiting(_ id: Int64, for reason: String, after delay: TimeInterval) throws {
+        let delay = max(delay, Self.minimumWait)
+        let now = now()
+        try database.writer.write { db in
+            guard var job = try OutboxJob.fetchOne(db, key: id) else { throw OutboxError.jobNotFound }
+            job.waitingFor = reason
+            job.updatedAt = now
+            job.nextAttemptAt = now.addingTimeInterval(delay)
             try returnToPending(&job, db)
         }
     }
@@ -247,6 +311,7 @@ public struct OutboxStore: Sendable {
             guard var job = try OutboxJob.fetchOne(db, key: id) else { throw OutboxError.jobNotFound }
             job.attempts += 1
             job.lastError = error
+            job.waitingFor = nil
             job.state = .failed
             job.updatedAt = now
             try job.update(db)
@@ -338,6 +403,44 @@ public struct OutboxStore: Sendable {
         }
     }
 
+    /// The coalesce keys of reading progress changes not sent yet: waiting, backing off, held or
+    /// being sent (one that failed for good no longer counts).
+    public static func unsentProgressKeys(_ db: Database) throws -> Set<String> {
+        Set(try String?.fetchAll(db, OutboxJob.select(Column("coalesceKey"))
+            .filter(Column("kind") == OutboxJobKind.kavitaProgress
+                    && [OutboxJobState.pending.rawValue, OutboxJobState.inFlight.rawValue].contains(Column("state"))))
+            .compactMap(\.self))
+    }
+
+    public func unsentProgressKeys() throws -> Set<String> {
+        try database.reader.read { try Self.unsentProgressKeys($0) }
+    }
+
+    /// The progress jobs with these keys not sent yet (as `unsentProgressKeys`).
+    public func unsentProgressJobs(coalesceKeys: [String]) throws -> [OutboxJob] {
+        try database.reader.read { db in
+            try OutboxJob.filter(Column("kind") == OutboxJobKind.kavitaProgress && coalesceKeys.contains(Column("coalesceKey"))
+                                 && [OutboxJobState.pending.rawValue, OutboxJobState.inFlight.rawValue].contains(Column("state")))
+                .fetchAll(db)
+        }
+    }
+
+    /// Whether this chapter has a progress change not sent yet (`LocalReadingProgress.progressKeys`).
+    public func hasUnsentProgress(chapterId: Int, seriesId: Int) throws -> Bool {
+        let keys = try unsentProgressKeys()
+        return LocalReadingProgress.progressKeys(chapterId: chapterId, seriesId: seriesId).contains(where: keys.contains)
+    }
+
+    /// The last job with one of these coalesce keys that was sent (kept `sentProgressRetention`),
+    /// leaving out `job` itself.
+    public func lastSent(coalesceKeys: [String], kind: OutboxJobKind, excluding job: Int64?) throws -> OutboxJob? {
+        try database.reader.read { db in
+            try OutboxJob.filter(Column("kind") == kind && coalesceKeys.contains(Column("coalesceKey")) && Column("state") == OutboxJobState.sent)
+                .filter(Column("id") != (job ?? -1))
+                .order(Column("updatedAt").desc, Column("id").desc).fetchOne(db)
+        }
+    }
+
     /// Deletes sent progress jobs older than the retention window. Sent cards are kept as history.
     @discardableResult
     public func pruneSentProgress() throws -> Int {
@@ -381,6 +484,38 @@ public struct OutboxStore: Sendable {
         return counts
     }
 
+    /// The coalesce keys of a kind's jobs still to be sent (waiting, sending or failed and listed).
+    static func queuedKeys(_ db: Database, kind: OutboxJobKind) throws -> Set<String> {
+        let keys = try String?.fetchAll(db, OutboxJob
+            .select(Column("coalesceKey"))
+            .filter(Column("kind") == kind)
+            .filter([OutboxJobState.pending.rawValue, OutboxJobState.inFlight.rawValue, OutboxJobState.failed.rawValue].contains(Column("state"))))
+        return Set(keys.compactMap(\.self))
+    }
+
+    /// The coalesce keys of a kind's jobs still to be sent: waiting or being sent (not failed).
+    static func sendingKeys(_ db: Database, kind: OutboxJobKind) throws -> Set<String> {
+        Set(try String?.fetchAll(db, OutboxJob.select(Column("coalesceKey"))
+            .filter(Column("kind") == kind && [OutboxJobState.pending.rawValue, OutboxJobState.inFlight.rawValue].contains(Column("state"))))
+            .compactMap(\.self))
+    }
+
+    /// The coalesce keys of a kind's jobs waiting (not yet being sent).
+    static func pendingKeys(_ db: Database, kind: OutboxJobKind) throws -> Set<String> {
+        Set(try String?.fetchAll(db, OutboxJob.select(Column("coalesceKey"))
+            .filter(Column("kind") == kind && Column("state") == OutboxJobState.pending)).compactMap(\.self))
+    }
+
+    /// Deletes the unsent jobs with these coalesce keys, inside a write (a jobs' row removed with
+    /// them). One being sent is left to finish; it finds its row gone.
+    public static func cancel(_ db: Database, coalesceKeys keys: [String]) throws {
+        guard !keys.isEmpty else { return }
+        try OutboxJob
+            .filter(keys.contains(Column("coalesceKey")))
+            .filter([OutboxJobState.pending.rawValue, OutboxJobState.failed.rawValue].contains(Column("state")))
+            .deleteAll(db)
+    }
+
     /// Deletes every unsent job of a progress kind (Advanced ▸ Waiting to Sync ▸ Clear).
     /// Cards go through `MiningService.cancel`, which also removes their media.
     @discardableResult
@@ -391,6 +526,40 @@ public struct OutboxStore: Sendable {
                 .filter(Column("kind") == kind)
                 .filter([OutboxJobState.pending.rawValue, OutboxJobState.failed.rawValue].contains(Column("state")))
                 .deleteAll(db)
+        }
+    }
+
+    /// The kinds kept on the device, unsent: writes to a demo server. Kept in the database so
+    /// they're held from launch, before the accounts are read.
+    public func heldKinds() throws -> Set<OutboxJobKind> {
+        try database.reader.read { db in
+            Set(try String.fetchAll(db, sql: "SELECT kind FROM outboxHeld").compactMap(OutboxJobKind.init(rawValue:)))
+        }
+    }
+
+    /// Holds `kinds` from now on (a kind already held keeps its start). Kinds held until now and
+    /// not any more are a demo server left behind: the jobs written while it was held are
+    /// deleted, never sent (they name the demo server's items, which would be wrong on any
+    /// other). Jobs from before, for the user's own server, stay queued. Returns how many were
+    /// discarded.
+    @discardableResult
+    public func setHeld(_ kinds: Set<OutboxJobKind>) throws -> Int {
+        let now = now()
+        return try database.writer.write { db in
+            var since: [OutboxJobKind: Date] = [:]
+            for row in try Row.fetchAll(db, sql: "SELECT kind, since FROM outboxHeld") {
+                if let kind = OutboxJobKind(rawValue: row["kind"]) { since[kind] = row["since"] }
+            }
+            var discarded = 0
+            for (kind, start) in since where !kinds.contains(kind) {
+                // Written or rewritten (coalesced) since the hold began.
+                discarded += try OutboxJob.filter(Column("kind") == kind && Column("updatedAt") >= start).deleteAll(db)
+            }
+            try db.execute(sql: "DELETE FROM outboxHeld")
+            for kind in kinds {
+                try db.execute(sql: "INSERT INTO outboxHeld (kind, since) VALUES (?, ?)", arguments: [kind.rawValue, since[kind] ?? now])
+            }
+            return discarded
         }
     }
 

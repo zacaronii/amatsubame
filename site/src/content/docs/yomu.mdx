@@ -41,9 +41,12 @@ Yomu has four tabs: **Library**, **Dictionary**, **Stats** and **Settings**.
 
 - **Library** opens with **Continue Reading** (series you've started and haven't finished), then a row
   per library with its newest series and **See All**. A library's page has a filter at the top:
-  **All**, **Reading** or **Downloaded**.
+  **All**, **Reading** or **Downloaded**. The button at the top right narrows it to **Unread** or
+  **Finished** and sorts it (**Title**, **Recently Added**, **Recently Read**).
 - A series page shows its **Volumes** (as a grid or a list), **Chapters** and **Specials**, how far
-  you've read each one, and a button to start or continue reading.
+  you've read each one, and a button to start or continue reading. Touch and hold a volume or
+  chapter (or right-click it) to **Mark as Read** or **Mark as Unread**; the **⋯** menu marks the
+  whole series (it asks first). Marking isn't counted as reading time, in Yomu or in Kavita.
 - On iPad and Mac, your libraries are also listed in the sidebar under the tabs.
 - On the Mac, a library's filter is in the toolbar: **All**, **Reading**, **Unread** or **Finished**,
   with a **Sort** menu (**Title**, **Recently Added**, **Recently Read**). Downloaded volumes are in
@@ -51,6 +54,58 @@ Yomu has four tabs: **Library**, **Dictionary**, **Stats** and **Settings**.
 - On the Mac, **Pin** in a series page's toolbar adds it to the sidebar's **Pinned** section.
   Right-click a pinned series and choose **Unpin** to take it out.
 - **Dictionary** is a plain dictionary search. You can type in kana, kanji or romaji.
+
+Both readers' settings have **Tap to Turn Pages** (on, with the sides swapped for the other hand, or
+off so that only swipes turn pages) and, on iPhone and iPad, **Lock Rotation**, which keeps the screen
+the way it is while the reader is open. The manga reader also has **Double-Tap to Zoom**; with it on, a
+single tap waits a moment to see whether a second follows.
+
+While a book or manga is open on iPhone or iPad the screen stays on, so it doesn't dim in the middle of
+a hard page. It can sleep again after 15 minutes without a page turn.
+
+### Want to Read
+
+A series page's **⋯** menu has **Add to Want to Read** (and **Remove from Want to Read**). It's
+Kavita's own list, so series you add in Kavita's web reader show too, and Yomu's show there. The
+Library home shows them on a **Want to Read** shelf, which leaves out libraries you've turned off in
+Settings and isn't there when the list is empty. Changes made offline show at once and are sent
+when Kavita is reachable.
+
+### Reading lists
+
+Your Kavita reading lists are listed under **Reading Lists** on the Library home, with the ones
+others have promoted. A list opens with its items in order; tap one to read it. Items Yomu can't
+open (PDFs, image folders, libraries you've turned off) are dimmed; tapping one, or one that
+can't be fetched while offline, says why.
+
+To add a chapter (or a volume that's a single chapter), hold it on its series page and choose
+**Add to Reading List…**, then pick a list or make a new one with **New Reading List…**. Volumes
+with several chapters are added a chapter at a time. In a list you made, **Edit** lets you
+drag items into a new order and swipe to take one out; **Delete Reading List** is in its **⋯** menu.
+Taking out the last item keeps the list, empty, until Kavita cleans up empty lists (daily, unless
+your server is set otherwise). Promoted lists and ones that sync from outside Kavita are read-only.
+Changes made offline show at once and are sent when Kavita is reachable.
+
+A volume opened from a reading list is read in the list's order: at its end, Yomu offers the
+list's next item, even when it's in another series or is a book after a manga, with the series'
+next volume as a smaller second choice. Items Yomu can't open (PDFs, image folders, hidden
+libraries) are passed over, and the offer says how many. Offline, an item that isn't downloaded
+is still offered, marked "not on this device". This lasts while the reader is open: picking the
+series up later from Continue Reading reads the series as usual. A list shows which items you've
+read (a check) or started, the same as their series pages.
+
+### Collections
+
+Your Kavita collections are listed under **Collections** at the end of the Library home, with the
+ones other people on your server have promoted. A collection opens as a grid of its series; series
+in libraries you've turned off in Settings aren't shown, and it says how many there are. Promoted
+collections, and ones synced from AniList, MyAnimeList or another service, are read-only in Yomu.
+
+To put a series in a collection, open the series' **⋯** menu and choose **Collections…**: tap a
+collection to add the series or take it out, or **New Collection…** to make one with it. Kavita
+deletes a collection when its last series is taken out, so Yomu asks first. **Delete Collection**
+is in a collection's top bar. Changes made offline show at once and are sent when Kavita is
+reachable.
 
 ## Reading manga
 
@@ -64,8 +119,36 @@ The **Aa** settings are kept per series. **Use for All Series** makes them the d
 - **Direction:** **Right to left** or **Left to right**.
 - **Two-Page Spreads:** **Automatic** (when the screen is wide enough), **On** or **Off**, and
   **Show Cover Alone** so the pages pair up the way the book was printed.
+- **Split Wide Pages** (on by default): in portrait, a two-page scan is shown one half at a
+  time, in reading order, so it isn't shrunk to fit. It still counts as one page; turned
+  sideways, or with Two-Page Spreads on, it's shown whole.
+- **Crop Borders** (off by default): trims a page's blank white or black margins, so the art fills
+  more of the screen. It's careful: a page that's mostly blank, a page on grey or yellowed paper, or
+  one with only thin margins is shown whole, and a page number in the margin keeps that side. Facing
+  pages stay level. Cards still get the whole page. Not in the long strip.
 
 When a chapter ends, Yomu offers to read the next one.
+
+### Auto-scroll
+
+In **Long strip**, the arrow button in the controls starts auto-scroll: the strip moves down by
+itself, with a bar at the bottom to pause, change the speed (1 to 10) or close it (**⌘↓** starts and
+stops it with a keyboard). It waits while the controls or a lookup are showing and while you scroll
+with your finger, then carries on a moment later, and stops at the end of the chapter. The screen
+stays on while it runs. It stops by itself after 30 minutes without a touch, key or pointer move,
+so a reader left open doesn't scroll on through the book and count it as read.
+
+### Bookmarks
+
+The bookmark button in the controls bookmarks the page you're on (tap it again to remove it).
+Bookmarks are kept on Kavita, so they show in Kavita's own Bookmarks page and on your other devices;
+made offline, they wait and are sent when Kavita is reachable. Kavita keeps a copy of each
+bookmarked page image in its bookmarks folder on the server, as it does for bookmarks made in its
+own reader. Your Kavita account needs Kavita's **Bookmark** role; without it, Yomu tells you so
+when you tap the button.
+
+A series' bookmarks are listed under **Bookmarks & Highlights** at the end of its page. Tap one to
+read from that page, or hold it to remove it.
 
 ### Text recognition on manga
 
@@ -81,8 +164,13 @@ Then:
 - In the **Aa** settings, **Show text boxes** outlines what was found, and **OCR pages ahead** sets
   how many pages Yomu reads before you reach them, so the popup is instant.
 
-Downloaded volumes can be read ahead of time too: **Settings → Downloads → Read Text on Downloaded
+Downloaded volumes can be read ahead of time too: **Settings → Download Rules → Read Text on Downloaded
 Pages**. Then lookups in them work instantly, even offline.
+
+Yomu finds each character in the lettering itself, so a tap lands on the character under your
+finger. While a word is looked up it's marked on the page, right on its characters, so you can see
+what the tap was taken for. Lettering it can't place exactly (hand lettering, sound effects, a title drawn at angles) gets no
+mark; a tap there still goes to the nearest character. Turn the mark off with **Mark the Word on the Page** in the reader's settings.
 
 ## Reading books
 
@@ -93,7 +181,10 @@ with **Contents** for the table of contents and **Aa** for settings.
 **Aa** settings are kept per series, and **Use for All Books** makes them the default:
 
 - **Theme:** System, Light, Sepia or Dark.
-- **Text:** the font (the book's own, 明朝 or ゴシック), size, line spacing and side margins.
+- **Text:** the font (the book's own, 明朝 or ゴシック, or one you added), size, line spacing and side
+  margins. **Added Fonts** takes a font file from Files (TrueType, OpenType or WOFF, up to 50 MB, up to
+  20 fonts) to read in; touch and hold one to rename or remove it. Added fonts stay on this device and
+  are used only for books.
 - **Layout:** **Paged** or **Scrolling**, and the **Text direction**: **As in book**, **Vertical** or
   **Horizontal**.
 - **Furigana:** **From book** or **Hidden**.
@@ -106,6 +197,44 @@ with **Contents** for the table of contents and **Aa** for settings.
 Tap a word to look it up. While the controls are showing, the first tap only hides them, and the next
 one looks up.
 
+**Search** (the magnifier in the controls, or **⌘F** with a keyboard; while a book is open,
+**Search Dictionary** moves to **⇧⌘F**) finds text anywhere in the
+book: hiragana and katakana find each other, and case and full or half width don't matter. Results
+are listed by chapter with a little text around each; tap one to go there, with the match marked.
+The first search in a book reads it through once (**Preparing search…**), and the last search stays
+in the field while the book is open. Going to a result is only a look: your reading place doesn't
+move until you turn a page from there, and **Back to Where You Were** returns. (Choosing a chapter in
+**Contents**, by contrast, moves your reading place at once.)
+
+In the **Scrolling** layout, the arrow button in the controls starts **auto-scroll** at a reading
+speed in characters a minute (shown in its bar at the bottom, from 100 to 1,000 字/分), whatever the
+font size. It waits while the controls or a lookup are showing and while you scroll yourself, goes on
+into the next chapter of the book, and stops at the book's end; the screen stays on while it runs.
+Like the manga one, it stops after 30 minutes without a touch, key or pointer move. Paged layouts
+don't auto-scroll, and read-along takes over the page when it's on.
+
+### Highlights, notes and bookmarks
+
+Above the lookup popup is a row of five colours. Tap one to highlight the sentence the word is in;
+tap another to change its colour. The note button writes a note on it (highlighting the sentence
+first if it isn't yet), and the bin removes the highlight. Looking up a word in a highlighted
+sentence brings back its colour, note and bin. Notes are plain text in Yomu: a note formatted in
+Kavita's web reader keeps its formatting when you change the colour, and becomes plain text if you
+change its words here.
+
+The bookmark button in the controls bookmarks the place you're reading, named by the words it
+starts with; tap it again there to remove it.
+
+Highlights, notes and bookmarks are kept on Kavita: they show in Kavita's own reader and on your
+other devices, and the ones made there show in Yomu. Made offline, they wait and are sent when Kavita
+is reachable. Highlights and notes need Kavita 0.8.8 or later; on an older server Yomu doesn't offer
+them, and any made before it found out stay on your device, marked as not on Kavita yet, until the
+server is updated. Whether other people on your server see your highlights is your own Kavita
+setting (**Share Annotations**, off unless you turn it on); Yomu doesn't change it.
+
+A book's highlights and bookmarks are listed under **Bookmarks & Highlights** at the end of its page,
+with their notes. Tap one to read from there, or hold it to remove it.
+
 ### Character counts
 
 Kavita's word counts don't work for Japanese, so Yomu counts characters itself: letters only (kana,
@@ -113,9 +242,12 @@ kanji and so on), without punctuation, spaces or furigana. The counts appear on 
 series page and Continue Reading, and feed the time-left estimate and Stats.
 
 A book is counted when you open it. To count your whole library ahead of time, go to **Settings →
-Storage → Character Counts** and tap **Count Characters**. It covers light novel libraries, and
+Advanced → Character Counts** and tap **Count Characters**. It covers light novel libraries, and
 books Kavita marks as Japanese in other book libraries. Until a volume is counted, Yomu shows an
 estimate with a "~" in front.
+
+The line at the bottom of a book shows how far you are, and once Yomu knows your reading speed, about
+how long is left in the chapter and in the book.
 
 ## Read-along
 
@@ -133,8 +265,17 @@ To pair a book with its audiobook:
    back and get it ready again when it's done.
 
 The section then shows how many of the book's sentences matched (front matter, contents pages and
-afterwords usually aren't narrated). The same menu has **Download Audio** for listening offline,
-**Match Again**, **Pair with Another Book…** and **Unpair**.
+afterwords usually aren't narrated). The same menu has **Download Audio** for listening offline
+(it shows its progress and can be cancelled, and keeps going if you leave the series page; keep
+Yomu open), **Match Again**, **Pair with Another Book…** and **Unpair**, which also deletes the
+book's downloaded audio unless another volume reads along with it (it asks first when it would;
+so does **Pair with Another Book…** for the old book's audio). **Settings ▸ Storage** shows
+how much read-along audio is downloaded and can clear it. If the audio can't be loaded, the
+reader's bar says why and has **Try Again**.
+
+Once a volume is matched, the menu also says which model and Kaku version made the transcript it's
+matched with, and when. **Transcribe Again** asks Kaku for a fresh one (after changing its model,
+say): the current match stays until you choose **Match Again** once Kaku is done. It needs Kaku 1.6.
 
 In the reader:
 
@@ -148,7 +289,8 @@ In the reader:
   again from the page you're on.
 - The screen doesn't dim while the audio plays.
 
-Your place goes to both Kavita and Audiobookshelf. If you listened further in [Kiku](/kiku/) since,
+Your place goes to both Kavita and Audiobookshelf, and the listening shows in Audiobookshelf's stats
+as sessions from Yomu. If you listened further in [Kiku](/kiku/) since,
 the book opens at that sentence. Kiku's **Read in Yomu** opens the paired book straight at the
 sentence you were listening to.
 
@@ -157,7 +299,7 @@ sentence you were listening to.
 On a series page, download single volumes or the whole series. Nothing downloads unless you ask, or
 unless you turn on automatic downloads:
 
-- **Settings → Downloads → Automatic Downloads** works per library. Once you start a series, the
+- **Settings → Download Rules → Automatic Downloads** works per library. Once you start a series, the
   volume you're reading and the next few (**Download Ahead**) download by themselves.
   **Remove Finished Volumes** removes volumes from the device once you've read them to the end.
 - On iPhone and iPad, downloads wait for Wi-Fi unless **Download over Cellular** is on.
@@ -170,20 +312,40 @@ recognition models and the cache) and lets you remove downloads or clear the cac
 
 Your reading position goes back to Kavita, so other Kavita apps and the web reader pick up where you
 stopped. If you read offline, the progress waits and is sent when Kavita is reachable again; the
-status card at the top of Settings shows anything still waiting, with **Sync Now**.
+status card at the top of Settings shows anything still waiting, with **Sync Now**. Bookmarks go
+the same way.
 
 ## Stats
 
-The **Stats** tab shows your reading by week, month or all time: characters read in books, pages read
-in manga, lookups, cards mined and your streak. If you keep an immersion log in
-[kechimochi](https://github.com/Morgawr/kechimochi), add its address in **Settings → Stats** and the
+The **Stats** tab shows your reading by week, month or all time: time spent reading, characters read
+in books, pages read in manga, lookups, cards mined and your streak. The chart counts time to begin
+with, which covers books and manga alike; tap its title to count characters or pages instead. If you keep an immersion log in
+[kechimochi](https://github.com/Morgawr/kechimochi), add its address in **Settings → Connections → kechimochi** and the
 Stats tab can show it too. Yomu never sends anything to it.
+
+**Daily Goal** (on the chart) sets a goal of characters, pages or minutes a day. The chart then
+draws it as a dashed line and says on how many days you met it, and the Today row on the Library
+shows a ring that fills as you read. The first time you reach it in a day, the reader says "Daily
+goal reached". A goal you change counts from that day on; earlier days keep the goal they had.
+Today's progress includes your other devices, and the goal itself is the same on each of them,
+with **Sync with iCloud** on (Settings → Connections).
 
 ## Settings
 
-- **Reading:** Kavita, Libraries, Downloads, Manga Text Recognition and Read-Along.
-- **Lookup and Mining:** dictionaries, word audio sources, Anki, and word marks in books (manga
+- **Reading:** Libraries, Download Rules (automatic downloads, over cellular, reading the text of
+  downloaded pages ahead), Manga Text Recognition and Read-Along.
+- **Lookup:** dictionaries, the popup (with Show Lookup Timings), word audio sources, and word marks in books (manga
   pages aren't marked). See [Lookup and Anki](/lookup-and-anki/).
-- **Stats:** the kechimochi address.
-- **Storage**, **Advanced** (sharing the setup with your other apps, things waiting to sync, Run
-  Setup Again, Export Logs) and **About**.
+- **Connections:** every server and account in one place: Kavita, Audiobookshelf (for
+  read-along), Kaku, Hachidori, the kechimochi address, and **Sync with iCloud** (on unless you turn it off), which keeps
+  these the same on all your devices signed in to the same iCloud account: the Stats tab, your
+  daily goals (each day keeps the goal it had; when a day's goal was changed on two devices, the
+  later change wins), and the reader settings for manga and books (each series' own, and Use for
+  All; a series' settings go to devices reading from the same Kavita server, and the latest change
+  wins), the libraries you've hidden, read-along pairings (which audiobook goes with which volume;
+  each device lines them up again itself) and the kechimochi address. An added font chosen on another
+  device is used where it's been added too; elsewhere the book's own font shows. When this app shares its setup with your other apps (and no Hachidori is linked), the lookup
+  popup's settings are kept the same too. Not synced: the "Daily goal reached" note (once a day on each device), added
+  fonts, and anything Kavita or Audiobookshelf already keeps (your place, bookmarks, highlights).
+- **Storage** (what's downloaded and saved, each with **Clear**), **Advanced** (sharing the setup with your other apps, things waiting to sync, Character
+  Counts, Run Setup Again, Export Logs) and **About**.

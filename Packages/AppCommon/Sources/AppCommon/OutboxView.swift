@@ -58,7 +58,7 @@ public struct OutboxView: View {
                 Section {
                     Button("Clear \(kind.waitingTitle)", role: .destructive) { confirmsClear = true }
                 } footer: {
-                    Text("They won't reach the server. The server keeps whatever it last had.")
+                    Text(kind.clearFooter)
                 }
             }
         }
@@ -148,6 +148,8 @@ private struct CardRow: View {
                 }
                 if job.state == .failed, let error = job.lastError {
                     Text(error).font(.caption).foregroundStyle(.red)
+                } else if let waiting = job.waitingLine {
+                    Text(waiting).font(.caption).foregroundStyle(.secondary)
                 } else if job.state == .pending, job.attempts > 0, let error = job.lastError {
                     Text("Attempt \(job.attempts): \(error)").font(.caption).foregroundStyle(.secondary)
                 }
@@ -184,7 +186,9 @@ private struct ProgressRow: View {
                 StateBadge(job: job)
             }
             Text(job.createdAt, format: .dateTime).font(.caption).foregroundStyle(.secondary)
-            if let error = job.lastError {
+            if let waiting = job.waitingLine {
+                Text(waiting).font(.caption).foregroundStyle(.secondary)
+            } else if let error = job.lastError {
                 Text("Attempt \(job.attempts): \(error)").font(.caption).foregroundStyle(job.state == .failed ? .red : .secondary)
             }
         }
@@ -200,14 +204,7 @@ private struct StateBadge: View {
             .foregroundStyle(job.state == .failed ? .red : .secondary)
     }
 
-    private var label: String {
-        switch job.state {
-        case .pending: job.attempts > 0 ? "Waiting to retry" : "Queued"
-        case .inFlight: "Sending…"
-        case .sent: "Sent"
-        case .failed: "Needs attention"
-        }
-    }
+    private var label: String { job.stateLabel }
 }
 
 /// Edits a queued card's sentence and tags before it's sent.
@@ -291,9 +288,16 @@ extension OutboxJobKind {
         case .kavitaProgress: "Reading Positions for Kavita"
         case .jellyfinProgress: "Watch Positions for Jellyfin"
         case .jellyfinSubtitle: "Subtitles for Jellyfin"
+        case .jellyfinPlayed: "Watched Marks for Jellyfin"
         case .audiobookshelfProgress: "Listening Positions for Audiobookshelf"
+        case .audiobookshelfSession: "Listening Sessions for Audiobookshelf"
         case .hachidoriLookupCount: "Lookup Counts for Hachidori"
         case .hachidoriWordStatus: "Known Words for Hachidori"
+        case .kavitaReaderMark: "Bookmarks and Highlights for Kavita"
+        case .kavitaWantToRead: "Want to Read for Kavita"
+        case .kavitaCollection: "Collections for Kavita"
+        case .kavitaReadingList: "Reading Lists for Kavita"
+        case .audiobookshelfUpNext: "Up Next for Audiobookshelf"
         }
     }
 
@@ -304,11 +308,36 @@ extension OutboxJobKind {
         case .kavitaProgress: ("reading position", "reading positions")
         case .jellyfinProgress: ("watch position", "watch positions")
         case .jellyfinSubtitle: ("subtitle", "subtitles")
+        case .jellyfinPlayed: ("watched mark", "watched marks")
         case .audiobookshelfProgress: ("listening position", "listening positions")
+        case .audiobookshelfSession: ("listening session", "listening sessions")
         case .hachidoriLookupCount: ("word's lookups", "words' lookups")
         case .hachidoriWordStatus: ("known or ignored word", "known or ignored words")
+        case .kavitaReaderMark: ("bookmark or highlight", "bookmarks and highlights")
+        case .kavitaWantToRead: ("Want to Read change", "Want to Read changes")
+        case .kavitaCollection: ("collection change", "collection changes")
+        case .kavitaReadingList: ("reading list change", "reading list changes")
+        case .audiobookshelfUpNext: ("Up Next change", "Up Next changes")
         }
         return "\(count) \(count == 1 ? one : many)"
+    }
+
+    /// Under Waiting to Sync's Clear button: what clearing does.
+    var clearFooter: String {
+        switch self {
+        case .kavitaReaderMark:
+            "They won't reach the server, and at the next refresh this device shows what Kavita has again: a bookmark or highlight made here and not sent (with its note) goes, and one removed here comes back."
+        case .kavitaWantToRead:
+            "They won't reach the server, and at the next refresh this device shows Kavita's Want to Read again."
+        case .kavitaCollection:
+            "They won't reach the server, and at the next refresh this device shows Kavita's collections again: series added or removed here and collections made here that weren't sent go back to how Kavita has them."
+        case .kavitaReadingList:
+            "They won't reach the server, and at the next refresh this device shows Kavita's reading lists again: items added, taken out or moved here and lists made here that weren't sent go back to how Kavita has them."
+        case .audiobookshelfUpNext:
+            "They won't reach the server, and at the next refresh this device shows Audiobookshelf's Up Next again."
+        default:
+            "They won't reach the server. The server keeps whatever it last had."
+        }
     }
 
     var displayName: String {
@@ -317,9 +346,32 @@ extension OutboxJobKind {
         case .kavitaProgress: "Kavita progress"
         case .jellyfinProgress: "Jellyfin progress"
         case .jellyfinSubtitle: "Jellyfin subtitles"
+        case .jellyfinPlayed: "Jellyfin watched mark"
         case .audiobookshelfProgress: "Audiobookshelf progress"
+        case .audiobookshelfSession: "Audiobookshelf listening session"
         case .hachidoriLookupCount: "Hachidori lookup count"
         case .hachidoriWordStatus: "Hachidori known word"
+        case .kavitaReaderMark: "Kavita bookmark or highlight"
+        case .kavitaWantToRead: "Kavita Want to Read"
+        case .kavitaCollection: "Kavita collection"
+        case .kavitaReadingList: "Kavita reading list"
+        case .audiobookshelfUpNext: "Audiobookshelf Up Next"
         }
     }
+}
+
+extension OutboxJob {
+    /// What Waiting to Sync says of the job's state. A job waiting for another one is
+    /// "Waiting", never "Waiting to retry" or "Needs attention".
+    var stateLabel: String {
+        switch state {
+        case .pending: waitingFor != nil ? "Waiting" : attempts > 0 ? "Waiting to retry" : "Queued"
+        case .inFlight: "Sending…"
+        case .sent: "Sent"
+        case .failed: "Needs attention"
+        }
+    }
+
+    /// What it's waiting for, shown under it instead of an error.
+    var waitingLine: String? { state == .pending ? waitingFor : nil }
 }

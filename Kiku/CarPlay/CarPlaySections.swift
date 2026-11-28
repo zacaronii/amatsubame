@@ -12,6 +12,8 @@ struct CarPlayRow: Equatable {
         case openShow(itemId: String, title: String)
         case openDownloaded
         case seek(Double)
+        /// An episode in Up Next (it leaves the queue as it starts).
+        case playUpNext(UpNextItem, libraryId: String)
         /// A note ("12 more on your iPhone"): does nothing.
         case none
     }
@@ -36,11 +38,17 @@ struct CarPlaySection: Equatable {
 enum CarPlaySections {
     // MARK: Listen Now
 
-    /// Continue (in-progress books and episodes) and New Episodes, as in the Listen tab.
-    static func listenNow(continueListening: [EpisodeEntry], newEpisodes: [EpisodeEntry], playingKey: String?) -> [CarPlaySection] {
+    /// Continue (in-progress books and episodes), Recently Added (books) and New Episodes, as in
+    /// the Listen tab; a section with nothing in it is left out.
+    static func listenNow(continueListening: [EpisodeEntry], newEpisodes: [EpisodeEntry], recentBooks: [AudiobookshelfItem] = [],
+                          playingKey: String?) -> [CarPlaySection] {
         let continuing = Set(continueListening.map(\.id))
         return [
             CarPlaySection(title: "Continue", rows: continueListening.map { row($0, playingKey: playingKey, detail: continueDetail($0)) }),
+            CarPlaySection(title: "Recently Added", rows: recentBooks.filter { !continuing.contains($0.id) }.map {
+                CarPlayRow(title: $0.title, detail: $0.media.metadata.authorName, artworkItemId: $0.id, action: .playBook(itemId: $0.id),
+                           isPlaying: $0.id == playingKey)
+            }),
             CarPlaySection(title: "New Episodes", rows: newEpisodes.filter { !continuing.contains($0.id) }
                 .map { row($0, playingKey: playingKey, detail: $0.showTitle) }),
         ].filter { !$0.rows.isEmpty }
@@ -102,6 +110,13 @@ enum CarPlaySections {
         let rows = chapters.map { chapter in
             CarPlayRow(title: chapter.title, detail: chapter.start.clockText, action: .seek(chapter.start), isPlaying: chapter == current)
         }
+        return rows.isEmpty ? [] : [CarPlaySection(title: nil, rows: rows)]
+    }
+
+    /// Up Next, in order (Now Playing's Up Next button for a podcast episode).
+    static func upNext(_ items: [(item: UpNextItem, libraryId: String)]) -> [CarPlaySection] {
+        let rows = items.map { CarPlayRow(title: $0.item.title, detail: $0.item.showTitle, artworkItemId: $0.item.itemId,
+                                          action: .playUpNext($0.item, libraryId: $0.libraryId)) }
         return rows.isEmpty ? [] : [CarPlaySection(title: nil, rows: rows)]
     }
 

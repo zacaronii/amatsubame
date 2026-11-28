@@ -52,6 +52,11 @@ struct BookView: View {
                         HStack(spacing: 8) {
                             TranscriptBadge(status: environment.library.transcriptStatus[itemId])
                             Spacer()
+                            SendToWatchButton(entry: entry)
+                                .labelStyle(.iconOnly)
+                                .font(.subheadline)
+                                .buttonStyle(.bordered)
+                                .buttonBorderShape(.circle)
                             ReadInYomuButton(entry: entry)
                                 .font(.subheadline)
                                 .buttonStyle(.bordered)
@@ -95,7 +100,7 @@ struct BookView: View {
             await environment.library.loadBook(itemId)
             loaded = true
         }
-        .refreshable {
+        .refreshableByCommand {
             CoverLoader.recheck()
             await environment.library.loadBook(itemId)
         }

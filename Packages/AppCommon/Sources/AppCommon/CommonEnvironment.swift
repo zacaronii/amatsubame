@@ -6,6 +6,7 @@ import GRDB
 import HachidoriKit
 import KechimochiKit
 import Lookup
+import Names
 import Observation
 #if canImport(UIKit)
 import UIKit
@@ -27,6 +28,8 @@ public final class CommonEnvironment {
     public let lookup: LookupService
     /// The recommended dictionaries and their updates.
     public let dictionaryUpdater: DictionaryUpdater
+    /// The character names dictionary: the casts of the series open in Yomu and Miru.
+    public let characterNames: CharacterNameService
     /// First-launch setup (per app).
     public let setup = SetupProgress(defaults: SetupTestData.defaults)
     public let ankiSettings: AnkiSettingsStore
@@ -38,6 +41,10 @@ public final class CommonEnvironment {
     public let mining: MiningService
     /// Reading, watching and lookups for the Stats tab.
     public let activity: ActivityLog
+    /// Daily goals (Yomu's reading), on this device.
+    public let goals: DailyGoalStore
+    /// Stats on every device, through iCloud.
+    public let statsSync: StatsCloudSync
     /// Words in subtitle and transcript lines, marked by their state in the mining deck.
     public let wordMarks: WordMarkCache
     public let ankiSync: AnkiSyncScheduler
@@ -49,6 +56,10 @@ public final class CommonEnvironment {
     public private(set) var serverAccounts: [ServerKind: ServerAccount] = [:]
     /// The saved accounts have been read (until then `serverAccounts` is empty, not unset).
     public private(set) var accountsLoaded = false
+    /// Outbox kinds kept on this device: writes to a demo server (`ServerAccount.isDemo`).
+    public private(set) var heldKinds: Set<OutboxJobKind> = []
+    @ObservationIgnored private var ownAccountsLoaded = false
+    @ObservationIgnored private var sharedAccountsLoaded = false
     /// Sharing the setup with the other apps (nil without the App Group).
     public let setupSharing: SetupSharing?
     /// What this launch uses (nil without the App Group).
@@ -125,7 +136,20 @@ public final class CommonEnvironment {
         dictionaries = DictionaryLibrary(database: setupDatabase, directory: setupDictionaries, lowMemoryImport: lowMemoryImport)
         lookup = LookupService(library: dictionaries, audio: AudioService(database: setupDatabase, http: http, secrets: routedSecrets), history: database)
         dictionaryUpdater = DictionaryUpdater(library: dictionaries, lookup: lookup, reachability: reachability)
+        // Portraits beside the dictionaries (in the shared setup when it's shared).
+        let portraits = setupDictionaries.deletingLastPathComponent().appending(path: "Character Portraits", directoryHint: .isDirectory)
+        var namesHTTP = http
+        #if DEBUG
+        // UI tests: AniList and MangaBaka from made-up responses.
+        if let fixtures = ProcessInfo.processInfo.environment["UITEST_NAMES_FIXTURES"] {
+            namesHTTP = HTTPClient(transport: NamesFixtureTransport(folder: URL(filePath: fixtures)))
+        }
+        #endif
+        characterNames = CharacterNameService(database: setupDatabase, library: dictionaries, aniList: AniListClient(http: namesHTTP),
+                                              mangaBaka: MangaBakaClient(http: namesHTTP), portraits: PortraitStore(directory: portraits, http: namesHTTP))
         activity = ActivityLog(database: database)
+        goals = DailyGoalStore(database: database)
+        statsSync = StatsCloudSync(database: database, collections: Self.syncedCollections, sharedSetup: sharedAccountsDatabase)
         lookup.activity = activity
         ankiSettings = AnkiSettingsStore(database: setupDatabase)
         minedWords = MinedWordStore(database: setupDatabase)
@@ -202,14 +226,25 @@ public final class CommonEnvironment {
         if setupMode == .shared { startSharingSetup() }
 
         async let summary: Void = observe(outbox.observeSummary()) { $0.outboxSummary = $1 }
-        async let own: Void = observe(accounts.observeAll()) { $0.ownAccounts = $1; $0.mergeAccounts(); $0.accountsLoaded = true }
-        async let shared: Void = observe(accounts.observeShared()) { $0.sharedAccounts = $1; $0.mergeAccounts() }
+        async let own: Void = observe(accounts.observeAll()) {
+            $0.ownAccounts = $1; $0.ownAccountsLoaded = true; $0.mergeAccounts(); $0.accountsLoaded = true
+        }
+        async let shared: Void = observe(accounts.observeShared()) { $0.sharedAccounts = $1; $0.sharedAccountsLoaded = true; $0.mergeAccounts() }
         _ = await (summary, own, shared)
     }
 
     private func mergeAccounts() {
         serverAccounts = ownAccounts.merging(sharedAccounts) { _, shared in shared }
         mining.ankiConnected = serverAccounts[.anki] != nil
+        // Only once both lists are read: a half-read list would look like leaving the demo.
+        guard ownAccountsLoaded, sharedAccountsLoaded else { return }
+        let demo = Set(serverAccounts.values.filter(\.isDemo).map(\.kind))
+        let held = Set(OutboxJobKind.allCases.filter { $0.server.map(demo.contains) == true })
+        if held != heldKinds {
+            // Leaving a demo server discards what it held; joining one holds from now on.
+            try? outbox.setHeld(held)
+            heldKinds = held
+        }
     }
 
     // MARK: Shared setup
@@ -298,6 +333,12 @@ public final class CommonEnvironment {
 
     /// Settings ▸ Hachidori ▸ Sync Now: links again at once if it isn't linked, and sends what's
     /// waiting (the host's records come in by themselves while linked).
+    /// The status card's Sync Now: everything waiting, and Hachidori reconnected with its
+    /// pending word statuses queued when it's linked.
+    public func syncEverything() {
+        if hachidoriSettings.enabled { syncHachidori() } else { syncNow(retryWaiting: true) }
+    }
+
     public func syncHachidori() {
         hachidori?.reconnectNow()
         sendWaitingToHachidori()
@@ -353,6 +394,7 @@ public final class CommonEnvironment {
     public func syncNow(retryWaiting: Bool = false) {
         if retryWaiting { _ = try? outbox.retryWaitingNow() }
         Task { await worker.drain() }
+        Task { await statsSync.sync() }
     }
 
     // MARK: Anki
@@ -386,6 +428,19 @@ public final class CommonEnvironment {
         return ["Yomu", "Miru", "Kiku", "Hiku"].filter { $0 != Self.appName && members[$0] == true }
     }
 
+    /// What Sync with iCloud keeps the same besides Stats, in each app.
+    static var syncedCollections: [any SyncedCollection] {
+        switch appName {
+        case "Yomu": [DailyGoalCollection(), TableCollection.mangaReaderSettings, TableCollection.bookReaderSettings,
+                      TableCollection.hiddenLibraries, ReadAlongPairCollection(), TableCollection.kechimochiAddress]
+        case "Miru": [TableCollection.playerSettings, TableCollection.hiddenJellyfinLibraries, TableCollection.japaneseOnlyJellyfinLibraries,
+                      SubtitleTimingCollection(), TableCollection.kechimochiAddress]
+        case "Kiku": [TableCollection.listenSettings, TableCollection.showListenSettings, TableCollection.audioMarks,
+                      TableCollection.kikuHiddenLibraries, TableCollection.kechimochiAddress]
+        default: []
+        }
+    }
+
     public static var appName: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
             ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "This app"
@@ -396,7 +451,7 @@ public final class CommonEnvironment {
         _ = try await kechimochiClient()?.version()
     }
 
-    /// kechimochi's API, on the same host as the page set in Settings ▸ Stats.
+    /// kechimochi's API, on the same host as the page set in Settings ▸ Connections ▸ kechimochi.
     func kechimochiClient() -> KechimochiClient? {
         guard let address = (try? activity.kechimochiURL()) ?? nil, let webURL = URL(string: address),
               var components = URLComponents(url: webURL, resolvingAgainstBaseURL: false) else { return nil }

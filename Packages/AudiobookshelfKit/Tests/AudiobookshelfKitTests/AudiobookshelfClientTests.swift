@@ -56,6 +56,23 @@ func fixture(_ name: String) throws -> Data { try Fixture.data(name, in: .module
         #expect(transport.requests.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") == "Bearer tok" })
     }
 
+    /// Kiku on Apple Watch's key: shape from Audiobookshelf 2.36.1 (scrubbed).
+    @Test func makesAndRevokesAnAPIKey() async throws {
+        let transport = StubTransport(routes: [
+            "/api/api-keys/00000000-0000-4000-8000-0000000000a1": (200, Data("OK".utf8)),
+            "/api/api-keys": (200, try fixture("api-key-created.json")),
+        ])
+        let (client, _) = try client(transport)
+        let key = try await client.createAPIKey(name: "Kiku on Apple Watch", userId: "u1")
+        #expect(key.apiKey == "REDACTED-api-key" && key.name == "Kiku on Apple Watch")
+        let create = try #require(transport.requests.first)
+        #expect(create.httpMethod == "POST")
+        #expect(try create.jsonBody()["userId"] as? String == "u1" && create.jsonBody()["isActive"] as? Bool == true)
+        try await client.deleteAPIKey(id: key.id)
+        #expect(transport.requests.last?.httpMethod == "DELETE")
+        #expect(try await client.bearerToken() == "tok")
+    }
+
     @Test func expandedItemHasItsEpisodes() async throws {
         let transport = StubTransport(routes: ["/api/items/show": (200, try fixture("item.json"))])
         let item = try await client(transport).0.item(id: "show")
@@ -218,6 +235,9 @@ func fixture(_ name: String) throws -> Data { try Fixture.data(name, in: .module
         guard case .ready(let transcript) = try await client.transcript(itemId: "show", episodeId: "ep1") else { Issue.record("not ready"); return }
         #expect(transcript.sentences.map(\.text) == ["それでは、本編をどうぞ。", "よろしくお願いします。"])
         #expect(transcript.sentences[0].words[1].start == 26.5 && transcript.source.fingerprint == "11:22:33.0")
+        // What made it and when, for the player's Transcript menu.
+        #expect(transcript.source.model == "large-v3" && transcript.source.kaku == "1.1.0")
+        #expect(transcript.source.created == Date(timeIntervalSince1970: 1_793_867_403))
         guard case .pending(let job) = try await client.transcript(itemId: "show", episodeId: "ep2") else { Issue.record("not pending"); return }
         #expect(job.state == .queued && job.position == 1)
         #expect(try await client.transcript(itemId: "show", episodeId: "ep3") == .missing)
@@ -235,9 +255,13 @@ func fixture(_ name: String) throws -> Data { try Fixture.data(name, in: .module
         let client = client(transport)
         #expect(try await client.requestJob(itemId: "show", episodeId: "ep2")?.state == .queued)
         #expect(try transport.requests[0].jsonBody()["episodeId"] as? String == "ep2")
+        #expect(try transport.requests[0].jsonBody()["force"] == nil, "an ordinary request doesn't force")
+        // Transcribe Again (Kaku 1.6).
+        try await client.requestJob(itemId: "show", episodeId: "ep2", force: true)
+        #expect(try transport.requests[1].jsonBody()["force"] as? Bool == true)
         let statuses = try await client.status([("show", "ep1"), ("show", "ep2"), ("show", "ep3")])
         #expect(statuses == ["show/ep1": .done, "show/ep2": .queued, "show/ep3": .missing])
-        let sent = try transport.requests[1].jsonBody()["episodes"] as? [[String: String]]
+        let sent = try transport.requests[2].jsonBody()["episodes"] as? [[String: String]]
         #expect(sent?.count == 3 && sent?.first?["itemId"] == "show")
     }
 
@@ -255,6 +279,34 @@ func fixture(_ name: String) throws -> Data { try Fixture.data(name, in: .module
         let query = try #require(transport.requests.last?.url?.query())
         #expect(query == "start=99.750&end=106.250")
         #expect(try await client.clip(itemId: "show", episodeId: "ep1", start: 1, end: 2) == Data("m4a".utf8))
+    }
+
+    @Test func theServerScreenReadsTheQueueAndLibraries() async throws {
+        let transport = StubTransport { request in
+            switch (request.httpMethod, request.url?.path()) {
+            case (_, "/jobs"): (200, try fixture("kaku-jobs.json"))
+            case (_, "/libraries"): (200, try fixture("kaku-libraries.json"))
+            case (_, "/jellyfin/jobs"): (200, Data(#"{"jobs":[{"itemId":"jf-9","state":"queued","position":0}]}"#.utf8))
+            default: (404, Data())
+            }
+        }
+        let client = client(transport)
+        let queue = try await client.queue(limit: 5)
+        #expect(queue.running?.progress == 0.62 && queue.queued.map(\.title) == ["A book", "#4"] && queue.queuedCount == 14)
+        #expect(queue.failed[0].isJellyfin && queue.estimatedSeconds == 1373)
+        #expect(transport.requests[0].url?.query() == "limit=5")
+        let libraries = try await client.libraries()
+        #expect(libraries.libraries.map(\.enabled) == [true, true, false])
+        #expect(libraries.libraries[0].progress?.counts.total == 111 && libraries.jellyfin?.counts.failed == 1)
+        _ = try await client.setLibraries(enabled: ["lib"])
+        #expect(transport.requests.last?.httpMethod == "PUT")
+        #expect(try transport.requests.last?.jsonBody()["enabled"] as? [String] == ["lib"])
+        // A failed Jellyfin job is asked for again by its Jellyfin id.
+        try await client.retry(queue.failed[0])
+        #expect(try transport.requests.last?.jsonBody()["itemIds"] as? [String] == ["jf-9"])
+        // An older Kaku (no counts): the libraries still read.
+        let old = try JSONDecoder().decode(KakuLibraries.self, from: Data(#"{"libraries":[{"id":"l","name":"P","mediaType":"podcast","enabled":true}]}"#.utf8))
+        #expect(old.libraries[0].progress == nil && old.jellyfin == nil)
     }
 
     @Test func jellyfinSubtitlesOnRequest() async throws {
@@ -284,5 +336,49 @@ func fixture(_ name: String) throws -> Data { try Fixture.data(name, in: .module
     @Test func wrongTokenIsUnauthorized() async throws {
         let transport = StubTransport { _ in (401, Data()) }
         await #expect(throws: ConnectionError.unauthorized) { try await client(transport).transcript(itemId: "a", episodeId: "b") }
+    }
+}
+
+@Suite struct AudiobookshelfSessionTests {
+    @Test func aSessionHasAudiobookshelfsFields() throws {
+        let device = AudiobookshelfDeviceInfo(deviceId: "d", clientName: "Kiku", clientVersion: "0.4.0", model: "iPhone16,2")
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Tokyo")!
+        // 2026-11-18 23:30 in Tokyo, 14:30 UTC.
+        let start = Date(timeIntervalSince1970: 1_795_012_200)
+        let session = AudiobookshelfSessionPayload(
+            id: "s", libraryItemId: "li", episodeId: "", mediaType: "book", duration: 100, deviceInfo: device,
+            startTime: 5, currentTime: 9, timeListening: 4, startedAt: start, updatedAt: start + 4, calendar: calendar)
+        let json = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(session)) as? [String: Any])
+        #expect(json["episodeId"] == nil)
+        #expect(json["date"] as? String == "2026-11-18")
+        #expect(json["dayOfWeek"] as? String == "Wednesday")
+        #expect(json["startedAt"] as? Int64 == 1_795_012_200_000)
+        #expect(json["updatedAt"] as? Int64 == 1_795_012_204_000)
+        #expect(json["playMethod"] as? Int == 3)
+        #expect((json["deviceInfo"] as? [String: Any])?["clientName"] as? String == "Kiku")
+    }
+
+    @Test func anUntitledEpisodeSessionGetsItsEpisodesTitle() async throws {
+        let date = Date(timeIntervalSince1970: 1_795_012_200)
+        let item = "00000000-0000-4000-8000-000000000007"
+        let session = AudiobookshelfSessionPayload(
+            id: "s", libraryItemId: item, episodeId: "00000000-0000-4000-8000-00000000000e", mediaType: "podcast", duration: 0,
+            deviceInfo: AudiobookshelfDeviceInfo(deviceId: "d", clientName: "Kiku", clientVersion: "0", model: "m"),
+            startTime: 0, currentTime: 0, timeListening: 60, startedAt: date, updatedAt: date + 60)
+        let show = try fixture("item.json")
+        let transport = StubTransport { request in
+            request.httpMethod == "GET" ? (200, show) : (200, Data(#"{"results":[{"id":"s","success":true}]}"#.utf8))
+        }
+        let secrets = InMemorySecretStore()
+        try secrets.setSecret("tok", for: .audiobookshelfToken)
+        let client = AudiobookshelfClient(baseURL: URL(string: "https://abs.example.ts.net")!, tokens: AudiobookshelfTokens(secrets: secrets),
+                                          http: HTTPClient(transport: transport))
+        let job = OutboxJob(id: 1, kind: .audiobookshelfSession, coalesceKey: session.coalesceKey, payload: try JSONEncoder().encode(session),
+                            state: .inFlight, attempts: 0, lastError: nil, nextAttemptAt: date, createdAt: date, updatedAt: date)
+        try await AudiobookshelfSessionHandler(makeClient: { client }).send(job, media: [])
+        #expect(transport.requests.map { $0.url?.path() } == ["/api/items/\(item)", "/api/session/local-all"])
+        let sent = try #require((try transport.requests[1].jsonBody()["sessions"] as? [[String: Any]])?.first)
+        #expect(sent["displayTitle"] as? String == "第2回 サンプルエピソード")
     }
 }

@@ -61,6 +61,9 @@ final class PlayerEnvironment {
                 let subtitles = LocalSubtitleStore(database: database)
                 return [
                     JellyfinProgressHandler(makeClient: makeClient),
+                    JellyfinPlayedHandler(makeClient: makeClient, didSend: { itemId in
+                        Task { @MainActor in NotificationCenter.default.post(name: .playbackDidClose, object: itemId) }
+                    }),
                     JellyfinSubtitleHandler(makeClient: makeClient, didUpload: { itemId in
                         try? subtitles.markUploaded(itemId: itemId, at: Date())
                         Task { @MainActor in
@@ -140,8 +143,28 @@ final class PlayerEnvironment {
                 TranscriptInfo(itemId: "uitest-1", seriesId: nil, seriesName: "UI Test Show", title: "Pilot", season: 1, episode: 1,
                                mediaSourceId: "m", streamIndex: 1, runtime: 1400, lastPlayedAt: Date(), savedAt: Date()),
                 lines: [(1, 3, "吾輩は猫である。"), (4, 6, "名前はまだ無い。"), (7, 9, "どこで生れたか\nとんと見当がつかぬ。")])
+            // UITEST_TRANSCRIPT=2: a second episode, watched before it, to pick between.
+            if env["UITEST_TRANSCRIPT"] == "2" {
+                try? environment.transcripts.save(
+                    TranscriptInfo(itemId: "uitest-2", seriesId: nil, seriesName: "Another Show", title: "Second", season: 1, episode: 2,
+                                   mediaSourceId: "m", streamIndex: 1, runtime: 1400, lastPlayedAt: Date().addingTimeInterval(-3600),
+                                   savedAt: Date()),
+                    lines: [(1, 3, "親譲りの無鉄砲で"), (4, 6, "小供の時から損ばかりしている。")])
+            }
         }
         if env["UITEST_STATS"] != nil { seedStats(environment.common.activity, kind: .watching) }
+        #if os(iOS)
+        // As if a TV were connected (the simulator can't attach one): the player shows the note.
+        if env["UITEST_EXTERNAL_DISPLAY"] != nil { ExternalDisplay.shared.simulateConnected() }
+        #endif
+        // UITEST_PLAYER_LOOK="conceal,large,higher": the subtitles' look, set before the player opens.
+        if let look = env["UITEST_PLAYER_LOOK"] {
+            var settings = PlayerSettings.load(environment.common.database)
+            settings.concealsSubtitles = look.contains("conceal")
+            if look.contains("large") { settings.subtitleScale = 1.5 }
+            if look.contains("higher") { settings.subtitleLift = 0.25 }
+            try? settings.save(environment.common.database)
+        }
         if env["UITEST_JIMAKU"] != nil {
             // Subtitle search against canned Jimaku answers, with a key already set.
             try? environment.common.secrets.setSecret("uitest", for: .jimakuAPIKey)
@@ -186,6 +209,9 @@ final class PlayerEnvironment {
     func start() async {
         guard !started else { return }
         started = true
+        #if os(iOS)
+        stopLeftoverPiPTranscode()
+        #endif
         async let common: Void = common.start()
         async let hidden: Void = observeHiddenLibraries()
         async let japaneseOnly: Void = observeJapaneseOnlyLibraries()
@@ -238,6 +264,30 @@ final class PlayerEnvironment {
     /// Kaku, for subtitles Jimaku lacks (its own sign-in until the apps can share one).
     func kakuClient() -> KakuClient? { AudioServers.kakuClient(common) }
 
+    /// Marks an episode or movie watched or unwatched (its row's menu): this device's own place
+    /// at once, then Jellyfin through the outbox. Unwatched also clears the resume point.
+    func setWatched(_ item: JellyfinItem, _ watched: Bool) {
+        let duration = item.duration ?? 0
+        try? watchProgress.save(LocalWatchProgress(itemId: item.id, seriesId: item.seriesId, position: watched ? duration : 0,
+                                                   duration: duration, updatedAt: Date()))
+        let payload = JellyfinPlayedPayload(itemId: item.id, played: watched)
+        try? common.outbox.enqueue(payload, kind: .jellyfinPlayed, coalesceKey: payload.coalesceKey)
+        common.syncNow()
+        // The lists read this device's progress again now, and Jellyfin's once it has the mark.
+        NotificationCenter.default.post(name: .playbackDidClose, object: item.id)
+    }
+
+    #if os(iOS)
+    /// The app was killed while picture in picture played a transcode: stop it now (best
+    /// effort; Jellyfin also ends a transcode nobody fetches from, after a while).
+    private func stopLeftoverPiPTranscode() {
+        guard let id = UserDefaults.standard.string(forKey: PlaybackModel.pendingPiPTranscodeKey) else { return }
+        UserDefaults.standard.removeObject(forKey: PlaybackModel.pendingPiPTranscodeKey)
+        guard let client = jellyfinClient() else { return }
+        Task { try? await client.stopTranscoding(playSessionId: id) }
+    }
+    #endif
+
     func jellyfinClient() -> JellyfinClient? {
         try? Self.jellyfinClientFactory(accounts: common.accounts, secrets: common.secrets, identity: identity, http: common.http)()
     }
@@ -255,6 +305,9 @@ private struct UITestJimakuTransport: HTTPTransport {
             body = #"[{"id":7,"name":"UI Test Show","japanese_name":"テスト","anilist_id":100,"flags":{"anime":true}}]"#
         } else if path.hasSuffix("/files") {
             body = #"[{"name":"UI Test Show 01.srt","url":"https://jimaku.cc/entry/7/download/a.srt","size":120},{"name":"UI Test Show 01-12.rar","url":"https://jimaku.cc/entry/7/download/b.rar","size":9000}]"#
+        } else if ProcessInfo.processInfo.environment["UITEST_JIMAKU"] == "gaps" {
+            // Lines with long gaps between them (Condensed).
+            body = "1\n00:00:01,000 --> 00:00:03,000\n吾輩は猫である。\n\n2\n00:00:15,000 --> 00:00:17,000\n名前はまだ無い。\n\n3\n00:00:30,000 --> 00:00:32,000\nどこで生れたかとんと見当がつかぬ。\n"
         } else {
             body = "1\n00:00:00,500 --> 00:00:20,000\n吾輩は猫である。\n\n2\n00:00:20,500 --> 00:00:40,000\n名前はまだ無い。\n\n3\n00:00:41,000 --> 00:00:59,000\nどこで生れたかとんと見当がつかぬ。\n"
         }
@@ -263,3 +316,24 @@ private struct UITestJimakuTransport: HTTPTransport {
     }
 }
 #endif
+
+extension PlayerEnvironment {
+    /// The demo Jellyfin's sign-in, after its nightly reset (`DemoRenewal`).
+    func renewDemo() async {
+        await DemoRenewal.renew(common, kind: .jellyfin) {
+            guard let client = jellyfinClient() else { return .unknown }
+            var signedIn = true
+            let check = await DemoRenewal.check { signedIn = try await client.testConnection().user != nil }
+            return check == .fine && !signedIn ? .refused : check
+        } signIn: { config in
+            guard let demo = config.jellyfin else { return false }
+            let model = JellyfinSettingsModel(environment: common)
+            model.isDemo = true
+            model.urlText = demo.url.absoluteString
+            model.username = demo.user
+            model.password = demo.password
+            await model.signIn()
+            if case .ok = model.status { return true } else { return false }
+        }
+    }
+}

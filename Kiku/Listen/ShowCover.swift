@@ -25,7 +25,7 @@ struct ShowCover: View {
                         .foregroundStyle(.tertiary)
                 }
             }
-            .clipShape(.rect(cornerRadius: cornerRadius))
+            .coverShape(cornerRadius: cornerRadius)
             .task(id: "\(itemId)#\(CoverGeneration.shared.value)") {
                 guard let client = environment.audiobookshelfClient(),
                       let request = try? await client.coverRequest(itemId: itemId, width: 600) else { return }

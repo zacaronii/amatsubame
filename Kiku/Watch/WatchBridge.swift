@@ -24,6 +24,8 @@ final class WatchBridge: NSObject, WCSessionDelegate {
     private var fingerprints: [String: String] = [:]
     /// The transcript the watch is fetching in parts, built once.
     private var shared: WatchTranscript?
+    /// The same for a saved transcript (an item on the watch that isn't playing here).
+    private var savedShared: WatchTranscript?
     /// The last word looked up from the watch, for its +.
     private var lastLookup: (command: WatchCommand, page: LookupResultPage)?
     /// Replay paused the episode: it plays again when the clip ends.
@@ -41,7 +43,31 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         liveText = ListenSettings.load(environment.common.database).watchLiveText
         WCSession.default.delegate = self
         WCSession.default.activate()
+        environment.watchLibrary.onChange = { [weak self] in
+            guard let self else { return }
+            send(currentState(), force: true)
+        }
+        environment.watchLibrary.onAdded = { [weak self] in self?.wakeWatch() }
+        environment.watchLibrary.onSendFile = { [weak self] item, file in self?.transferFile(item, file: file) }
+        environment.watchLibrary.onCancelFile = { [weak self] key in self?.cancelTransfer(key) }
         follow()
+        followAccount()
+    }
+
+    /// Sync Now on the phone: the list, the places and the acknowledgements go again.
+    func syncNow() {
+        send(currentState(), force: true)
+        wakeWatch()
+    }
+
+    /// The context alone waits until watchOS chooses to wake Kiku on the watch (often not until
+    /// it's opened). With Kiku's complication on the face, a complication transfer wakes it now
+    /// (50 a day), so a newly sent item starts downloading by itself.
+    private func wakeWatch() {
+        let session = WCSession.default
+        guard session.activationState == .activated, session.isPaired, session.isWatchAppInstalled,
+              session.isComplicationEnabled, session.remainingComplicationUserInfoTransfers > 0 else { return }
+        session.transferCurrentComplicationUserInfo(WatchMessages.context(currentState(), library: environment.watchLibrary.library))
     }
 
     func setLiveText(_ on: Bool) {
@@ -50,6 +76,71 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         settings.watchLiveText = on
         try? settings.save(environment.common.database)
         send(currentState(), force: true)
+    }
+
+    // MARK: Send Now
+
+    /// Where files wait while they're sent: links to the downloads, so removing a download
+    /// meanwhile doesn't pull the file from under the transfer.
+    private let transfers = URL.cachesDirectory.appending(path: "WatchTransfers")
+    private var followingTransfers = false
+
+    private func transferFile(_ item: WatchItem, file: URL) {
+        let session = WCSession.default
+        guard session.activationState == .activated, session.isWatchAppInstalled else {
+            environment.watchLibrary.sending[item.key] = nil
+            environment.watchLibrary.sendFailed(item.key, "Your watch isn't connected")
+            return
+        }
+        cancelTransfer(item.key)
+        try? FileManager.default.createDirectory(at: transfers, withIntermediateDirectories: true)
+        let link = transfers.appending(path: item.fileName)
+        try? FileManager.default.removeItem(at: link)
+        if (try? FileManager.default.linkItem(at: file, to: link)) == nil {
+            do { try FileManager.default.copyItem(at: file, to: link) } catch {
+                environment.watchLibrary.sending[item.key] = nil
+                environment.watchLibrary.sendFailed(item.key, error.localizedDescription)
+                return
+            }
+        }
+        session.transferFile(link, metadata: WatchMessages.metadata(fileFor: item.key))
+        followTransfers()
+    }
+
+    private func cancelTransfer(_ key: String) {
+        for transfer in WCSession.default.outstandingFileTransfers where WatchMessages.fileKey(from: transfer.file.metadata) == key {
+            transfer.cancel()
+            try? FileManager.default.removeItem(at: transfer.file.fileURL)
+        }
+    }
+
+    /// Each outstanding file's progress, every second while any is left (its completion isn't
+    /// always reported, so this follows the transfers themselves).
+    private func followTransfers() {
+        guard !followingTransfers else { return }
+        followingTransfers = true
+        Task {
+            while true {
+                var sending: [String: Double] = [:]
+                for transfer in WCSession.default.outstandingFileTransfers {
+                    if let key = WatchMessages.fileKey(from: transfer.file.metadata) { sending[key] = transfer.progress.fractionCompleted }
+                }
+                environment.watchLibrary.sending = sending
+                if sending.isEmpty { break }
+                try? await Task.sleep(for: .seconds(1))
+            }
+            followingTransfers = false
+            removeStaleTransferFiles()
+        }
+    }
+
+    /// Links left from transfers that are over.
+    private func removeStaleTransferFiles() {
+        let live = Set(WCSession.default.outstandingFileTransfers.map { $0.file.fileURL.lastPathComponent })
+        for file in (try? FileManager.default.contentsOfDirectory(at: transfers, includingPropertiesForKeys: nil)) ?? []
+        where !live.contains(file.lastPathComponent) {
+            try? FileManager.default.removeItem(at: file)
+        }
     }
 
     // MARK: State
@@ -62,6 +153,26 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         send(state)
     }
 
+    /// Signing out of Audiobookshelf takes the watch's token away (and revokes its key); signing
+    /// in again gives it one, if anything is on the list.
+    private func followAccount() {
+        let (loaded, account) = withObservationTracking {
+            (environment.common.accountsLoaded, environment.common.serverAccounts[.audiobookshelf])
+        } onChange: { [weak self] in
+            Task { @MainActor in self?.followAccount() }
+        }
+        guard loaded else { return }
+        let library = environment.watchLibrary
+        Task {
+            if account == nil {
+                await library.signedOut()
+            } else if !library.items.isEmpty {
+                await library.prepareAccess()
+                library.onChange?()
+            }
+        }
+    }
+
     private func currentState() -> WatchState {
         guard let playback = environment.playback else { return WatchState(nowPlaying: nil, liveText: liveText) }
         let entry = playback.entry
@@ -71,16 +182,19 @@ final class WatchBridge: NSObject, WCSessionDelegate {
             chapter: playback.currentChapter?.title, position: audio.currentTime,
             duration: audio.duration > 0 ? audio.duration : entry.duration, rate: Double(audio.rate),
             isPlaying: audio.isPlaying, sampledAt: .now, skipBackward: audio.skipIntervals.backward,
-            skipForward: audio.skipIntervals.forward, artwork: cover(entry.itemId), transcript: transcriptId(playback)),
+            skipForward: audio.skipIntervals.forward, artwork: cover(entry.itemId), transcript: transcriptId(playback),
+            chapters: entry.chapters.isEmpty ? nil : entry.chapters.map { WatchItem.Chapter(title: $0.title, start: $0.start) }),
             liveText: liveText)
     }
 
     private func send(_ state: WatchState, force: Bool = false) {
         let session = WCSession.default
+        environment.watchLibrary.isWatchAppInstalled = session.activationState == .activated && session.isPaired && session.isWatchAppInstalled
+        environment.watchLibrary.wakesWatch = environment.watchLibrary.isWatchAppInstalled && session.isComplicationEnabled
         guard session.activationState == .activated, session.isPaired, session.isWatchAppInstalled else { return }
         if !force, let sent, isPredicted(state, by: sent) { return }
         do {
-            try session.updateApplicationContext(WatchMessages.context(state))
+            try session.updateApplicationContext(WatchMessages.context(state, library: environment.watchLibrary.library))
             sent = state
         } catch {}
     }
@@ -140,6 +254,14 @@ final class WatchBridge: NSObject, WCSessionDelegate {
     // MARK: Commands
 
     private func perform(_ command: WatchCommand) async -> WatchReply {
+        if command == .freshAccess {
+            return WatchReply(access: await environment.watchLibrary.freshAccess(), state: currentState())
+        }
+        // Live Text following the watch's own player (milestone 5): a line of an episode this
+        // phone isn't playing, from its saved transcript.
+        if let key = command.lineKey, environment.playback?.key != key {
+            return await performSaved(command, key: key)
+        }
         guard let playback = environment.playback else { return reply("Nothing is playing") }
         let audio = playback.audio
         switch command {
@@ -205,8 +327,79 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         case let .transcriptPart(id, from):
             guard let part = transcriptPart(id, from: from, of: playback) else { return reply("That transcript isn't playing any more") }
             return WatchReply(transcriptPart: part, state: currentState())
+        case .freshAccess:
+            break
+        case let .seek(key, time):
+            guard key == playback.key else { return reply("That episode isn't playing any more") }
+            audio.seek(to: time)
+        case let .setRate(rate):
+            playback.setSpeed(rate)
         }
         return WatchReply(state: currentState())
+    }
+
+    /// Live Text's commands for an episode that isn't playing here: its saved transcript, and for
+    /// a card the episode's own audio (as Marks finds it). Nothing here pauses or plays.
+    private func performSaved(_ command: WatchCommand, key: String) async -> WatchReply {
+        if case let .transcriptPart(id, from) = command {
+            if savedShared?.id != id { savedShared = savedTranscript(key) }
+            guard let part = savedShared.flatMap({ $0.id == id ? $0.part(from: from) : nil }) else {
+                return reply("That transcript isn't on this iPhone any more")
+            }
+            return WatchReply(transcriptPart: part, state: currentState())
+        }
+        guard let info = try? environment.transcripts.transcript(key: key) else { return reply("That transcript isn't on this iPhone any more") }
+        let sentences = (try? environment.transcripts.sentences(key: key)) ?? []
+        switch command {
+        case let .markLine(_, position):
+            guard let line = sentences.first(where: { $0.position == position }),
+                  let mark = environment.mark(.watchLine, itemId: info.itemId, episodeId: info.episodeId, showTitle: info.showTitle,
+                                              episodeTitle: info.episodeTitle, time: line.start) else { return reply("Couldn't mark it") }
+            return WatchReply(message: "Marked \(mark.time.clockText)", markedAt: mark.time, state: currentState())
+        case let .lookUp(_, position, character):
+            guard let line = sentences.first(where: { $0.position == position }) else { return reply("Couldn't find that line") }
+            let page = await lookUp(line, character: character)
+            guard let first = page.results.first, let source = page.source else { return reply("No dictionary entry") }
+            lastLookup = (command, page)
+            let start = LineLookup.characterIndex(utf16: source.utf16Offset, in: source.text)
+            let end = LineLookup.characterIndex(utf16: source.utf16Offset + source.utf16Length, in: source.text)
+            return WatchReply(lookup: WatchLookup(
+                start: start, length: end - start, expression: first.expression, reading: first.reading,
+                meaning: CompactDefinitionSummary.extract(first.glossaries, maximumItems: 1)?.items.first,
+                frequency: first.frequencies.first?.values.first?.display, lookupCount: page.lookupCount,
+                isMined: environment.common.lookup.mining?.isMined(first) ?? false), state: currentState())
+        case let .addCard(_, position, character):
+            guard let line = sentences.first(where: { $0.position == position }) else { return reply("Couldn't find that line") }
+            let page = lastLookup.flatMap { $0.command == .lookUp(key: key, line: position, character: character) ? $0.page : nil }
+            let found = if let page { page } else { await lookUp(line, character: character) }
+            guard let first = found.results.first else { return reply("No dictionary entry") }
+            let miscInfo = CardSource.miscInfo(show: info.showTitle, episode: info.episodeTitle, time: line.start)
+            var context: any MiningContext = TextMiningContext(miscInfo: miscInfo)
+            if let entry = await environment.entry(itemId: info.itemId, episodeId: info.episodeId, showTitle: info.showTitle) {
+                let audio = EpisodeAudio(entry: entry)
+                if await audio.resolve(environment: environment) == nil { context = audio.miningContext(for: line) }
+            }
+            let mining = environment.common.mining
+            do {
+                _ = try await mining.mine(first, sentence: found.sentence ?? TappableLine.sentence(line.text), context: context)
+                let deck = (try? mining.settingsStore.settings())?.deck
+                return WatchReply(message: deck.map { "\(first.expression) · \($0)" } ?? first.expression, cardAdded: true, state: currentState())
+            } catch {
+                return reply("Set up Anki in Kiku's settings to add cards")
+            }
+        default:
+            return WatchReply(state: currentState())
+        }
+    }
+
+    /// An episode's saved transcript, for the watch (its lines as the player shows them).
+    private func savedTranscript(_ key: String) -> WatchTranscript? {
+        guard let id = WatchLibraryModel.transcriptId(key, in: environment.transcripts),
+              let fingerprint = id.split(separator: "#", maxSplits: 1).last,
+              let sentences = try? environment.transcripts.sentences(key: key), !sentences.isEmpty else { return nil }
+        return WatchTranscript(key: key, fingerprint: String(fingerprint), lines: sentences.map {
+            WatchTranscript.Line(position: $0.position, start: $0.start, end: $0.end, text: TappableLine.sentence($0.text))
+        })
     }
 
     private func resumeAfterLookup(_ playback: PlaybackModel) {
@@ -228,7 +421,7 @@ final class WatchBridge: NSObject, WCSessionDelegate {
     private func lookUp(_ line: AudioSentence, character: Int) async -> LookupResultPage {
         let text = TappableLine.sentence(line.text)
         let offset = String(text.prefix(character)).utf16.count
-        return await environment.common.lookup.lookup(text: text, utf16Offset: offset, showSource: true)
+        return await environment.common.lookup.lookup(text: text, utf16Offset: offset, keepsSource: true)
     }
 
     /// The line's clip on the phone (the transcript's clip path). The episode pauses for it and
@@ -275,7 +468,27 @@ final class WatchBridge: NSObject, WCSessionDelegate {
     // MARK: WCSessionDelegate
 
     nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: (any Error)?) {
-        Task { @MainActor in self.send(self.currentState(), force: true) }
+        let inventory = WatchMessages.inventory(from: session.receivedApplicationContext)
+        Task { @MainActor in
+            if let inventory { self.environment.watchLibrary.received(inventory) }
+            self.send(self.currentState(), force: true)
+            // Transfers carry on across launches.
+            self.followTransfers()
+        }
+    }
+
+    nonisolated func session(_ session: WCSession, didFinish fileTransfer: WCSessionFileTransfer, error: (any Error)?) {
+        let key = WatchMessages.fileKey(from: fileTransfer.file.metadata)
+        let url = fileTransfer.file.fileURL
+        let message = error?.localizedDescription
+        Task { @MainActor in
+            try? FileManager.default.removeItem(at: url)
+            guard let key else { return }
+            let library = self.environment.watchLibrary
+            library.sending[key] = nil
+            // Not for one cancelled because it was removed or the watch has it.
+            if let message, library.contains(key), library.status(key).state != .ready { library.sendFailed(key, message) }
+        }
     }
 
     nonisolated func sessionWatchStateDidChange(_ session: WCSession) {
@@ -293,6 +506,15 @@ final class WatchBridge: NSObject, WCSessionDelegate {
                              replyHandler: @escaping ([String: Any]) -> Void) {
         let command = WatchMessages.command(from: message)
         nonisolated(unsafe) let reply = replyHandler
+        if let listening = WatchMessages.listening(from: message) {
+            // Sync Now from the watch, or listening sent while the phone is near.
+            Task { @MainActor in
+                let applied = self.environment.watchLibrary.apply(listening)
+                reply(WatchMessages.message(acknowledged: applied))
+                self.send(self.currentState(), force: true)
+            }
+            return
+        }
         Task { @MainActor in
             guard let command else { return reply([:]) }
             reply(WatchMessages.message(await self.perform(command)))
@@ -300,8 +522,26 @@ final class WatchBridge: NSObject, WCSessionDelegate {
     }
 
     nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
+        if let removed = WatchMessages.removedKey(from: userInfo) {
+            Task { @MainActor in self.environment.watchLibrary.remove(removed) }
+            return
+        }
+        if let listening = WatchMessages.listening(from: userInfo) {
+            // The acknowledgement goes back in the context.
+            Task { @MainActor in
+                self.environment.watchLibrary.apply(listening)
+                self.send(self.currentState(), force: true)
+            }
+            return
+        }
         guard let queued = WatchMessages.queuedMark(from: userInfo) else { return }
         Task { @MainActor in self.markQueued(queued) }
+    }
+
+    /// The watch's context: where each item on it is.
+    nonisolated func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
+        guard let inventory = WatchMessages.inventory(from: applicationContext) else { return }
+        Task { @MainActor in self.environment.watchLibrary.received(inventory) }
     }
 
 }

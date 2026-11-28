@@ -16,6 +16,8 @@ public final class AudioPlayer {
     public private(set) var duration: Double = 0
     public private(set) var isPlaying = false
     public private(set) var isBuffering = false
+    /// The item played to its end and nothing has moved it since.
+    @ObservationIgnored private var playedToEnd = false
     public private(set) var failure: String?
     public var rate: Float = 1 {
         didSet {
@@ -23,6 +25,12 @@ public final class AudioPlayer {
             if isPlaying { player.rate = rate }
             updateNowPlaying()
         }
+    }
+
+    /// The player's own volume, under the system's (the sleep timer's fade-out).
+    public var volume: Float {
+        get { player.volume }
+        set { player.volume = newValue }
     }
 
     /// Every quarter second while loaded, with the time.
@@ -52,6 +60,10 @@ public final class AudioPlayer {
 
     public init() {
         player.automaticallyWaitsToMinimizeStalling = true
+        #if DEBUG
+        // UI tests and recordings (`UITEST_MUTE=1`): silent from the start.
+        if ProcessInfo.processInfo.environment["UITEST_MUTE"] != nil { player.isMuted = true }
+        #endif
         timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 4), queue: .main) { [weak self] time in
             MainActor.assumeIsolated { self?.tick(time.seconds) }
         }
@@ -64,6 +76,7 @@ public final class AudioPlayer {
     /// Loads an episode and seeks to `start`; it plays when `play()` is called.
     public func load(url: URL, headers: [String: String], start: Double, title: String, show: String, artwork: CGImage? = nil) {
         failure = nil
+        playedToEnd = false
         let asset = headers.isEmpty ? AVURLAsset(url: url) : AVURLAsset(url: url, options: ["AVURLAssetHTTPHeaderFieldsKey": headers])
         let item = AVPlayerItem(asset: asset)
         item.audioTimePitchAlgorithm = .timeDomain
@@ -87,6 +100,7 @@ public final class AudioPlayer {
             Task { [weak self] in
                 for await _ in NotificationCenter.default.notifications(named: AVPlayerItem.didPlayToEndTimeNotification, object: item) {
                     self?.isPlaying = false
+                    self?.playedToEnd = true
                     self?.onEnd?()
                 }
             },
@@ -135,6 +149,8 @@ public final class AudioPlayer {
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
         try? AVAudioSession.sharedInstance().setActive(true)
         #endif
+        // It played out: from the start again, or nothing would play.
+        if playedToEnd { seek(to: 0) }
         player.playImmediately(atRate: rate)
         isPlaying = true
         onPlayStateChange?(true)
@@ -174,6 +190,7 @@ public final class AudioPlayer {
 
     public func seek(to time: Double) {
         let target = min(max(time, 0), duration > 0 ? duration : .greatestFiniteMagnitude)
+        playedToEnd = false
         currentTime = target
         player.seek(to: CMTime(seconds: target, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
         updateNowPlaying()

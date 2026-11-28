@@ -107,12 +107,48 @@ import Testing
         builder.terms = [
             .init("食べる", "たべる", rules: "v1", glossary: ["to eat"]),
             .init("映画", "えいが", glossary: ["movie"]),
+            .init("コーヒー", "コーヒー", glossary: ["coffee"]),
         ]
         builder.styles = "span { color: red; }"
         try await library.importDictionary(at: try builder.write())
         let service = LookupService(library: library, audio: AudioService(database: database))
         try await service.reload()
         return service
+    }
+
+    /// A tap shows as many results as Hachidori (32), not the engine's default 16.
+    @Test func aTapShowsHachidorisThirtyTwoResults() async throws {
+        let database = try AppDatabase.inMemory()
+        let library = DictionaryLibrary(database: database, directory: FileManager.default.temporaryDirectory.appending(path: "results-\(UUID().uuidString)"))
+        var builder = TestDictionaryBuilder(title: "Terms")
+        builder.terms = (0..<40).map { .init(String(UnicodeScalar(0x4E00 + $0)!), "か", glossary: ["entry \($0)"]) }
+        try await library.importDictionary(at: try builder.write())
+        let service = LookupService(library: library, audio: AudioService(database: database))
+        try await service.reload()
+        #expect(await service.lookup(text: "か", utf16Offset: 0).results.count == 32)
+    }
+
+    /// A card's extra senses come only from the same word: another dictionary's entry under a
+    /// different reading of the same spelling is its own result and never joins the card.
+    @Test func cardSensesComeOnlyFromTheSameWordAndReading() async throws {
+        let database = try AppDatabase.inMemory()
+        let library = DictionaryLibrary(database: database, directory: FileManager.default.temporaryDirectory.appending(path: "senses-\(UUID().uuidString)"))
+        var first = TestDictionaryBuilder(title: "First")
+        first.terms = [.init("風呂", "ふろ", glossary: ["a bath"])]
+        var second = TestDictionaryBuilder(title: "Second")
+        second.terms = [
+            .init("風呂", "ぶろ", glossary: ["wrong reading"], score: 10),
+            .init("風呂", "ふろ", glossary: ["bathing", "bathtub"]),
+            .init("風呂場", "ふろば", glossary: ["bathroom (compound)"]),
+        ]
+        try await library.importDictionary(at: try first.write())
+        try await library.importDictionary(at: try second.write())
+        let service = LookupService(library: library, audio: AudioService(database: database))
+        try await service.reload()
+        let page = await service.lookup(text: "風呂に入る", utf16Offset: 0)
+        let furo = try #require(page.results.first { $0.expression == "風呂" && $0.reading == "ふろ" })
+        let card = MiningService.card(for: furo, sentence: nil, miscInfo: nil, settings: .default, allowDuplicate: false)
+        #expect(card.content[.shortDefinition] == "1. a bath<br>2. bathing; bathtub")
     }
 
     @Test func tapLooksUpFromTheTappedCharacterAndKeepsTheSentence() async throws {
@@ -123,6 +159,44 @@ import Testing
         #expect(page.query == "食べさせられなかった")
         #expect(page.sentence == "そして寿司を食べさせられなかった。")
         #expect(service.styles["Terms"] == "span { color: red; }")
+    }
+
+    /// Manga OCR gives a vertical ー as 一: the word is still found, and the sentence and the
+    /// highlight keep the text as written.
+    @Test func aLongVowelLookalikeAfterKatakanaFindsTheWord() async throws {
+        let service = try await makeService()
+        let text = "熱いコ一ヒ一を。"
+        let page = await service.lookup(text: text, utf16Offset: 2, keepsSource: true)
+        #expect(page.results.first?.expression == "コーヒー")
+        #expect(page.source?.utf16Length == 4)
+        #expect(page.sentence == text)
+    }
+
+    /// The popup shows the results only: the tapped sentence stays with the page (for the line's
+    /// or manga page's mark, and for mining) but isn't drawn above them.
+    @Test func thePopupDoesntShowTheSentence() async throws {
+        let service = try await makeService()
+        let page = await service.lookup(text: "昨日映画を見た", utf16Offset: 2, keepsSource: true)
+        #expect(page.source?.text == "昨日映画を見た" && page.sentence == "昨日映画を見た")
+        let html = service.document(for: page)
+        #expect(!html.contains(#"class="source""#) && !html.contains("<mark>"))
+        #expect(!html.contains("昨日映画を見た"), "the sentence isn't drawn anywhere in the popup")
+        #expect(html.contains("movie"), "the results are")
+    }
+
+    /// With no dictionary at all, a tap says so instead of "No results"; with dictionaries, a word
+    /// they don't have still gets "No results".
+    @Test func aLookupWithNoDictionariesSaysHowToGetOne() async throws {
+        let database = try AppDatabase.inMemory()
+        let library = DictionaryLibrary(database: database, directory: FileManager.default.temporaryDirectory.appending(path: "none-\(UUID().uuidString)"))
+        let empty = LookupService(library: library, audio: AudioService(database: database))
+        try await empty.reload()
+        let none = empty.document(for: await empty.lookup(text: "映画を見た", utf16Offset: 0))
+        #expect(none.contains("No dictionaries yet") && !none.contains("No results"))
+
+        let service = try await makeService()
+        let missing = service.document(for: await service.lookup(text: "犬が", utf16Offset: 0))
+        #expect(missing.contains("No results") && !missing.contains("No dictionaries yet"))
     }
 
     @Test func lookupsWithResultsAreCountedForStats() async throws {

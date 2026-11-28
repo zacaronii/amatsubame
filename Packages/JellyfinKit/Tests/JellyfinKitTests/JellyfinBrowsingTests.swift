@@ -105,6 +105,59 @@ import Testing
         #expect(query(transport.requests[2])["seriesId"] == "S" && query(transport.requests[2])["limit"] == "1")
     }
 
+    @Test func asksForATranscodeAndBuildsItsAddress() async throws {
+        let transport = StubTransport(routes: ["/Items/E/PlaybackInfo": (200, try fixture("playback-info-transcoding.json"))])
+        let jellyfin = client(transport)
+        let info = try await jellyfin.transcodingInfo(itemId: "E", mediaSourceId: "M", maxBitrate: 2_000_000, audioStreamIndex: 2)
+        let body = try transport.requests[0].jsonBody()
+        #expect(body["MaxStreamingBitrate"] as? Int == 2_000_000)
+        #expect(body["EnableDirectPlay"] as? Bool == false && body["EnableTranscoding"] as? Bool == true)
+        #expect(body["AudioStreamIndex"] as? Int == 2 && body["MediaSourceId"] as? String == "M")
+        #expect(body["SubtitleStreamIndex"] as? Int == -1, "nothing burnt into the picture")
+        #expect(body["AllowVideoStreamCopy"] as? Bool == false)
+        let profile = try #require(body["DeviceProfile"] as? [String: Any])
+        #expect((profile["DirectPlayProfiles"] as? [Any])?.isEmpty == true)
+        #expect(((profile["TranscodingProfiles"] as? [[String: Any]])?.first?["Protocol"] as? String) == "hls")
+
+        let path = try #require(info.mediaSources.first?.transcodingUrl)
+        let url = try #require(jellyfin.transcodeURL(path, maxBitrate: 2_000_000))
+        #expect(url.path().hasSuffix("/master.m3u8"))
+        let items = query(URLRequest(url: url))
+        // The audio is held down and the picture gets the rest.
+        #expect(items["AudioBitrate"] == "128000" && items["VideoBitrate"] == "1872000")
+        #expect(items["PlaySessionId"] == info.playSessionId)
+        #expect(JellyfinClient.audioBitrate(for: 500_000) == 96_000 && JellyfinClient.audioBitrate(for: 8_000_000) == 192_000)
+    }
+
+    /// Picture in picture: the Japanese track in the HLS playlist (WebVTT), the audio pinned,
+    /// and the transcode stopped afterwards.
+    @Test func picturesInPictureTranscodeCarriesTheSubtitleAndStops() async throws {
+        let transport = StubTransport(routes: ["/Items/E/PlaybackInfo": (200, try fixture("playback-info-transcoding.json")),
+                                               "/Videos/ActiveEncodings": (204, Data())])
+        let jellyfin = client(transport)
+        _ = try await jellyfin.transcodingInfo(itemId: "E", mediaSourceId: "M", maxBitrate: 8_000_000, audioStreamIndex: 1, subtitleStreamIndex: 3)
+        let body = try transport.requests[0].jsonBody()
+        #expect(body["AudioStreamIndex"] as? Int == 1 && body["SubtitleStreamIndex"] as? Int == 3)
+        let profile = try #require(body["DeviceProfile"] as? [String: Any])
+        let subtitles = try #require(profile["SubtitleProfiles"] as? [[String: Any]])
+        #expect(subtitles.first?["Format"] as? String == "vtt" && subtitles.first?["Method"] as? String == "Hls")
+        try await jellyfin.stopTranscoding(playSessionId: "PS")
+        let stop = transport.requests[1]
+        #expect(stop.httpMethod == "DELETE" && stop.url?.path().hasSuffix("/Videos/ActiveEncodings") == true)
+        #expect(query(stop)["playSessionId"] == "PS" && query(stop)["deviceId"]?.isEmpty == false)
+    }
+
+    /// AirPlay to a TV: the video copied when it fits, the Japanese track in the playlist.
+    @Test func aTVTranscodeCopiesTheVideo() async throws {
+        let transport = StubTransport(routes: ["/Items/E/PlaybackInfo": (200, try fixture("playback-info-transcoding.json"))])
+        let jellyfin = client(transport)
+        _ = try await jellyfin.transcodingInfo(itemId: "E", mediaSourceId: "M", maxBitrate: 20_000_000, audioStreamIndex: 1,
+                                               subtitleStreamIndex: 3, copiesVideo: true)
+        let body = try transport.requests[0].jsonBody()
+        #expect(body["AllowVideoStreamCopy"] as? Bool == true && body["MaxStreamingBitrate"] as? Int == 20_000_000)
+        #expect(body["SubtitleStreamIndex"] as? Int == 3)
+    }
+
     @Test func playbackInfoStreamAndSubtitles() async throws {
         let transport = StubTransport(routes: [
             "/Items/E/PlaybackInfo": (200, try fixture("playback-info.json")),
@@ -337,4 +390,5 @@ import Testing
         let fewer = JellyfinUpNext.suggestions(Array(similar.prefix(3)), libraries: libraries, currentLibrary: "anime", hidden: ["secret"])
         #expect(fewer.map(\.id) == ["anime1", "dub"])
     }
+
 }

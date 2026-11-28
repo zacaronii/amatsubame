@@ -5,7 +5,7 @@ from conftest import fixture
 
 from kaku.api import create_app
 from kaku.jellyfin import NoJapaneseAudio, episode_from
-from kaku.worker import JELLYFIN_PROMPT
+from kaku.pipeline import JELLYFIN_PROMPT
 
 AUTH = {'Authorization': 'Bearer secret-token'}
 

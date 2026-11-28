@@ -9,6 +9,10 @@ struct MiruApp: App {
     static let outboxRefreshTask = "com.amatsubame.miru.outbox"
 
     @State private var environment = PlayerEnvironment.live()
+    #if os(iOS)
+    /// Routes a connected screen's scene to the external display's window.
+    @UIApplicationDelegateAdaptor(MiruAppDelegate.self) private var appDelegate
+    #endif
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -19,12 +23,17 @@ struct MiruApp: App {
                 .environment(environment)
                 .environment(environment.common)
                 .task { await environment.start() }
+                .task { await environment.renewDemo() }
         }
         .commands { PlayerMenus(environment: environment) }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
-            case .active: environment.common.syncNow(retryWaiting: true)
-            case .background: scheduleOutboxRefresh()
+            case .active:
+                environment.common.syncNow(retryWaiting: true)
+                Task { await environment.renewDemo() }
+            case .background:
+                scheduleOutboxRefresh()
+                environment.common.statsSync.send()
             default: break
             }
         }
@@ -118,10 +127,10 @@ struct PlayerMenus: Commands {
     /// The menu's wording follows what the item would do now.
     private func title(_ shortcut: PlayerShortcut) -> String {
         switch shortcut {
-        case .playPause: player?.mpv.isPaused == false ? "Pause" : "Play"
+        case .playPause: player?.engine.isPaused == false ? "Pause" : "Play"
         case .skip: player?.skipTitle ?? shortcut.title
         case .english: player?.showsEnglish == true ? "Hide English Subtitles" : "Show English Subtitles"
-        case .mute: player?.mpv.isMuted == true ? "Unmute" : "Mute"
+        case .mute: player?.engine.isMuted == true ? "Unmute" : "Mute"
         default: shortcut.title
         }
     }
@@ -131,6 +140,8 @@ struct PlayerMenus: Commands {
         CommandMenu("Playback") { menuSections(Self.playbackSections) }
         CommandMenu("Subtitles") { menuSections(Self.subtitleSections) }
         CommandGroup(after: .sidebar) {
+            RefreshCommand()
+            Divider()
             ForEach(Array(Self.shortcutTabs.enumerated()), id: \.offset) { index, tab in
                 Button(tab.title) { environment.selectedTab = tab }
                     .keyboardShortcut(KeyEquivalent(Character(String(index + 1))), modifiers: .command)

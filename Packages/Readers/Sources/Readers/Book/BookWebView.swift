@@ -1,16 +1,26 @@
+import Core
 import Lookup
 import SwiftUI
 import UniformTypeIdentifiers
 import WebKit
 
 /// Serves `kavitabook://<chapterId>/<path>` from the unpacked book, so the book's
-/// relative links, pictures and stylesheets load as they would from a file.
+/// relative links, pictures and stylesheets load as they would from a file; and
+/// `kavitabook://fonts/<id>` from the reader's added fonts (an id the library knows, nothing else).
 final class BookSchemeHandler: NSObject, WKURLSchemeHandler {
     static let scheme = "kavitabook"
+    static let fontsHost = "fonts"
     let folder: URL
+    let fonts: BookFontLibrary?
 
-    init(folder: URL) {
+    init(folder: URL, fonts: BookFontLibrary? = nil) {
         self.folder = folder.standardizedFileURL
+        self.fonts = fonts
+    }
+
+    static func fontURL(id: String) -> URL? {
+        guard BookFont.isValidID(id) else { return nil }
+        return URL(string: "\(scheme)://\(fontsHost)/\(id)")
     }
 
     static func url(chapterId: Int, path: String) -> URL? {
@@ -21,8 +31,15 @@ final class BookSchemeHandler: NSObject, WKURLSchemeHandler {
         return components.url
     }
 
-    /// The file for a request, refusing anything outside the book's folder.
+    /// The file for a request, refusing anything outside the book's folder (and, for a font,
+    /// anything but an id the library knows).
     func file(for url: URL) -> URL? {
+        if url.host() == Self.fontsHost {
+            let components = (URLComponents(url: url, resolvingAgainstBaseURL: false)?.path ?? "").split(separator: "/", omittingEmptySubsequences: false)
+            // Exactly "/<id>": no other parts, nothing percent-encoded into a path.
+            guard components.count == 2, components[0].isEmpty, let fonts else { return nil }
+            return fonts.file(id: String(components[1]))
+        }
         let path = (URLComponents(url: url, resolvingAgainstBaseURL: false)?.path ?? "").removingPercentEncoding ?? ""
         let file = folder.appending(path: String(path.drop(while: { $0 == "/" }))).standardizedFileURL
         guard file.path(percentEncoded: false).hasPrefix(folder.path(percentEncoded: false)) else { return nil }
@@ -72,6 +89,8 @@ enum BookWebEvent: Equatable {
     case swipe(right: Bool)
     /// The scrolling layout was scrolled by hand (a finger, wheel or key), not by the reader.
     case userScrolled
+    /// A touch, key or pointer move on the page (at most every few seconds): someone is reading.
+    case input
     /// A link to another part of the book (table of contents pages, notes).
     case link(path: String, fragment: String?)
     case ready
@@ -83,14 +102,17 @@ enum BookWebEvent: Equatable {
 final class BookWebController: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     let webView: WKWebView
     var onEvent: (BookWebEvent) -> Void = { _ in }
+    /// Settings ▸ Popup ▸ Look Up on Hover as the page's tap bridge names it ("shift", "always",
+    /// "off"…), asked as each section loads. The Mac only: there's no pointer to rest elsewhere.
+    var hoverLookup: () -> String = { "off" }
     /// The section loading: its settings and place, given to the reader once it has loaded.
     private var pendingOpen: (settings: [String: Any], position: String)?
     /// A load awaited without the reader's layout (read-along reads the text this way).
     private var loading: CheckedContinuation<Bool, Never>?
 
-    init(folder: URL) {
+    init(folder: URL, fonts: BookFontLibrary? = nil) {
         let configuration = WKWebViewConfiguration()
-        configuration.setURLSchemeHandler(BookSchemeHandler(folder: folder), forURLScheme: BookSchemeHandler.scheme)
+        configuration.setURLSchemeHandler(BookSchemeHandler(folder: folder, fonts: fonts), forURLScheme: BookSchemeHandler.scheme)
         let content = configuration.userContentController
         let style = Self.resource("book", "css")
         // Books rarely set a viewport, and WebKit would then lay them out 980 px wide.
@@ -192,6 +214,9 @@ final class BookWebController: NSObject, WKScriptMessageHandler, WKNavigationDel
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         if finishWaiting(true) { return }
+        #if os(macOS)
+        run("window.lookupBridge?.setHover(\(Self.jsString(hoverLookup())))")
+        #endif
         if let open = pendingOpen {
             pendingOpen = nil
             run("window.bookReader?.open(\(Self.json(open.settings)), \(open.position))")
@@ -248,6 +273,8 @@ final class BookWebController: NSObject, WKScriptMessageHandler, WKNavigationDel
             onEvent(.miss(CGPoint(x: number("x"), y: number("y"))))
         case "userScroll":
             onEvent(.userScrolled)
+        case "input":
+            onEvent(.input)
         case "ready":
             onEvent(.ready)
         default:

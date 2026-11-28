@@ -61,7 +61,7 @@ public struct ConnectionTestRow: View {
     }
 
     @ViewBuilder private var button: some View {
-        let button = Button("Test Connection", action: action).disabled(disabled)
+        let button = Button("Test Connection", action: action).disabled(disabled).textButtonTint()
         if let identifier {
             button.accessibilityIdentifier(identifier)
         } else {
@@ -172,31 +172,6 @@ public struct ServerRow: View {
     }
 }
 
-/// The queue row for Settings: pending and failed counts, opening the queue.
-public struct QueueRow: View {
-    @Environment(CommonEnvironment.self) private var environment
-
-    public init() {}
-
-    public var body: some View {
-        NavigationLink {
-            OutboxView()
-        } label: {
-            LabeledContent("Queue") {
-                Text(description)
-            }
-        }
-    }
-
-    private var description: String {
-        let summary = environment.outboxSummary
-        if summary.pending == 0 && summary.failed == 0 { return "Up to date" }
-        var parts = ["\(summary.pending) pending"]
-        if summary.failed > 0 { parts.append("\(summary.failed) failed") }
-        return parts.joined(separator: ", ")
-    }
-}
-
 public extension ServerKind {
     var displayName: String {
         switch self {
@@ -205,6 +180,27 @@ public extension ServerKind {
         case .anki: "AnkiConnect"
         case .audiobookshelf: "Audiobookshelf"
         case .kaku: "Kaku"
+        }
+    }
+}
+
+/// A server page signed in to the public demo: what it is, and the way to your own server
+/// (signing out of the demo, which discards what it held on this device).
+public struct DemoServerSection: View {
+    let useOwnServer: () -> Void
+
+    public init(useOwnServer: @escaping () -> Void) {
+        self.useOwnServer = useOwnServer
+    }
+
+    public var body: some View {
+        Section {
+            Label("Demo server", systemImage: "sparkles")
+                .accessibilityIdentifier("server.demo")
+            Button("Use My Own Server…", action: useOwnServer)
+                .accessibilityIdentifier("server.demo.ownServer")
+        } footer: {
+            Text("Nothing you do is saved to it. Your places and marks stay on this \(StorageSummary.deviceName) until you leave the demo.")
         }
     }
 }

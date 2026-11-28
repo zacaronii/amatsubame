@@ -49,7 +49,7 @@ final class KikuCarPlay: NSObject, CPNowPlayingTemplateObserver {
         let listenNow = list(title: "Listen Now", empty: "Nothing in progress or new") { [environment] in
             let library = environment.library
             return CarPlaySections.listenNow(continueListening: library.continueListening, newEpisodes: library.newEpisodes,
-                                             playingKey: environment.playback?.key)
+                                             recentBooks: library.recentlyAddedBooks, playingKey: environment.playback?.key)
         }
         listenNow.tabTitle = "Listen Now"
         listenNow.tabImage = UIImage(systemName: "play.circle")
@@ -65,7 +65,6 @@ final class KikuCarPlay: NSObject, CPNowPlayingTemplateObserver {
 
         let nowPlaying = CPNowPlayingTemplate.shared
         nowPlaying.add(self)
-        nowPlaying.upNextTitle = "Chapters"
         followPlayback()
 
         Task { [environment] in
@@ -159,6 +158,9 @@ final class KikuCarPlay: NSObject, CPNowPlayingTemplateObserver {
         case .seek(let time):
             environment.playback?.audio.seek(to: time)
             interface.popTemplate(animated: true, completion: nil)
+        case .playUpNext(let item, let libraryId):
+            environment.playUpNextItem(item, libraryId: libraryId)
+            interface.popTemplate(animated: true, completion: nil)
         case .none:
             break
         }
@@ -211,13 +213,19 @@ final class KikuCarPlay: NSObject, CPNowPlayingTemplateObserver {
 
     // MARK: Now Playing
 
-    /// Updates Now Playing's buttons whenever another episode or book loads.
+    /// Updates Now Playing's buttons whenever another episode or book loads, or Up Next
+    /// changes: a book's button opens its chapters, a podcast episode's Up Next (when there's
+    /// anything in it).
     private func followPlayback() {
         guard connected else { return }
-        let isBook = withObservationTracking { environment.playback?.entry.isBook == true } onChange: { [weak self] in
+        let (isBook, queued) = withObservationTracking {
+            (environment.playback?.entry.isBook == true, !environment.upNext.isEmpty)
+        } onChange: { [weak self] in
             Task { @MainActor in self?.followPlayback() }
         }
-        CPNowPlayingTemplate.shared.isUpNextButtonEnabled = isBook
+        let nowPlaying = CPNowPlayingTemplate.shared
+        nowPlaying.upNextTitle = isBook ? "Chapters" : "Up Next"
+        nowPlaying.isUpNextButtonEnabled = isBook || (environment.playback != nil && queued)
         updateButtons(marked: false)
     }
 
@@ -249,7 +257,11 @@ final class KikuCarPlay: NSObject, CPNowPlayingTemplateObserver {
     }
 
     func nowPlayingTemplateUpNextButtonTapped(_ nowPlayingTemplate: CPNowPlayingTemplate) {
-        guard let playback = environment.playback, playback.entry.isBook else { return }
+        guard let playback = environment.playback else { return }
+        guard playback.entry.isBook else {
+            push(list(title: "Up Next", empty: "Nothing Up Next") { [environment] in CarPlaySections.upNext(environment.upNextFlat) })
+            return
+        }
         // A snapshot: following the current chapter would rebuild the list on every tick.
         let sections = CarPlaySections.chapters(playback.entry.chapters, current: playback.currentChapter)
         push(list(title: "Chapters", empty: "No chapters") { sections })

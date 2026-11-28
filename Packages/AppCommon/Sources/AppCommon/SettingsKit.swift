@@ -6,7 +6,7 @@ import UIKit
 #endif
 
 // The pieces every app's Settings is built from, in one order:
-// the status card, the app's own section, Lookup and Mining, Stats, then Storage, Advanced
+// the status card, the app's own section, Lookup, Anki, Connections, then Storage, Advanced
 // and About.
 
 /// A row's icon: a symbol on a rounded colour square, like the system Settings.
@@ -84,7 +84,8 @@ public extension View {
 public extension ServerAccount {
     /// "kavita.example.ts.net · reader": where it is and who's signed in.
     var hostAndAccount: String {
-        [baseURL.host(percentEncoded: false) ?? baseURL.absoluteString, username].compactMap { $0 }.joined(separator: " · ")
+        if isDemo { return "Demo server · nothing is saved to it" }
+        return [baseURL.host(percentEncoded: false) ?? baseURL.absoluteString, username].compactMap { $0 }.joined(separator: " · ")
     }
 
     /// Green once tested, orange if never tested.
@@ -93,33 +94,61 @@ public extension ServerAccount {
 
 // MARK: Status card
 
-/// One chip in the status card: a server (or feature) and how to check it, read-only.
+/// Settings ▸ kechimochi (from Connections or its status chip).
+public struct KechimochiPage: View {
+    public init() {}
+
+    public var body: some View {
+        Form { StatsSettingsSection() }
+            .formStyle(.grouped)
+            .navigationTitle("kechimochi")
+    }
+}
+
+/// One chip in the status card: a server (or feature), how to check it, and the page a tap
+/// opens (its connection in Settings).
 public struct StatusItem: Identifiable {
     public let name: String
     public let isSetUp: Bool
+    let opens: (() -> AnyView)?
     let check: () async throws -> Void
     public var id: String { name }
 
-    public init(_ name: String, isSetUp: Bool, check: @escaping () async throws -> Void) {
+    public init(_ name: String, isSetUp: Bool, opens: (() -> AnyView)? = nil, check: @escaping () async throws -> Void) {
         self.name = name
         self.isSetUp = isSetUp
+        self.opens = opens
         self.check = check
     }
 }
 
-/// The result of each chip's check, kept while the app runs (a minute before checking again).
+/// The result of each chip's check. A server that answered isn't asked again for a minute; one
+/// that couldn't be reached is asked again on the next refresh (the card refreshes when the
+/// network comes back, the app returns and something waiting gets through).
 @Observable
 final class ServerStatusModel {
     enum State: Equatable { case checking, ok, failed(String) }
     private(set) var states: [String: State] = [:]
     @ObservationIgnored private var checkedAt: [String: Date] = [:]
 
+    var hasFailures: Bool { states.values.contains { if case .failed = $0 { true } else { false } } }
+
     func refresh(_ items: [StatusItem], force: Bool = false) async {
-        let due = items.filter { item in
+        await check(items.filter { item in
             guard item.isSetUp else { return false }
-            if !force, let date = checkedAt[item.name], Date().timeIntervalSince(date) < 60, states[item.name] != nil { return false }
+            if !force, states[item.name] == .ok, let date = checkedAt[item.name], Date().timeIntervalSince(date) < 60 { return false }
             return true
-        }
+        })
+    }
+
+    /// Only the chips showing a failure.
+    func recheckFailed(_ items: [StatusItem]) async {
+        await check(items.filter { item in
+            if item.isSetUp, case .failed = states[item.name] { true } else { false }
+        })
+    }
+
+    private func check(_ due: [StatusItem]) async {
         // All at once; each chip updates when its own check ends.
         let checks = due.map { item in
             if states[item.name] == nil { states[item.name] = .checking }
@@ -139,12 +168,16 @@ final class ServerStatusModel {
     }
 }
 
-/// The top of Settings: one chip per server with a dot, what's waiting to sync with Sync Now,
-/// and any startup error. Servers that aren't set up are greyed, never red.
+/// The top of Settings (the Mac's Overview): one chip per server with a dot (a tap opens its connection), what's
+/// waiting to sync with Sync Now (the only general one), and any startup error. Servers that
+/// aren't set up are greyed, never red.
 public struct SettingsStatusCard: View {
     @Environment(CommonEnvironment.self) private var environment
     @State private var model = ServerStatusModel()
     @State private var waiting: [OutboxJobKind: Int] = [:]
+    /// The chip tapped: its page is shown.
+    @State private var opened: String?
+    @Environment(\.scenePhase) private var scenePhase
     let items: [StatusItem]
 
     public init(items: [StatusItem]) {
@@ -170,16 +203,42 @@ public struct SettingsStatusCard: View {
                 HStack {
                     Text("Waiting to sync: \(waitingText)").font(.callout).foregroundStyle(.secondary)
                     Spacer()
-                    Button("Sync Now") { environment.syncNow(retryWaiting: true) }
+                    Button("Sync Now") { environment.syncEverything() }
                         .buttonStyle(.bordered)
                         .accessibilityIdentifier("status.syncNow")
                 }
             }
         }
-        .task { await model.refresh(items) }
+        .navigationDestination(isPresented: Binding(get: { opened != nil }, set: { if !$0 { opened = nil } })) {
+            if let item = items.first(where: { $0.name == opened }), let opens = item.opens { opens() }
+        }
+        // On appear, and whenever a server is set up or removed (the accounts can load after the
+        // card first shows: Settings opened at launch on the Mac).
+        .task(id: items.filter(\.isSetUp).map(\.name)) { await model.refresh(items) }
+        // Back on a network (or a VPN like Tailscale connecting): every chip again.
+        .onChange(of: environment.reachability.reconnections) { Task { await model.refresh(items, force: true) } }
+        // Back in the app: the ones that failed (and any older than a minute).
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await model.refresh(items) } }
+        }
+        // While something shows as unreachable, ask it again every 20 seconds.
+        .task(id: model.hasFailures) {
+            while model.hasFailures, !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(20))
+                guard !Task.isCancelled else { return }
+                await model.recheckFailed(items)
+            }
+        }
         .task {
             do {
-                for try await counts in environment.outbox.observeWaitingCounts() { waiting = counts }
+                // A demo server's writes stay on the device: not waiting for anything.
+                for try await counts in environment.outbox.observeWaitingCounts() {
+                    let held = counts.filter { !environment.heldKinds.contains($0.key) }
+                    // Something waiting got through: its server answers again.
+                    let total = { (counts: [OutboxJobKind: Int]) in counts.values.reduce(0, +) }
+                    if total(held) < total(waiting) { Task { await model.recheckFailed(items) } }
+                    waiting = held
+                }
             } catch {}
         }
     }
@@ -204,7 +263,18 @@ public struct SettingsStatusCard: View {
         OutboxJobKind.allCases.compactMap { kind in waiting[kind].map { kind.waitingCount($0) } }.formatted(.list(type: .and))
     }
 
-    private func chip(_ item: StatusItem) -> some View {
+    @ViewBuilder private func chip(_ item: StatusItem) -> some View {
+        if item.opens != nil {
+            // Buttons, not links: links in one row all open the row's last one.
+            Button { opened = item.name } label: { chipLabel(item) }
+                .buttonStyle(.borderless)
+                .tint(.primary)
+        } else {
+            chipLabel(item)
+        }
+    }
+
+    private func chipLabel(_ item: StatusItem) -> some View {
         let state = model.states[item.name]
         let color: Color = switch state {
         case _ where !item.isSetUp: .secondary.opacity(0.4)
@@ -277,19 +347,22 @@ struct ChipFlow: Layout {
     }
 }
 
-// MARK: Lookup and Mining
+// MARK: Lookup
 
 /// Dictionaries, Audio Sources, Popup, Hachidori and Anki: the same in every app, and shared
 /// between them when sharing is on. `ankiPage`: the app's Anki page (Miru adds Card Picture).
-public struct LookupAndMiningSection<AnkiPage: View>: View {
+public struct LookupSection: View {
     @Environment(CommonEnvironment.self) private var environment
     @State private var dictionaries: [DictionaryRecord] = []
     @State private var sourceCount = 0
-    @State private var deck: String?
-    let ankiPage: () -> AnkiPage
+    let wordMarksNote: String?
+    let popupExtras: AnyView?
 
-    public init(@ViewBuilder ankiPage: @escaping () -> AnkiPage) {
-        self.ankiPage = ankiPage
+    /// `wordMarksNote`: what the marks cover in this app; `popupExtras`: the app's own rows at the
+    /// end of the Popup page.
+    public init(wordMarksNote: String? = nil, popupExtras: AnyView? = nil) {
+        self.wordMarksNote = wordMarksNote
+        self.popupExtras = popupExtras
     }
 
     public var body: some View {
@@ -301,6 +374,13 @@ public struct LookupAndMiningSection<AnkiPage: View>: View {
             }
             .accessibilityIdentifier("settings.dictionaries")
             NavigationLink {
+                PopupSettingsPage(extras: popupExtras)
+            } label: {
+                SettingsRowLabel("Popup", subtitle: popupSummary,
+                                 systemImage: "text.bubble.fill", color: .indigo)
+            }
+            .accessibilityIdentifier("settings.popup")
+            NavigationLink {
                 AudioSourcesView()
             } label: {
                 SettingsRowLabel("Audio Sources", subtitle: sourceCount == 1 ? "1 source" : "\(sourceCount) sources",
@@ -308,28 +388,13 @@ public struct LookupAndMiningSection<AnkiPage: View>: View {
             }
             .accessibilityIdentifier("settings.audioSources")
             NavigationLink {
-                PopupSettingsPage()
+                WordMarksPage(note: wordMarksNote)
             } label: {
-                SettingsRowLabel("Popup", subtitle: popupSummary,
-                                 systemImage: "text.bubble.fill", color: .indigo)
+                SettingsRowLabel("Word Marks", subtitle: wordMarksSummary, systemImage: "underline", color: .green)
             }
-            .accessibilityIdentifier("settings.popup")
-            NavigationLink {
-                HachidoriSettingsPage()
-            } label: {
-                SettingsRowLabel("Hachidori", subtitle: HachidoriSettingsPage.summary(environment),
-                                 systemImage: "bird.fill", color: .teal)
-            }
-            .accessibilityIdentifier("settings.hachidori")
-            NavigationLink {
-                ankiPage()
-            } label: {
-                SettingsRowLabel("Anki", subtitle: ankiSummary, systemImage: "rectangle.stack.fill", color: .green,
-                                 dot: environment.serverAccounts[.anki]?.dotColor)
-            }
-            .accessibilityIdentifier("settings.anki")
+            .accessibilityIdentifier("settings.wordMarks")
         } header: {
-            Text("Lookup and Mining")
+            Text("Lookup")
         } footer: {
             if let footer { Text(footer) }
         }
@@ -340,8 +405,14 @@ public struct LookupAndMiningSection<AnkiPage: View>: View {
         }
         .onAppear {
             sourceCount = ((try? environment.lookup.audio.sources()) ?? []).filter(\.enabled).count
-            deck = (try? environment.ankiSettings.settings())?.deck
         }
+    }
+
+    private var wordMarksSummary: String {
+        let mining = environment.mining
+        _ = mining.revision
+        guard mining.ankiConnected else { return "Needs Anki" }
+        return mining.marksWords ? "On" : "Off"
     }
 
     private var dictionarySummary: String {
@@ -358,11 +429,6 @@ public struct LookupAndMiningSection<AnkiPage: View>: View {
         return parts.isEmpty ? nil : parts.joined(separator: ", ")
     }
 
-    private var ankiSummary: String {
-        guard environment.serverAccounts[.anki] != nil else { return "Not set up" }
-        let settings = try? environment.ankiSettings.settings()
-        return ["Connected", settings.map { "Deck: \($0.deck)" }, settings?.noteType].compactMap { $0 }.joined(separator: " · ")
-    }
 
     private var footer: String? {
         let others = environment.appsSharingSetup
@@ -371,26 +437,74 @@ public struct LookupAndMiningSection<AnkiPage: View>: View {
     }
 }
 
-// MARK: Stats
+// MARK: Anki
 
-/// Settings ▸ Stats: kechimochi.
-public struct StatsSettingsLink: View {
+/// Settings ▸ Anki: the AnkiConnect connection and how cards are made (`ankiPage`, the app's).
+public struct AnkiSection<AnkiPage: View>: View {
     @Environment(CommonEnvironment.self) private var environment
-    @State private var address: String?
+    /// Read again each time the row shows: the deck or note type may have changed on its page.
+    @State private var settings: AnkiSettings?
+    let ankiPage: () -> AnkiPage
 
-    public init() {}
+    public init(@ViewBuilder ankiPage: @escaping () -> AnkiPage) {
+        self.ankiPage = ankiPage
+    }
 
     public var body: some View {
-        Section("Stats") {
+        Section("Anki") {
             NavigationLink {
-                Form { StatsSettingsSection() }
-                    .formStyle(.grouped)
-                    .navigationTitle("kechimochi")
+                ankiPage()
             } label: {
-                SettingsRowLabel("kechimochi", subtitle: address == nil ? "Not set up" : "Connected · links from the Stats tab",
-                                 systemImage: "chart.bar.fill", color: .orange)
+                SettingsRowLabel("Anki", subtitle: ankiSummary, systemImage: "rectangle.stack.fill", color: .green,
+                                 dot: environment.serverAccounts[.anki]?.dotColor)
             }
-            .accessibilityIdentifier("settings.kechimochi")
+            .accessibilityIdentifier("settings.anki")
+            .onAppear { settings = try? environment.ankiSettings.settings() }
+        }
+    }
+
+    private var ankiSummary: String {
+        guard environment.serverAccounts[.anki] != nil else { return "Not set up" }
+        return ["Connected", settings.map { "Deck: \($0.deck)" }, settings?.noteType].compactMap { $0 }.joined(separator: " · ")
+    }
+}
+
+// MARK: Connections
+
+/// Settings ▸ Connections: every server and account in one place. The app's own come first
+/// (`servers`), then the ones every app shares: Hachidori, and (with Stats) kechimochi and iCloud.
+public struct ConnectionsSection<Servers: View>: View {
+    @Environment(CommonEnvironment.self) private var environment
+    @State private var address: String?
+    let includesStats: Bool
+    let servers: () -> Servers
+
+    /// `includesStats`: kechimochi and Sync with iCloud (not in Hiku, which has no Stats).
+    public init(includesStats: Bool = true, @ViewBuilder servers: @escaping () -> Servers) {
+        self.includesStats = includesStats
+        self.servers = servers
+    }
+
+    public var body: some View {
+        Section("Connections") {
+            servers()
+            NavigationLink {
+                HachidoriSettingsPage()
+            } label: {
+                SettingsRowLabel("Hachidori", subtitle: HachidoriSettingsPage.summary(environment),
+                                 systemImage: "bird.fill", color: .teal)
+            }
+            .accessibilityIdentifier("settings.hachidori")
+            if includesStats {
+                NavigationLink {
+                    KechimochiPage()
+                } label: {
+                    SettingsRowLabel("kechimochi", subtitle: address == nil ? "Not set up" : "Connected",
+                                     systemImage: "chart.bar.fill", color: .orange)
+                }
+                .accessibilityIdentifier("settings.kechimochi")
+                StatsCloudRow()
+            }
         }
         .onAppear { address = (try? environment.activity.kechimochiURL()) ?? nil }
     }
@@ -432,19 +546,27 @@ public struct SettingsFooterSection<Storage: View, Advanced: View, About: View>:
     }
 }
 
-/// Settings ▸ Advanced: the shared setup, what's waiting to sync, Run Setup Again, and
-/// troubleshooting. `kinds`: what this app sends. `troubleshooting`: the app's own rows.
-public struct AdvancedSettingsView<Troubleshooting: View>: View {
+/// Settings ▸ Advanced: the shared setup, what's waiting to sync, the app's own data,
+/// Run Setup Again, and troubleshooting. `kinds`: what this app sends. `appData`: the app's own
+/// sections (Yomu's Character Counts). `troubleshooting`: the app's own rows. Sync Now is on the
+/// status card. `offersSetupAgain`: false in Hiku, which has no first-launch setup.
+public struct AdvancedSettingsView<AppData: View, Troubleshooting: View>: View {
     @Environment(CommonEnvironment.self) private var environment
     @State private var waiting: [OutboxJobKind: Int] = [:]
     @State private var logFile: URL?
     let kinds: [OutboxJobKind]
     let extraLogs: [URL]
+    let offersSetupAgain: Bool
+    let appData: AppData
     let troubleshooting: Troubleshooting
 
-    public init(kinds: [OutboxJobKind], extraLogs: [URL] = [], @ViewBuilder troubleshooting: () -> Troubleshooting = { EmptyView() }) {
+    public init(kinds: [OutboxJobKind], extraLogs: [URL] = [], offersSetupAgain: Bool = true,
+                @ViewBuilder appData: () -> AppData = { EmptyView() },
+                @ViewBuilder troubleshooting: () -> Troubleshooting = { EmptyView() }) {
         self.kinds = kinds
         self.extraLogs = extraLogs
+        self.offersSetupAgain = offersSetupAgain
+        self.appData = appData()
         self.troubleshooting = troubleshooting()
     }
 
@@ -456,30 +578,44 @@ public struct AdvancedSettingsView<Troubleshooting: View>: View {
                     NavigationLink {
                         OutboxView(kind: kind)
                     } label: {
-                        LabeledContent(kind.waitingTitle, value: waiting[kind].map { "\($0) waiting" } ?? "None")
+                        // A demo server's: kept here, never sent (signing out discards them).
+                        LabeledContent(kind.waitingTitle, value: waiting[kind].map {
+                            environment.heldKinds.contains(kind) ? "\($0) kept on this device" : "\($0) waiting"
+                        } ?? "None")
                     }
                     .accessibilityIdentifier("advanced.waiting.\(kind.rawValue)")
                 }
-                Button("Sync Now") { environment.syncNow(retryWaiting: true) }
-                    .accessibilityIdentifier("advanced.syncNow")
             } header: {
                 Text("Waiting to Sync")
             } footer: {
-                Text("Things saved while a server was out of reach. They send on their own when it's back; tap one to see or clear it.")
+                Text("Saved while a server was out of reach; they send when it's back. Tap one to see or clear it.")
+            }
+            appData
+            if offersSetupAgain {
+                Section {
+                    Button("Run Setup Again") { environment.setup.runAgain() }
+                        .textButtonTint()
+                        .accessibilityIdentifier("advanced.runSetup")
+                } footer: {
+                    Text("Walks through the first-launch setup. Nothing is deleted.")
+                }
             }
             Section {
-                Button("Run Setup Again") { environment.setup.runAgain() }
-                    .accessibilityIdentifier("advanced.runSetup")
-            } footer: {
-                Text("Walks through the first-launch setup. Nothing is deleted.")
-            }
-            Section("Troubleshooting") {
                 troubleshooting
                 if let logFile {
                     ShareLink(item: logFile) {
                         Label("Export Logs", systemImage: "square.and.arrow.up")
                     }
+                    .textButtonTint()
                     .accessibilityIdentifier("advanced.exportLogs")
+                }
+            } header: {
+                Text("Troubleshooting")
+            } footer: {
+                if logFile != nil {
+                    // Testers attach logs to public issues: keys are blanked, titles aren't.
+                    Text("Logs leave out keys and passwords, but they list the titles you've read, watched or listened to. Look through one before posting it anywhere public.")
+                        .accessibilityIdentifier("advanced.exportLogs.note")
                 }
             }
         }
@@ -544,7 +680,8 @@ public struct StorageSummary: View {
         .accessibilityIdentifier("storage.summary")
     }
 
-    static var deviceName: String {
+    /// "iPhone", "iPad" or "Mac".
+    public static var deviceName: String {
         #if os(macOS)
         "Mac"
         #else

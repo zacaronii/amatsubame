@@ -28,11 +28,12 @@ public actor WordScanner {
     private let deinflector = Deinflector()
     private var handles: QueryHandles?
     private var frequencySortTitle: String?
+    private var frequencyOrder = FrequencyOrder.ascending
 
     public init() {}
 
     /// Loads the term (and frequency, for ordering) dictionaries the engine uses.
-    public func configure(_ dictionaries: [EngineDictionary], frequencySortTitle: String?) {
+    public func configure(_ dictionaries: [EngineDictionary], frequencySortTitle: String?, frequencyOrder: FrequencyOrder = .ascending) {
         let query = hd_query_new()!
         for dictionary in dictionaries {
             let path = dictionary.folder.path(percentEncoded: false)
@@ -40,7 +41,8 @@ public actor WordScanner {
             if dictionary.hasFrequencies { hd_query_add_freq_dict(query, path) }
         }
         handles = QueryHandles(query: query, deinflector: deinflector)
-        self.frequencySortTitle = frequencySortTitle ?? dictionaries.first(where: \.hasFrequencies)?.title
+        self.frequencySortTitle = frequencySortTitle
+        self.frequencyOrder = frequencyOrder
     }
 
     /// Dictionaries are loaded: before that, `words(in:)` finds nothing, which mustn't be kept.
@@ -75,12 +77,12 @@ public actor WordScanner {
     /// The longest dictionary match at the start of `text`: matched surface, expression, reading.
     private func longestMatch(_ text: String) -> (matched: String, expression: String, reading: String)? {
         guard let lookup = handles?.lookup else { return nil }
-        let sortTitle = frequencySortTitle
+        let sortTitle = frequencySortTitle, order = frequencyOrder
         return text.withCString { textPointer in
             (sortTitle ?? "").withCString { sortPointer in
                 var options = hd_lookup_options(
                     frequency_dictionary: sortTitle == nil ? hd_str(ptr: nil, len: 0) : hd_str(ptr: sortPointer, len: strlen(sortPointer)),
-                    frequency_order: Int32(HD_LOOKUP_FREQUENCY_ORDER_AUTO.rawValue),
+                    frequency_order: FrequencyOrder.hoshidicts(order, sorting: sortTitle != nil),
                     primary_reading: hd_str(ptr: nil, len: 0)
                 )
                 var results: UnsafePointer<hd_lookup_result>?

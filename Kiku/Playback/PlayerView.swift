@@ -11,14 +11,49 @@ struct PlayerView: View {
     @Bindable var model: PlaybackModel
     /// "Marked 13:21", briefly, after a mark (from here or the shortcut).
     @State private var markToast: String?
+    /// The mark the toast is about (it offers Add Note), and the one whose note is being written.
+    @State private var toastMark: AudioMark?
+    @State private var noteMark: AudioMark?
     @State private var showsChapters = false
+    /// Find in Transcript: the bar is up, what's typed, the lines holding it and the one shown.
+    @State private var finding = false
+    @State private var findQuery = ""
+    @State private var findHits: [TranscriptFind.Hit] = []
+    @State private var findAt: Int?
+    @FocusState private var findFocused: Bool
+    /// The pull down that puts the player away (iPhone and iPad): how far, and whether the drag
+    /// under way is one (nil until it's clear which way it's going).
+    @GestureState(resetTransaction: Transaction(animation: .spring(duration: 0.3))) private var pull: (distance: CGFloat, down: Bool?) = (0, nil)
     /// The artwork's colour, for the background while the transcript is off.
     @State private var tint: Color?
     /// The transcript's height, to tell a short screen (the iPhone Duo's) from a tall one.
     @State private var transcriptHeight: CGFloat = 0
 
     var body: some View {
-        player.yomuMissingAlert(environment, inPlayer: true)
+        player
+            #if os(iOS)
+            // Follows the finger, with the app showing behind (the cover itself is clear, so the
+            // player brings its own backing: to the screen's edges, rounded at the top while pulled).
+            .background {
+                UnevenRoundedRectangle(topLeadingRadius: pull.distance > 0 ? 28 : 0, topTrailingRadius: pull.distance > 0 ? 28 : 0)
+                    .fill(.background)
+                    .shadow(color: .black.opacity(pull.distance > 0 ? 0.25 : 0), radius: 16)
+                    // Up over the status bar by hand: once moved, a view no longer reaches into
+                    // the top safe area by itself, and the edge would jump down by its height.
+                    .padding(.top, -Self.topInset)
+                    .ignoresSafeArea(edges: [.bottom, .horizontal])
+            }
+            .offset(y: pull.distance)
+            .presentationBackground(.clear)
+            #endif
+            .yomuMissingAlert(environment, inPlayer: true)
+            .confirmationDialog("Where to continue?", isPresented: Binding(get: { model.resumeChoice != nil }, set: { _ in }),
+                                titleVisibility: .visible, presenting: model.resumeChoice) { choice in
+                Button("\(choice.newer.clockText) · \(choice.newerFrom)") { model.resume(at: choice.newer) }
+                Button("\(choice.mine.clockText) · This \(StorageSummary.deviceName)") { model.resume(at: choice.mine) }
+            } message: { choice in
+                Text("You listened up to \(choice.newer.clockText) on \(choice.newerFrom == "Apple Watch" ? "your Apple Watch" : "another device") more recently, but this \(StorageSummary.deviceName) was at \(choice.mine.clockText).")
+            }
     }
 
     private var player: some View {
@@ -31,10 +66,14 @@ struct PlayerView: View {
                         topBar(showsEpisode: false)
                             .padding(.horizontal)
                             .padding(.top, 8)
+                            .overlay(alignment: .top) { grabber }
+                            .pullDownToClose(pullDown)
                         artwork(showsLine: false)
+                            .pullDownToClose(pullDown)
                         controls
                             .padding(.horizontal, 20)
                             .padding(.bottom, 12)
+                            .pullDownToClose(pullDown)
                     }
                     .frame(width: panes.left)
                     .background { tintBackground.ignoresSafeArea() }
@@ -48,10 +87,15 @@ struct PlayerView: View {
                     topBar(showsEpisode: showsTranscriptView)
                         .padding(.horizontal)
                         .padding(.top, 8)
-                    content
+                        .overlay(alignment: .top) { grabber }
+                        .pullDownToClose(pullDown)
+                    // The artwork too; the transcript keeps its own scrolling.
+                    if showsTranscriptView { content } else { content.pullDownToClose(pullDown) }
+                    // Within the thumb's reach: no stretch to the arrow in the top corner.
                     controls
                         .padding(.horizontal, 20)
                         .padding(.bottom, 12)
+                        .pullDownToClose(pullDown)
                 }
                 .background {
                     if !showsTranscriptView { tintBackground.ignoresSafeArea() }
@@ -73,22 +117,110 @@ struct PlayerView: View {
         }
         .overlay(alignment: .top) {
             if let markToast {
-                Label(markToast, systemImage: "bookmark.fill")
-                    .font(.subheadline.weight(.semibold))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .glassEffect(.regular, in: .capsule)
-                    .padding(.top, 72)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .accessibilityIdentifier("player.markToast")
+                HStack(spacing: 10) {
+                    // Only the button takes taps: the controls under the toast keep theirs.
+                    Label(markToast, systemImage: "bookmark.fill")
+                        .allowsHitTesting(false)
+                        .accessibilityIdentifier("player.markToast")
+                    if let mark = toastMark {
+                        Button("Add Note") {
+                            noteMark = mark
+                            withAnimation { self.markToast = nil; toastMark = nil }
+                        }
+                        .buttonStyle(.borderless)
+                        .frame(minHeight: 44)
+                        .contentShape(.rect)
+                        .accessibilityIdentifier("player.addNote")
+                    }
+                }
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 16)
+                .padding(.vertical, toastMark == nil ? 10 : 0)
+                .glassEffect(.regular, in: .capsule)
+                .padding(.top, 72)
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .task(id: environment.lastMark?.id) {
-            guard let mark = environment.lastMark, mark.key == model.key, Date.now.timeIntervalSince(mark.createdAt) < 2 else { return }
-            withAnimation { markToast = "Marked \(mark.time.clockText)" }
+        // With a keyboard: [ and ] step the speed (← → the lines, M marks, T the transcript, Space plays).
+        .background {
+            Group {
+                Button("Slower") { model.stepSpeed(-1) }.keyboardShortcut("[", modifiers: [])
+                Button("Faster") { model.stepSpeed(1) }.keyboardShortcut("]", modifiers: [])
+                Button("Replay Line") { model.replayLine() }.keyboardShortcut("r", modifiers: [])
+            }
+            .opacity(0)
+            .accessibilityHidden(true)
+        }
+        // A shake started the sleep timer again.
+        .sensoryFeedback(.success, trigger: model.sleepExtended)
+        .task(id: model.sleepExtended) {
+            guard model.sleepExtended > 0, case .minutes(let minutes, _)? = model.sleepTimer else { return }
+            withAnimation { markToast = "Sleep Timer · \(minutes) Minutes" }
             try? await Task.sleep(for: .seconds(2))
             withAnimation { markToast = nil }
         }
+        // A tick in the hand when a mark is made.
+        .sensoryFeedback(.success, trigger: environment.lastMark?.id)
+        .task(id: environment.lastMark?.id) {
+            guard let mark = environment.lastMark, mark.key == model.key, Date.now.timeIntervalSince(mark.createdAt) < 2 else { return }
+            withAnimation {
+                markToast = "Marked \(mark.time.clockText)"
+                toastMark = mark
+            }
+            // Long enough to reach Add Note.
+            try? await Task.sleep(for: .seconds(4))
+            withAnimation { markToast = nil; toastMark = nil }
+        }
+        // Touching the player anywhere else puts the toast away at once.
+        .simultaneousGesture(TapGesture().onEnded {
+            guard toastMark != nil else { return }
+            withAnimation { markToast = nil; toastMark = nil }
+        })
+        .sheet(item: $noteMark) { mark in
+            MarkNoteSheet(mark: mark) { text in
+                if let id = mark.id { try? environment.marks.setNote(id, text) }
+            }
+        }
+    }
+
+    /// Pull the player down to put it away, from the top bar, the artwork or the controls: it
+    /// follows the finger, and goes once pulled far enough or flicked. A drag that starts
+    /// sideways (the scrubber) is left alone.
+    private var pullDown: some Gesture {
+        DragGesture(minimumDistance: 12, coordinateSpace: .global)
+            // Gesture state, so a drag the system cancels (a call, an edge swipe) lets go by itself.
+            .updating($pull) { value, pull, _ in
+                if pull.down == nil {
+                    pull.down = value.translation.height > 0 && value.translation.height > abs(value.translation.width) * 1.5
+                }
+                if pull.down == true { pull.distance = max(0, value.translation.height) }
+            }
+            .onEnded { value in
+                // Judged again from the whole drag: it began downwards and went far or fast enough.
+                let down = value.translation.height > 0 && value.translation.height > abs(value.translation.width) * 1.5
+                if down, PlayerView.pullCloses(translation: value.translation.height, predicted: value.predictedEndTranslation.height) {
+                    environment.showsPlayer = false
+                }
+            }
+    }
+
+    #if os(iOS)
+    /// The window's top safe area (the status bar, the Dynamic Island).
+    static var topInset: CGFloat {
+        UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }.first?.safeAreaInsets.top ?? 0
+    }
+    #endif
+
+    /// Far enough, or a shorter flick.
+    static func pullCloses(translation: CGFloat, predicted: CGFloat) -> Bool {
+        translation > 110 || (translation > 30 && predicted > 280)
+    }
+
+    /// The little bar that says the player can be pulled down.
+    @ViewBuilder private var grabber: some View {
+        #if os(iOS)
+        Capsule().fill(.secondary.opacity(0.45)).frame(width: 36, height: 5).accessibilityHidden(true)
+        #endif
     }
 
     // MARK: Top bar
@@ -114,9 +246,11 @@ struct PlayerView: View {
     private func topBar(showsEpisode: Bool) -> some View {
         HStack(spacing: 12) {
             Button { environment.showsPlayer = false } label: {
-                Image(systemName: "chevron.down").font(.title3.weight(.semibold)).frame(width: 36, height: 36)
+                // 44 pt to tap, laid out as 36.
+                Image(systemName: "chevron.down").font(.title3.weight(.semibold)).frame(width: 44, height: 44).contentShape(.rect)
             }
             .buttonStyle(.plain)
+            .padding(-4)
             .accessibilityLabel("Close player")
             .accessibilityIdentifier("player.close")
             .keyboardShortcut(.cancelAction)
@@ -131,9 +265,11 @@ struct PlayerView: View {
             }
             Spacer(minLength: 8)
             Button { environment.mark(.player) } label: {
-                Image(systemName: "bookmark").font(.title3).frame(width: 36, height: 36)
+                Image(systemName: "bookmark").font(.title3).frame(width: 44, height: 44).contentShape(.rect)
             }
             .buttonStyle(.plain)
+            .padding(-4)
+            .keyboardShortcut("m", modifiers: [])
             .accessibilityLabel("Mark")
             .accessibilityIdentifier("player.mark")
             moreMenu
@@ -145,6 +281,12 @@ struct PlayerView: View {
 
     private var moreMenu: some View {
         Menu {
+            if !model.entry.isBook, let next = environment.upNextFlat.first {
+                // Up Next's first now (the AirPods and the wheel keep their own next).
+                Button("Play Next in Up Next", systemImage: "forward.end") { environment.playUpNextItem(next.item, libraryId: next.libraryId) }
+                    .accessibilityIdentifier("player.playUpNext")
+                Divider()
+            }
             if !model.entry.chapters.isEmpty {
                 Button("Chapters", systemImage: "list.bullet") { showsChapters = true }
                 Button("Previous Chapter", systemImage: "backward.end") { model.previousChapter() }
@@ -155,17 +297,62 @@ struct PlayerView: View {
                 ForEach([15, 30, 45, 60], id: \.self) { minutes in
                     Button("\(minutes) Minutes") { model.setSleepTimer(minutes: minutes) }
                 }
-                Button("End of Episode") { model.sleepAtEndOfEpisode() }
+                if model.currentChapter != nil {
+                    Button("End of Chapter") { model.sleepAtEndOfChapter() }
+                }
+                Button(model.entry.isBook ? "End of Book" : "End of Episode") { model.sleepAtEndOfEpisode() }
                 if model.sleepTimer != nil {
                     Divider()
                     Button("Turn Off", role: .destructive) { model.setSleepTimer(minutes: nil) }
                 }
+                #if os(iOS)
+                if case .minutes? = model.sleepTimer {
+                    Text("Shake to start it again")
+                }
+                #endif
             } label: {
                 Label(sleepTitle, systemImage: "moon.zzz")
+            }
+            if showsTranscriptView {
+                Button("Find in Transcript", systemImage: "magnifyingglass") { startFinding() }
+                    .keyboardShortcut("f")
+                    .accessibilityIdentifier("player.find")
+            }
+            if model.transcript == .ready, !model.sentences.isEmpty {
+                // How the lines play and read.
+                Menu {
+                    Toggle("Pause After Each Line", isOn: Binding(get: { model.pausesAfterLines }, set: { model.setPausesAfterLines($0) }))
+                    Toggle("Repeat the Line", isOn: Binding(get: { model.repeatsLine }, set: { model.repeatsLine = $0 }))
+                    Picker("Text Size", selection: Binding(get: { model.transcriptScale }, set: { model.setTranscriptScale($0) })) {
+                        ForEach(ListenSettings.transcriptScales, id: \.scale) { Text($0.name).tag($0.scale) }
+                    }
+                    .pickerStyle(.menu)
+                } label: {
+                    Label("Lines", systemImage: "text.alignleft")
+                }
+                .accessibilityIdentifier("player.linesMenu")
+            }
+            if model.transcript == .ready, let source = model.transcriptSource {
+                // What made the transcript, and asking Kaku for a fresh one (#149).
+                Menu {
+                    Section(PlaybackModel.sourceText(source)) {
+                        Button(model.isTranscribingAgain ? "Kaku Is Transcribing It Again…" : "Transcribe Again", systemImage: "arrow.clockwise") {
+                            model.transcribeAgain()
+                        }
+                        .disabled(model.isTranscribingAgain)
+                        if let problem = model.transcribeAgainProblem {
+                            Text(problem)
+                        }
+                    }
+                } label: {
+                    Label("Transcript", systemImage: "text.quote")
+                }
+                .accessibilityIdentifier("player.transcriptMenu")
             }
             if model.entry.isBook {
                 ReadInYomuButton(entry: model.entry)
             }
+            SendToWatchButton(entry: model.entry)
             ShareLink(item: EpisodeAudio.miscInfo(model.entry, at: model.audio.currentTime)) {
                 Label("Share", systemImage: "square.and.arrow.up")
             }
@@ -181,7 +368,8 @@ struct PlayerView: View {
     private var sleepTitle: String {
         switch model.sleepTimer {
         case .minutes(_, let ends)?: "Sleep Timer · \(ends.formatted(date: .omitted, time: .shortened))"
-        case .endOfEpisode?: "Sleep Timer · End of Episode"
+        case .endOfEpisode?: model.entry.isBook ? "Sleep Timer · End of Book" : "Sleep Timer · End of Episode"
+        case .endOfChapter?: "Sleep Timer · End of Chapter"
         case nil: "Sleep Timer"
         }
     }
@@ -196,6 +384,9 @@ struct PlayerView: View {
     @ViewBuilder private var content: some View {
         if showsTranscriptView {
             transcript
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    if finding { findBar.padding(.horizontal, 12).padding(.top, 8) }
+                }
                 .overlay(alignment: .bottom) {
                     // Scrolled away by hand: back to the line playing.
                     if !model.follows {
@@ -203,7 +394,7 @@ struct PlayerView: View {
                             Label("Back to Now", systemImage: "arrow.down.to.line")
                                 .font(.subheadline.weight(.semibold))
                                 .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
+                                .padding(.vertical, 12)
                                 .glassEffect(.regular.interactive(), in: .capsule)
                         }
                         .buttonStyle(.plain)
@@ -239,17 +430,24 @@ struct PlayerView: View {
             ShowCover(itemId: model.entry.itemId, cornerRadius: 24) { image in tint = CoverTint.color(of: image) }
                 .frame(maxWidth: 320)
                 .shadow(color: .black.opacity(0.35), radius: 24, y: 12)
+                .accessibilityIdentifier("player.artwork")
             VStack(spacing: 4) {
                 Text(model.entry.episode.title).font(.title3.bold()).multilineTextAlignment(.center).lineLimit(2)
                 Text(model.currentChapter?.title ?? model.entry.showTitle).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
             }
             if showsLine {
                 Button { model.setShowsTranscript(true) } label: {
+                    // Always two rows high, whatever the line, so the artwork above keeps its size
+                    // as the lines go by (a longer line ends in "…").
                     VStack(spacing: 4) {
                         Text(model.currentIndex.map { model.sentences[$0].text } ?? " ")
-                            .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).lineLimit(2)
-                        Text("current line · tap to open the transcript").font(.caption).foregroundStyle(.tertiary)
+                            .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                            .lineLimit(2, reservesSpace: true)
+                        Text("current line · tap to open the transcript").font(.caption).foregroundStyle(.tertiary).lineLimit(1)
                     }
+                    // A faint preview (the transcript it opens follows the text size): capped, so
+                    // its two rows leave the artwork room on a small screen at the largest sizes.
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                     .padding(.horizontal, 8)
                     .contentShape(.rect)
                 }
@@ -289,9 +487,11 @@ struct PlayerView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 4) {
                     ForEach(model.sentences, id: \.position) { sentence in
-                        SentenceRow(sentence: sentence, isCurrent: sentence.position == model.currentIndex,
+                        let found = foundRange(sentence.position)
+                        SentenceRow(sentence: sentence, isCurrent: sentence.position == model.currentIndex, scale: model.transcriptScale,
                                     marks: common.wordMarks.marks(for: TappableLine.sentence(sentence.text)),
-                                    highlighted: model.lookup.highlightedRange(for: String(sentence.position)),
+                                    highlighted: model.lookup.highlightedRange(for: String(sentence.position)) ?? found,
+                                    isFound: found != nil,
                                     onTime: { model.play(from: sentence) },
                                     onTap: { model.tap(sentence, characterIndex: $0) })
                             .id(sentence.position)
@@ -309,6 +509,11 @@ struct PlayerView: View {
                 guard model.follows, let index else { return }
                 withAnimation(.easeInOut(duration: 0.3)) { scroll(proxy, to: index) }
             }
+            .onChange(of: findTarget) { _, position in
+                guard let position else { return }
+                model.follows = false
+                withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(position, anchor: UnitPoint(x: 0.5, y: 0.35)) }
+            }
             .onChange(of: model.follows) { _, follows in
                 guard follows, let index = model.currentIndex else { return }
                 withAnimation { scroll(proxy, to: index) }
@@ -321,6 +526,83 @@ struct PlayerView: View {
                 if let index = model.currentIndex { scroll(proxy, to: index) }
             }
         }
+    }
+
+    // MARK: Find in Transcript
+
+    private func startFinding() {
+        withAnimation(.easeInOut(duration: 0.2)) { finding = true }
+        findFocused = true
+    }
+
+    private func stopFinding() {
+        withAnimation(.easeInOut(duration: 0.2)) { finding = false }
+        findQuery = ""
+        findHits = []
+        findAt = nil
+    }
+
+    /// The line the search is showing (its position).
+    private var findTarget: Int? {
+        guard finding, let findAt, findHits.indices.contains(findAt), model.sentences.indices.contains(findHits[findAt].index) else { return nil }
+        return model.sentences[findHits[findAt].index].position
+    }
+
+    /// The match to mark in a line: only in the line the search is showing.
+    private func foundRange(_ position: Int) -> Range<Int>? {
+        guard findTarget == position, let findAt else { return nil }
+        return findHits[findAt].range
+    }
+
+    private func refind() {
+        findHits = TranscriptFind.hits(findQuery, in: model.sentences)
+        findAt = TranscriptFind.firstHit(findHits, from: model.currentIndex)
+    }
+
+    private func stepFind(_ step: Int) {
+        guard !findHits.isEmpty else { return }
+        findAt = ((findAt ?? -step) + step + findHits.count) % findHits.count
+    }
+
+    private var findBar: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            TextField("Find in Transcript", text: $findQuery)
+                .focused($findFocused)
+                .submitLabel(.search)
+                .onSubmit { stepFind(1) }
+                .autocorrectionDisabled()
+                .accessibilityIdentifier("player.findField")
+            if !findQuery.trimmingCharacters(in: .whitespaces).isEmpty {
+                Text(findHits.isEmpty ? "No lines" : "\((findAt ?? 0) + 1) of \(findHits.count)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
+                    .accessibilityIdentifier("player.findCount")
+            }
+            Button { stepFind(-1) } label: { Image(systemName: "chevron.up").frame(width: 32, height: 32).contentShape(.rect) }
+                .disabled(findHits.isEmpty)
+                .accessibilityLabel("Previous")
+                .accessibilityIdentifier("player.findPrevious")
+            Button { stepFind(1) } label: { Image(systemName: "chevron.down").frame(width: 32, height: 32).contentShape(.rect) }
+                .disabled(findHits.isEmpty)
+                .accessibilityLabel("Next")
+                .accessibilityIdentifier("player.findNext")
+                .keyboardShortcut("g")
+            Button("Done") { stopFinding() }
+                .fontWeight(.semibold)
+                .accessibilityIdentifier("player.findDone")
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 4)
+        .glassEffect(.regular, in: .capsule)
+        // A tap anywhere on the bar stays on it (the line behind would open a lookup).
+        .contentShape(.capsule)
+        .onTapGesture { findFocused = true }
+        .onChange(of: findQuery) { refind() }
+        // The transcript replaced while finding (Kaku's lines differ, Transcribe Again).
+        .onChange(of: model.sentences) { refind() }
     }
 
     /// The line playing a third of the way down. On a short transcript (the iPhone Duo's
@@ -345,24 +627,41 @@ struct PlayerView: View {
                             if abs(Double(model.audio.rate) - speed) < 0.01 { Label(Self.speedText(speed), systemImage: "checkmark") } else { Text(Self.speedText(speed)) }
                         }
                     }
+                    Divider()
+                    // A fast talker at 0.9×, an easy show at 1.25×: this one keeps its own.
+                    Toggle(model.entry.isBook ? "Only for This Book" : "Only for This Show",
+                           isOn: Binding(get: { model.usesShowSpeed }, set: { model.setUsesShowSpeed($0) }))
                 } label: {
+                    // A fixed capsule among fixed controls: its text grows only so far (the large
+                    // content viewer shows it bigger when held).
                     Text(Self.speedText(Double(model.audio.rate)))
                         .font(.subheadline.weight(.semibold).monospacedDigit())
+                        .dynamicTypeSize(...DynamicTypeSize.xLarge)
                         .frame(width: 56, height: 36)
                         .background(.quaternary, in: .capsule)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Speed")
+                .accessibilityValue(Self.speedText(Double(model.audio.rate)))
+                .accessibilityShowsLargeContentViewer()
                 Spacer()
                 lineButton(model.sentences.isEmpty ? "gobackward.15" : "backward.end.fill", label: "Previous line") { model.previousLine() }
+                    .keyboardShortcut(.leftArrow, modifiers: [])
                     .accessibilityIdentifier("player.previousLine")
                 Spacer()
                 Button { model.audio.toggle() } label: {
-                    Image(systemName: model.audio.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.title.weight(.bold))
-                        .foregroundStyle(Color(red: 0x3A / 255, green: 0x1A / 255, blue: 0x05 / 255))
-                        .frame(width: 76, height: 76)
-                        .background(.tint, in: .circle)
+                    Group {
+                        // Playing but nothing heard yet (a slow stream, or after a seek).
+                        if model.audio.isPlaying && model.audio.isBuffering {
+                            ProgressView().controlSize(.large).tint(Color(red: 0x3A / 255, green: 0x1A / 255, blue: 0x05 / 255))
+                        } else {
+                            Image(systemName: model.audio.isPlaying ? "pause.fill" : "play.fill")
+                                .font(.title.weight(.bold))
+                                .foregroundStyle(Color(red: 0x3A / 255, green: 0x1A / 255, blue: 0x05 / 255))
+                        }
+                    }
+                    .frame(width: 76, height: 76)
+                    .background(.tint, in: .circle)
                 }
                 .buttonStyle(.plain)
                 .keyboardShortcut(.space, modifiers: [])
@@ -371,6 +670,7 @@ struct PlayerView: View {
                 .accessibilityIdentifier("player.playPause")
                 Spacer()
                 lineButton(model.sentences.isEmpty ? "goforward.30" : "forward.end.fill", label: "Next line") { model.nextLine() }
+                    .keyboardShortcut(.rightArrow, modifiers: [])
                     .accessibilityIdentifier("player.nextLine")
                 Spacer()
                 // Like Music's lyrics button: the transcript, or the artwork.
@@ -382,6 +682,7 @@ struct PlayerView: View {
                         .background(model.showsTranscript ? AnyShapeStyle(.tint) : AnyShapeStyle(.quaternary), in: .capsule)
                 }
                 .buttonStyle(.plain)
+                .keyboardShortcut("t", modifiers: [])
                 .accessibilityLabel("Transcript")
                 .accessibilityValue(model.showsTranscript ? "On" : "Off")
                 .accessibilityIdentifier("player.transcript")
@@ -410,30 +711,45 @@ struct PlayerView: View {
 private struct SentenceRow: View {
     let sentence: AudioSentence
     let isCurrent: Bool
+    /// Settings' text size (1 = standard).
+    var scale: Double = 1
     let marks: [Int: WordMarkState]
     let highlighted: Range<Int>?
+    /// The line Find in Transcript is showing.
+    var isFound = false
     let onTime: () -> Void
     let onTap: (Int) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 0) {
+            // 44 pt to tap, in its own space above the text (so holding the text still opens
+            // Copy Line); the time sits at its bottom, by its text, so the air it adds falls
+            // between lines.
             Button(action: onTime) {
                 Text(sentence.start.clockText)
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(isCurrent ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                    .frame(minWidth: 44, minHeight: 44, alignment: .bottomLeading)
+                    .contentShape(.rect)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Play from \(sentence.start.clockText)")
             .accessibilityIdentifier("player.lineTime")
-            TappableLine(text: sentence.text, highlighted: highlighted, marks: marks, fontSize: isCurrent ? 24 : 19,
+            TappableLine(text: sentence.text, highlighted: highlighted, marks: marks, fontSize: (isCurrent ? 24 : 19) * scale,
                          alignment: .leading, onTap: onTap)
                 .fontWeight(isCurrent ? .bold : .regular)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.bottom, 10)
         .background(isCurrent ? AnyShapeStyle(.tint.opacity(0.18)) : AnyShapeStyle(.clear), in: .rect(cornerRadius: 18))
+        .overlay { if isFound { RoundedRectangle(cornerRadius: 18).strokeBorder(.tint, lineWidth: 2) } }
         .animation(.easeInOut(duration: 0.2), value: isCurrent)
+        // Hold a line: copy it (for a note, a tutor, a translator), or play from it.
+        .contextMenu {
+            Button("Copy Line", systemImage: "doc.on.doc") { Clipboard.copy(TappableLine.sentence(sentence.text)) }
+            Button("Play from Here", systemImage: "play", action: onTime)
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(isCurrent ? "player.currentLine" : "player.line")
     }
@@ -465,10 +781,8 @@ private struct Scrubber: View {
     }
 }
 
-/// The lookup (K5): the line with the word highlighted and its clip (what goes on the card),
-/// then the shared popup.
-/// The lookup's content in Kiku: the line's clip above the popup (`lookupOverlay` draws the
-/// card or panel around it).
+/// The lookup's content in Kiku: the shared popup, whose first block is the line with the word
+/// marked (`lookupOverlay` draws the card or panel around it).
 struct KikuLookupPanel: View {
     @Environment(CommonEnvironment.self) private var common
     let model: any LineLookupHost
@@ -476,28 +790,6 @@ struct KikuLookupPanel: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if let sentence = model.lookupSentence {
-                HStack(spacing: 12) {
-                    Button { model.playClip(sentence) } label: {
-                        Image(systemName: model.clip.isPlaying ? "stop.fill" : "play.fill")
-                            .frame(width: 40, height: 40)
-                            .background(.quaternary, in: .circle)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(model.clip.isPlaying ? "Stop the clip" : "Play the clip")
-                    .accessibilityIdentifier("lookup.playClip")
-                    // The line itself is the popup's first block (with the word marked, and
-                    // tappable for another word), so here only its clip.
-                    Text("\(sentence.start.clockText) – \(sentence.end.clockText) · this clip goes on the card")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Spacer(minLength: 0)
-                }
-                .padding(12)
-                // See-through like the popup (its background opacity), not a solid block.
-                .background(.quaternary.opacity(0.6), in: .rect(cornerRadius: 18))
-                .padding(.horizontal)
-                .padding(.top, 2)
-            }
             LookupPopupView(service: common.lookup, model: popup, drawsBackground: false)
             if model.resumesOnClose {
                 Text("Playback paused · resumes when you close this")
@@ -567,18 +859,42 @@ struct MiniPlayer: View {
             }
             Spacer(minLength: 6)
             Button { model.audio.toggle() } label: {
-                Image(systemName: model.audio.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.title3)
-                    .frame(width: 36, height: 36)
+                Group {
+                    if model.audio.isPlaying && model.audio.isBuffering {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: model.audio.isPlaying ? "pause.fill" : "play.fill").font(.title3)
+                    }
+                }
+                // 44 pt to tap, laid out as the 36 pt it looks.
+                .frame(width: 44, height: 44)
+                .contentShape(.rect)
             }
             .buttonStyle(.plain)
+            .padding(-4)
             .accessibilityLabel(model.audio.isPlaying ? "Pause" : "Play")
             .accessibilityIdentifier("mini.playPause")
         }
         .padding(.horizontal, 12)
         .contentShape(.rect)
         .onTapGesture { environment.showsPlayer = true }
+        // A swipe up opens it too.
+        .simultaneousGesture(DragGesture(minimumDistance: 12).onEnded { value in
+            if value.translation.height < -20, abs(value.translation.height) > abs(value.translation.width) { environment.showsPlayer = true }
+        })
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("mini.player")
+    }
+}
+
+private extension View {
+    /// Adds the player's pull-down gesture on iPhone and iPad (alongside the buttons there);
+    /// the Mac's player isn't a sheet to pull.
+    @ViewBuilder func pullDownToClose(_ gesture: some Gesture) -> some View {
+        #if os(iOS)
+        contentShape(.rect).simultaneousGesture(gesture)
+        #else
+        self
+        #endif
     }
 }

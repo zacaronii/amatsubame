@@ -22,7 +22,7 @@ struct CoverImage: View {
                         .foregroundStyle(.tertiary)
                 }
             }
-            .clipShape(.rect(cornerRadius: 8))
+            .coverShape(cornerRadius: 8)
             .task(id: "\(request?.url?.absoluteString ?? "")#\(CoverGeneration.shared.value)") {
                 guard let request else { return }
                 await CoverLoader.load(request, maxPixelSize: 480) {

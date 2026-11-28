@@ -58,7 +58,7 @@ struct LiveTextScreen: View {
         if playing.transcript == nil {
             return session.liveTextOn ? "This episode has no transcript yet" : "Turn on Live Text in Kiku ▸ Settings ▸ Playback on your iPhone"
         }
-        return "Getting the transcript from your iPhone…"
+        return session.isReachable ? "Getting the transcript from your iPhone…" : "Bring your iPhone near to get this transcript"
     }
 }
 

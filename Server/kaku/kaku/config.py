@@ -11,7 +11,17 @@ class Config:
     audiobookshelf_key: str
     api_token: str
     data_dir: str = '/data'
-    model: str = 'large-v3'
+    # The Whisper model (docs/kaku.md ▸ Model): anime-whisper, converted once into the models
+    # folder (`python3 -m kaku.convert`), or any name faster-whisper downloads (large-v3).
+    model: str = 'anime-whisper'
+    # Where converted models live (the Hugging Face cache is there too).
+    models_dir: str = '/models'
+    # Seconds of audio per batched chunk: anime-whisper was trained on short clips.
+    chunk_length: int = 15
+    # The text the model is primed with. None: the model's own default (anime-whisper: no prompt,
+    # as its authors advise; large-v3: the punctuated prompts in pipeline.py). '' turns it off
+    # (KAKU_PROMPT=none; an empty KAKU_PROMPT is the default).
+    prompt: str | None = None
     poll_seconds: int = 300
     # The model is unloaded after this long without work, giving the GPU memory back.
     idle_unload_seconds: int = 600
@@ -20,6 +30,14 @@ class Config:
     # Optional: Jellyfin episodes transcribed on request (Miru's subtitles when Jimaku has none).
     jellyfin_url: str = ''
     jellyfin_key: str = ''
+    # The web page at /ui (docs/kaku.md ▸ Web page): only behind a proxy that logs you in and adds
+    # `X-Kaku-UI: <this>` to the request. Empty: no page (/ui answers 404).
+    ui_secret: str = ''
+
+    @staticmethod
+    def prompt_setting(value):
+        value = value.strip()
+        return None if not value else '' if value.lower() == 'none' else value
 
     @staticmethod
     def from_env(env=os.environ) -> 'Config':
@@ -31,9 +49,13 @@ class Config:
             audiobookshelf_key=env['AUDIOBOOKSHELF_API_KEY'],
             api_token=env['KAKU_API_TOKEN'],
             data_dir=env.get('KAKU_DATA', '/data'),
-            model=env.get('KAKU_MODEL', 'large-v3'),
+            model=env.get('KAKU_MODEL') or 'anime-whisper',
+            models_dir=env.get('KAKU_MODELS', '/models'),
+            chunk_length=int(env.get('KAKU_CHUNK_LENGTH') or '15'),
+            prompt=Config.prompt_setting(env.get('KAKU_PROMPT', '')),
             poll_seconds=int(env.get('KAKU_POLL_SECONDS', '300')),
             idle_unload_seconds=int(env.get('KAKU_IDLE_UNLOAD_SECONDS', '600')),
             jellyfin_url=env.get('JELLYFIN_URL', '').rstrip('/'),
             jellyfin_key=env.get('JELLYFIN_API_KEY', ''),
+            ui_secret=env.get('KAKU_UI_SECRET', ''),
         )

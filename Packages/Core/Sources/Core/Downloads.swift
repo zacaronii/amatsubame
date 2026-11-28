@@ -315,3 +315,87 @@ public struct AutoDownloadSettingsStore: Sendable {
         }
     }
 }
+
+/// Kiku's automatic downloads for one library (download ahead, once started), or one show's own
+/// download ahead (off unless turned on).
+public struct AudioAutoDownloadSetting: Codable, Equatable, Sendable, FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "audioAutoDownloadSetting"
+
+    public enum Order: String, Codable, Sendable, CaseIterable {
+        /// The latest episodes (news).
+        case newest
+        /// The episodes after the one you're on, oldest first (serials, lessons).
+        case inOrder
+    }
+
+    /// "library:<id>" or "show:<item id>".
+    public var scope: String
+    /// Episodes kept downloaded; 0 is off (a show's 0 takes its library's).
+    public var ahead: Int
+    public var order: Order
+    /// A show only: nil follows its library (shows played lately), true always, false never.
+    public var isOn: Bool?
+    /// A library only: playing an episode or book that isn't downloaded downloads it.
+    public var onceStarted: Bool
+    /// A library only: a download goes a day after its episode or book is finished.
+    public var removesPlayed: Bool
+    /// A library only: with `removesPlayed`, downloads you made yourself stay.
+    public var keepsManual: Bool
+
+    public init(scope: String, ahead: Int = 0, order: Order = .newest, isOn: Bool? = nil, onceStarted: Bool = false,
+                removesPlayed: Bool = false, keepsManual: Bool = true) {
+        self.scope = scope
+        self.ahead = ahead
+        self.order = order
+        self.isOn = isOn
+        self.onceStarted = onceStarted
+        self.removesPlayed = removesPlayed
+        self.keepsManual = keepsManual
+    }
+
+    public static func library(_ id: String) -> String { "library:\(id)" }
+    public static func show(_ itemId: String) -> String { "show:\(itemId)" }
+
+    public var isDefault: Bool { ahead == 0 && order == .newest && isOn == nil && !onceStarted && !removesPlayed && keepsManual }
+}
+
+public struct AudioAutoDownloadSettingsStore: Sendable {
+    public let database: AppDatabase
+
+    public init(database: AppDatabase) {
+        self.database = database
+    }
+
+    /// Settings by scope; a scope without a row is off (or follows its library).
+    public func all() throws -> [String: AudioAutoDownloadSetting] {
+        try database.reader.read { db in
+            Dictionary(try AudioAutoDownloadSetting.fetchAll(db).map { ($0.scope, $0) }, uniquingKeysWith: { $1 })
+        }
+    }
+
+    public func save(_ setting: AudioAutoDownloadSetting) throws {
+        try database.writer.write { db in
+            if setting.isDefault {
+                _ = try AudioAutoDownloadSetting.deleteOne(db, key: setting.scope)
+            } else {
+                try setting.save(db)
+            }
+        }
+    }
+
+    /// Episode and book keys whose automatic download you deleted: never fetched again automatically.
+    public func declined() throws -> Set<String> {
+        try database.reader.read { Set(try String.fetchAll($0, sql: "SELECT key FROM audioDownloadDeclined")) }
+    }
+
+    public func decline(_ key: String, at date: Date = Date()) throws {
+        try database.writer.write {
+            try $0.execute(sql: "INSERT OR REPLACE INTO audioDownloadDeclined (key, declinedAt) VALUES (?, ?)", arguments: [key, date])
+        }
+    }
+
+    /// Downloading it yourself undoes a decline.
+    public func undecline(_ key: String) throws {
+        try database.writer.write { try $0.execute(sql: "DELETE FROM audioDownloadDeclined WHERE key = ?", arguments: [key]) }
+    }
+}

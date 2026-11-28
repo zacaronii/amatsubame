@@ -194,6 +194,20 @@ enum TestEpub {
         #expect(ProgressSyncPolicy.startPosition(local: local, server: nil, pages: 46) == (5, "//body/div[1]/p[9]"))
         let finished = KavitaServerProgress(chapterId: 1, pageNum: 46, bookScrollId: "//body/div[1]/p[1]", lastModifiedUtc: date.addingTimeInterval(60))
         #expect(ProgressSyncPolicy.startPosition(local: local, server: finished, pages: 46) == (0, nil))
+        // Marked unread here: Kavita sets page 0 but keeps the book's old place, with a newer
+        // date; once the mark went, the device's row is moved just past it (KavitaReadMarkSettling),
+        // so this device starts the book at the top.
+        let kavitaDate = Date(timeIntervalSince1970: 1_800_000_060)
+        let settled = LocalReadingProgress(chapterId: 1, seriesId: 1, volumeId: 1, libraryId: 1, page: 0, pages: 46,
+                                           updatedAt: kavitaDate.addingTimeInterval(1))
+        let keptPlace = KavitaServerProgress(chapterId: 1, pageNum: 0, bookScrollId: "//body/div[1]/p[9]", lastModifiedUtc: kavitaDate)
+        #expect(ProgressSyncPolicy.startPosition(local: settled, server: keptPlace, pages: 46) == (0, nil))
+        // The one rule at the reader's start: a queued change keeps this device's place even when
+        // Kavita's is newer (a clock behind); nothing queued, the newer place.
+        let offline = LocalReadingProgress(chapterId: 1, seriesId: 1, volumeId: 1, libraryId: 1, page: 9, pages: 46,
+                                           updatedAt: kavitaDate.addingTimeInterval(-600), scrollId: "//p[2]")
+        #expect(ProgressSyncPolicy.startPosition(local: offline, server: keptPlace, pages: 46, unsent: true) == (9, "//p[2]"))
+        #expect(ProgressSyncPolicy.startPosition(local: offline, server: keptPlace, pages: 46) == (0, "//body/div[1]/p[9]"))
     }
 
     @MainActor @Test func recorderSendsBookScrollId() throws {
@@ -318,5 +332,59 @@ enum TestEpub {
         model.handle(position("//body/div[1]/p[3]", moved: true))
         model.flushProgress()
         #expect(try outbox.summary().pending == 1)
+    }
+
+    /// A search jump is a look: the jump and Back record nothing; the place moves on only when
+    /// reading continues from the jumped-to page (a page turn).
+    @MainActor @Test func searchJumpsAndBackRecordNothingUntilReadingOn() throws {
+        let database = try AppDatabase.inMemory()
+        let outbox = OutboxStore(database: database)
+        let chapter = ReaderChapter(chapterId: 359, volumeId: 359, seriesId: 34, libraryId: 4, pages: 46, title: "1", seriesTitle: "そら")
+        let model = BookReaderModel(
+            chapter: chapter, nextChapter: nil,
+            repository: BookRepository(directory: FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)) { _ in Data() },
+            settingsStore: BookReaderSettingsStore(database: database), progressStore: ReadingProgressStore(database: database),
+            outbox: outbox, lookup: nil, serverProgress: { _ in throw URLError(.notConnectedToInternet) }, syncNow: {}
+        )
+        func position(_ xpath: String, moved: Bool) -> BookWebEvent {
+            .position(page: 0, pages: 3, xpath: xpath, vertical: true, characters: 0, sectionCharacters: 10, moved: moved)
+        }
+        func queuedPlace() throws -> String? {
+            try outbox.jobs(states: [.pending]).compactMap { try $0.decodePayload(KavitaProgressPayload.self).bookScrollId }.last
+        }
+        model.handle(position("//body/p[3]", moved: true))
+        model.flushProgress()
+        #expect(try queuedPlace() == "//body/p[3]")
+
+        let hit = BookSearch.Hit(section: 0, run: 9, offset: 4, length: 2, before: "", match: "猫", after: "")
+        model.jump(to: hit)
+        model.handle(position("//body/p[40]", moved: false))
+        model.flushProgress()
+        #expect(try queuedPlace() == "//body/p[3]", "the jump recorded nothing")
+        #expect(model.searchBack != nil)
+
+        model.goBackFromSearch()
+        model.handle(position("//body/p[3]", moved: false))
+        model.flushProgress()
+        #expect(try queuedPlace() == "//body/p[3]", "Back recorded nothing")
+
+        model.jump(to: hit)
+        model.handle(position("//body/p[40]", moved: false))
+        model.nextPage()
+        #expect(model.searchBack == nil, "reading on: Back goes")
+        model.handle(position("//body/p[41]", moved: false))
+        model.flushProgress()
+        #expect(try queuedPlace() == "//body/p[41]", "reading on from there moves the place")
+    }
+
+    /// Time left in the chapter counts to where the next contents entry starts.
+    @Test func charactersLeftInTheChapter() {
+        // Sections of 100 characters; chapters start at sections 0, 2 and 5.
+        let index = BookTextIndex(sections: Array(repeating: 100, count: 6))
+        #expect(index.charactersLeftInChapter(read: 130, section: 1, chapterStarts: [0, 2, 5]) == 70)
+        #expect(index.charactersLeftInChapter(read: 250, section: 2, chapterStarts: [0, 2, 2, 5]) == 250, "to section 5")
+        #expect(index.charactersLeftInChapter(read: 560, section: 5, chapterStarts: [0, 2, 5]) == 40, "the last chapter ends with the book")
+        #expect(index.charactersLeftInChapter(read: 130, section: 1, chapterStarts: [0]) == nil, "one chapter: nothing to tell apart")
+        #expect(index.charactersLeftInChapter(read: 130, section: 1, chapterStarts: []) == nil)
     }
 }

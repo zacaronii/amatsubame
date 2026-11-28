@@ -45,9 +45,14 @@ public struct KavitaSeries: Codable, Equatable, Identifiable, Hashable, Sendable
     public var latestReadDate: Date?
     /// When the series was added to Kavita.
     public var created: Date?
+    /// The series on AniList and MyAnimeList, when Kavita knows (Kavita+ or ComicInfo links);
+    /// 0 or nil when it doesn't.
+    public var aniListId: Int?
+    public var malId: Int?
 
     public init(id: Int, name: String, localizedName: String? = nil, sortName: String? = nil, libraryId: Int,
-                format: Int, pages: Int, pagesRead: Int, latestReadDate: Date? = nil, created: Date? = nil) {
+                format: Int, pages: Int, pagesRead: Int, latestReadDate: Date? = nil, created: Date? = nil,
+                aniListId: Int? = nil, malId: Int? = nil) {
         self.id = id
         self.name = name
         self.localizedName = localizedName
@@ -58,6 +63,8 @@ public struct KavitaSeries: Codable, Equatable, Identifiable, Hashable, Sendable
         self.pagesRead = pagesRead
         self.latestReadDate = latestReadDate
         self.created = created
+        self.aniListId = aniListId
+        self.malId = malId
     }
 
     public var isEpub: Bool { format == KavitaFormat.epub }
@@ -170,14 +177,18 @@ public struct KavitaProgressPayload: Codable, Equatable, Sendable {
     public var seriesId: Int
     public var libraryId: Int
     public var bookScrollId: String?
+    /// When the page was turned (kept in the job, never sent): judged against Kavita by this,
+    /// not by when the job is sent. Jobs queued before it existed have none.
+    public var madeAt: Date?
 
-    public init(volumeId: Int, chapterId: Int, pageNum: Int, seriesId: Int, libraryId: Int, bookScrollId: String? = nil) {
+    public init(volumeId: Int, chapterId: Int, pageNum: Int, seriesId: Int, libraryId: Int, bookScrollId: String? = nil, madeAt: Date? = nil) {
         self.volumeId = volumeId
         self.chapterId = chapterId
         self.pageNum = pageNum
         self.seriesId = seriesId
         self.libraryId = libraryId
         self.bookScrollId = bookScrollId
+        self.madeAt = madeAt
     }
 
     // Kavita expects an explicit null, so encode it rather than omitting the key.
@@ -189,6 +200,7 @@ public struct KavitaProgressPayload: Codable, Equatable, Sendable {
         try container.encode(seriesId, forKey: .seriesId)
         try container.encode(libraryId, forKey: .libraryId)
         try container.encode(bookScrollId, forKey: .bookScrollId)
+        try container.encodeIfPresent(madeAt, forKey: .madeAt)
     }
 }
 
@@ -288,7 +300,7 @@ extension KavitaServerProgress {
 
 extension KavitaSeries {
     enum CodingKeys: String, CodingKey {
-        case id, name, localizedName, sortName, libraryId, format, pages, pagesRead, latestReadDate, created
+        case id, name, localizedName, sortName, libraryId, format, pages, pagesRead, latestReadDate, created, aniListId, malId
     }
 
     public init(from decoder: any Decoder) throws {
@@ -303,6 +315,8 @@ extension KavitaSeries {
         pagesRead = try container.decode(Int.self, forKey: .pagesRead)
         latestReadDate = try container.decodeIfPresent(Date.self, forKey: .latestReadDate)?.nilIfUnset
         created = try container.decodeIfPresent(Date.self, forKey: .created)?.nilIfUnset
+        aniListId = try container.decodeIfPresent(Int.self, forKey: .aniListId)
+        malId = try container.decodeIfPresent(Int.self, forKey: .malId)
     }
 }
 

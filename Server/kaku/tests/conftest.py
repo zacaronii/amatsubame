@@ -75,15 +75,27 @@ class Word:
 
 
 class FakeTranscriber:
-    """Returns two sentences without a GPU; `gate` can hold a job running."""
-    name = 'large-v3'
+    """Returns two sentences without a GPU; `gate` can hold a job running. Prompts as the real one
+    does for `name`; `not_ready` makes `check` fail like a missing conversion."""
     version = 'fake'
 
-    def __init__(self):
+    def __init__(self, name='large-v3', prompt=None):
+        self.name = name
+        self.prompt = prompt
         self.loaded = False
         self.calls = []
         self.prompts = []
         self.gate = None
+        self.not_ready = None
+
+    def prompt_for(self, jellyfin=False):
+        from kaku.pipeline import default_prompt
+        return self.prompt if self.prompt is not None else default_prompt(self.name, jellyfin)
+
+    def check(self):
+        if self.not_ready:
+            from kaku.pipeline import ModelNotReady
+            raise ModelNotReady(self.not_ready)
 
     def transcribe(self, wav, progress=lambda seconds: None, prompt=''):
         self.loaded = True

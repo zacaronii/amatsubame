@@ -33,6 +33,22 @@ def test_libraries_switch_on(service):
     assert {l['id'] for l in switched if l['enabled']} == {'lib-1', 'lib-2'}
 
 
+def test_libraries_and_jobs_say_how_far_along(service):
+    api = client(service)
+    api.put('/libraries', headers=AUTH, json={'enabled': ['lib-1']})
+    service.poller.poll_once(now=NOW)
+    before = {l['id']: l for l in api.get('/libraries', headers=AUTH).json()['libraries']}
+    assert before['lib-1']['counts'] == {'done': 0, 'queued': 2, 'running': 0, 'failed': 0}
+    assert before['lib-1']['lastTranscribed'] is None and before['lib-2']['counts']['queued'] == 0
+    assert api.get('/jobs', headers=AUTH).json()['estimatedSeconds'] is None
+    service.worker.run_once()
+    after = {l['id']: l for l in api.get('/libraries', headers=AUTH).json()['libraries']}
+    assert after['lib-1']['counts'] == {'done': 1, 'queued': 1, 'running': 0, 'failed': 0}
+    assert after['lib-1']['lastTranscribed'] is not None
+    jobs = api.get('/jobs', headers=AUTH).json()
+    assert jobs['averageSeconds'] is not None and jobs['estimatedSeconds'] == jobs['averageSeconds']
+
+
 def test_pending_then_done(service):
     api = client(service)
     api.put('/libraries', headers=AUTH, json={'enabled': ['lib-1']})
@@ -70,6 +86,28 @@ def test_post_jobs_jumps_the_queue(service):
     again = api.post('/jobs', headers=AUTH, json={'itemId': 'item-1', 'episodeId': 'episode-2'})
     assert again.status_code == 200 and again.json()['state'] == 'done'
     assert api.post('/jobs', headers=AUTH, json={'itemId': 'item-1', 'episodeId': 'missing'}).status_code == 404
+
+
+def test_force_transcribes_again_and_the_old_one_serves_meanwhile(service):
+    api = client(service)
+    api.put('/libraries', headers=AUTH, json={'enabled': ['lib-1']})
+    service.poller.poll_once(now=NOW)
+    while service.worker.run_once():
+        pass
+    body = {'itemId': 'item-1', 'episodeId': 'episode-1'}
+    assert api.post('/jobs', headers=AUTH, json=body).json()['state'] == 'done'
+    first = api.get('/transcripts/item-1/episode-1', headers=AUTH).json()
+    forced = api.post('/jobs', headers=AUTH, json=body | {'force': True})
+    assert forced.status_code == 202 and forced.json()['priority'] == 'now'
+    # Asked twice: still one job.
+    api.post('/jobs', headers=AUTH, json=body | {'force': True})
+    assert api.get('/jobs', headers=AUTH).json()['counts']['queued'] == 1
+    assert api.get('/transcripts/item-1/episode-1', headers=AUTH).json() == first
+    # The poller doesn't undo it, and it runs once.
+    service.poller.poll_once(now=NOW + 60)
+    assert service.worker.run_once() and not service.worker.run_once()
+    assert api.get('/transcripts/item-1/episode-1', headers=AUTH).status_code == 200
+    assert api.post('/jobs', headers=AUTH, json=body).json()['state'] == 'done'
 
 
 def test_status_for_many_episodes(service):

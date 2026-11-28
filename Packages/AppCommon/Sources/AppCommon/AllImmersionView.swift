@@ -76,7 +76,7 @@ public final class ImmersionModel {
         if let data = try? JSONEncoder().encode(fresh) { try? environment.activity.saveKechimochiCache(key, data: data, at: now()) }
     }
 
-    /// The API is on the same host as the page set in Settings ▸ Stats.
+    /// The API is on the same host as the page set in Settings ▸ Connections ▸ kechimochi.
     private var client: KechimochiClient? {
         guard let webURL, var components = URLComponents(url: webURL, resolvingAgainstBaseURL: false) else { return nil }
         components.path = ""
@@ -125,7 +125,7 @@ struct AllImmersionView: View {
                 ContentUnavailableView {
                     Label("Connect kechimochi", systemImage: "chart.bar.xaxis")
                 } description: {
-                    Text("Add kechimochi's address in Settings ▸ Stats to see all your immersion here.")
+                    Text("Add kechimochi's address in Settings ▸ Connections to see all your immersion here.")
                 }
             } else if let snapshot = model.snapshot {
                 HeatmapCard(model: model, summary: snapshot.summary)

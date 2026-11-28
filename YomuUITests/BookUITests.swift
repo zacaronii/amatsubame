@@ -44,6 +44,71 @@ final class BookUITests: XCTestCase {
 
     private func position() -> String { page.value as? String ?? "" }
 
+    /// Auto-scroll in the Scrolling layout: at the reading speed shown in characters a minute, it
+    /// moves the place on by itself, waits while the controls show, and closes from its capsule.
+    func testAutoScrollInTheScrollingLayout() throws {
+        openBook()
+        page.tap()
+        let settings = app.buttons["reader.settings"].firstMatch
+        if !settings.exists { page.tap() }
+        XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        settings.tap()
+        // Layout ▸ Pages, a menu further down the sheet.
+        let pages = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Pages'")).firstMatch
+        for _ in 0..<4 where !(pages.exists && pages.isHittable) { app.swipeUp() }
+        pages.tap()
+        app.buttons["Scrolling"].firstMatch.tap()
+        app.buttons["Done"].firstMatch.tap()
+        sleep(3)
+        let start = app.buttons["reader.autoScroll"].firstMatch
+        if !start.exists { page.tap() }
+        XCTAssertTrue(start.waitForExistence(timeout: 5))
+        start.tap()
+        // The test book opens on its cover, a picture page: it stays a few seconds before the
+        // next section (a page with nothing to scroll isn't flashed by).
+        let started = Date()
+        func section() -> String { String(position().split(separator: ",").first ?? "") }
+        let cover = section()
+        while section() == cover, Date().timeIntervalSince(started) < 20 { usleep(250_000) }
+        let stayed = Date().timeIntervalSince(started)
+        let note = XCTAttachment(string: "cover stayed \(stayed) s"); note.name = "cover dwell"; note.lifetime = .keepAlways; add(note)
+        XCTAssertGreaterThan(stayed, 4, "the picture page stays")
+        XCTAssertLessThan(stayed, 12, "and then moves on")
+        let speed = app.staticTexts["autoScroll.speed"].firstMatch
+        XCTAssertTrue(speed.waitForExistence(timeout: 5))
+        XCTAssertEqual(speed.value as? String, "300 characters a minute")
+        // The fastest, to see it move in a few seconds.
+        for _ in 0..<14 { app.buttons["autoScroll.faster"].firstMatch.tap() }
+        XCTAssertEqual(speed.value as? String, "1000 characters a minute")
+        // Scrolling reads "…, N characters read": it goes up (past the cover, through the text).
+        func read() -> Int { Int(position().split(separator: ",").last?.split(separator: " ").first ?? "") ?? -1 }
+        let before = read()
+        let moved = expectation(for: NSPredicate { _, _ in read() > before + 50 }, evaluatedWith: nil)
+        wait(for: [moved], timeout: 60)
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "auto-scroll-book"
+        shot.lifetime = .keepAlways
+        add(shot)
+        // A tap on the page (a lookup on a word, or the controls beside one): it waits.
+        page.tap()
+        sleep(2)
+        let held = read()
+        sleep(6)
+        XCTAssertEqual(read(), held, "waits while the lookup or the controls show")
+        // Closed again (a tap on the page while the controls or a lookup show only closes them):
+        // it carries on.
+        let close = app.buttons["autoScroll.close"].firstMatch
+        for _ in 0..<2 where !close.exists {
+            page.tap()
+            sleep(2)
+        }
+        XCTAssertTrue(close.waitForExistence(timeout: 5), "the capsule is back")
+        let again = expectation(for: NSPredicate { _, _ in read() > held + 50 }, evaluatedWith: nil)
+        wait(for: [again], timeout: 60)
+        close.tap()
+        XCTAssertTrue(speed.waitForNonExistence(timeout: 5))
+    }
+
     /// Word marks on a book page (a screenshot to check by eye; with no Anki set up every
     /// dictionary word is "not in Anki"). Needs `UITEST_DICTIONARY_ZIPS`.
     func testBookPageShowsWordMarks() throws {
@@ -167,6 +232,102 @@ final class BookUITests: XCTestCase {
 
     private var popup: XCUIElement { app.webViews.matching(identifier: "lookup.results").firstMatch }
 
+    /// The first chapter, then forward (a swipe right in right-to-left books) to a section's
+    /// second page or later: body text across the page.
+    private func openPageOfBodyText() {
+        openFirstChapter()
+        let laterPage = /page ([2-9]|\d\d+) of/
+        for _ in 0..<8 where (page.value as? String)?.contains(laterPage) != true {
+            page.swipeRight()
+            sleep(2)
+        }
+        XCTAssertTrue((page.value as? String)?.contains(laterPage) == true, "no section with a second page: \(page.value ?? "")")
+    }
+
+    /// Search in the book: results for a common particle (no text of the book is in the test),
+    /// a result further on opens there with Back to Where You Were, and Back returns.
+    func testSearchInTheBookJumpsAndComesBack() throws {
+        openBook()
+        openPageOfBodyText()
+        let start = position()
+        page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.985)).tap()
+        let search = app.buttons["reader.search"].firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        search.tap()
+        let field = app.searchFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap()
+        field.typeText("の")
+        XCTAssertTrue(app.staticTexts["bookSearch.count"].waitForExistence(timeout: 120), "results (the first search prepares the book)")
+        let results = app.buttons.matching(identifier: "bookSearch.result")
+        XCTAssertGreaterThan(results.count, 3)
+        // One further on (the list scrolls to it).
+        let target = results.element(boundBy: min(results.count - 1, 40))
+        for _ in 0..<12 where !target.isHittable { app.swipeUp() }
+        target.tap()
+        let back = app.buttons["bookSearch.back"]
+        XCTAssertTrue(back.waitForExistence(timeout: 10), "Back to Where You Were")
+        sleep(2)
+        XCTAssertNotEqual(position(), start, "moved to the result")
+        snapshot("book-search-result")
+        back.tap()
+        XCTAssertTrue(back.waitForNonExistence(timeout: 5))
+        sleep(2)
+        XCTAssertEqual(position().split(separator: ",").first, start.split(separator: ",").first, "back in the section it started in")
+    }
+
+    /// With a keyboard, ⌘F in an open book searches the book (Search Dictionary moves to ⇧⌘F there).
+    func testCommandFSearchesTheOpenBook() throws {
+        openBook()
+        page.typeKey("f", modifierFlags: .command)
+        XCTAssertTrue(app.navigationBars["Search"].waitForExistence(timeout: 5), "the book's search, not the Dictionary tab")
+        XCTAssertTrue(app.searchFields.firstMatch.exists)
+        app.buttons["Done"].firstMatch.tap()
+        XCTAssertTrue(page.waitForExistence(timeout: 5), "still in the book")
+    }
+
+    /// An added font (a system font copied in at test time: `TEST_RUNNER_UITEST_FONT`; no font is
+    /// in the repository): chosen in Added Fonts, the page is drawn in it; removed, the page goes
+    /// back to the book's own.
+    func testAnAddedFontIsUsedAndRemoved() throws {
+        guard let font = ProcessInfo.processInfo.environment["UITEST_FONT"] else { throw XCTSkip("Set TEST_RUNNER_UITEST_FONT to a font file.") }
+        app.launchEnvironment["UITEST_IMPORT_FONT"] = font
+        app.launchEnvironment["UITEST_BOOK_AUDIT"] = "1"
+        openBook()
+        func lastFont() -> String {
+            let audit = app.staticTexts["book.audit"].firstMatch.label
+            return audit.split(separator: "\n").last { $0.hasPrefix("font ") }.map(String.init) ?? ""
+        }
+        func openAddedFonts() {
+            let settings = app.buttons["reader.settings"].firstMatch
+            if !settings.exists { page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.985)).tap() }
+            XCTAssertTrue(settings.waitForExistence(timeout: 5))
+            settings.tap()
+            let row = app.buttons["settings.addedFonts"].firstMatch
+            for _ in 0..<4 where !(row.exists && row.isHittable) { app.swipeUp() }
+            row.tap()
+        }
+        openAddedFonts()
+        let added = app.buttons["bookFonts.font"].firstMatch
+        XCTAssertTrue(added.waitForExistence(timeout: 5), "the imported font is listed")
+        added.tap()
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["Done"].firstMatch.tap()
+        let applied = expectation(for: NSPredicate { _, _ in lastFont().contains("km-custom") && lastFont().contains("loaded=true") }, evaluatedWith: nil)
+        wait(for: [applied], timeout: 15)
+        snapshot("book-added-font")
+
+        openAddedFonts()
+        XCTAssertTrue(added.waitForExistence(timeout: 5))
+        added.press(forDuration: 1)
+        app.buttons["Remove"].firstMatch.tap()
+        XCTAssertTrue(added.waitForNonExistence(timeout: 5))
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["Done"].firstMatch.tap()
+        let fellBack = expectation(for: NSPredicate { _, _ in !lastFont().isEmpty && !lastFont().contains("km-custom") }, evaluatedWith: nil)
+        wait(for: [fellBack], timeout: 15)
+    }
+
     func testTappingTextOpensLookup() throws {
         guard ProcessInfo.processInfo.environment["UITEST_DICTIONARY_ZIPS"] != nil else { throw XCTSkip("Needs UITEST_DICTIONARY_ZIPS.") }
         openBook()
@@ -180,7 +341,11 @@ final class BookUITests: XCTestCase {
     func testLookupMarkGoesAfterTheAppWasInTheBackground() throws {
         guard ProcessInfo.processInfo.environment["UITEST_DICTIONARY_ZIPS"] != nil else { throw XCTSkip("Needs UITEST_DICTIONARY_ZIPS.") }
         openBook()
-        XCTAssertTrue(try lookUpInFirstChapter(), "no word found to look up")
+        // Both lookups on a page of body text (a book's opening pages are contents, titles and
+        // pictures, with text only in places).
+        openPageOfBodyText()
+        XCTAssertLessThan(try markedPixels(), markedMinimum, "a mark before any lookup")
+        XCTAssertTrue(lookUp(dy: 0.25) || lookUp(dy: 0.35), "no word found to look up")
         XCTAssertGreaterThan(try markedPixels(), markedMinimum, "the looked-up word is marked")
 
         XCUIDevice.shared.press(.home)
@@ -191,32 +356,122 @@ final class BookUITests: XCTestCase {
         closePopup()
         XCTAssertLessThan(try markedPixels(), markedMinimum, "the mark stayed after closing")
 
-        // Another word further down, then close that too.
-        XCTAssertTrue(lookUp(dy: 0.45), "no second word found to look up")
+        // Another lookup, then close that too (where the text is sure to be: a page of
+        // dialogue has short columns, and its lower half can be blank where the test taps).
+        XCTAssertTrue(lookUp(dy: 0.35) || lookUp(dy: 0.25), "no second word found to look up")
         closePopup()
         snapshot("book-marks-cleared")
         XCTAssertLessThan(try markedPixels(), markedMinimum, "a mark came back after the second lookup")
     }
 
     /// A page after a section's first: the body has moved (a page turn), and WebKit didn't repaint
-    /// a mark drawn inside it, so the looked-up word showed no mark (in 小説 君の名は。).
+    /// a mark drawn inside it, so the looked-up word showed no mark (in a vertical light novel).
     func testLookupMarkShowsAfterAPageTurn() throws {
         guard ProcessInfo.processInfo.environment["UITEST_DICTIONARY_ZIPS"] != nil else { throw XCTSkip("Needs UITEST_DICTIONARY_ZIPS.") }
         openBook()
-        openFirstChapter()
-        // Forward (a swipe right in right-to-left books) until a section's second page or later.
-        let laterPage = /page ([2-9]|\d\d+) of/
-        for _ in 0..<8 where (page.value as? String)?.contains(laterPage) != true {
-            page.swipeRight()
-            sleep(2)
-        }
-        XCTAssertTrue((page.value as? String)?.contains(laterPage) == true, "no section with a second page: \(page.value ?? "")")
+        openPageOfBodyText()
         XCTAssertLessThan(try markedPixels(), markedMinimum, "a mark before any lookup")
         XCTAssertTrue(lookUp(dy: 0.25) || lookUp(dy: 0.45), "no word found to look up")
         snapshot("book-mark-after-turn")
         XCTAssertGreaterThan(try markedPixels(), markedMinimum, "the looked-up word is marked")
         closePopup()
         XCTAssertLessThan(try markedPixels(), markedMinimum, "the mark stayed after closing")
+    }
+
+    /// A highlight with a note and a bookmark go to the test account's Kavita
+    /// (`UITEST_SENDS_MARKS`), show in the series' list, open the book at their place from there,
+    /// and are removed again: Kavita's annotations end as they began. The book's text is never
+    /// asserted on or printed (screenshots stay with the result, out of the repository).
+    func testHighlightNoteAndBookmarkReachKavita() throws {
+        guard ProcessInfo.processInfo.environment["UITEST_DICTIONARY_ZIPS"] != nil else { throw XCTSkip("Needs UITEST_DICTIONARY_ZIPS.") }
+        let kavita = try KavitaTestAccount()
+        let marksBefore = try kavita.snapshot(bookSeries: series)
+        // Whatever happens, the test account ends as it began.
+        addTeardownBlock { XCTAssertNil(try marksBefore.restore(), "the test account's marks were put back") }
+        let before = marksBefore.annotations.count
+        app.launchEnvironment["UITEST_SENDS_MARKS"] = "1"
+        openBook()
+        // An ordinary page of text: a section's second page or later (the first pages of a
+        // book are covers, contents and headings).
+        openFirstChapter()
+        let laterPage = /page ([2-9]|\d\d+) of/
+        for _ in 0..<8 where (page.value as? String)?.contains(laterPage) != true {
+            page.swipeRight()
+            sleep(2)
+        }
+        XCTAssertTrue(lookUp(dy: 0.25) || lookUp(dy: 0.45), "a word to look up")
+        let place = position()
+
+        // Highlight its sentence in the third colour, and write a note on it.
+        let colour = app.buttons["highlight.colour.2"].firstMatch
+        XCTAssertTrue(colour.waitForExistence(timeout: 5), "the highlight bar above the popup")
+        colour.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["highlight.bar.highlighted"].waitForExistence(timeout: 5), "highlighted")
+        app.buttons["highlight.note"].firstMatch.tap()
+        let note = app.textViews["note.text"].firstMatch
+        XCTAssertTrue(note.waitForExistence(timeout: 5))
+        note.tap()
+        note.typeText("test note")
+        app.buttons["note.save"].firstMatch.tap()
+        sleep(1)
+        snapshot("book-highlighted")
+        closePopup()
+        XCTAssertGreaterThan(try markedPixels(), markedMinimum, "the highlight is drawn on the page (yellow)")
+        snapshot("book-highlight-on-page")
+        XCTAssertTrue(waitFor { (try? kavita.annotations())?.contains { $0["commentPlainText"] as? String == "test note" && $0["selectedSlotIndex"] as? Int == 2 } == true },
+                      "the highlight and its note reached Kavita")
+
+        // Bookmark the place.
+        page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.985)).tap()
+        let bookmark = app.buttons["reader.bookmark"].firstMatch
+        XCTAssertTrue(bookmark.waitForExistence(timeout: 5))
+        bookmark.tap()
+        XCTAssertEqual(bookmark.value as? String, "Bookmarked")
+
+        // The series lists both once Kavita has them; the highlight opens the book at its page.
+        app.buttons["reader.close"].firstMatch.tap()
+        let rows = app.buttons.matching(identifier: "series.mark")
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 20))
+        XCTAssertTrue(waitFor { rows.count == 2 && !rows.allElementsBoundByIndex.contains { $0.label.contains("Not on Kavita yet") } },
+                      "both listed and sent")
+        for _ in 0..<10 where !rows.element(boundBy: 0).isHittable { app.swipeUp() }
+        snapshot("series-marks")
+        rows.element(boundBy: 0).tap()
+        XCTAssertTrue(page.waitForExistence(timeout: 60))
+        sleep(3)
+        XCTAssertEqual(position().split(separator: ",").first, place.split(separator: ",").first, "opened at the mark's page")
+        page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.985)).tap()
+        XCTAssertTrue(app.buttons["reader.close"].firstMatch.waitForExistence(timeout: 5))
+        app.buttons["reader.close"].firstMatch.tap()
+
+        // Remove both from the list (hold → Remove).
+        for _ in 0..<2 {
+            let row = rows.firstMatch
+            XCTAssertTrue(row.waitForExistence(timeout: 10))
+            for _ in 0..<10 where !row.isHittable { app.swipeUp() }
+            row.press(forDuration: 1.2)
+            let remove = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Remove'")).firstMatch
+            XCTAssertTrue(remove.waitForExistence(timeout: 5))
+            remove.tap()
+            sleep(1)
+        }
+        XCTAssertTrue(waitFor { (try? kavita.annotations().count) == before },
+                      "removed from Kavita again (annotations: \((try? kavita.annotations().count) ?? -1), expected \(before))")
+        // Kavita's bookmarks are listed per volume: a refresh that still found it would list it again.
+        app.swipeDown()
+        app.swipeDown()
+        sleep(5)
+        XCTAssertEqual(rows.count, 0, "nothing comes back from Kavita")
+        XCTAssertEqual(Set(try kavita.bookBookmarks(series: series)), marksBefore.bookBookmarks, "the bookmark is gone from Kavita")
+    }
+
+    private func waitFor(_ timeout: TimeInterval = 45, _ condition: () -> Bool) -> Bool {
+        let end = Date().addingTimeInterval(timeout)
+        while Date() < end {
+            if condition() { return true }
+            sleep(2)
+        }
+        return false
     }
 
     /// Opens the first Contents entry with words near the top (books start with a cover, a title
@@ -228,7 +483,9 @@ final class BookUITests: XCTestCase {
             XCTAssertLessThan(try markedPixels(), markedMinimum, "a mark before any lookup")
             if lookUp(dy: 0.25) { return true }
         }
-        return false
+        // Chapters that open on a full-page picture: a page of body text instead.
+        openPageOfBodyText()
+        return lookUp(dy: 0.25) || lookUp(dy: 0.35)
     }
 
     /// Looks up a word in one of the first body columns at `dy` (vertical text: the first
@@ -241,8 +498,9 @@ final class BookUITests: XCTestCase {
                 sleep(1)
                 return true
             }
-            // With the controls showing, a tap on the page only hides them.
-            if app.buttons["Contents"].exists { page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
+            // With the controls showing, a tap on the page only hides them: in the bottom margin,
+            // where no word is (the middle of a page of text would look one up).
+            if app.buttons["Contents"].exists { page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.985)).tap() }
             sleep(1)
         }
         return false

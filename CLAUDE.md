@@ -1,6 +1,6 @@
 # Amatsubame: Japanese immersion apps
 
-Instructions for AI coding agents working on this repo. Focused apps in one repo, under the brand Amatsubame (names and icons: docs/NAMING.md). The original plan is docs/PLAN.md; the audio app and transcriber are planned in docs/AUDIO_PLAN.md. Read the doc for the area you're working on before starting, and plan larger changes before writing code.
+Instructions for AI coding agents working on this repo. Focused apps in one repo, under the brand Amatsubame (names and icons: docs/NAMING.md). The original plan is docs/PLAN.md; the audio app and transcriber are planned in docs/AUDIO_PLAN.md, and Kiku's automatic downloads and watch playback in docs/KIKU_PLAN.md. Read the doc for the area you're working on before starting, and plan larger changes before writing code.
 
 ## Project map
 The Xcode project is generated as `Amatsubame.xcodeproj` from `project.yml`.
@@ -46,7 +46,7 @@ Contributor-specific details (your devices, simulators, local folders, server sp
 ## Stack
 - Swift 6, SwiftUI, Observation. Multiplatform targets: iOS, iPadOS, macOS 26.
 - XcodeGen: edit project.yml, never the .xcodeproj. Run `xcodegen` after changing it.
-- Signing: `Config/Signing.xcconfig` (committed: empty `DEVELOPMENT_TEAM`, `BUNDLE_ID_PREFIX = com.amatsubame`) includes an optional gitignored `Config/Signing.local.xcconfig` that sets your team and, for anyone else's devices, their own prefix. Every target's bundle ID is `$(BUNDLE_ID_PREFIX).<app>`; Hiku finds its extension as its own bundle ID + `.extension`. `AMATSUBAME_APP_GROUP = YES` there turns on the App Group outside the simulator (paid team; docs/shared.md). Simulator builds need no team.
+- Signing: `Config/Signing.xcconfig` (committed: empty `DEVELOPMENT_TEAM`, `BUNDLE_ID_PREFIX = com.amatsubame`) includes an optional gitignored `Config/Signing.local.xcconfig` that sets your team and, for anyone else's devices, their own prefix. Every target's bundle ID is `$(BUNDLE_ID_PREFIX).<app>`; Hiku finds its extension as its own bundle ID + `.extension`. `AMATSUBAME_APP_GROUP = YES` there turns on the App Group outside the simulator (paid team; docs/shared.md). `AMATSUBAME_ICLOUD = YES` (set by the upload and release scripts) adds iCloud for Stats across devices. Simulator builds need no team.
 - GRDB for all persistence, with one approved exception: dictionary *content* is stored in hoshidicts' own format (Application Support/Dictionaries/<id>). Dictionary metadata, order, settings, audio sources and lookup history stay in GRDB. MPVKit (LGPL build) for video. Core ML for OCR.
 - Speech detection for subtitle sync: libfvad (BSD-3-Clause, WebRTC's VAD), vendored in `Vendor/libfvad` (see its VENDORED.md).
 - Dictionary engine: hoshidicts (GPL-3.0) as bee-san's fork, the one Hachidori ships, vendored in `Vendor/hoshidicts` at the commit the latest Hachidori release pins and called only through its C API (`CHoshiDicts`, no C++ interop in Swift). Update it with `scripts/update-hoshidicts.sh` (a weekly workflow opens an issue when a release moves the pin); see `Vendor/hoshidicts/VENDORED.md`.

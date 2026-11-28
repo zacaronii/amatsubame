@@ -4,10 +4,14 @@ import XCTest
 final class PlayerGestureUITests: XCTestCase {
     func testTwoFingerTapDoubleTapAndScrub() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
-            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file to test gestures.")
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to the 60 s test video (scripts/make-test-media.sh) to test gestures.")
         }
         continueAfterFailure = false
+        // Sideways: the overlay layout, where the controls hide (upright, the play button stays under the picture).
+        XCUIDevice.shared.orientation = .landscapeLeft
+        addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
         app.launch()
@@ -16,7 +20,7 @@ final class PlayerGestureUITests: XCTestCase {
         XCTAssertTrue(player.waitForExistence(timeout: 10))
         func state() -> (time: Double, paused: Bool) {
             let value = player.value as? String ?? ""
-            return (Double(value.split(separator: " ").first ?? "") ?? -1, value.hasSuffix("paused"))
+            return (Double(value.split(separator: " ").first ?? "") ?? -1, value.contains(" s, paused"))
         }
         let playing = expectation(for: NSPredicate { _, _ in state().time > 2 && !state().paused }, evaluatedWith: nil)
         wait(for: [playing], timeout: 15)
@@ -55,12 +59,119 @@ final class PlayerGestureUITests: XCTestCase {
         XCTAssertFalse(state().paused, "two-finger tap resumes")
     }
 
+    /// Sideways, a pinch out fills the screen (the picture cropped to it) and a pinch in fits it
+    /// again; portrait always fits, and turning back sideways fills again. A pinch never scrubs.
+    func testPinchFillsTheScreenSideways() throws {
+        guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to the 60 s test video (scripts/make-test-media.sh) to test gestures.")
+        }
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .landscapeLeft
+        addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
+        let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
+        app.launchEnvironment["UITEST_PLAYER"] = "1"
+        app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
+        // An English file for mpv to draw, to look at where it lands (optional).
+        app.launchEnvironment["UITEST_PLAYER_ENGLISH"] = ProcessInfo.processInfo.environment["UITEST_PLAYER_ENGLISH"]
+        app.launch()
+
+        let player = app.descendants(matching: .any)["player.video"].firstMatch
+        XCTAssertTrue(player.waitForExistence(timeout: 10))
+        func value() -> String { player.value as? String ?? "" }
+        func time() -> Double { Double(value().split(separator: " ").first ?? "") ?? -1 }
+        let playing = expectation(for: NSPredicate { _, _ in time() > 2 }, evaluatedWith: nil)
+        wait(for: [playing], timeout: 15)
+        func shot(_ name: String) {
+            let attachment = XCTAttachment(screenshot: app.screenshot())
+            attachment.name = name
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+        shot("fit")
+
+        let before = time()
+        player.pinch(withScale: 2.5, velocity: 4)
+        XCTAssertTrue(value().contains("filled"), "pinched out: filled (\(value()))")
+        XCTAssertEqual(time(), before + 1, accuracy: 3, "a pinch doesn't scrub")
+        XCTAssertTrue(app.staticTexts["player.osd"].exists && app.staticTexts["player.osd"].label == "Zoomed to Fill")
+        sleep(2)
+        shot("filled")
+
+        // A one-finger drag right after the pinch scrubs (half the width of a 60 s clip: ~7.5 s).
+        let beforeDrag = time()
+        player.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.5))
+            .press(forDuration: 0.05, thenDragTo: player.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.5)))
+        sleep(1)
+        XCTAssertGreaterThan(time(), beforeDrag + 4.5, "the first drag after a pinch scrubs")
+
+        XCUIDevice.shared.orientation = .portrait
+        sleep(2)
+        XCTAssertFalse(value().contains("filled"), "portrait fits the picture over the Lines")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        sleep(2)
+        XCTAssertTrue(value().contains("filled"), "back sideways: filled again")
+
+        player.pinch(withScale: 0.4, velocity: -4)
+        XCTAssertFalse(value().contains("filled"), "pinched in: fitted")
+    }
+
+    /// A video with chapters (the file's own, as for a download): marks on the scrubber; Next
+    /// and Previous Chapter jump between them, naming the chapter, and are in the options menu.
+    /// Needs `TEST_RUNNER_UITEST_PLAYER_CHAPTERS_VIDEO`: a 60 s video with chapters at 0, 15 s and
+    /// 40 s ("Opening", "Part A", "Ending").
+    func testChaptersFromTheOptionsMenu() throws {
+        guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_CHAPTERS_VIDEO"] else {
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_CHAPTERS_VIDEO to the test video with chapters (scripts/make-test-media.sh).")
+        }
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .landscapeLeft
+        addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
+        let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
+        app.launchEnvironment["UITEST_PLAYER"] = "1"
+        app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
+        app.launch()
+        let player = app.descendants(matching: .any)["player.video"].firstMatch
+        XCTAssertTrue(player.waitForExistence(timeout: 10))
+        func time() -> Double { Double((player.value as? String ?? "").split(separator: " ").first ?? "") ?? -1 }
+        let playing = expectation(for: NSPredicate { _, _ in time() > 2 }, evaluatedWith: nil)
+        wait(for: [playing], timeout: 15)
+        // Paused, so the app goes idle between steps (with a menu open over playing video,
+        // XCUITest waits a minute for it); chapter moves work the same.
+        player.twoFingerTap()
+        // From the options menu (Page Up and Page Down do the same; the simulator can't press them).
+        func chapter(_ id: String, to title: String, at seconds: Double) {
+            let options = app.descendants(matching: .any)["player.options"].firstMatch
+            if !options.isHittable { player.tap() }
+            XCTAssertTrue(options.waitForExistence(timeout: 5))
+            options.tap()
+            let item = app.descendants(matching: .any)[id].firstMatch
+            XCTAssertTrue(item.waitForExistence(timeout: 5), id)
+            item.tap()
+            // The note naming the chapter is gone by the time XCUITest looks again (1.5 s; its
+            // idle wait after a tap is longer): the position is checked, the name on screenshots.
+            let moved = expectation(for: NSPredicate { _, _ in abs(time() - seconds) < 1.5 }, evaluatedWith: nil)
+            wait(for: [moved], timeout: 3)
+        }
+
+        chapter("player.nextChapter", to: "Part A", at: 15)
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "chapter marks"
+        shot.lifetime = .keepAlways
+        add(shot)
+        chapter("player.nextChapter", to: "Ending", at: 40)
+        // Just into Ending: Previous goes to Part A, not Ending's start.
+        chapter("player.previousChapter", to: "Part A", at: 15)
+    }
+
     func testSkipIntroButton() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
-            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file to test skipping.")
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to the 60 s test video (scripts/make-test-media.sh) to test skipping.")
         }
         continueAfterFailure = false
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
         app.launchEnvironment["UITEST_PLAYER_SEGMENTS"] = "Intro:0:30"
@@ -96,9 +207,10 @@ final class PlayerGestureUITests: XCTestCase {
     /// part-way start; the fix is `MPVController.hasStarted`.
     func testSkipIntroDoesNotFlashWhenResumingPastTheIntro() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
-            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file to test segments.")
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to the 60 s test video (scripts/make-test-media.sh) to test segments.")
         }
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
         app.launchEnvironment["UITEST_PLAYER_SEGMENTS"] = "Intro:0:30"
@@ -120,10 +232,14 @@ final class PlayerGestureUITests: XCTestCase {
     /// again; if it was already paused, it stays paused.
     func testLookupPausesQuietlyAndClosingResumes() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
-            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file to test lookups.")
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to the 60 s test video (scripts/make-test-media.sh) to test lookups.")
         }
         continueAfterFailure = false
+        // Sideways: the overlay layout, where the controls hide (upright, the play button stays under the picture).
+        XCUIDevice.shared.orientation = .landscapeLeft
+        addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
         app.launchEnvironment["UITEST_JIMAKU"] = "1"
@@ -139,7 +255,7 @@ final class PlayerGestureUITests: XCTestCase {
         XCTAssertTrue(line.waitForExistence(timeout: 10))
         let player = app.descendants(matching: .any)["player.video"].firstMatch
         let playPause = app.buttons["player.playPause"]
-        func isPlaying() -> Bool { (player.value as? String ?? "").hasSuffix("playing") }
+        func isPlaying() -> Bool { (player.value as? String ?? "").contains(" s, playing") }
 
         // Playing, controls hidden.
         if !isPlaying() {
@@ -179,11 +295,12 @@ final class PlayerGestureUITests: XCTestCase {
     /// episode plays. Cancel hides it.
     func testUpNextCardPlaysTheNextEpisodeOrCancels() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
-            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file to test Up Next.")
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to the 60 s test video (scripts/make-test-media.sh) to test Up Next.")
         }
         continueAfterFailure = false
         func launch() -> XCUIApplication {
             let app = XCUIApplication()
+            app.launchEnvironment["UITEST_MUTE"] = "1"
             app.launchEnvironment["UITEST_PLAYER"] = "1"
             app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
             // The test video is 60 s: the card comes 20 s before the end.
@@ -218,10 +335,11 @@ final class PlayerGestureUITests: XCTestCase {
     /// (UITEST_PLAYER_AUDIO_VIDEO).
     func testBackgroundAudioAndNowPlaying() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_AUDIO_VIDEO"] else {
-            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_AUDIO_VIDEO to a video with an audio track.")
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_AUDIO_VIDEO to a video with an audio track (scripts/make-test-media.sh).")
         }
         continueAfterFailure = false
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
         app.launch()
@@ -244,10 +362,14 @@ final class PlayerGestureUITests: XCTestCase {
 
     func testFindSubtitlesOnJimakuRetimeAndSave() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
-            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file to test subtitle search.")
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to the 60 s test video (scripts/make-test-media.sh) to test subtitle search.")
         }
         continueAfterFailure = false
+        // Upright: the Subtitles settings open as a sheet (sideways they are a panel on the right).
+        XCUIDevice.shared.orientation = .portrait
+        addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
         app.launchEnvironment["UITEST_JIMAKU"] = "1"
@@ -329,10 +451,12 @@ final class PlayerGestureUITests: XCTestCase {
         if !close.waitForExistence(timeout: 3) { player.tap() }
         close.tap()
         app.tabBars.buttons["Settings"].tap()
-        let queue = app.staticTexts["Queue"].firstMatch
-        for _ in 0..<8 where !queue.waitForExistence(timeout: 2) { app.swipeUp() }
-        queue.tap()
-        XCTAssertTrue(app.staticTexts["Jellyfin subtitles"].firstMatch.waitForExistence(timeout: 5), "upload queued")
-        XCTAssertEqual(app.staticTexts.matching(identifier: "Jellyfin subtitles").count, 1)
+        // Settings ▸ Advanced ▸ Waiting to Sync: one subtitle upload for Jellyfin.
+        let advanced = app.buttons["settings.advanced"].firstMatch
+        for _ in 0..<8 where !advanced.waitForExistence(timeout: 2) || !advanced.isHittable { app.swipeUp() }
+        advanced.tap()
+        let waiting = app.buttons["advanced.waiting.jellyfinSubtitle"].firstMatch
+        XCTAssertTrue(waiting.waitForExistence(timeout: 5))
+        XCTAssertTrue(waiting.label.hasSuffix("1 waiting"), "upload queued: \(waiting.label)")
     }
 }

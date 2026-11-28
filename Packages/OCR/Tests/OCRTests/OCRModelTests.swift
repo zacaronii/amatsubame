@@ -30,6 +30,23 @@ struct OCRModelTests {
         try OCRPipeline(modelDirectory: compiled)
     }
 
+    /// The fixture page's bubbles come back with their lines measured, and the characters
+    /// shared among them add up.
+    @Test func blocksCarryTheirLines() async throws {
+        let url = try #require(Bundle.module.url(forResource: "pepper-carrot-e01p02", withExtension: "jpg", subdirectory: "Fixtures"))
+        let source = try #require(CGImageSourceCreateWithURL(url as CFURL, nil))
+        let image = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        let (page, _) = try await Self.pipeline().recognize(page: image)
+        #expect(!page.blocks.isEmpty)
+        for block in page.blocks {
+            let lines = block.lines ?? []
+            print("LINES", block.text.count, "chars,", lines.count, "lines,", block.vertical ? "vertical" : "horizontal",
+                  TextLayout.characterCounts(lines.map { block.vertical ? $0.height : $0.width }, total: block.text.count), block.text)
+            #expect(!lines.isEmpty, "a block of lettering has at least one line")
+            #expect(lines.count <= max(block.text.count, 1))
+        }
+    }
+
     @Test(arguments: [("食べさせられなかった", true), ("今日はいい天気ですね", false), ("本当に？", true)])
     func recognizesRenderedText(text: String, vertical: Bool) async throws {
         let image = SyntheticPage.text(text, vertical: vertical)
@@ -51,6 +68,43 @@ struct OCRModelTests {
         #expect(texts.count == 2, "\(texts)")
         #expect(texts.contains { $0.contains("カンペキ") })
         #expect(texts.contains { $0.contains("そんなこと") })
+    }
+
+    /// Japanese lettered across, two short lines to a bubble (Pepper&Carrot): read as horizontal,
+    /// though the bubble isn't twice as wide as it's tall, so a tap at the start of a line gets
+    /// that line's first character. Guessed vertical, `うん．．．カンペキ` was one column and a tap
+    /// on カ landed on a character of the first line.
+    @Test func readsTwoLineHorizontalBubblesAcross() async throws {
+        let url = try #require(Bundle.module.url(forResource: "pepper-carrot-e01p02", withExtension: "jpg", subdirectory: "Fixtures"))
+        let source = try #require(CGImageSourceCreateWithURL(url as CFURL, nil))
+        let image = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        let (page, _) = try await Self.pipeline().recognize(page: image)
+        let bubbles = page.blocks.filter { $0.kind == .bubbleText }
+        #expect(bubbles.count == 2)
+        #expect(bubbles.allSatisfy { !$0.vertical }, "\(bubbles.map { ($0.text, $0.vertical) })")
+        let perfect = try #require(bubbles.first { $0.text.contains("カンペキ") })
+        let lines = try #require(perfect.lines?.map(\.cgRect))
+        #expect(lines.count == 2, "\(lines)")
+        // Just inside the start of the second line.
+        let second = try #require(lines.last)
+        let point = CGPoint(x: second.minX + second.width * 0.04, y: second.midY)
+        let unit = CGRect(x: 0, y: 0, width: 1, height: 1)
+        let index = TextLayout.characterIndex(of: point, in: unit, cells: perfect.characterRects(boxSize: CGSize(width: 1, height: 1)))
+        #expect(Array(perfect.text)[index] == "カ", "\(perfect.text) at \(index)")
+    }
+
+    /// The case most like a two-line horizontal bubble, the other way round: short vertical
+    /// bubbles of two and three columns (a 4-koma, CC BY-SA 4.0). They stay vertical.
+    @Test func keepsShortVerticalBubblesVertical() async throws {
+        let url = try #require(Bundle.module.url(forResource: "biwasshi-yonkoma-panels", withExtension: "jpg", subdirectory: "Fixtures"))
+        let source = try #require(CGImageSourceCreateWithURL(url as CFURL, nil))
+        let image = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        let (page, _) = try await Self.pipeline().recognize(page: image)
+        let bubbles = page.blocks.filter { $0.kind == .bubbleText }
+        let two = try #require(bubbles.first { $0.text.contains("ビワッシーやん") }, "\(bubbles.map(\.text))")
+        let three = try #require(bubbles.first { $0.text.contains("パクリ") }, "\(bubbles.map(\.text))")
+        #expect(two.vertical)
+        #expect(three.vertical)
     }
 
     @Test func detectsAndReadsSpeechBubblesInReadingOrder() async throws {
@@ -139,9 +193,13 @@ struct RealPageOCR {
             let (page, timings) = try await pipeline.recognize(page: image)
             print("== \(file.lastPathComponent) \(image.width)x\(image.height): \(page.blocks.count) blocks, detect \(timings.detection), read \(timings.recognition)")
             for (index, block) in page.blocks.enumerated() {
-                print(String(format: "  %2d %@ %.2f [%.2f %.2f %.2f %.2f] %@", index + 1, block.vertical ? "V" : "H", block.score,
-                             block.box.x, block.box.y, block.box.width, block.box.height, block.text))
+                let measured = block.cells?.count == block.text.count && !block.text.isEmpty
+                print(String(format: "  %2d %@ %.2f [%.2f %.2f %.2f %.2f] %@ %@", index + 1, block.vertical ? "V" : "H", block.score,
+                             block.box.x, block.box.y, block.box.width, block.box.height,
+                             block.cellsExact == true ? "exact" : measured ? "guessed" : "NO CELLS (\(block.lines?.count ?? 0) lines)", block.text))
             }
+            let measured = page.blocks.filter { $0.cellsExact == true }.count
+            print("   characters placed in \(measured) of \(page.blocks.count) blocks")
             try Annotation.write(image, page: page, to: directory.appending(path: "annotated-\(file.deletingPathExtension().lastPathComponent).png"))
         }
     }
@@ -157,13 +215,26 @@ enum Annotation {
             var rect = block.box.pixels(in: size)
             rect.origin.y = size.height - rect.maxY
             context.setStrokeColor(CGColor(red: 1, green: 0, blue: 0, alpha: 0.9))
-            context.setLineWidth(3)
+            context.setLineWidth(1)
             context.stroke(rect)
+            // The lines found (a guessed block's in orange), then each character's measured
+            // place, alternating colours so neighbours tell apart.
+            for line in block.lines ?? [] where block.cellsExact != true {
+                context.setStrokeColor(CGColor(red: 1, green: 0.5, blue: 0, alpha: 1))
+                context.stroke(CGRect(x: rect.minX + line.x * rect.width, y: rect.maxY - (line.y + line.height) * rect.height,
+                                      width: line.width * rect.width, height: line.height * rect.height))
+            }
+            for (place, cell) in (block.cells ?? []).enumerated() {
+                let cell = CGRect(x: rect.minX + cell.x * rect.width, y: rect.maxY - (cell.y + cell.height) * rect.height,
+                                  width: cell.width * rect.width, height: cell.height * rect.height)
+                context.setFillColor(place.isMultiple(of: 2) ? CGColor(red: 0, green: 0.4, blue: 1, alpha: 0.3) : CGColor(red: 0, green: 0.7, blue: 0.2, alpha: 0.3))
+                context.fill(cell)
+            }
             let label = NSAttributedString(string: "\(index + 1)", attributes: [
-                kCTFontAttributeName as NSAttributedString.Key: CTFontCreateWithName("Helvetica-Bold" as CFString, 34, nil),
+                kCTFontAttributeName as NSAttributedString.Key: CTFontCreateWithName("Helvetica-Bold" as CFString, 16, nil),
                 kCTForegroundColorAttributeName as NSAttributedString.Key: CGColor(red: 1, green: 0, blue: 0, alpha: 1),
             ])
-            context.textPosition = CGPoint(x: rect.minX + 4, y: rect.maxY - 34)
+            context.textPosition = CGPoint(x: rect.minX + 4, y: rect.maxY + 2)
             CTLineDraw(CTLineCreateWithAttributedString(label), context)
         }
         let destination = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil)!

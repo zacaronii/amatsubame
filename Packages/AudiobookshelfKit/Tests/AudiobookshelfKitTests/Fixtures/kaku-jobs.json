@@ -1,0 +1,6 @@
+{"running": {"itemId": "show", "episodeId": "ep3", "libraryId": "lib", "title": "#3", "state": "running", "priority": "new", "progress": 0.62, "error": null, "attempts": 1},
+ "queued": [{"itemId": "book-1", "episodeId": "", "libraryId": "lib-b", "title": "A book", "state": "queued", "priority": "now", "progress": 0.0, "error": null, "attempts": 0, "position": 0},
+            {"itemId": "show", "episodeId": "ep4", "libraryId": "lib", "title": "#4", "state": "queued", "priority": "backlog", "progress": 0.0, "error": null, "attempts": 0, "position": 1}],
+ "counts": {"done": 120, "queued": 14, "running": 1, "failed": 1},
+ "failed": [{"itemId": "jf:jf-9", "episodeId": "", "libraryId": "jellyfin", "title": "Episode 9", "state": "failed", "priority": "now", "progress": 0.0, "error": "No Japanese audio", "attempts": 3}],
+ "averageSeconds": 95.5, "estimatedSeconds": 1373.0}

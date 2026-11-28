@@ -25,15 +25,27 @@ public final class MangaReaderModel {
 
     public let chapter: ReaderChapter
     public let nextChapter: ReaderChapter?
+    /// Set by the app when it offers more than the series' next (reading in a reading list).
+    public var nextOffer: NextOffer?
     public let pages: MangaPageRepository
     public private(set) var state = LoadState.loading
     public private(set) var dimensions: [KavitaPageDimension] = []
     /// Lowest page index on screen.
     public private(set) var currentPage = 0
     public private(set) var startPage = 0
-    public var showsChrome = false
+    public var showsChrome = false {
+        // The controls came up: a word the pointer rests on isn't looked up (a click would only
+        // hide them).
+        didSet {
+            if showsChrome { dropHover() }
+            autoScroll.set(.controls, showsChrome)
+            autoScroll.noteInput()
+        }
+    }
     /// Set by the view from the available space when spreads are on `auto`.
     public var spreadsFitScreen = false
+    /// Set by the view: the reader is taller than wide, so a wide page is split (when on).
+    public var viewportIsPortrait = false
     public var settings: MangaReaderSettings {
         didSet {
             guard settings != oldValue else { return }
@@ -43,6 +55,55 @@ public final class MangaReaderModel {
 
     /// Recognized text per page, filled as pages are OCR'd (or loaded from the cache).
     public private(set) var pageText: [Int: OCRPage] = [:]
+
+    // MARK: Crop Borders
+
+    /// The part of each page to show with Crop Borders on (normalised), for pages that have
+    /// margins worth cropping; measured once a page is decoded.
+    public private(set) var crops: [Int: CGRect] = [:]
+    @ObservationIgnored private var measured: Set<Int> = []
+
+    /// A page was decoded: with Crop Borders on, find its margins (once, off the main thread).
+    func measureBorders(page: Int, image: CGImage) {
+        guard settings.cropsBorders, settings.mode == .paged, !measured.contains(page) else { return }
+        measured.insert(page)
+        #if DEBUG
+        // UI tests: UITEST_CROP=0.1 crops that much off every side (the test account's pages have no margins).
+        if let inset = ProcessInfo.processInfo.environment["UITEST_CROP"].flatMap(Double.init) {
+            crops[page] = CGRect(x: inset, y: inset, width: 1 - 2 * inset, height: 1 - 2 * inset)
+            return
+        }
+        #endif
+        Task {
+            if let crop = await Task.detached(priority: .utility, operation: { PageBorders.detect(image) }).value { crops[page] = crop }
+        }
+    }
+
+    /// The part of each of a slot's pages to show: the half of a split page, the crop with Crop
+    /// Borders on (in a spread, level with the facing page and whole at the gutter), else all.
+    func shown(_ slot: ReaderSlot) -> [CGRect] {
+        Self.shown(slot, crops: settings.cropsBorders && settings.mode == .paged ? crops : [:],
+                   rightToLeft: settings.direction == .rightToLeft)
+    }
+
+    nonisolated static func shown(_ slot: ReaderSlot, crops: [Int: CGRect], rightToLeft: Bool) -> [CGRect] {
+        let whole = CGRect(x: 0, y: 0, width: 1, height: 1)
+        if let page = slot.pages.first, slot.half != nil {
+            let visible = slot.visibleRange(rightToLeft: rightToLeft)
+            let half = CGRect(x: visible.lowerBound, y: 0, width: visible.upperBound - visible.lowerBound, height: 1)
+            guard let crop = crops[page] else { return [half] }
+            let cropped = half.intersection(crop)
+            return [cropped.isNull || cropped.width < 0.1 ? half : cropped]
+        }
+        if slot.pages.count == 2 {
+            // Drawn left to right: in a right-to-left book the first page is on the right.
+            let left = rightToLeft ? slot.pages[1] : slot.pages[0], right = rightToLeft ? slot.pages[0] : slot.pages[1]
+            guard crops[left] != nil || crops[right] != nil else { return [whole, whole] }
+            let pair = PageBorders.spread(left: crops[left], right: crops[right])
+            return rightToLeft ? [pair.right, pair.left] : [pair.left, pair.right]
+        }
+        return slot.pages.map { crops[$0] ?? whole }
+    }
     /// A page turn asked for outside the paged view (menu commands); the view owns the position.
     public struct PageRequest: Equatable, Sendable {
         public var delta: Int
@@ -56,7 +117,14 @@ public final class MangaReaderModel {
     }
 
     /// The lookup popup for the last tapped text, and where on screen it was (global coordinates).
-    public var popup: LookupPopupModel?
+    public var popup: LookupPopupModel? {
+        didSet {
+            autoScroll.set(.lookup, popup != nil)
+            if popup != nil { autoScroll.noteInput() }
+        }
+    }
+    /// Auto-scroll in the long strip.
+    public let autoScroll = AutoScroll()
     /// The page of the last lookup, until you page away from it: a spread that splits (folding
     /// the iPhone Duo, which also closes the popup) shows that page rather than the spread's first.
     public private(set) var popupPage: Int?
@@ -66,10 +134,16 @@ public final class MangaReaderModel {
     /// The box being drawn for manual OCR, in the page's own coordinates.
     public var selection: (page: Int, rect: CGRect)?
     /// True from a long press until a box is drawn or selection is cancelled.
-    public private(set) var isSelecting = false
+    public private(set) var isSelecting = false {
+        didSet { autoScroll.set(.selecting, isSelecting) }
+    }
 
     public let ocr: OCRService?
     public let lookup: LookupService?
+    /// Page bookmarks on Kavita; nil without a Kavita account.
+    public var bookmarks: PageBookmarks?
+    /// Opens at this page instead of the reading position (a bookmark picked in the series).
+    public var opensAt: Int?
     private let settingsStore: MangaReaderSettingsStore
     private let progressStore: ReadingProgressStore
     private let recorder: ReadingProgressRecorder
@@ -99,7 +173,9 @@ public final class MangaReaderModel {
 
     public var pageCount: Int { dimensions.isEmpty ? chapter.pages : dimensions.count }
 
-    public var usesSpreads: Bool {
+    public var usesSpreads: Bool { Self.usesSpreads(settings: settings, spreadsFitScreen: spreadsFitScreen) }
+
+    nonisolated static func usesSpreads(settings: MangaReaderSettings, spreadsFitScreen: Bool) -> Bool {
         switch settings.spreads {
         case .on: true
         case .off: false
@@ -107,14 +183,35 @@ public final class MangaReaderModel {
         }
     }
 
-    /// What the paged reader shows per swipe.
-    public var slots: [[Int]] {
-        SpreadLayout.slots(
+    /// What the paged reader shows per swipe: a page, a spread, or half of a wide page (split
+    /// in a portrait reader, by the series' Split Wide Pages).
+    public var slots: [ReaderSlot] {
+        SpreadLayout.readerSlots(
             pageCount: pageCount,
-            widePages: Set(dimensions.filter(\.isWide).map(\.pageNumber)),
+            widePages: widePages,
             spreads: usesSpreads,
-            coverAlone: settings.coverAlone
+            coverAlone: settings.coverAlone,
+            splitsWide: Self.splitsWide(settings: settings, portrait: viewportIsPortrait, spreadsFitScreen: spreadsFitScreen)
         )
+    }
+
+    /// Whether a wide page is split: the setting on, the reader taller than wide, and spreads not
+    /// in use (pages side by side at half width there, a split wide page would be twice their
+    /// scale; Automatic never uses them in portrait).
+    nonisolated static func splitsWide(settings: MangaReaderSettings, portrait: Bool, spreadsFitScreen: Bool) -> Bool {
+        settings.splitsWidePages && portrait && !usesSpreads(settings: settings, spreadsFitScreen: spreadsFitScreen)
+    }
+
+    /// Kavita's wide pages (two-page scans).
+    var widePages: Set<Int> {
+        var wide = Set(dimensions.filter(\.isWide).map(\.pageNumber))
+        #if DEBUG
+        // UI tests: UITEST_WIDE_PAGES=3,5 treats those pages as wide (no wide page on the test account).
+        if let listed = ProcessInfo.processInfo.environment["UITEST_WIDE_PAGES"] {
+            wide.formUnion(listed.split(separator: ",").compactMap { Int($0) })
+        }
+        #endif
+        return wide
     }
 
     public func aspectRatio(of page: Int) -> Double {
@@ -135,7 +232,8 @@ public final class MangaReaderModel {
         }
         let local = try? progressStore.progress(chapterId: chapter.chapterId)
         let server = await serverProgress()
-        startPage = ProgressSyncPolicy.startPage(local: local, server: server, pages: pageCount)
+        startPage = opensAt.map { min(max($0, 0), max(pageCount - 1, 0)) }
+            ?? ProgressSyncPolicy.startPage(local: local, server: server, pages: pageCount, unsent: recorder.queuedChangeStillGoes(server: server))
         currentPage = startPage
         recorder.start(at: startPage)
         state = .ready
@@ -161,10 +259,25 @@ public final class MangaReaderModel {
 
     /// Where reading time and pages go for the Stats tab (set by the app).
     public var activity: ActivityLog?
+    /// Daily goals: the reader says once a day when today's is reached (quietly).
+    public var goals: DailyGoalStore?
+
+    private func noteGoalReached() {
+        guard let goals, let activity, goals.reachedTodayFirstTime(kind: .reading, log: activity) else { return }
+        showMessage("Daily goal reached")
+    }
     @ObservationIgnored private var lastShown: Int?
 
     /// The page to keep on screen when the spreads change (or the pager is rebuilt).
     var pageToKeep: Int { popupPage ?? currentPage }
+
+    /// The other half of a split page came into view: a lookup on the half left behind closes
+    /// (the word is no longer on screen; a page move leaves the popup open and only drops its page).
+    public func halfChanged() {
+        popup = nil
+        popupPage = nil
+        dropHover()
+    }
 
     /// Called as pages scroll into view. `lastVisible` is what counts as read.
     public func pagesShown(first: Int, lastVisible: Int) {
@@ -174,10 +287,13 @@ public final class MangaReaderModel {
             let step = lastVisible - lastShown
             try? activity?.record(ActivitySubject(kind: .reading, seriesKey: String(chapter.seriesId), seriesTitle: chapter.seriesTitle,
                                                   itemKey: String(chapter.chapterId)), pages: (1...2).contains(step) ? step : 0)
+            noteGoalReached()
         }
         lastShown = lastVisible
         currentPage = min(max(first, 0), pageCount - 1)
         if let popupPage, !(first...max(first, lastVisible)).contains(popupPage) { self.popupPage = nil }
+        // A turn by key or swipe leaves the pointer where it was, over a page no longer shown.
+        if let hovered, !Self.hoverStays(onPage: hovered.page, first: first, lastVisible: lastVisible) { dropHover() }
         recorder.record(page: min(max(lastVisible, 0), pageCount - 1))
         prefetch(around: lastVisible)
         requestText(around: currentPage, through: lastVisible)
@@ -185,6 +301,8 @@ public final class MangaReaderModel {
 
     /// The end-of-chapter screen counts as finishing the last page.
     public func reachedEnd() {
+        // Auto-scroll stops at the chapter's end (the next chapter is the reader's choice).
+        autoScroll.stop()
         pagesShown(first: pageCount - 1, lastVisible: pageCount - 1)
     }
 
@@ -259,12 +377,88 @@ public final class MangaReaderModel {
         let offset = String(block.text.prefix(characterIndex)).utf16.count
         let started = ContinuousClock.now
         Task {
-            let result = await lookup.lookup(text: block.text, utf16Offset: offset, showSource: true)
+            let result = await lookup.lookup(text: block.text, utf16Offset: offset, keepsSource: true)
             lastTimings = LookupTimings(ocr: nil, lookup: ContinuousClock.now - started)
             popupAnchor = anchor
             popupPage = page
+            lookupBlock = (page, block)
             popup = LookupPopupModel(page: result, context: miningContext(page: page))
         }
+    }
+
+    // MARK: Look Up on Hover (Mac)
+
+    /// The character the pointer rests on (Settings ▸ Popup ▸ Look Up on Hover).
+    @ObservationIgnored private var hovered: (page: Int, block: OCRBlock, index: Int, anchor: CGRect)?
+    @ObservationIgnored private var hoverTask: Task<Void, Never>?
+
+    /// The pointer moved onto a character of a block's lettering.
+    public func hovered(_ block: OCRBlock, page: Int, characterIndex: Int, anchor: CGRect) {
+        if let hovered, hovered.page == page, hovered.block == block, hovered.index == characterIndex { return }
+        hovered = (page, block, characterIndex, anchor)
+        lookUpHovered()
+    }
+
+    /// The pointer left a block's lettering.
+    public func hoverEnded(_ block: OCRBlock, page: Int) {
+        guard let hovered, hovered.page == page, hovered.block == block else { return }
+        self.hovered = nil
+        hoverTask?.cancel()
+    }
+
+    /// Looks up the word under the pointer when Look Up on Hover allows it (its key is held, or
+    /// no key is needed), as a click there would. A short rest first, so the pointer crossing a
+    /// bubble on its way elsewhere looks nothing up. Also called when a key is pressed.
+    public func lookUpHovered() {
+        hoverTask?.cancel()
+        #if os(macOS)
+        guard let hovered, let setting = lookup?.popupSettings.hoverLookup, HoverModifiers.shared.allows(setting) else { return }
+        let marked = textOverlay(page: hovered.page).flatMap { $0.block == hovered.block ? $0.highlight : nil }
+        guard Self.hoverLooksUp(hovered.block.text, at: hovered.index, marked: marked, controlsShowing: showsChrome) else { return }
+        hoverTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(setting == .always ? 180 : 60))
+            guard !Task.isCancelled, let self, let now = self.hovered,
+                  now.page == hovered.page, now.block == hovered.block, now.index == hovered.index else { return }
+            self.lookUp(hovered.block, page: hovered.page, characterIndex: hovered.index, anchor: hovered.anchor)
+        }
+        #endif
+    }
+
+    /// Forgets the character the pointer rested on (its block is no longer where it was).
+    private func dropHover() {
+        hovered = nil
+        hoverTask?.cancel()
+    }
+
+    /// Whether a rested-on character's page is still among those shown.
+    nonisolated static func hoverStays(onPage page: Int, first: Int, lastVisible: Int) -> Bool {
+        (first...max(first, lastVisible)).contains(page)
+    }
+
+    /// Whether resting on character `index` of a block's text looks it up: a character of a word
+    /// (not punctuation or a space), not one of the word already marked, and not while the
+    /// controls show (a click then only hides them).
+    nonisolated static func hoverLooksUp(_ text: String, at index: Int, marked: Range<Int>?, controlsShowing: Bool) -> Bool {
+        guard !controlsShowing, marked?.contains(index) != true, let character = text.dropFirst(index).first else { return false }
+        return !character.isWhitespace && !character.isPunctuation && !character.isSymbol
+    }
+
+    /// The block whose word is being looked up (the word is marked on its lettering).
+    @ObservationIgnored private var lookupBlock: (page: Int, block: OCRBlock)?
+
+    /// While the popup is open: the block the word is in, and which of its characters the word
+    /// showing covers, to mark on the page.
+    public func textOverlay(page: Int) -> (block: OCRBlock, highlight: Range<Int>?)? {
+        guard settings.showsTextOverlay, let popup, let lookupBlock, lookupBlock.page == page else { return nil }
+        let text = lookupBlock.block.text
+        let source = popup.pages.last { $0.source?.text == text }?.source
+        let range = source.map { source -> Range<Int> in
+            let start = text.distance(from: text.startIndex, to: String.Index(utf16Offset: min(source.utf16Offset, text.utf16.count), in: text))
+            let end = text.distance(from: text.startIndex,
+                                    to: String.Index(utf16Offset: min(source.utf16Offset + source.utf16Length, text.utf16.count), in: text))
+            return start..<max(start, end)
+        }
+        return (lookupBlock.block, range)
     }
 
     /// Cards mined from `page` get the page as their picture and the chapter as their source.
@@ -319,7 +513,7 @@ public final class MangaReaderModel {
                     return
                 }
                 let lookupStart = ContinuousClock.now
-                let result = await lookup.lookup(text: block.text, utf16Offset: 0, showSource: true)
+                let result = await lookup.lookup(text: block.text, utf16Offset: 0, keepsSource: true)
                 lastTimings = LookupTimings(ocr: ocrTime, lookup: ContinuousClock.now - lookupStart)
                 popupAnchor = anchor
                 popupPage = page

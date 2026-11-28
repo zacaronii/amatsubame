@@ -13,6 +13,8 @@ final class LibraryModel {
     var continueFractions: [Int: Double] = [:]
     /// Each library's most recently added series, by library id.
     var shelves: [Int: [KavitaSeries]] = [:]
+    /// Kavita's Want to Read (the series cached on the device).
+    var wantToRead: [KavitaSeries] = []
     var today: TodaySummary?
     var error: String?
     var isRefreshing = false
@@ -61,6 +63,13 @@ final class LibraryModel {
             }
         }
         labelContinueReading(environment, refresh: true)
+        try? await environment.refreshWantToRead()
+        try? await environment.refreshCollections()
+        try? await environment.refreshReadingLists()
+        // Its series are cached by the refresh, just after the list changed: show them now.
+        if let account = environment.readerMarkAccount(), let ids = try? environment.wantToRead.wanted(account: account) {
+            wantToRead = ids.compactMap { try? environment.kavitaLibrary.cachedSeries(id: $0) }
+        }
         environment.bookCounter.countNewVolumes()
     }
 
@@ -109,6 +118,10 @@ final class LibraryModel {
 struct LibraryView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.scenePhase) private var scenePhase
+    /// At the accessibility text sizes a shelf's name goes above See All, not beside it.
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// When coming back to the foreground last reloaded the home screen.
+    @State private var lastActiveLoad = Date()
     @State private var model = LibraryModel()
     @State private var path = NavigationPath()
 
@@ -119,11 +132,16 @@ struct LibraryView: View {
                     // The server details are still being read: not "no server" yet.
                     ProgressView()
                 } else if environment.serverAccounts[.kavita] == nil {
-                    ContentUnavailableView(
-                        "Connect Kavita",
-                        systemImage: "books.vertical",
-                        description: Text("Add your Kavita server in Settings to browse your manga and books.")
-                    )
+                    ContentUnavailableView {
+                        Label("Connect Kavita", systemImage: "books.vertical")
+                    } description: {
+                        Text("Add your Kavita server in Settings to browse your manga and books.")
+                    } actions: {
+                        Button("Open Settings") { environment.selectedTab = .settings }
+                            .buttonStyle(.borderedProminent)
+                            .filledButtonTint()
+                            .accessibilityIdentifier("library.openSettings")
+                    }
                 } else {
                     content
                 }
@@ -137,6 +155,8 @@ struct LibraryView: View {
                 path = NavigationPath([library])
             }
             .navigationDestination(for: KavitaSeries.self) { SeriesDetailView(series: $0) }
+            .navigationDestination(for: CollectionRow.self) { CollectionView(collection: $0) }
+            .navigationDestination(for: ReadingListRow.self) { ReadingListView(list: $0) }
             .toolbar {
                 if model.isRefreshing {
                     ToolbarItem { ProgressView() }
@@ -152,10 +172,39 @@ struct LibraryView: View {
             }
         }
         .task(id: environment.serverAccounts[.kavita]?.baseURL) { await model.load(environment) }
+        // Want to Read follows the device's copy: Kavita's list, and toggles not sent yet.
+        .task(id: environment.readerMarkAccount()) {
+            guard let account = environment.readerMarkAccount() else { return }
+            do {
+                for try await ids in environment.wantToRead.observe(account: account) {
+                    model.wantToRead = ids.compactMap { try? environment.kavitaLibrary.cachedSeries(id: $0) }
+                }
+            } catch {}
+        }
         .onAppear { model.loadToday(environment) }
-        .onReceive(NotificationCenter.default.publisher(for: .readerDidClose)) { _ in model.loadToday(environment) }
+        .onReceive(NotificationCenter.default.publisher(for: .refreshRequested)) { _ in Task { await model.load(environment) } }
+        // The network came back: no longer "Offline: showing downloaded series" until a manual refresh.
+        .onChange(of: environment.common.reachability.isOnline) { _, online in
+            if online { Task { await model.load(environment) } }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .readerDidClose)) { _ in
+            model.loadToday(environment)
+            // Continue Reading and the shelves' progress too, once the outbox has sent what was read
+            // (the series page waits the same second).
+            Task {
+                try? await Task.sleep(for: .seconds(1))
+                await model.load(environment)
+            }
+        }
         // Back from the background (another day, or reading elsewhere).
-        .onChange(of: scenePhase) { _, phase in if phase == .active { model.loadToday(environment) } }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            model.loadToday(environment)
+            // Not on every glance away and back (the Mac's window loses focus often).
+            guard Date().timeIntervalSince(lastActiveLoad) > 120 else { return }
+            lastActiveLoad = Date()
+            Task { await model.load(environment) }
+        }
     }
 
     private var content: some View {
@@ -198,7 +247,34 @@ struct LibraryView: View {
                         .shelfScrollClip()
                     }
                 }
+                // Like Continue Reading: not series of libraries hidden in Settings, offline only
+                // the downloaded ones, and no shelf when there's nothing in it.
+                let readable = Set(model.libraries.map(\.id))
+                let wantToRead = model.wantToRead.filter {
+                    readable.contains($0.libraryId) && !environment.hiddenLibraries.contains($0.libraryId) && (!offline || downloaded.contains($0.id))
+                }
+                if !wantToRead.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Want to Read").font(.title2.bold())
+                        ScrollView(.horizontal) {
+                            LazyHStack(alignment: .top, spacing: 12) {
+                                ForEach(wantToRead) { item in
+                                    NavigationLink(value: item) {
+                                        SeriesTile(series: item).frame(width: 110)
+                                    }
+                                    .accessibilityIdentifier("wantToRead.series.\(item.name)")
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                        .scrollIndicators(.hidden)
+                        .shelfScrollClip()
+                    }
+                    .accessibilityIdentifier("home.wantToRead")
+                }
                 shelves(offline: offline, downloaded: downloaded)
+                ReadingListsSection()
+                CollectionsSection()
             }
             .padding()
         }
@@ -222,13 +298,16 @@ struct LibraryView: View {
         ForEach(libraries) { library in
             let series = (model.shelves[library.id] ?? []).filter { !offline || downloaded.contains($0.id) }
             VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .firstTextBaseline) {
+                let header = dynamicTypeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4)) : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
+                header {
                     NavigationLink(value: library) {
                         Text(library.name).font(.title2.bold()).foregroundStyle(.primary)
                     }
                     .buttonStyle(.plain)
-                    Spacer()
+                    if !dynamicTypeSize.isAccessibilitySize { Spacer() }
                     NavigationLink(value: library) { Text("See All") }
+                        .textButtonTint()
                         .accessibilityIdentifier("library.seeAll.\(library.name)")
                 }
                 if !series.isEmpty {

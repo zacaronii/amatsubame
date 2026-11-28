@@ -8,9 +8,14 @@ guaranteed support or response time.
 
 ## Reporting a bug
 
-Open an issue at
-[github.com/zacaronii/amatsubame/issues](https://github.com/zacaronii/amatsubame/issues). Search the
-open issues first, in case someone has already reported it.
+The quickest way is **Settings → About → Report a Bug** in the app: it opens the form with the app,
+its version and your device already filled in. Or open an issue at
+[github.com/zacaronii/amatsubame/issues](https://github.com/zacaronii/amatsubame/issues) and pick
+**Bug report**: its form asks for everything below. Search the open issues first, in case someone has
+already reported it.
+
+Testing a TestFlight beta? You can also take a screenshot in the app and send it with TestFlight's
+**Share Beta Feedback**, or send feedback from the TestFlight app. It reaches the developer privately.
 
 A good report includes:
 
@@ -29,7 +34,7 @@ it:
 1. Open **Settings ▸ Advanced**.
 2. Under **Troubleshooting**, tap **Export Logs** and save or share the file.
 3. **Read it before you attach it.** Tokens, keys and passwords are blanked out, but the log can still
-   show your servers' addresses and the names of things in your libraries. Remove anything you'd rather
+   show your servers' addresses and the titles you've read, watched or listened to. Remove anything you'd rather
    not post publicly.
 
 GitHub issues are public, so the same goes for screenshots: crop or cover anything private, such as
@@ -37,9 +42,15 @@ server addresses or titles.
 
 For Kaku, the output of `docker compose logs kaku` (checked the same way) usually shows what went wrong.
 
+### The demo servers
+
+If you're trying the apps with **Try It with the Demo Servers**, say so in your report instead of
+giving server versions. The demo resets every night, so it may be unavailable for a moment, and other
+people use the same samples at the same time.
+
 ## Questions and feature requests
 
-Questions and ideas are welcome as issues too. For a feature request, say what you'd like to do and
+Questions and ideas are welcome as issues too (**Settings → About → Suggest an Idea** starts one). For a feature request, say what you'd like to do and
 why, rather than only how; it helps to know what you're reading, watching or listening to when it
 would help (no titles needed).
 

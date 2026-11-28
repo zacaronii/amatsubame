@@ -118,6 +118,32 @@ struct AnimatedClipContext: MiningContext {
         #expect(card.content[.shortDefinition] == "certain death")
     }
 
+    /// One sense in the first dictionary: the next dictionaries' senses follow it, numbered, up to
+    /// three; glosses it already has ("bath" after "a bath") and senses left empty are skipped.
+    @Test func aSingleSenseIsFollowedByTheNextDictionariesSenses() {
+        let result = TermLookupResult(
+            matched: "風呂", deinflected: "風呂", expression: "風呂", reading: "ふろ", rules: [],
+            glossaries: [
+                Glossary(dictionary: "JMdict", json: #"["a bath"]"#, definitionTags: ["n"]),
+                Glossary(dictionary: "Other", json: #"["the bath."]"#),
+                Glossary(dictionary: "Other", json: #"["bath","bathing","bathtub","bathroom"]"#),
+                Glossary(dictionary: "Other", json: #"["bathhouse","public bath"]"#),
+                Glossary(dictionary: "Third", json: #"["unused"]"#),
+            ]
+        )
+        let card = MiningService.card(for: result, sentence: nil, miscInfo: nil, settings: .default, allowDuplicate: false)
+        #expect(card.content[.shortDefinition] == "1. a bath<br>2. bathing; bathtub; bathroom<br>3. bathhouse; public bath")
+        #expect(!(card.content[.mainDefinition] ?? "").contains("Other"), "the main definition stays the first dictionary")
+    }
+
+    /// Several senses in the first dictionary: only its own, as before.
+    @Test func severalSensesInTheFirstDictionaryStayItsOwn() {
+        var result = Self.hisshi
+        result.glossaries.append(Glossary(dictionary: "Other", json: #"["frenzied"]"#))
+        let card = MiningService.card(for: result, sentence: nil, miscInfo: nil, settings: .default, allowDuplicate: false)
+        #expect(card.content[.shortDefinition] == "1. desperate; frantic<br>2. certain death")
+    }
+
     /// JMdict's forms entry (its spellings) isn't a meaning.
     @Test func shortDefinitionSkipsTheFormsEntry() {
         var result = Self.hisshi

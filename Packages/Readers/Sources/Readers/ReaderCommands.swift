@@ -29,4 +29,6 @@ public struct ReaderPaging {
 
 extension FocusedValues {
     @Entry public var readerPaging: ReaderPaging?
+    /// Opens Search in the book that's open (the Reader menu gives it ⌘F then).
+    @Entry public var bookSearch: (() -> Void)?
 }

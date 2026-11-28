@@ -9,10 +9,10 @@ import tempfile
 import time
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel
 
-from . import VERSION, model_key
+from . import VERSION, is_current, model_key
 from .db import NOW, PRIORITY_NAMES
 from .jellyfin import NoJapaneseAudio, kaku_id
 from .transcript import srt
@@ -22,6 +22,8 @@ class JobRequest(BaseModel):
     itemId: str
     # Empty (or left out) for a book.
     episodeId: str = ''
+    # Transcribe it again even though its transcript is current (1.6).
+    force: bool = False
 
 
 class LibrariesRequest(BaseModel):
@@ -77,6 +79,14 @@ def create_app(service):
         job = db.job(item_id, episode_id)
         return job_view(job, db.position(item_id, episode_id))
 
+    @app.api_route('/', methods=['GET', 'HEAD'], include_in_schema=False)
+    def root(request: Request):
+        """A browser opening the bare address goes to the web page (1.12; relative, so it works under
+        any proxy path). Anything else, and with no page set up, answers 404 as before."""
+        if request.method == 'GET' and service.config.ui_secret and 'text/html' in request.headers.get('accept', ''):
+            return RedirectResponse('ui', status_code=302)
+        raise HTTPException(404, 'Not Found')
+
     @app.get('/health')
     def health():
         from .pipeline import gpu_memory
@@ -84,9 +94,12 @@ def create_app(service):
         last_poll = db.meta('last_poll')
         return {
             'version': VERSION, 'model': service.transcriber.name, 'modelLoaded': service.transcriber.loaded,
+            'modelError': service.worker.model_error,
             'gpu': {'usedMB': memory[0], 'totalMB': memory[1]} if memory else None,
             'jobs': db.counts(), 'lastPoll': float(last_poll) if last_poll else None,
             'lastPollError': db.meta('last_poll_error') or None,
+            # Stopped after the current job on the web page (1.9): nothing new starts until resumed.
+            'paused': db.paused,
             'jellyfin': service.jellyfin is not None,
         }
 
@@ -102,7 +115,8 @@ def create_app(service):
         if saved:
             path = saved['path'] if format == 'json' else saved['path'][:-len('json')] + 'vtt'
             return FileResponse(path, media_type='application/json' if format == 'json' else 'text/vtt; charset=utf-8')
-        if job:
+        # A job cancelled on the web page counts as none: asking for it (POST /jobs) queues it again.
+        if job and job['state'] != 'cancelled':
             return JSONResponse(waiting(item_id, episode_id), status_code=202)
         raise HTTPException(404, f'Kaku has no transcript or job for this {"book" if not episode_id else "episode"}. POST /jobs to ask for one.')
 
@@ -128,9 +142,11 @@ def create_app(service):
         episode = service.audiobookshelf.episode(request.itemId, request.episodeId)
         if episode is None:
             raise HTTPException(404, f'Audiobookshelf has no such {"book" if not request.episodeId else "episode"}.')
-        if saved and saved['fingerprint'] == episode.fingerprint and saved['model'] == model_key(service.transcriber.name):
+        current = saved and is_current(saved['model'], saved['fingerprint'], episode.fingerprint)
+        if current and not request.force:
             return JSONResponse({'itemId': request.itemId, 'episodeId': request.episodeId, 'state': 'done'})
-        db.offer(episode, NOW, model_key(service.transcriber.name))
+        # Forced: the old transcript keeps serving until the new one replaces it.
+        db.offer(episode, NOW, model_key(service.transcriber.name), force=request.force)
         service.worker.wake.set()
         return JSONResponse(waiting(request.itemId, request.episodeId), status_code=202)
 
@@ -138,19 +154,35 @@ def create_app(service):
     def jobs(limit: int = 50):
         queue = db.queue()
         running = next((job for job in queue if job['state'] == 'running'), None)
+        queued = [job for job in queue if job['state'] == 'queued']
+        average = db.average_seconds()
+        # A rough time to the end of the queue: the recent average per job (1.5).
+        left = len(queued) + (1 - running['progress'] if running else 0)
         return {
             'running': job_view(running),
-            'queued': [job_view(job, index) for index, job in enumerate(queue) if job['state'] == 'queued'][:limit],
+            'queued': [job_view(job, index) for index, job in enumerate(queued)][:limit],
             'counts': db.counts(),
             'failed': [job_view(job) for job in db.failed()],
+            'averageSeconds': average,
+            'estimatedSeconds': average * left if average is not None and left else None,
         }
+
+    def library_view(library_id, stats):
+        entry = stats.get(library_id, {'counts': {}, 'last': None})
+        counts = {state: entry['counts'].get(state, 0) for state in ('done', 'queued', 'running', 'failed')}
+        return {'counts': counts, 'lastTranscribed': entry['last']}
 
     @app.get('/libraries', dependencies=[Depends(authorized)])
     def libraries():
         if not db.libraries():
             db.sync_libraries(service.audiobookshelf.libraries())
-        return {'libraries': [{'id': l['id'], 'name': l['name'], 'mediaType': l['media_type'], 'enabled': l['enabled']}
-                              for l in db.libraries()]}
+        stats = db.library_counts()
+        return {
+            'libraries': [{'id': l['id'], 'name': l['name'], 'mediaType': l['media_type'], 'enabled': l['enabled'],
+                           **library_view(l['id'], stats)} for l in db.libraries()],
+            # Jellyfin episodes asked for by Miru (1.4), counted the same way; null when it isn't set up.
+            'jellyfin': library_view('jellyfin', stats) if service.jellyfin is not None else None,
+        }
 
     @app.put('/libraries', dependencies=[Depends(authorized)])
     def set_libraries(request: LibrariesRequest):
@@ -214,7 +246,7 @@ def create_app(service):
         if db.transcript(item_id, ''):
             return {'itemId': jellyfin_id, 'state': 'done'}
         job = db.job(item_id, '')
-        if job is None:
+        if job is None or job['state'] == 'cancelled':
             return {'itemId': jellyfin_id, 'state': 'missing'}
         position = db.position(item_id, '')
         return {'itemId': jellyfin_id, 'state': job['state'], 'progress': job['progress'], 'error': job['error'],
@@ -238,7 +270,7 @@ def create_app(service):
                 answers.append({'itemId': jellyfin_id, 'state': 'unavailable', 'error': 'Jellyfin has no such episode.'})
                 continue
             saved = db.transcript(episode.item_id, '')
-            if not (saved and saved['fingerprint'] == episode.fingerprint and saved['model'] == model):
+            if not (saved and is_current(saved['model'], saved['fingerprint'], episode.fingerprint)):
                 db.offer(episode, NOW, model, now=now + index / 1000)
             answers.append(jellyfin_state(jellyfin_id))
         service.worker.wake.set()
@@ -262,8 +294,10 @@ def create_app(service):
                     return Response(srt(json.load(file)), media_type='application/x-subrip; charset=utf-8')
             path = saved['path'] if format == 'json' else saved['path'][:-len('json')] + 'vtt'
             return FileResponse(path, media_type='application/json' if format == 'json' else 'text/vtt; charset=utf-8')
-        if db.job(kaku_id(jellyfin_id), ''):
+        if jellyfin_state(jellyfin_id)['state'] != 'missing':
             return JSONResponse(jellyfin_state(jellyfin_id), status_code=202)
         raise HTTPException(404, 'Kaku has no transcript or job for this episode. POST /jellyfin/jobs to ask for one.')
 
+    from .ui import add_ui
+    add_ui(app, service)
     return app

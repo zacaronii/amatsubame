@@ -5,6 +5,7 @@ import Core
 import Dictionary
 import Foundation
 import KavitaKit
+import Names
 import Lookup
 import OCR
 import Observation
@@ -19,11 +20,21 @@ final class AppEnvironment {
     let pageCache: PageCacheStore
     let pages: MangaPageRepository
     let kavitaLibrary: KavitaLibraryRepository
+    /// Bookmarks and highlights (kept on Kavita).
+    let readerMarks: ReaderMarkStore
+    /// Kavita's Want to Read, per account.
+    let wantToRead: WantToReadStore
+    /// Kavita's collections, per account.
+    let collections: CollectionStore
+    /// Kavita's reading lists, per account.
+    let readingLists: ReadingListStore
     let readingProgress: ReadingProgressStore
     let readerSettings: MangaReaderSettingsStore
     let ocrModels: OCRModelStore
     let ocr: OCRService
     let books: BookRepository
+    /// Fonts the reader added for books (this device only).
+    let bookFonts: BookFontLibrary
     let bookSettings: BookReaderSettingsStore
     let libraryVisibility: LibraryVisibilityStore
     let downloader: VolumeDownloader
@@ -31,10 +42,22 @@ final class AppEnvironment {
     /// Read-along: Audiobookshelf sign-in (refreshed once for every client) and the pairs.
     let audiobookshelfTokens: AudiobookshelfTokens
     let readAlongPairs: ReadAlongStore
+    /// Read-along audiobook downloads (one per book), kept by the app across screens.
+    @ObservationIgnored private(set) lazy var readAlongDownloads = ReadAlongDownloads(folder: ReadAlongAudio.folder) { [weak self] itemId in
+        await self?.readAlongAudioRequest(itemId: itemId)
+    }
+
+    /// The request for a paired audiobook's single audio file, and its extension.
+    private func readAlongAudioRequest(itemId: String) async -> (request: URLRequest, fileExtension: String)? {
+        guard let client = audiobookshelfClient(), let item = try? await client.item(id: itemId),
+              let whole = AudiobookshelfEpisode.wholeBook(item), let file = whole.audioFile,
+              let request = try? await client.audioRequest(itemId: itemId, ino: file.ino) else { return nil }
+        return (request, file.fileExtension)
+    }
     /// Each EPUB volume's characters, for the library's progress (`BookLengthCounter`).
     let bookLengths: BookLengths
     @ObservationIgnored private var counter: BookLengthCounter?
-    /// Counts Japanese books' characters (Settings ▸ Character Counts).
+    /// Counts Japanese books' characters (Settings ▸ Advanced ▸ Character Counts).
     var bookCounter: BookLengthCounter {
         if let counter { return counter }
         let made = BookLengthCounter(environment: self)
@@ -43,6 +66,8 @@ final class AppEnvironment {
     }
     /// Where the read-along audio was, for resuming offline.
     let listenProgress: WatchProgressStore
+    /// Read-along listening reported to Audiobookshelf as sessions (as "Yomu").
+    let sessions: ListeningSessionReporter
     /// Libraries turned off in Settings → Libraries.
     private(set) var hiddenLibraries: Set<Int> = []
     /// The last Kavita refresh couldn't reach the server (the device may still be online).
@@ -93,30 +118,71 @@ final class AppEnvironment {
     var startupError: String? { common.startupError }
     func syncNow(retryWaiting: Bool = false) { common.syncNow(retryWaiting: retryWaiting) }
 
+    /// Marks volumes or chapters read or unread (the series page's menus): this device's place
+    /// at once, then Kavita through the outbox, the same way reading reports it (all pages
+    /// read, or none).
+    /// Mark as Read / Unread: on the device at once, to Kavita through its mark endpoints (not
+    /// counted as reading anywhere). `wholeSeries`: every chapter given, sent as one series mark.
+    func setRead(_ chapters: [KavitaChapter], series: KavitaSeries, _ read: Bool, wholeSeries: Bool = false) {
+        let marking = KavitaReadMarking(database: database, outbox: outbox)
+        let marked = chapters.map { KavitaReadMarking.Chapter(chapterId: $0.id, volumeId: $0.volumeId, pages: $0.pages) }
+        if wholeSeries {
+            try? marking.markSeries(read, marked, seriesId: series.id, libraryId: series.libraryId, account: readerMarkAccount())
+        } else {
+            try? marking.mark(read, marked, seriesId: series.id, libraryId: series.libraryId, account: readerMarkAccount())
+        }
+        syncNow()
+    }
+
     init(
         database: AppDatabase, secrets: any SecretStore, mediaDirectory: URL, cacheDirectory: URL,
         dictionaryDirectory: URL, ocrModelDirectory: URL, startupError: String? = nil,
-        sendsProgress: Bool = true, sendsCards: Bool = true, sharedSetup: SharedSetup? = nil
+        sendsProgress: Bool = true, sendsMarks: Bool? = nil, sendsCards: Bool = true, sharedSetup: SharedSetup? = nil
     ) {
+        let marks = ReaderMarkStore(database: database)
+        let wants = WantToReadStore(database: database)
+        let collectionStore = CollectionStore(database: database)
+        let readingListStore = ReadingListStore(database: database)
         let http = HTTPClient()
         let tokens = AudiobookshelfTokens(secrets: secrets)
         audiobookshelfTokens = tokens
-        common = CommonEnvironment(
+        let common = CommonEnvironment(
             database: database, secrets: secrets, mediaDirectory: mediaDirectory, dictionaryDirectory: dictionaryDirectory,
             http: http, startupError: startupError, sendsCards: sendsCards, sharedSetup: sharedSetup,
             appHandlers: { context in
-                guard sendsProgress else { return [] }
+                let makeKavita = Self.kavitaClientFactory(accounts: context.accounts, secrets: context.secrets, http: context.http)
+                // Bookmarks and highlights live on Kavita; UI tests can send them without progress.
+                let signedIn: @Sendable () -> String? = { [accounts = context.accounts] in
+                    (try? accounts.account(.kavita)).flatMap { $0 }.map(ReaderMarkStore.accountKey)
+                }
+                let markHandlers: [any OutboxHandler] = (sendsMarks ?? sendsProgress) ? [
+                    KavitaReaderMarkHandler(store: marks, account: signedIn, makeClient: makeKavita),
+                    KavitaWantToReadHandler(store: wants, features: marks, account: signedIn, makeClient: makeKavita),
+                    KavitaCollectionHandler(store: collectionStore, features: marks, outbox: OutboxStore(database: database), account: signedIn, makeClient: makeKavita),
+                    KavitaReadingListHandler(store: readingListStore, features: marks, outbox: OutboxStore(database: database), account: signedIn, makeClient: makeKavita),
+                ] + (sendsProgress ? [] : [KavitaProgressHandler(account: signedIn, sendsPageTurns: false, progress: ReadingProgressStore(database: database),
+                                        outbox: OutboxStore(database: database), makeClient: makeKavita)]) : []
+                guard sendsProgress else { return markHandlers }
+                let audiobookshelf = AudioServers.audiobookshelfClientFactory(accounts: context.accounts, tokens: tokens, http: context.http)
                 return [
-                    KavitaProgressHandler(makeClient: Self.kavitaClientFactory(accounts: context.accounts, secrets: context.secrets, http: context.http)),
-                    // Read-along listening moves the audiobook's place too.
-                    AudiobookshelfProgressHandler(makeClient: AudioServers.audiobookshelfClientFactory(
-                        accounts: context.accounts, tokens: tokens, http: context.http)),
-                ]
+                    KavitaProgressHandler(account: signedIn, progress: ReadingProgressStore(database: database), outbox: OutboxStore(database: database),
+                                          makeClient: Self.kavitaClientFactory(accounts: context.accounts, secrets: context.secrets, http: context.http)),
+                    // Read-along listening moves the audiobook's place too, and counts as listening.
+                    AudiobookshelfProgressHandler(makeClient: audiobookshelf),
+                    AudiobookshelfSessionHandler(makeClient: audiobookshelf),
+                ] + markHandlers
             }
         )
+        self.common = common
+        sessions = ListeningSessionReporter(outbox: common.outbox, device: .current(clientName: "Yomu"),
+                                            syncNow: { common.syncNow() })
         // Yomu green (its AccentColor), with dark text on filled buttons.
         common.lookup.accent = ("#3FC98F", "#04261A")
         kavitaLibrary = KavitaLibraryRepository(database: database)
+        readerMarks = marks
+        wantToRead = wants
+        collections = collectionStore
+        readingLists = readingListStore
         readAlongPairs = ReadAlongStore(database: database)
         bookLengths = BookLengths(database: database)
         listenProgress = WatchProgressStore(database: database)
@@ -133,6 +199,7 @@ final class AppEnvironment {
             return try await client.downloadChapter(chapterId: chapterId)
         }
         bookSettings = BookReaderSettingsStore(database: database)
+        bookFonts = BookFontLibrary(folder: cacheDirectory.appending(path: "Fonts"), store: BookFontStore(database: database))
         libraryVisibility = LibraryVisibilityStore(database: database)
         downloader = VolumeDownloader(store: common.downloads, database: database, pages: pages, pageCache: pageCache,
                                       books: books, ocr: ocr, reachability: common.reachability)
@@ -220,11 +287,22 @@ final class AppEnvironment {
             dictionaryDirectory: temp.appending(path: "Dictionaries"),
             // OCR models are large: tests point at an installed copy rather than downloading.
             ocrModelDirectory: env["UITEST_OCR_MODELS"].map { URL(filePath: $0) } ?? temp.appending(path: "OCRModels"),
-            sendsProgress: false, sendsCards: sendsCards
+            // Bookmark tests send to the test account (and remove what they made).
+            sendsProgress: false, sendsMarks: env["UITEST_SENDS_MARKS"] != nil, sendsCards: sendsCards
         )
         if let kavitaURL {
             try? environment.accounts.save(ServerAccount(kind: .kavita, baseURL: kavitaURL, serverName: "Kavita"))
         }
+        // UITEST_READER_TAPS="inverted", "off" or "doubletap": the manga reader's tap settings.
+        if let taps = env["UITEST_READER_TAPS"] {
+            var settings = MangaReaderSettings.default
+            if let zones = ReaderTapZones(rawValue: taps) { settings.tapZones = zones }
+            settings.doubleTapZooms = taps == "doubletap"
+            try? environment.readerSettings.saveAsDefault(settings)
+        }
+        // UITEST_IMPORT_FONT=<path>: a font added as if from Files (the file importer can't be
+        // driven in UI tests).
+        if let font = env["UITEST_IMPORT_FONT"] { _ = try? environment.bookFonts.add(URL(filePath: font)) }
         // Read-along tests: Audiobookshelf (an API key) and Kaku. Only read from: progress isn't sent.
         if let url = env["UITEST_ABS_URL"].flatMap({ try? ServerURL.parse($0) }), let key = env["UITEST_ABS_KEY"] {
             try? environment.secrets.setSecret(key, for: .audiobookshelfToken)
@@ -240,7 +318,11 @@ final class AppEnvironment {
             settings.deck = ankiDeck
             settings.tags = ["amatsubame", "amatsubame-test"]
             try? environment.common.ankiSettings.save(settings)
+        } else if let ankiURL {
+            // Settings ▸ Anki's form only: a server saved, nothing sent (no scratch deck).
+            try? environment.accounts.save(ServerAccount(kind: .anki, baseURL: ankiURL, serverName: "AnkiConnect"))
         }
+        if let key = env["UITEST_ANKI_KEY"] { try? environment.secrets.setSecret(key, for: .ankiAPIKey) }
         environment.common.pendingDictionaryImports = dictionaryZips
         if env["UITEST_STATS"] != nil { seedStats(environment.common.activity, kind: .reading) }
         // In-memory UI tests start set up.
@@ -282,6 +364,8 @@ final class AppEnvironment {
     func start() async {
         guard !started else { return }
         started = true
+        // A book left open when Yomu last stopped takes its characters out of the names.
+        await self.common.characterNames.launched(app: "yomu")
         async let common: Void = common.start()
         async let hidden: Void = observeHiddenLibraries()
         async let downloads: Void = downloader.start()
@@ -369,17 +453,155 @@ final class AppEnvironment {
 
     func kakuClient() -> KakuClient? { AudioServers.kakuClient(common) }
 
-    func makeReader(_ chapter: ReaderChapter, next: ReaderChapter?) -> MangaReaderModel {
+    func makeReader(_ chapter: ReaderChapter, next: ReaderChapter?, startPage: Int? = nil) -> MangaReaderModel {
         let model = MangaReaderModel(
             chapter: chapter, nextChapter: next, pages: pages, settingsStore: readerSettings,
             progressStore: readingProgress, outbox: outbox, ocr: ocr, lookup: lookup,
             syncNow: { [weak self] in self?.syncNow() }
         )
         model.activity = common.activity
+        model.goals = common.goals
+        model.opensAt = startPage
+        #if DEBUG
+        // UI tests: the manga reader opens on its last page (to reach the end of a volume).
+        if startPage == nil, ProcessInfo.processInfo.environment["UITEST_READER_OPENS_AT_END"] != nil { model.opensAt = max(chapter.pages - 1, 0) }
+        #endif
+        if let account = readerMarkAccount() {
+            model.bookmarks = PageBookmarks(chapter: chapter, account: account, store: readerMarks, outbox: outbox,
+                                            syncNow: { [weak self] in self?.syncNow() },
+                                            refresh: { [weak self] in
+                                                try? await self?.refreshMarks(seriesId: chapter.seriesId, libraryId: chapter.libraryId, isBook: false)
+                                            })
+        }
         return model
     }
 
-    func makeBookReader(_ chapter: ReaderChapter, next: ReaderChapter?) -> BookReaderModel {
+    // MARK: Bookmarks and highlights
+
+    /// Whose marks are shown: the Kavita account signed in.
+    /// A Kavita series for the character names dictionary: its AniList or MAL id when Kavita
+    /// has one, its titles, and whether it's a light novel or a manga.
+    func namedSeries(_ series: KavitaSeries) -> NamedSeries {
+        let server = (try? common.accounts.account(.kavita))??.baseURL
+        return NamedSeries(key: NamedSeries.key(service: "kavita", server: server, id: String(series.id)), title: series.name,
+                           otherTitles: [series.localizedName].compactMap(\.self).filter { !$0.isEmpty }, type: .manga,
+                           kind: series.isEpub ? .novel : .manga, aniListId: series.aniListId, malId: series.malId)
+    }
+
+    func readerMarkAccount() -> String? {
+        (try? accounts.account(.kavita)).flatMap { $0 }.map(ReaderMarkStore.accountKey)
+    }
+
+    /// Brings a series' bookmarks and highlights up to date with Kavita. `chapters`: the book's
+    /// volumes whose bookmarks to list.
+    /// Brings Want to Read up to date with Kavita, and keeps its series for the shelf offline.
+    func refreshWantToRead() async throws {
+        guard let account = readerMarkAccount(), let client = kavitaClient() else { return }
+        let listed = try await KavitaWantToReadSync(client: client, store: wantToRead, features: readerMarks, account: account).refresh()
+        if let listed { try? kavitaLibrary.remember(listed) }
+    }
+
+    /// Whether Kavita has the series in Want to Read (the series page asks when it opens).
+    func checkWantToRead(seriesId: Int) async throws {
+        guard let account = readerMarkAccount(), let client = kavitaClient(),
+              (try? readerMarks.isAvailable(.wantToRead, account: account)) ?? true else { return }
+        try await KavitaWantToReadSync(client: client, store: wantToRead, features: readerMarks, account: account).check(seriesId: seriesId)
+    }
+
+    // MARK: Collections
+
+    private func collectionSync() -> KavitaCollectionSync? {
+        guard let account = readerMarkAccount(), let client = kavitaClient() else { return nil }
+        let username = (try? accounts.account(.kavita)).flatMap { $0 }?.username
+        return KavitaCollectionSync(client: client, store: collections, features: readerMarks, account: account, username: username)
+    }
+
+    /// The collection list (one request).
+    func refreshCollections() async throws {
+        try await collectionSync()?.refresh()
+    }
+
+    /// A collection's series, cached for its grid.
+    func refreshSeries(of collection: CollectionRow) async throws {
+        guard let sync = collectionSync() else { return }
+        // Cached before the ids are merged: the grid follows the ids and reads the cache.
+        let library = kavitaLibrary
+        try await sync.series(of: collection) { try? library.remember($0) }
+    }
+
+    /// The own collections a series is in (the Collections sheet asks when it opens).
+    func refreshMembership(of seriesId: Int) async throws {
+        try await collectionSync()?.membership(of: seriesId)
+    }
+
+    // MARK: Reading lists
+
+    private func readingListSync() -> KavitaReadingListSync? {
+        guard let account = readerMarkAccount(), let client = kavitaClient() else { return nil }
+        let username = (try? accounts.account(.kavita)).flatMap { $0 }?.username
+        return KavitaReadingListSync(client: client, store: readingLists, features: readerMarks, account: account, username: username)
+    }
+
+    func refreshReadingLists() async throws {
+        try await readingListSync()?.refresh()
+    }
+
+    /// A list's items (when it's opened). False when Kavita no longer has it.
+    @discardableResult
+    func refreshItems(of list: ReadingListRow) async throws -> Bool {
+        try await readingListSync()?.items(of: list) ?? true
+    }
+
+    /// Why Yomu can never open a reading list's item here (nil: it can), as a `ReadingListSkip`;
+    /// the libraries are read once per offer.
+    func readingListSkipper() -> (ReadingListItemRow) -> String? {
+        let hidden = hiddenLibraries
+        let known = Set(((try? kavitaLibrary.cachedLibraries()) ?? []).map(\.id))
+        return { item in
+            if item.format == 4 { return ReadingListSkip.pdf }
+            if item.format == 0 { return ReadingListSkip.images }
+            if hidden.contains(item.libraryId) { return ReadingListSkip.hiddenLibrary }
+            if !known.isEmpty, !known.contains(item.libraryId) { return ReadingListSkip.unknownLibrary }
+            return nil
+        }
+    }
+
+    /// A reader session for a chapter of any series (a reading list's item): from the cache, or
+    /// fetched first. Throws why it can't open.
+    func session(chapterId: Int, seriesId: Int) async throws -> ReaderSession {
+        if let cached = session(chapterId: chapterId) { return cached }
+        guard let client = kavitaClient() else { throw ReaderOpenError.message("Kavita isn't set up.") }
+        do {
+            if try kavitaLibrary.cachedSeries(id: seriesId) == nil, try await !kavitaLibrary.rememberSeries(id: seriesId, using: client) {
+                throw ReaderOpenError.message("Its library isn't on this device yet: pull to refresh the Library, then try again.")
+            }
+            try await kavitaLibrary.refreshVolumes(seriesId: seriesId, using: client)
+        } catch let error as ReaderOpenError {
+            throw error
+        } catch {
+            throw ReaderOpenError.message("Couldn't reach Kavita, and it isn't on this device: \(error.localizedDescription)")
+        }
+        guard let session = session(chapterId: chapterId) else {
+            throw ReaderOpenError.message("Kavita no longer has it.")
+        }
+        return session
+    }
+
+    /// Adds the series to Want to Read or removes it (sent to Kavita by the outbox).
+    func setWantToRead(_ wanted: Bool, seriesId: Int) {
+        guard let account = readerMarkAccount() else { return }
+        try? wantToRead.set(wanted, seriesId: seriesId, account: account, outbox: outbox)
+        syncNow()
+    }
+
+    func refreshMarks(seriesId: Int, libraryId: Int, isBook: Bool, chapters: [(chapterId: Int, volumeId: Int)] = []) async throws {
+        guard let account = readerMarkAccount(), let client = kavitaClient() else { return }
+        try await KavitaReaderMarkSync(client: client, store: readerMarks, outbox: outbox, account: account)
+            .refresh(seriesId: seriesId, libraryId: libraryId, isBook: isBook, chapters: chapters)
+        syncNow()
+    }
+
+    func makeBookReader(_ chapter: ReaderChapter, next: ReaderChapter?, start: (page: Int, xpath: String?)? = nil) -> BookReaderModel {
         let makeKavita = Self.kavitaClientFactory(accounts: accounts, secrets: secrets, http: http)
         let http = http
         let model = BookReaderModel(
@@ -396,9 +618,22 @@ final class AppEnvironment {
             syncNow: { [weak self] in self?.syncNow() }
         )
         model.activity = common.activity
+        model.goals = common.goals
         model.lengths = bookLengths
+        model.opensAt = start
+        model.fonts = bookFonts
+        if let account = readerMarkAccount() {
+            model.marks = BookMarks(chapter: chapter, account: account, store: readerMarks, outbox: outbox,
+                                    syncNow: { [weak self] in self?.syncNow() },
+                                    refresh: { [weak self] in
+                                        try? await self?.refreshMarks(seriesId: chapter.seriesId, libraryId: chapter.libraryId, isBook: true,
+                                                                      chapters: [(chapterId: chapter.chapterId, volumeId: chapter.volumeId)])
+                                    })
+        }
         #if DEBUG
         model.auditsPages = ProcessInfo.processInfo.environment["UITEST_BOOK_AUDIT"] != nil
+        // UI tests: the book opens in its last section (to reach the end of a volume).
+        if start == nil, ProcessInfo.processInfo.environment["UITEST_READER_OPENS_AT_END"] != nil { model.opensAt = (max(chapter.pages - 1, 0), nil) }
         #endif
         // A paired, prepared book reads along with its audiobook.
         if let pair = try? readAlongPairs.pair(chapterId: chapter.chapterId), pair.alignmentVersion == ReadAlongCues.version,
@@ -446,5 +681,51 @@ extension AppEnvironment {
               let chapter = volumes.lazy.flatMap(\.chapters).first(where: { $0.id == chapterId }) else { return nil }
         let contents = KavitaSeriesContents(volumes: volumes)
         return ReaderSession(chapter: contents.readerChapter(chapter, series: series), series: series, contents: contents)
+    }
+}
+
+/// Why a reading list's item can't be opened.
+enum ReaderOpenError: LocalizedError {
+    case message(String)
+    var errorDescription: String? { switch self { case .message(let text): text } }
+}
+
+/// Why a reading list's item is passed over at the end of a volume, and how the passed-over
+/// ones are summed up on the offer ("skipped 1 PDF · 2 in hidden libraries").
+enum ReadingListSkip {
+    static let pdf = "pdf", images = "images", hiddenLibrary = "hidden", unknownLibrary = "unknown"
+
+    static func summary(_ reasons: [String]) -> String? {
+        guard !reasons.isEmpty else { return nil }
+        let order = [pdf, images, hiddenLibrary, unknownLibrary]
+        let counts = Dictionary(reasons.map { ($0, 1) }, uniquingKeysWith: +)
+        let parts = order.compactMap { reason -> String? in
+            guard let n = counts[reason] else { return nil }
+            switch reason {
+            case pdf: return n == 1 ? "1 PDF" : "\(n) PDFs"
+            case images: return n == 1 ? "1 image folder" : "\(n) image folders"
+            case hiddenLibrary: return n == 1 ? "1 in a hidden library" : "\(n) in hidden libraries"
+            default: return n == 1 ? "1 in a library you can't read here" : "\(n) in libraries you can't read here"
+            }
+        }
+        return "skipped " + parts.joined(separator: " · ")
+    }
+}
+
+extension AppEnvironment {
+    /// The demo Kavita's sign-in, if its key changed with a reset (`DemoRenewal`).
+    func renewDemo() async {
+        await DemoRenewal.renew(common, kind: .kavita) {
+            guard let client = kavitaClient() else { return .unknown }
+            return await DemoRenewal.check { _ = try await client.testConnection() }
+        } signIn: { config in
+            guard let demo = config.kavita else { return false }
+            let model = KavitaSettingsModel(environment: common)
+            model.isDemo = true
+            model.urlText = demo.url.absoluteString
+            model.authKey = demo.apiKey
+            await model.testAndSave()
+            if case .ok = model.status { return true } else { return false }
+        }
     }
 }

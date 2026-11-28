@@ -13,9 +13,10 @@ extension View {
     /// A sideways drag sets `scrub` (the view shows the preview) and seeks on release.
     /// The two-finger tap calls `onTwoFingerTap` (the view toggles pause without showing the
     /// controls), and the one-finger tap it also sets off is ignored.
-    func playerGestures(model: PlaybackModel, size: CGSize, enabled: Bool, scrub: Binding<ScrubState?>,
+    /// A pinch out fills the screen (where `canFill`), a pinch in fits the picture again.
+    func playerGestures(model: PlaybackModel, size: CGSize, enabled: Bool, canFill: Bool = false, scrub: Binding<ScrubState?>,
                         onTwoFingerTap: @escaping () -> Void, onTap: @escaping () -> Void) -> some View {
-        modifier(PlayerGestures(model: model, size: size, enabled: enabled, scrub: scrub,
+        modifier(PlayerGestures(model: model, size: size, enabled: enabled, canFill: canFill, scrub: scrub,
                                 onTwoFingerTap: onTwoFingerTap, onTap: onTap))
     }
 }
@@ -24,6 +25,7 @@ private struct PlayerGestures: ViewModifier {
     let model: PlaybackModel
     let size: CGSize
     let enabled: Bool
+    let canFill: Bool
     @Binding var scrub: ScrubState?
     let onTwoFingerTap: () -> Void
     let onTap: () -> Void
@@ -41,6 +43,10 @@ private struct PlayerGestures: ViewModifier {
     @State private var twoFingerTapAt = Date.distantPast
     @State private var badgeTask: Task<Void, Never>?
     @State private var originalBrightness: CGFloat?
+    /// A finger is resting on the picture (a cancelled touch lets go by itself).
+    @GestureState private var holding = false
+    /// Two fingers pinching: no scrub, brightness or volume from the finger the drag follows.
+    @GestureState private var pinching = false
 
     func body(content: Content) -> some View {
         content
@@ -57,6 +63,33 @@ private struct PlayerGestures: ViewModifier {
             // it becomes a double-tap.
             .simultaneousGesture(TapGesture().onEnded(onTap), including: enabled ? .subviews : .all)
             .simultaneousGesture(drag)
+            // Hold the picture: 2× until the finger lifts (the subtitles are their own views
+            // above this one, so holding a word doesn't count).
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.45)
+                    .sequenced(before: DragGesture(minimumDistance: 0))
+                    .updating($holding) { value, holding, _ in
+                        if case .second = value { holding = true }
+                    },
+                including: enabled ? .all : .subviews
+            )
+            .onChange(of: holding) { _, held in model.setHoldsFast(held) }
+            .simultaneousGesture(
+                MagnifyGesture(minimumScaleDelta: 0.04)
+                    .updating($pinching) { _, pinching, _ in pinching = true }
+                    .onEnded { value in
+                        model.setFillsScreen(PlayerGestureMath.fills(afterPinch: value.magnification, filling: model.fillsScreen))
+                    },
+                including: enabled && canFill ? .all : .subviews
+            )
+            .onChange(of: pinching) { _, pinching in
+                // A drag that began with the first finger is dropped, not seeked (its end resets
+                // the mode); with none under way, the next drag starts afresh.
+                guard pinching, dragMode != nil else { return }
+                scrub = nil
+                dragMode = .ignored
+                level = nil
+            }
             .gesture(TwoFingerTap {
                 guard enabled else { return }
                 twoFingerTapAt = Date()
@@ -73,17 +106,18 @@ private struct PlayerGestures: ViewModifier {
     private var drag: some Gesture {
         DragGesture(minimumDistance: 15)
             .onChanged { value in
-                guard enabled else { return }
+                // Not while the picture is held for 2×: a finger never rests quite still.
+                guard enabled, !holding, !pinching else { return }
                 let dx = value.translation.width, dy = value.translation.height
                 if dragMode == nil {
                     if abs(dx) > abs(dy) {
-                        dragMode = model.mpv.duration > 0 ? .scrub(start: model.mpv.timePosition) : .ignored
+                        dragMode = model.engine.duration > 0 ? .scrub(start: model.engine.timePosition) : .ignored
                     } else {
                         switch PlayerGestureMath.edge(x: value.startLocation.x, width: size.width) {
                         case .left?:
                             if originalBrightness == nil { originalBrightness = UIScreen.main.brightness }
                             dragMode = .brightness(start: UIScreen.main.brightness)
-                        case .right?: dragMode = .volume(start: model.mpv.volume / 100)
+                        case .right?: dragMode = .volume(start: model.engine.volume / 100)
                         default: dragMode = .ignored
                         }
                     }
@@ -91,14 +125,14 @@ private struct PlayerGestures: ViewModifier {
                 switch dragMode {
                 case .scrub(let start)?:
                     scrub = ScrubState(start: start, target: PlayerGestureMath.scrubTarget(
-                        from: start, dx: dx, width: size.width, duration: model.mpv.duration))
+                        from: start, dx: dx, width: size.width, duration: model.engine.duration))
                 case .brightness(let start)?:
                     let value = PlayerGestureMath.level(from: start, dy: dy, height: size.height)
                     UIScreen.main.brightness = value
                     level = (.left, value)
                 case .volume(let start)?:
                     let value = PlayerGestureMath.level(from: start, dy: dy, height: size.height)
-                    model.mpv.setVolume(value * 100)
+                    model.engine.setVolume(value * 100)
                     level = (.right, value)
                 case .ignored?, nil:
                     break
@@ -106,7 +140,7 @@ private struct PlayerGestures: ViewModifier {
             }
             .onEnded { _ in
                 if case .scrub(let start)? = dragMode, let target = scrub?.target, abs(target - start) >= 1 {
-                    model.mpv.seek(to: target)
+                    model.engine.seek(to: target)
                 }
                 if case .scrub? = dragMode { scrub = nil }
                 dragMode = nil
@@ -122,7 +156,7 @@ private struct PlayerGestures: ViewModifier {
         let side = PlayerGestureMath.third(x: location.x, width: size.width)
         let delta = skip.register(side, at: Date())
         guard delta != 0 else { return }
-        model.mpv.seek(by: delta)
+        model.engine.seek(by: delta)
         showBadge { skipBadge = (side, skip.total) }
     }
 

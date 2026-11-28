@@ -139,6 +139,15 @@ import Testing
         #expect(url.query() == nil)
     }
 
+    /// An item's chapters (shape checked on 12.4.0; the fixture's are made up): every entry,
+    /// in the server's order, two of them sharing a start.
+    @Test func itemChaptersDecode() throws {
+        let item = try JellyfinClient.decoder.decode(JellyfinItem.self, from: try fixture("item.json"))
+        let chapters = try #require(item.chapters)
+        #expect(chapters.map(\.start) == [0, 0, 90, 720, 1350])
+        #expect(chapters.map(\.name) == ["Prologue", "Opening", "Part A", "Part B", "Ending"])
+    }
+
     @Test func ffmpegIndexSkipsExternalStreams() throws {
         let item = try JellyfinClient.decoder.decode(JellyfinItem.self, from: try fixture("item.json"))
         let streams = try #require(item.mediaSources?.first?.mediaStreams)

@@ -45,7 +45,16 @@ public struct SearchView: View {
                     ContentUnavailableView {
                         Label("No Dictionaries", systemImage: "character.book.closed.ja")
                     } description: {
-                        Text("Import Jitendex, a frequency list and a pitch dictionary in Settings → Dictionaries.")
+                        Text("Lookups need a dictionary. Add the recommended ones, or import your own.")
+                    } actions: {
+                        NavigationLink("Add Recommended…") { AddRecommendedView() }
+                            .buttonStyle(.borderedProminent)
+                            .filledButtonTint()
+                            .accessibilityIdentifier("search.addRecommended")
+                        // The dictionaries page, where Import from Files shows its progress.
+                        NavigationLink("Import…") { DictionariesView() }
+                            .textButtonTint()
+                            .accessibilityIdentifier("search.importDictionaries")
                     }
                 } else {
                     switch mode {

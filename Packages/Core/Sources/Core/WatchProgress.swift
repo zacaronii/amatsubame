@@ -169,14 +169,44 @@ public struct PlayerSettings: Codable, Equatable, Sendable, FetchableRecord, Per
     var id = 1
     /// Intros (and recaps) are skipped without tapping the button.
     public var autoSkipsIntros = false
-    /// What a mined card's picture is: a still frame or the line as an animated GIF.
-    public var cardPicture = CardPicture.screenshot
+    /// What a mined card's picture is: a still frame or the line as an animated GIF. New setups
+    /// start animated; a saved choice (the column's default for older rows: a still) stays.
+    public var cardPicture = CardPicture.animated
+    /// The playback speed last chosen (1 = normal), kept from one video to the next.
+    public var speed = 1.0
+    /// Pause at the end of every Japanese line (intensive listening), until play is pressed.
+    public var pausesAfterLines = false
+    /// The Japanese subtitles' size (1 = sized to the picture) and how far up from the bottom
+    /// they sit (a fraction of the picture's height, to clear burnt-in subtitles).
+    public var subtitleScale = 1.0
+    public var subtitleLift = 0.0
+    /// The Japanese line is blurred until it's tapped (or pointed at): listening first.
+    public var concealsSubtitles = false
+    /// On the Mac, playback pauses while the pointer rests on the subtitles.
+    public var pausesOnHover = false
+    /// The most bits a second to stream at: above it, Jellyfin transcodes the video down. 0 is
+    /// the original file, whatever its size. Downloads always play as they are.
+    public var maxStreamBitrate = 0
+
+    public static let streamQualities: [(name: String, bitrate: Int)] = [
+        ("Original", 0), ("8 Mbps", 8_000_000), ("4 Mbps", 4_000_000), ("2 Mbps", 2_000_000), ("1 Mbps", 1_000_000), ("0.5 Mbps", 500_000),
+    ]
+
+    /// The best quality a connection giving `speed` bits a second keeps up with, leaving some
+    /// room; the lowest there is when even that's too much.
+    public static func streamQuality(fitting speed: Double) -> Int {
+        let limits = streamQualities.map(\.bitrate).filter { $0 > 0 }
+        return limits.first { Double($0) <= speed * 0.8 } ?? limits.last ?? 0
+    }
+
+    public static let subtitleScales: [(name: String, scale: Double)] = [("Small", 0.8), ("Medium", 1), ("Large", 1.25), ("Extra Large", 1.5)]
+    public static let subtitleLifts: [(name: String, lift: Double)] = [("Bottom", 0), ("Higher", 0.12), ("Highest", 0.25)]
 
     public enum CardPicture: String, Codable, CaseIterable, Sendable {
         case screenshot, animated
     }
 
-    public init(autoSkipsIntros: Bool = false, cardPicture: CardPicture = .screenshot) {
+    public init(autoSkipsIntros: Bool = false, cardPicture: CardPicture = .animated) {
         self.autoSkipsIntros = autoSkipsIntros
         self.cardPicture = cardPicture
     }
@@ -187,5 +217,29 @@ public struct PlayerSettings: Codable, Equatable, Sendable, FetchableRecord, Per
 
     public func save(_ database: AppDatabase) throws {
         try database.writer.write { try self.save($0) }
+    }
+}
+
+/// One show's own player settings in Miru (by series id, or a movie's item id).
+public struct SeriesPlayerSetting: Codable, Equatable, Sendable, FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "seriesPlayerSetting"
+    public var seriesKey: String
+    /// Condensed playback: the stretches without a Japanese line are skipped.
+    public var condensed = false
+
+    public init(seriesKey: String, condensed: Bool = false) {
+        self.seriesKey = seriesKey
+        self.condensed = condensed
+    }
+
+    public static func load(_ database: AppDatabase, seriesKey: String) -> SeriesPlayerSetting {
+        (try? database.reader.read { try SeriesPlayerSetting.fetchOne($0, key: seriesKey) }) ?? SeriesPlayerSetting(seriesKey: seriesKey)
+    }
+
+    /// Saved, or forgotten when it's back to the defaults.
+    public func save(_ database: AppDatabase) throws {
+        try database.writer.write { db in
+            if condensed { try self.save(db) } else { _ = try SeriesPlayerSetting.deleteOne(db, key: seriesKey) }
+        }
     }
 }

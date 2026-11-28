@@ -41,7 +41,7 @@ Miru has four tabs: **Watch**, **Lines**, **Stats** and **Settings**.
 - **Watch** opens with **Continue Watching**, **Next Up**, what's **On This Device**, and each
   library's recently added titles. Search finds shows and movies by name.
 - A show's page lists its episodes, with a filter: **All**, **Unwatched** or **Downloaded**.
-- **Japanese audio only:** in **Settings → Playback**, turn this on for a library to hide movies and
+- **Japanese audio only:** in **Settings → Libraries**, turn this on for a library to hide movies and
   shows without a Japanese audio track. Episodes with several audio tracks always start on the
   Japanese one.
 - On iPad and Mac, your libraries are also listed in the sidebar under the tabs.
@@ -61,6 +61,48 @@ On iPhone and iPad:
 - Double-tap the left or right side to skip back or forward.
 - Drag sideways to scrub, with a preview of the picture.
 - Drag up or down along an edge to change the brightness or volume.
+- Held sideways, pinch out to fill the screen (the picture's edges are cropped) and pinch in to
+  fit it again. The subtitles stay on screen. In portrait the picture always fits; filling lasts
+  until you close the player, so the next episodes play filled too.
+
+**On a TV:** with your iPhone or iPad mirrored to a TV over AirPlay (Control Center → Screen
+Mirroring), or connected to a monitor with a cable, the video plays full screen on the TV and your
+device shows "Playing on the Other Screen" where the picture was, with the controls and the Japanese
+lines to read, tap and look up there. Stop mirroring and the picture comes back.
+
+**AirPlay to a TV:** pick an Apple TV (or another AirPlay TV) with the **AirPlay** button in the
+player's top bar and the episode plays on the TV, from the same moment, at the TV's quality. Your
+device shows "Playing on" and the TV's name where the picture was, and keeps the controls and the
+Japanese lines to read, tap and look up; play, pause, seeking, the speed, Condensed and Pause After
+Each Line all steer the TV. Pick your iPhone or iPad again and the picture comes back where the TV
+got to. Some things work differently there:
+- The TV shows Jellyfin's Japanese subtitles (with English to pick on the TV, off unless you turn
+  it on). A Jimaku or Kaku file that isn't on Jellyfin can't go along, and a timing fix you haven't
+  saved to Jellyfin isn't used: the player says so once.
+- The TV fetches the video from Jellyfin itself, so it has to reach the server. If it can't, the
+  player says so and AirPlay plays the sound only, with the picture on your device.
+- A downloaded MKV file plays only the sound over AirPlay (AirPlay can't play MKV).
+- With Condensed on, the TV may pause briefly at its jumps: a far jump restarts Jellyfin's stream
+  there.
+
+An AirPlay speaker gets the sound, as before. Screen Mirroring works as above.
+
+**Picture in Picture** (iPhone and iPad): choose it in the sliders menu and the episode carries on
+in a small window while you use other apps; the player shows "Playing in Picture in Picture".
+**Back Here**, or the small window's button, brings it back to the player at the same moment. Closing
+the small window with its × stops there, paused. The small window is iOS's own player, so it plays
+the episode as Jellyfin sends it, and some things stay in Miru:
+- No tappable lines or lookups, no Lines list and no word marks. Jellyfin's Japanese subtitles show
+  as plain text (when the episode has them as text, not pictures).
+- Subtitles from Jimaku or Kaku that aren't uploaded to Jellyfin aren't there: it plays without them
+  and says so. A timing fix you haven't uploaded isn't applied either: the subtitles keep Jellyfin's
+  timing.
+- No condensed playback, auto-pause, intro skipping, English subtitles or sync changes.
+- An MKV download can't go to Picture in Picture (the option isn't shown); other downloads can.
+
+Files iOS can't play as they are (MKV, for example) are converted by Jellyfin while the small window
+plays, at a quality that suits the small window (4 Mbps at most), keeping the audio track you chose.
+Starting takes a few seconds while Jellyfin gets ready.
 
 On the Mac, click to show the controls and double-click for full screen. The video plays in the main
 window; Escape closes it.
@@ -70,6 +112,43 @@ it). After a movie or a show's last episode, Miru suggests something similar und
 
 The screen stays on while a video plays, and the sound keeps going when you leave the app.
 
+The sliders button at the top of the player has the **speed** (kept for the next video), the **audio
+track** when there's more than one, **English Subtitles** when the episode has them, and **Pause After
+Each Line**: playback then stops at the end of every Japanese line, with the line still on screen,
+until you press play (the **O** key switches it too).
+
+**Condensed** (in the same menu, or the **C** key) skips the stretches with no Japanese line: when
+more than 3 seconds pass between lines, playback jumps to half a second before the next one. The
+opening before the first line is skipped too; the ending after the last line isn't. It's kept per
+show, it's off until you turn it on, and it needs Japanese subtitles. With it on, the slider darkens
+the stretches it skips. Progress and Stats work as usual (Stats counts only what played).
+
+The same button has **Subtitles** (their **Size**, their **Position**, higher to clear subtitles burnt
+into the picture, and **Hide Until Tapped**, which blurs each Japanese line until you tap it so you
+listen first) and a **Sleep Timer** (15 to 60 minutes, or the end of the episode, which also holds
+back the next one). On the Mac, **Pause Under the Pointer** stops the video while the pointer rests on
+the line. These are also in **Settings → Subtitles**.
+
+Hold a finger on the picture to play at **2×** until you let go.
+
+Touch and hold an episode (or right-click it) to **Mark as Watched** or **Mark as Unwatched**: for
+something you watched elsewhere, or to send a sampled episode back to the start and out of Continue
+Watching.
+
+If the video stops to wait for the network, Miru shows **Buffering** with how far the refill is. When
+it keeps happening Miru gathers more before carrying on (up to 20 seconds of video), so a slow
+connection gives a few longer waits instead of stopping every few seconds, and it shows how fast the
+video is arriving next to what it needs.
+
+**Quality.** Miru plays the original file unless you choose a lower **Streaming Quality** (8, 4, 2, 1
+or 0.5 Mbps) in **Settings → Playback** or the player's sliders menu. Jellyfin then makes a smaller
+stream for any file larger than that, which is what a slow connection needs; changing it while
+watching carries on from the same place. When the connection can't keep up, the buffering box offers
+the quality that fits it in one tap. Your subtitles, lookups and cards work the same (cards still
+take their picture and audio from the original), but the audio menu has only the track being played:
+Japanese when the file has it. Downloads always play as they are. With
+a keyboard, **I** shows the stream's details, including how often and how long it has waited.
+
 ### Tapping subtitles
 
 Japanese subtitles show as text you can tap. Tapping a word pauses the video and opens the
@@ -77,8 +156,8 @@ dictionary popup; closing it plays again. The popup's **Add to Anki** makes a ca
 
 - the subtitle line as the sentence,
 - the line's audio, cut from the video,
-- a picture: a **Screenshot** or an **Animated** GIF of the line, chosen under **Card Picture** in
-  **Settings → Anki**,
+- a picture: an **Animated** GIF of the line (the default) or a **Screenshot**, chosen under
+  **Card Picture** in **Settings → Anki**,
 - the show and episode, and the time.
 
 Words you haven't mined yet, and words you're still learning, are underlined (see
@@ -91,6 +170,14 @@ When Jellyfin knows where an episode's intro, recap, credits or preview is (for 
 intro-detection plugin on your server), a **Skip Intro** (or Skip Recap, Skip Credits…) button
 appears at that moment. To skip intros and recaps without the button, turn on **Skip Intros
 Automatically** in **Settings → Playback**.
+
+### Chapters
+
+When a video has chapters (from its file, as Jellyfin lists them, or a downloaded file's own),
+small marks on the playback bar show where each one starts, and scrubbing names the chapter
+you're in. **Previous Chapter** and **Next Chapter** are in the playback options menu (the sliders
+button), and on **Page Up** and **Page Down** with a keyboard; a few seconds into a chapter,
+Previous Chapter goes back to its start.
 
 ### Now Playing and AirPods
 
@@ -121,7 +208,7 @@ Nothing goes to your Jellyfin server unless you ask: **Save to Jellyfin…** in 
 ### Transcribing with Kaku
 
 For an episode nobody has subtitled, [Kaku](/kaku/) can make Japanese subtitles from the audio. Set
-up Kaku in **Settings → Subtitles → Kaku**, then in the Subtitles sheet choose **Transcribe with
+up Kaku in **Settings → Kaku**, then in the Subtitles sheet choose **Transcribe with
 Kaku**, or **Transcribe the Rest of the Season** for the later episodes too. The sheet shows Kaku's
 progress or your place in its queue.
 
@@ -151,20 +238,23 @@ includes episodes watched in any Jellyfin app on any device, not just Miru.
   one.
 - **Watching Now** shows what another device is playing from your libraries, with its subtitles
   following along live. Tap words as they go by, scroll back, and **Follow** to catch up. You can
-  also pause and resume that device from here.
+  also pause and resume that device from here. If Jellyfin stops answering for a moment, the list
+  stays (with a note) and clears only after about 30 seconds; if the subtitles can't be loaded,
+  **Try Again**.
 
 ## Keyboard shortcuts
 
 With a keyboard on the Mac or iPad, most of mpv's familiar keys work: Space to pause, ← and → to
 seek, ↑ and ↓ for the previous and next line, **[** and **]** for speed, **Z** and **X** to move the
-subtitles, **S** to skip an intro, **A** to look up the current line, and more. Press **?** over the
-video, or open **Settings → Keyboard Shortcuts**, for the full list.
+subtitles, **S** to skip an intro, **Page Up** and **Page Down** for chapters, **A** to look up the current line, and more. Press **?** over the
+video, or open **Settings → Keyboard Shortcuts**, for the full list. Outside the player, **⌘R**
+reloads the screen you're on (the Mac has no pull to refresh); Yomu and Kiku have it too.
 
 ## Downloads
 
 On a show's page, download single episodes or several at once. Each is the original file, often 1–2
 GB, together with its subtitles. On iPhone and iPad, downloads wait for Wi-Fi unless **Download over
-Cellular** is on in **Settings → Downloads**. Nothing downloads unless you ask.
+Cellular** is on in **Settings → Playback**. Nothing downloads unless you ask.
 
 Downloaded episodes play offline, with lookups and mining. Manage them in **Settings → Storage**,
 which also holds the saved subtitles Lines uses.
@@ -180,14 +270,23 @@ offline are sent later.
 
 The **Stats** tab shows your watching time by week, month or all time, with lookups, cards mined and
 your streak. Only time that actually played counts, not seeking. Your
-[kechimochi](https://github.com/Morgawr/kechimochi) log can show there too (**Settings → Stats**).
+[kechimochi](https://github.com/Morgawr/kechimochi) log can show there too (**Settings → Connections → kechimochi**).
 
 ## Settings
 
-- **Watching:** Jellyfin, Libraries, Subtitles (Jimaku and Kaku), Playback (skip intros, Japanese
-  audio only), Downloads, and Keyboard Shortcuts on iPad and Mac.
-- **Lookup and Mining:** dictionaries, word audio sources and Anki, including the card picture. See
+- **Watching:** Libraries (which show, and Japanese audio only), Subtitles (how they look, Jimaku and
+  Kaku), Playback (skip intros, streaming quality, downloads over cellular), and Keyboard Shortcuts
+  on iPad and Mac.
+- **Lookup:** dictionaries, the popup, word audio sources and word marks. **Anki:** the connection and cards, including the card picture. See
   [Lookup and Anki](/lookup-and-anki/).
-- **Stats:** the kechimochi address.
-- **Storage**, **Advanced** (sharing the setup with your other apps, things waiting to sync, Run
+- **Connections:** every server and account in one place: Jellyfin, Jimaku, Kaku (what it's
+  transcribing), Hachidori, the kechimochi address, and **Sync with iCloud** (on unless you turn it off), which keeps
+  the Stats tab and the player's settings the same on all your devices signed in to the same iCloud
+  account: speed, subtitle size and position, hiding the line until tapped, pausing after lines or
+  on hover, the card picture and skipping intros (the latest change wins), the libraries you've hidden
+  or marked Japanese only, a Jimaku subtitle's timing fix (where the same file is on the other device)
+  and the kechimochi address. Stream quality stays on each device, since it depends on that device's
+  connection. When this app shares its setup with your other apps (and no Hachidori is linked), the lookup
+  popup's settings are kept the same too.
+- **Storage** (what's downloaded and saved, each with **Clear**), **Advanced** (sharing the setup with your other apps, things waiting to sync, Run
   Setup Again, Export Logs) and **About**.

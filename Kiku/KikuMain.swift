@@ -1,5 +1,6 @@
 import AppCommon
 import AppIntents
+import KikuIntents
 import SwiftUI
 #if os(iOS)
 import BackgroundTasks
@@ -15,8 +16,10 @@ struct KikuApp: App {
     init() {
         let environment = KikuEnvironment.live()
         _environment = State(initialValue: environment)
-        // For "Mark in Kiku" (the Action Button and Siri).
-        AppDependencyManager.shared.add(dependency: environment)
+        // For "Mark in Kiku" and "Resume in Kiku" (the Action Button, Siri, the widgets and
+        // Control Center), which run here.
+        KikuControls.shared.resume = { [weak environment] in await environment?.resumeListening() }
+        KikuControls.shared.mark = { [weak environment] in environment?.mark(.shortcut)?.time }
         // For CarPlay, which can launch the app without a phone window.
         KikuEnvironment.current = environment
         #if os(iOS)
@@ -33,6 +36,7 @@ struct KikuApp: App {
                 .environment(environment)
                 .environment(environment.common)
                 .task { await environment.start() }
+                .task { await environment.renewDemo() }
                 .onChange(of: environment.common.reachability.reconnections) { environment.retryConnections() }
         }
         .commands { KikuMenus(environment: environment) }
@@ -41,7 +45,10 @@ struct KikuApp: App {
             case .active:
                 environment.common.syncNow(retryWaiting: true)
                 environment.retryConnections()
-            case .background: scheduleOutboxRefresh()
+                Task { await environment.renewDemo() }
+            case .background:
+                scheduleOutboxRefresh()
+                environment.common.statsSync.send()
             default: break
             }
         }
@@ -111,6 +118,8 @@ struct KikuMenus: Commands {
 
     var body: some Commands {
         CommandGroup(after: .sidebar) {
+            RefreshCommand()
+            Divider()
             ForEach(Array(Self.shortcutTabs.enumerated()), id: \.offset) { index, tab in
                 Button(tab.title) { environment.selectedTab = tab }
                     .keyboardShortcut(KeyEquivalent(Character(String(index + 1))), modifiers: .command)

@@ -93,6 +93,15 @@ final class PodcastLibrary {
                      progress: progress[episode.key])
     }
 
+    /// What plays after `episode` ends: the show's next episode by date that isn't finished.
+    /// Nil after the newest one.
+    static func episode(after episode: AudiobookshelfEpisode, in episodes: [AudiobookshelfEpisode],
+                        finished: (AudiobookshelfEpisode) -> Bool) -> AudiobookshelfEpisode? {
+        guard let published = episode.publishedAt else { return nil }
+        return episodes.filter { $0.id != episode.id && ($0.publishedAt ?? 0) > published && !finished($0) }
+            .min { ($0.publishedAt ?? 0) < ($1.publishedAt ?? 0) }
+    }
+
     /// A book to play (needs its details: chapters and tracks).
     func entry(book: AudiobookshelfItem) -> EpisodeEntry? {
         guard let episode = AudiobookshelfEpisode.wholeBook(book) else { return nil }
@@ -118,11 +127,48 @@ final class PodcastLibrary {
         await refresh()
     }
 
+    /// The kinds of library shown (not hidden in Settings): the Listen screen follows them, New
+    /// Episodes for podcasts and Recently Added for books (#139). Before the libraries are known,
+    /// podcasts (New Episodes shows its loading and errors).
+    func shownKinds() -> (podcasts: Bool, books: Bool) {
+        let hidden = hiddenLibraries
+        let shown = libraries.filter { !hidden.contains($0.id) }
+        guard !shown.isEmpty else { return (true, !books.isEmpty) }
+        return (shown.contains { $0.mediaType == .podcast }, shown.contains { $0.mediaType == .book })
+    }
+
+    /// Books, the newest added first, without finished ones (the Listen screen's Recently Added).
+    var recentlyAddedBooks: [AudiobookshelfItem] {
+        Array(books.filter { progress[$0.id]?.isFinished != true }.sorted { ($0.addedAt ?? 0) > ($1.addedAt ?? 0) }.prefix(12))
+    }
+
     /// Just the server's libraries, for Settings ▸ Libraries before the Listen tab has loaded.
-    func refreshLibraries() async {
-        guard let client = environment?.audiobookshelfClient() else { return }
+    /// False when Audiobookshelf couldn't be asked (the list is then what was saved, if anything).
+    @discardableResult
+    func refreshLibraries() async -> Bool {
+        guard let client = environment?.audiobookshelfClient() else { return false }
         restoreSaved()
-        if let all = try? await client.libraries() { libraries = all }
+        guard let all = try? await client.libraries() else { return false }
+        libraries = all
+        return true
+    }
+
+    /// Signed out, or in as someone else: nothing of the last account's library stays (its
+    /// saved copy included: it isn't restored for the next one).
+    func clear() {
+        shows = []
+        books = []
+        bookDetails = [:]
+        libraries = []
+        newEpisodes = []
+        continueListening = []
+        progress = [:]
+        transcriptStatus = [:]
+        showEpisodes = [:]
+        newCounts = [:]
+        error = nil
+        isOffline = false
+        restored = true
     }
 
     func refresh() async {
@@ -171,6 +217,9 @@ final class PodcastLibrary {
             isOffline = false
             await loadStatuses(newEpisodes.map(\.episode) + continueListening.map(\.episode))
             save()
+            environment.autoDownloads.schedule()
+            await environment.refreshUpNext()
+            environment.widgets.update()
         } catch let failure {
             if !failure.isCancellation { error = failure.localizedDescription }
             isOffline = Self.isOffline(failure)
@@ -278,7 +327,13 @@ final class PodcastLibrary {
     func update(progress update: AudiobookshelfProgress) {
         progress[update.key] = update
         func refreshed(_ entries: [EpisodeEntry]) -> [EpisodeEntry] {
-            entries.map { $0.id == update.key ? EpisodeEntry(episode: $0.episode, showTitle: $0.showTitle, progress: update) : $0 }
+            // A copy, so a book keeps its chapters (a rebuilt entry lost `book`).
+            entries.map { entry in
+                guard entry.id == update.key else { return entry }
+                var entry = entry
+                entry.progress = update
+                return entry
+            }
         }
         newEpisodes = refreshed(newEpisodes)
         continueListening = refreshed(continueListening)

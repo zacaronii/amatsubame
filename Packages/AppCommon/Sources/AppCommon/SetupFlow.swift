@@ -55,6 +55,8 @@ public struct SetupChecklistItem: Identifiable, Sendable {
 @Observable
 public final class SetupFlow {
     public var path: [SetupStep] = []
+    /// Try It with the Demo Servers: the demo's details, for the app's server step to sign in with.
+    public var demo: DemoConfig?
     /// Set Up Separately was chosen: the app's own setup starts with the next launch.
     public private(set) var needsRelaunch = false
     @ObservationIgnored public let common: CommonEnvironment
@@ -229,7 +231,14 @@ public struct SetupPage<Content: View, Footer: View>: View {
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 10) {
                 if let buttonTitle {
-                    Button(action: action) {
+                    Button {
+                        // Connect's result shows under the fields: with the keyboard up it
+                        // landed under this button, half hidden.
+                        #if canImport(UIKit)
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                        #endif
+                        action()
+                    } label: {
                         Text(buttonTitle).font(.headline).frame(maxWidth: .infinity).padding(.vertical, 6)
                     }
                     .buttonStyle(.glassProminent)
@@ -239,11 +248,34 @@ public struct SetupPage<Content: View, Footer: View>: View {
                 footer
             }
             .padding(.horizontal, 20)
+            .padding(.top, 12)
             .padding(.bottom, 8)
             .frame(maxWidth: 560)
+            .frame(maxWidth: .infinity)
+            // The page scrolls under this bar: without a background, a long list (the
+            // dictionaries) showed through the footer's text and the disabled button.
+            .background {
+                LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: Self.pageBackground, location: 0.25)],
+                               startPoint: .top, endPoint: .bottom)
+                    .ignoresSafeArea()
+                    // Only a look: with the keyboard up the bar rises over the last field
+                    // (Audiobookshelf's password), and the background took its taps.
+                    .allowsHitTesting(false)
+            }
         }
         .scrollDismissesKeyboard(.interactively)
         .navigationBarTitleDisplayModeInline()
+    }
+}
+
+extension SetupPage {
+    /// The page's own background, for the button bar to cover what scrolls under it.
+    static var pageBackground: Color {
+        #if canImport(UIKit)
+        Color(uiColor: .systemBackground)
+        #else
+        Color(nsColor: .windowBackgroundColor)
+        #endif
     }
 }
 

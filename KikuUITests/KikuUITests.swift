@@ -18,14 +18,15 @@ final class KikuUITests: XCTestCase {
         app.tabBars.buttons["Marks"].tap()
         XCTAssertTrue(app.staticTexts["Marks you make while listening show up here."].waitForExistence(timeout: 5))
         app.tabBars.buttons["Settings"].tap()
-        let row = app.descendants(matching: .any)["settings.audiobookshelf"].firstMatch
+        let row = app.revealSettingsRow("settings.audiobookshelf")
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         row.tap()
         XCTAssertTrue(app.buttons["audiobookshelf.signIn"].waitForExistence(timeout: 5))
         // Tapping the tab that's showing goes back to its top screen.
         app.tabBars.buttons["Settings"].tap()
         XCTAssertTrue(app.buttons["audiobookshelf.signIn"].waitForNonExistence(timeout: 5), "back at the top of Settings")
-        XCTAssertTrue(row.exists)
+        XCTAssertTrue(app.navigationBars["Settings"].exists)
+        XCTAssertTrue(app.revealSettingsRow("settings.audiobookshelf").exists, "the row is in Settings' list")
     }
 }
 
@@ -103,7 +104,12 @@ final class KikuPlayerUITests: XCTestCase {
         current.descendants(matching: .any)["subtitle.line"].tap()
         XCTAssertTrue(app.staticTexts["Playback paused · resumes when you close this"].waitForExistence(timeout: 5))
         XCTAssertEqual(playPause.value as? String, "paused")
-        XCTAssertTrue(app.buttons["lookup.playClip"].exists)
+        // The popup starts with the line itself: no clip bar above it.
+        XCTAssertFalse(app.buttons["lookup.playClip"].exists)
+        let lookup = XCTAttachment(screenshot: app.screenshot())
+        lookup.name = "player-lookup"
+        lookup.lifetime = .keepAlways
+        add(lookup)
         app.closeLookup()
         let resumed = expectation(for: NSPredicate(format: "value == 'playing'"), evaluatedWith: playPause)
         wait(for: [resumed], timeout: 5)
@@ -136,6 +142,192 @@ final class KikuPlayerUITests: XCTestCase {
     }
 }
 
+/// Putting the player away without reaching for the arrow in the top corner.
+final class KikuPlayerPullUITests: XCTestCase {
+    func testPullingThePlayerDownClosesIt() {
+        let app = XCUIApplication()
+        app.launchEnvironment = ["UITEST_KIKU": "1", "UITEST_KIKU_PLAYER": "1"]
+        app.launch()
+        let close = app.buttons["player.close"]
+        let mini = app.descendants(matching: .any)["mini.player"].firstMatch
+        XCTAssertTrue(close.waitForExistence(timeout: 10))
+
+        // A nudge on the top bar springs back.
+        let top = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.09))
+        top.press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.13)),
+                  withVelocity: .slow, thenHoldForDuration: 0.3)
+        XCTAssertTrue(close.waitForExistence(timeout: 2), "a nudge doesn't close it")
+
+        // Pulled down from the top bar: closed, with the mini player in its place.
+        top.press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55)))
+        XCTAssertTrue(mini.waitForExistence(timeout: 5), "pulled down from the top bar")
+        XCTAssertTrue(close.waitForNonExistence(timeout: 5))
+
+        // A swipe up on the mini player opens it again.
+        mini.swipeUp()
+        XCTAssertTrue(close.waitForExistence(timeout: 5), "a swipe up on the mini player opens it")
+
+        // And from the controls, within the thumb's reach (between the scrubber and the buttons).
+        let controls = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.855))
+        controls.press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.999)),
+                       withVelocity: .fast, thenHoldForDuration: 0)
+        XCTAssertTrue(close.waitForNonExistence(timeout: 5), "flicked down from the controls")
+
+        // The scrubber still scrubs: a sideways drag on it leaves the player open.
+        mini.tap()
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        let scrubber = app.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.805))
+        scrubber.press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.82)))
+        XCTAssertTrue(close.waitForExistence(timeout: 2), "scrubbing doesn't close the player")
+    }
+}
+
+/// More ▸ Lines: Pause After Each Line stops playback as each line ends; Text Size changes the transcript.
+final class KikuLinesMenuUITests: XCTestCase {
+    func testPauseAfterEachLineAndTextSize() {
+        let app = XCUIApplication()
+        app.launchEnvironment = ["UITEST_KIKU": "1", "UITEST_KIKU_PLAYER": "1"]
+        app.launch()
+        let playPause = app.buttons["player.playPause"]
+        XCTAssertTrue(playPause.waitForExistence(timeout: 10))
+        func item(_ title: String) -> XCUIElement {
+            app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", title)).firstMatch
+        }
+        app.buttons["More"].tap()
+        app.buttons["player.linesMenu"].firstMatch.tap()
+        XCTAssertTrue(item("Pause After Each Line").waitForExistence(timeout: 5))
+        XCTAssertTrue(item("Repeat the Line").exists)
+        item("Pause After Each Line").tap()
+
+        playPause.tap()
+        XCTAssertEqual(playPause.value as? String, "playing")
+        let paused = expectation(for: NSPredicate(format: "value == 'paused'"), evaluatedWith: playPause)
+        wait(for: [paused], timeout: 15)
+        XCTAssertTrue(app.descendants(matching: .any)["player.currentLine"].exists, "stopped on a line")
+        // Play again: on to the next line, then stopped again.
+        playPause.tap()
+        let again = expectation(for: NSPredicate(format: "value == 'paused'"), evaluatedWith: playPause)
+        wait(for: [again], timeout: 15)
+
+        // Off again (it's remembered), and a larger text size.
+        app.buttons["More"].tap()
+        app.buttons["player.linesMenu"].firstMatch.tap()
+        item("Pause After Each Line").tap()
+        app.buttons["More"].tap()
+        app.buttons["player.linesMenu"].firstMatch.tap()
+        item("Text Size").tap()
+        item("Extra Large").tap()
+        sleep(1)
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "extra large lines"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        app.buttons["More"].tap()
+        app.buttons["player.linesMenu"].firstMatch.tap()
+        item("Text Size").tap()
+        item("Medium").tap()
+    }
+
+    /// More offers Up Next's first when the queue has one, and not otherwise (the AirPods' and
+    /// the wheel's next stay the next line and a skip).
+    func testPlayerMenuOffersUpNext() {
+        let app = XCUIApplication()
+        app.launchEnvironment = ["UITEST_KIKU": "1", "UITEST_KIKU_PLAYER": "1", "UITEST_KIKU_UP_NEXT": "1"]
+        app.launch()
+        XCTAssertTrue(app.buttons["player.playPause"].waitForExistence(timeout: 10))
+        app.buttons["More"].tap()
+        XCTAssertTrue(app.buttons["player.playUpNext"].firstMatch.waitForExistence(timeout: 5))
+        app.terminate()
+        app.launchEnvironment = ["UITEST_KIKU": "1", "UITEST_KIKU_PLAYER": "1"]
+        app.launch()
+        XCTAssertTrue(app.buttons["player.playPause"].waitForExistence(timeout: 10))
+        app.buttons["More"].tap()
+        XCTAssertTrue(app.buttons["player.find"].firstMatch.waitForExistence(timeout: 5) || app.buttons["Sleep Timer"].firstMatch.exists)
+        XCTAssertFalse(app.buttons["player.playUpNext"].firstMatch.exists, "an empty queue: not offered")
+    }
+
+    /// More ▸ Find in Transcript: the lines holding what's typed, one at a time from the line
+    /// playing, with the count; Done puts the bar away. The sleep timer of minutes says a shake
+    /// starts it again (the shake itself needs a real phone).
+    func testFindInTranscriptAndSleepShakeHint() {
+        let app = XCUIApplication()
+        app.launchEnvironment = ["UITEST_KIKU": "1", "UITEST_KIKU_PLAYER": "1"]
+        app.launch()
+        XCTAssertTrue(app.buttons["player.playPause"].waitForExistence(timeout: 10))
+        app.buttons["More"].tap()
+        app.buttons["player.find"].firstMatch.tap()
+        let field = app.textFields["player.findField"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.typeText("番目")
+        let count = app.staticTexts["player.findCount"]
+        XCTAssertTrue(count.waitForExistence(timeout: 5))
+        XCTAssertEqual(count.label, "1 of 20")
+        app.buttons["player.findNext"].tap()
+        XCTAssertEqual(count.label, "2 of 20")
+        app.buttons["player.findPrevious"].tap()
+        app.buttons["player.findPrevious"].tap()
+        XCTAssertEqual(count.label, "20 of 20", "back past the first wraps round")
+        // Far down the transcript: scrolled to it.
+        let line = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'その20番目'")).firstMatch
+        XCTAssertTrue(line.waitForExistence(timeout: 5))
+        XCTAssertTrue(line.isHittable, "the line found is on screen")
+        XCTAssertTrue(app.buttons["player.backToNow"].exists, "following stopped while finding")
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "find in transcript"
+        shot.lifetime = .keepAlways
+        add(shot)
+        field.tap()
+        field.typeText("ないもの")
+        XCTAssertEqual(count.label, "No lines")
+        app.buttons["player.findDone"].tap()
+        XCTAssertTrue(field.waitForNonExistence(timeout: 5))
+
+        app.buttons["More"].tap()
+        app.buttons["Sleep Timer"].firstMatch.tap()
+        app.buttons["15 Minutes"].firstMatch.tap()
+        app.buttons["More"].tap()
+        let timer = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Sleep Timer ·'")).firstMatch
+        XCTAssertTrue(timer.waitForExistence(timeout: 5))
+        timer.tap()
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Shake to start it again'")).firstMatch.waitForExistence(timeout: 5))
+        app.buttons["Turn Off"].firstMatch.tap()
+    }
+}
+
+/// The lookup's bottom panel: a slow pull on its handle shrinks it and lets go closed, never
+/// up to the full height (it used to rubber-band and could end as a flick up).
+final class KikuLookupPanelUITests: XCTestCase {
+    func testPullingTheHandleDownSlowlyClosesThePanel() {
+        let app = XCUIApplication()
+        app.launchEnvironment = ["UITEST_KIKU": "1", "UITEST_KIKU_PLAYER": "1"]
+        app.launch()
+        XCTAssertTrue(app.buttons["player.playPause"].waitForExistence(timeout: 10))
+        app.buttons["player.nextLine"].tap()
+        let line = app.descendants(matching: .any)["player.currentLine"].descendants(matching: .any)["subtitle.line"].firstMatch
+        XCTAssertTrue(line.waitForExistence(timeout: 5))
+        let handle = app.descendants(matching: .any)["lookup.handle"].firstMatch
+
+        for (name, velocity) in [("slow", XCUIGestureVelocity.slow), ("default", .default)] {
+            line.tap()
+            XCTAssertTrue(handle.waitForExistence(timeout: 5), "\(name): the panel opens")
+            XCTAssertEqual(handle.value as? String, "Half")
+            let start = handle.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            start.press(forDuration: 0.15, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 160)), withVelocity: velocity, thenHoldForDuration: 0.2)
+            XCTAssertTrue(handle.waitForNonExistence(timeout: 3), "\(name): pulled down, it closes (\(handle.exists ? handle.value as? String ?? "" : "closed"))")
+        }
+
+        // Up still makes it full, and down from there half.
+        line.tap()
+        XCTAssertTrue(handle.waitForExistence(timeout: 5))
+        let start = handle.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        start.press(forDuration: 0.15, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -160)), withVelocity: .slow, thenHoldForDuration: 0.2)
+        XCTAssertEqual(handle.value as? String, "Full")
+        let top = handle.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        top.press(forDuration: 0.15, thenDragTo: top.withOffset(CGVector(dx: 0, dy: 160)), withVelocity: .slow, thenHoldForDuration: 0.2)
+        XCTAssertEqual(handle.value as? String, "Half")
+    }
+}
+
 final class KikuBookUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -160,6 +352,58 @@ final class KikuBookUITests: XCTestCase {
         app.buttons["Previous Chapter"].tap()
         let back = expectation(for: NSPredicate(format: "label == '第三章 再会' OR label == '第二章 出会い'"), evaluatedWith: subtitle)
         wait(for: [back], timeout: 5)
+    }
+
+    /// A book's sleep timer can stop at the end of the chapter, and a held line can be copied.
+    func testEndOfChapterTimerAndCopyLine() {
+        let app = XCUIApplication()
+        app.launchEnvironment = ["UITEST_KIKU": "1", "UITEST_KIKU_BOOK": "1"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["player.subtitle"].waitForExistence(timeout: 10))
+        app.buttons["More"].tap()
+        app.buttons["Sleep Timer"].firstMatch.tap()
+        let endOfChapter = app.buttons["End of Chapter"].firstMatch
+        XCTAssertTrue(endOfChapter.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["End of Book"].exists, "a book's own wording")
+        endOfChapter.tap()
+        app.buttons["More"].tap()
+        XCTAssertTrue(app.buttons["Sleep Timer · End of Chapter"].firstMatch.waitForExistence(timeout: 5), "the timer is set")
+        app.buttons["Sleep Timer · End of Chapter"].firstMatch.tap()
+        app.buttons["Turn Off"].firstMatch.tap()
+
+        // Hold a line: Copy Line and Play from Here (the clipboard itself isn't read here: the
+        // test runner asking for it hangs on the simulator).
+        let lines = app.descendants(matching: .any).matching(identifier: "player.line")
+        XCTAssertTrue(lines.firstMatch.waitForExistence(timeout: 5))
+        // A line on screen (the first may have scrolled up under the player's header).
+        let line = lines.allElementsBoundByIndex.lazy
+            .map { $0.descendants(matching: .any)["subtitle.line"].firstMatch }
+            .first { $0.isHittable }
+        XCTAssertNotNil(line, "a line on screen")
+        line?.press(forDuration: 1.0)
+        let copy = app.buttons["Copy Line"].firstMatch
+        XCTAssertTrue(copy.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Play from Here"].exists)
+        copy.tap()
+        XCTAssertTrue(copy.waitForNonExistence(timeout: 5))
+    }
+
+    /// More ▸ Transcript says what made the transcript and offers Transcribe Again (#149).
+    func testTranscriptMenuSaysWhatMadeIt() {
+        let app = XCUIApplication()
+        app.launchEnvironment = ["UITEST_KIKU": "1", "UITEST_KIKU_BOOK": "1"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["player.subtitle"].waitForExistence(timeout: 10))
+        app.buttons["More"].tap()
+        let menu = app.buttons["player.transcriptMenu"].firstMatch
+        XCTAssertTrue(menu.waitForExistence(timeout: 5))
+        menu.tap()
+        let again = app.buttons["Transcribe Again"].firstMatch
+        XCTAssertTrue(again.waitForExistence(timeout: 5))
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "transcript menu"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 }
 
@@ -209,11 +453,52 @@ final class KikuMarksAndStatsUITests: XCTestCase {
         XCTAssertTrue(marked.waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["1 to mine"].exists)
         marked.descendants(matching: .any)["subtitle.line"].firstMatch.tap()
-        XCTAssertTrue(app.buttons["lookup.playClip"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["lookup.handle"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["lookup.playClip"].exists)
         app.closeLookup()
         XCTAssertTrue(app.buttons["mark.clear"].waitForExistence(timeout: 5))
         app.buttons["mark.clear"].tap()
         XCTAssertTrue(app.staticTexts["Marks you make while listening show up here."].waitForExistence(timeout: 5))
+    }
+
+    /// A note on a mark: from the toast's Add Note right after marking, shown on the mark in
+    /// Marks, found by the search, edited from the mark, gone with the mark.
+    func testMarkNoteFromTheToastShowsAndIsFound() {
+        let app = XCUIApplication()
+        app.launchEnvironment = ["UITEST_KIKU": "1", "UITEST_KIKU_PLAYER": "1"]
+        app.launch()
+        XCTAssertTrue(app.buttons["player.playPause"].waitForExistence(timeout: 10))
+        app.buttons["player.mark"].tap()
+        let addNote = app.buttons["player.addNote"]
+        XCTAssertTrue(addNote.waitForExistence(timeout: 3))
+        addNote.tap()
+        let text = app.textViews["markNote.text"]
+        XCTAssertTrue(text.waitForExistence(timeout: 5))
+        text.typeText("駅の場面")
+        app.buttons["markNote.done"].tap()
+        XCTAssertTrue(text.waitForNonExistence(timeout: 5))
+        app.buttons["player.close"].tap()
+        app.tabBars.buttons["Marks"].tap()
+
+        let note = app.buttons["mark.note"]
+        XCTAssertTrue(note.waitForExistence(timeout: 5))
+        XCTAssertTrue(note.label.contains("駅の場面"), note.label)
+        // Edited from the mark: the note is kept as written.
+        app.buttons["mark.editNote"].tap()
+        XCTAssertTrue(text.waitForExistence(timeout: 5))
+        text.typeText("、後で")
+        app.buttons["markNote.done"].tap()
+        XCTAssertTrue(note.waitForExistence(timeout: 5))
+        XCTAssertTrue(note.label.contains("駅の場面、後で"), note.label)
+        // The search finds the mark by its note.
+        let field = app.searchFields.firstMatch
+        field.tap()
+        field.typeText("駅の場面")
+        let found = app.staticTexts["In your marks · 1"]
+        XCTAssertTrue(found.waitForExistence(timeout: 5))
+        // Cleared from the results: the mark and its note are gone.
+        app.buttons["mark.clear"].firstMatch.tap()
+        XCTAssertTrue(found.waitForNonExistence(timeout: 5))
     }
 
     func testStatsShowsTimeListened() {

@@ -51,6 +51,7 @@ public actor DictionaryEngine {
     private let deinflector = Deinflector()
     private var handles: QueryHandles
     private var frequencySortTitle: String?
+    private var frequencyOrder = FrequencyOrder.ascending
     public private(set) var dictionaries: [EngineDictionary] = []
 
     private var query: OpaquePointer { handles.query }
@@ -65,7 +66,8 @@ public actor DictionaryEngine {
     /// (`DictionaryFormat` says why) is left out so the others keep working;
     /// returns the titles left out.
     @discardableResult
-    public func configure(_ dictionaries: [EngineDictionary], frequencySortTitle: String?) -> [String] {
+    public func configure(_ dictionaries: [EngineDictionary], frequencySortTitle: String?,
+                          frequencyOrder: FrequencyOrder = .ascending) -> [String] {
         let newQuery = hd_query_new()!
         var loaded: [EngineDictionary] = []
         var rejected: [String] = []
@@ -87,7 +89,7 @@ public actor DictionaryEngine {
         handles = QueryHandles(query: newQuery, deinflector: deinflector)
         self.dictionaries = loaded
         self.frequencySortTitle = frequencySortTitle.flatMap { title in loaded.contains { $0.title == title } ? title : nil }
-            ?? loaded.first(where: \.hasFrequencies)?.title
+        self.frequencyOrder = frequencyOrder
         return rejected
     }
 
@@ -96,14 +98,14 @@ public actor DictionaryEngine {
     public func lookup(_ text: String, maxResults: Int = 16, scanLength: Int = 16) -> [TermLookupResult] {
         guard !text.isEmpty else { return [] }
         let lookupHandle = lookupHandle
-        let sortTitle = frequencySortTitle
+        let sortTitle = frequencySortTitle, order = frequencyOrder
         return text.withCString { textPointer in
             (sortTitle ?? "").withCString { sortPointer in
                 var options = hd_lookup_options(
                     frequency_dictionary: sortTitle == nil
                         ? hd_str(ptr: nil, len: 0)
                         : hd_str(ptr: sortPointer, len: strlen(sortPointer)),
-                    frequency_order: Int32(HD_LOOKUP_FREQUENCY_ORDER_AUTO.rawValue),
+                    frequency_order: FrequencyOrder.hoshidicts(order, sorting: sortTitle != nil),
                     primary_reading: hd_str(ptr: nil, len: 0)
                 )
                 var results: UnsafePointer<hd_lookup_result>?

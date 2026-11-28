@@ -30,7 +30,7 @@
     const s = state.settings;
     root.dataset.kbLayout = s.layout;
     root.dataset.kbTheme = s.theme;
-    root.dataset.kbFont = s.font;
+    root.dataset.kbFont = applyCustomFont(s) ? 'custom' : (s.font === 'custom' ? 'book' : s.font);
     root.dataset.kbWriting = s.writingMode;
     root.dataset.kbFurigana = s.furigana || 'book';
     root.style.setProperty('--kb-font-size', `${s.fontSize}px`);
@@ -45,6 +45,26 @@
     }
     state.vertical = getComputedStyle(document.body).writingMode.startsWith('vertical');
     root.dataset.kbAxis = state.vertical ? 'vertical' : 'horizontal';
+  }
+
+  /// A font the reader added: loaded from `customFontURL` (kavitabook://fonts/<id>) as
+  /// "km-custom". Paged layouts lay out again once it arrives (it changes the line breaks).
+  /// Without the URL (the font was removed), the book's own font.
+  let customFontURL = null;
+  function applyCustomFont(s) {
+    const url = s.font === 'custom' ? s.customFontURL : null;
+    if (url === customFontURL) return !!url;
+    customFontURL = url;
+    document.getElementById('km-custom-font')?.remove();
+    if (!url) return false;
+    const style = document.createElement('style');
+    style.id = 'km-custom-font';
+    style.textContent = `@font-face { font-family: "km-custom"; src: url("${url}"); font-display: block; }`;
+    (document.head || document.documentElement).appendChild(style);
+    document.fonts.load('1em "km-custom"').then(() => {
+      if (customFontURL === url && state.pages.length) relayout(state.place ?? {xpath: currentXPath(), fraction: null});
+    });
+    return true;
   }
 
   /// Space between the screen edge and the text: the margin setting on the left and right,
@@ -254,6 +274,8 @@
       masks.end.style.cssText = state.vertical
         ? `left:0;top:0;bottom:0;width:${pad('left') + spare}px` : `left:0;right:0;bottom:0;height:${pad('bottom') + spare}px`;
     }
+    placeReadAlongMark();
+    placeUserMarks();
     report();
   }
 
@@ -293,7 +315,7 @@
     // Where to come back to when the page is laid out again (a resize).
     state.place = {xpath, fraction: total ? before / total : null};
     post({kind: 'position', page: state.page, pages: state.pages.length, xpath, vertical: state.vertical,
-          moved: state.moved || state.settings.layout === 'scroll' && scrolledByUser,
+          moved: state.moved || state.settings.layout === 'scroll' && (scrolledByUser || autoSpeed > 0),
           characters: before, total, atEnd: state.page >= state.pages.length - step()});
   }
 
@@ -485,6 +507,8 @@
     layout(place?.xpath ? place : 'start');
     if (place?.xpath) state.place = place;
     placeLookupMark();
+    placeReadAlongMark();
+    placeUserMarks();
   }
 
   // MARK: Lookup mark
@@ -573,6 +597,86 @@
       report();
     }, 300);
   });
+
+  // Auto-scroll (the Scroll layout): `speed` points a second along the reading direction (down,
+  // or leftward for vertical text); 0 stops. A finger or wheel holds it until a second after it
+  // lets go; while it moves the position is reported every 10 s (a continuous scroll never
+  // settles for the scroll listener, and each report can send progress to Kavita); at the
+  // section's end it reports the edge, as paging on does.
+  // A section with nothing to scroll stays `dwell` seconds of auto-scroll time first (a picture
+  // page `picture`), counted across pauses; one scrolled to its end moves on at once. Each
+  // section is its own page load, so these start again with it.
+  let autoSpeed = 0, autoFrame = null, autoLast = 0, autoCarry = 0, autoReported = 0, autoHeldUntil = 0, inputPosted = 0;
+  let autoDwell = {text: 2, picture: 5}, dwellSpent = 0, scrolledThisSection = false;
+  function autoScroll(speed, dwell) {
+    if (dwell) autoDwell = dwell;
+    autoSpeed = state.settings.layout === 'paged' ? 0 : Math.max(speed || 0, 0);
+    if (autoFrame) cancelAnimationFrame(autoFrame);
+    autoFrame = null; autoLast = 0; autoCarry = 0;
+    if (autoSpeed > 0) autoFrame = requestAnimationFrame(autoStep);
+  }
+  function autoStep(time) {
+    if (!autoSpeed) return;
+    const seconds = autoLast ? Math.min((time - autoLast) / 1000, 0.1) : 0;
+    autoLast = time;
+    if (time >= autoHeldUntil) {
+      // Nothing left to scroll: on to the next section, once it has been read (scrolled to
+      // its end, or shown for its dwell when it never needed scrolling).
+      if (autoRoom() < 0.5) {
+        const dwell = root.dataset.kbImagePage === 'true' ? autoDwell.picture : autoDwell.text;
+        dwellSpent += seconds;
+        if (scrolledThisSection || dwellSpent >= dwell) {
+          autoScroll(0);
+          report();
+          post({kind: 'edge', direction: 'next'});
+          return;
+        }
+      } else {
+        autoCarry += autoSpeed * seconds;
+        const step = Math.floor(autoCarry);
+        if (step >= 1) {
+          autoCarry -= step;
+          scrolledThisSection = true;
+          window.scrollBy(state.vertical ? -step : 0, state.vertical ? 0 : step);
+        }
+      }
+      if (time - autoReported > 10000) {
+        autoReported = time;
+        report();
+      }
+    }
+    autoFrame = requestAnimationFrame(autoStep);
+  }
+  /// How far the page can still scroll along the reading direction (vertical text scrolls left,
+  /// with a negative scrollX).
+  function autoRoom() {
+    if (root.dataset.kbImagePage === 'true') return 0;
+    const page = document.scrollingElement || document.documentElement;
+    return state.vertical ? page.scrollWidth - window.innerWidth + window.scrollX
+                          : page.scrollHeight - window.innerHeight - window.scrollY;
+  }
+
+  /// What the reading speed is worked out from: a character's size, one line to the next, and
+  /// how long a line (a column, in vertical text) is on screen.
+  function textMetrics() {
+    const style = getComputedStyle(document.body);
+    const fontSize = parseFloat(style.fontSize) || 16;
+    const lineHeight = parseFloat(style.lineHeight) || fontSize * 1.5;
+    const lineLength = state.vertical
+      ? window.innerHeight - (parseFloat(style.paddingTop) || 0) - (parseFloat(style.paddingBottom) || 0)
+      : window.innerWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0);
+    return {fontSize, lineAdvance: lineHeight, lineLength};
+  }
+  ['touchstart', 'wheel'].forEach((type) => document.addEventListener(type, () => { autoHeldUntil = Infinity; }, {passive: true}));
+  ['touchend', 'touchcancel'].forEach((type) => document.addEventListener(type, () => { autoHeldUntil = performance.now() + 1000; }, {passive: true}));
+  document.addEventListener('wheel', () => { autoHeldUntil = performance.now() + 1000; }, {passive: true});
+  // Someone is reading: touches, keys, the pointer (at most every few seconds).
+  ['touchstart', 'keydown', 'pointermove', 'wheel'].forEach((type) => document.addEventListener(type, () => {
+    const now = performance.now();
+    if (now - inputPosted < 5000) return;
+    inputPosted = now;
+    post({kind: 'input'});
+  }, {passive: true}));
 
   // Back to the first character on the page before the resize (measuring now would use the
   // old pages against the new layout).
@@ -732,6 +836,48 @@
   // MARK: Read-along
   // The spoken sentence is wrapped in <km-ra>, an element name of its own like <km-w>, so
   // XPaths and the layout stay put. Positions are (run, UTF-16 offset), as for word marks.
+  // Paged, the colour is drawn as boxes outside the body like the lookup mark: once the body
+  // has moved, WebKit didn't repaint a <km-ra> background, and the sentence on screen stayed
+  // put until a page turn.
+
+  let readAlongBoxes = [];
+  /// The sentence shown, and how much of it (0…1, by characters) is on the pages on screen
+  /// when the rest is on the next: the audio turns the page there (`advanceReadAlong`).
+  let readAlongCue = null, readAlongSplit = null;
+  function splitReadAlong() {
+    readAlongSplit = null;
+    if (!readAlongCue || state.settings.layout !== 'paged') return null;
+    const {runIndex, offset, length} = readAlongCue;
+    const place = firstVisiblePlace();
+    if (place.nextRun === runIndex && place.nextOffset > offset && place.nextOffset < offset + length) {
+      readAlongSplit = (place.nextOffset - offset) / length;
+    }
+    return readAlongSplit;
+  }
+
+  /// The audio reached the part of the sentence on the next page: turns to it (following is
+  /// reading, so it's kept as progress). Returns the next split, if it goes on further.
+  function advanceReadAlong() {
+    if (readAlongSplit == null || state.page + step() >= state.pages.length) return null;
+    state.moved = true;
+    showPage(state.page + step());
+    return splitReadAlong();
+  }
+  function placeReadAlongMark() {
+    readAlongBoxes.forEach((box) => box.remove());
+    readAlongBoxes = [];
+    if (state.settings.layout !== 'paged') return;
+    for (const mark of document.querySelectorAll('km-ra')) {
+      for (const r of mark.getClientRects()) {
+        if (r.right < 0 || r.left > window.innerWidth || r.bottom < 0 || r.top > window.innerHeight) continue;
+        const box = document.createElement('div');
+        box.className = 'kb-read-along-mark';
+        box.style.cssText = `left: ${r.left}px; top: ${r.top}px; width: ${r.width}px; height: ${r.height}px`;
+        document.documentElement.appendChild(box);
+        readAlongBoxes.push(box);
+      }
+    }
+  }
 
   /// Where the last tap landed in the section's runs (set by TextTapBridge.js on each tap).
   let lastTap = null;
@@ -758,12 +904,18 @@
       parents.add(parent);
     }
     parents.forEach((parent) => parent.normalize());
+    readAlongCue = null;
+    readAlongSplit = null;
+    placeReadAlongMark();
   }
 
   /// Highlights `length` characters from `offset` in run `runIndex`; with `follow`, turns to
   /// its page when it isn't on screen. Returns the page it's on, or -1.
-  function showReadAlong(runIndex, offset, length, follow) {
+  /// `quiet`: a search result shown (a look, not reading): the page turns to it without
+  /// counting as a move, and nothing is split for following audio.
+  function showReadAlong(runIndex, offset, length, follow, quiet = false) {
     clearReadAlong();
+    readAlongCue = {runIndex, offset, length};
     const run = textRuns()[runIndex];
     if (!run) return -1;
     const pieces = [];
@@ -793,9 +945,12 @@
     // Following the audio is reading, so the new place is kept as progress. Facing pages
     // turn once it's past the left page.
     if (follow && (state.page + step() - 1 < first || state.page > last)) {
-      state.moved = true;
+      if (!quiet) state.moved = true;
       showPage(spreadStart(first));
+    } else {
+      placeReadAlongMark();
     }
+    if (!quiet) splitReadAlong();
     return first;
   }
 
@@ -846,9 +1001,185 @@
     return element ? xpathTo(element) : '';
   }
 
+  // MARK: Highlights (Kavita annotations)
+  // Kavita keeps a highlight as the elements it starts and ends in (XPaths like the position's)
+  // and its text; the characters are found again by that text. Each is wrapped in <km-hl>, an
+  // element name of its own like <km-w>, so XPaths and the layout stay put; paged, the colour
+  // is drawn as boxes outside the body, like read-along.
+
+  let userMarks = [], userMarkBoxes = [];
+
+  /// The element a text node is in, past the reader's own wrappers (word marks, highlights,
+  /// the lookup mark), as Kavita's reader would see it.
+  function container(node) {
+    let element = node.parentElement;
+    while (element && element !== document.body && (element.localName.startsWith('km-') || element.classList.contains('lookup-highlight'))) {
+      element = element.parentElement;
+    }
+    return element ?? document.body;
+  }
+
+  /// The text nodes from the start of `start` to the end of `end`, without furigana.
+  function textNodesBetween(start, end) {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+      acceptNode: (node) => node.parentElement?.closest('rt, rp, script, style, .kb-mask') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
+    });
+    const nodes = [];
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const afterStart = start.contains(node) || (start.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING);
+      const beforeEnd = end.contains(node) || (end.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_PRECEDING);
+      if (afterStart && beforeEnd) nodes.push(node);
+      else if (nodes.length) break;
+    }
+    return nodes;
+  }
+
+  function clearUserMarks() {
+    const parents = new Set();
+    for (const mark of document.querySelectorAll('km-hl')) {
+      const parent = mark.parentNode;
+      while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
+      mark.remove();
+      parents.add(parent);
+    }
+    parents.forEach((parent) => parent.normalize());
+  }
+
+  /// `marks`: [{id, xpath, endXPath, text, color}]. Returns the ids found on the page.
+  function showUserMarks(marks) {
+    clearUserMarks();
+    userMarks = marks;
+    const shown = [];
+    for (const mark of marks) {
+      const start = resolveXPath(mark.xpath);
+      const end = resolveXPath(mark.endXPath || mark.xpath) ?? start;
+      if (!start || !end || !mark.text) continue;
+      const nodes = textNodesBetween(start, end);
+      const whole = nodes.map((node) => node.textContent).join('');
+      // Matched without whitespace: line breaks between paragraphs (and in the source) differ
+      // between readers.
+      const kept = [];
+      for (let i = 0; i < whole.length; i++) if (!/\s/.test(whole[i])) kept.push(i);
+      const compact = kept.map((i) => whole[i]).join('');
+      const wanted = mark.text.replace(/\s+/g, '');
+      const found = wanted ? compact.indexOf(wanted) : -1;
+      if (found < 0) continue;
+      const at = kept[found], until = kept[found + wanted.length - 1] + 1;
+      const pieces = [];
+      let position = 0;
+      for (const node of nodes) {
+        const length = node.textContent.length;
+        const from = Math.max(at, position), to = Math.min(until, position + length);
+        if (from < to && node.textContent.slice(from - position, to - position).trim()) pieces.push({node, from: from - position, to: to - position});
+        position += length;
+        if (position >= until) break;
+      }
+      for (const {node, from, to} of pieces.reverse()) {
+        const middle = node.splitText(from);
+        middle.splitText(to - from);
+        const wrap = document.createElement('km-hl');
+        wrap.dataset.id = String(mark.id);
+        wrap.style.setProperty('--hl', mark.color);
+        middle.parentNode.insertBefore(wrap, middle);
+        wrap.appendChild(middle);
+      }
+      shown.push(mark.id);
+    }
+    placeUserMarks();
+    return shown;
+  }
+
+  function placeUserMarks() {
+    userMarkBoxes.forEach((box) => box.remove());
+    userMarkBoxes = [];
+    if (state.settings.layout !== 'paged') return;
+    for (const mark of document.querySelectorAll('km-hl')) {
+      for (const r of mark.getClientRects()) {
+        if (r.right < 0 || r.left > window.innerWidth || r.bottom < 0 || r.top > window.innerHeight) continue;
+        const box = document.createElement('div');
+        box.className = 'kb-user-mark';
+        box.dataset.id = mark.dataset.id;
+        box.style.cssText = `left: ${r.left}px; top: ${r.top}px; width: ${r.width}px; height: ${r.height}px; --hl: ${mark.style.getPropertyValue('--hl')}`;
+        document.documentElement.appendChild(box);
+        userMarkBoxes.push(box);
+      }
+    }
+  }
+
+  const sentenceEnds = '。！？!?\n';
+  const closers = '」』）)〉》】"’”';
+
+  /// The character at a point (viewport coordinates, as the tap reported it): its text node
+  /// and index, or null.
+  function characterAtPoint(x, y) {
+    const range = document.caretRangeFromPoint?.(x, y);
+    const node = range?.startContainer;
+    if (!node || node.nodeType !== Node.TEXT_NODE) return null;
+    for (const index of [range.startOffset, range.startOffset - 1]) {
+      if (index < 0 || index >= node.textContent.length) continue;
+      const one = document.createRange();
+      one.setStart(node, index);
+      one.setEnd(node, index + 1);
+      for (const r of one.getClientRects()) {
+        if (x >= r.left - 1 && x <= r.right + 1 && y >= r.top - 1 && y <= r.bottom + 1) return {node, index};
+      }
+    }
+    return {node, index: Math.min(range.startOffset, Math.max(node.textContent.length - 1, 0))};
+  }
+
+  /// The highlight at a point (its row id), if any.
+  function markAt(x, y) {
+    return characterAtPoint(x, y)?.node.parentElement?.closest('km-hl')?.dataset.id ?? null;
+  }
+
+  /// The sentence at a point, as Kavita keeps a highlight: {xpath, endXPath, text}.
+  function sentenceAt(x, y) {
+    const hit = characterAtPoint(x, y);
+    if (!hit) return null;
+    let runIndex = -1, offset = 0;
+    const runs = textRuns();
+    runs.some((run, index) => {
+      let position = 0;
+      for (const node of run.nodes) {
+        if (node === hit.node) { runIndex = index; offset = position + hit.index; return true; }
+        position += node.textContent.length;
+      }
+      return false;
+    });
+    const run = runs[runIndex];
+    if (!run) return null;
+    const text = run.nodes.map((node) => node.textContent).join('');
+    let start = Math.min(offset, text.length);
+    while (start > 0 && !sentenceEnds.includes(text[start - 1])) start--;
+    while (start < text.length && (/\s/.test(text[start]) || closers.includes(text[start]))) start++;
+    let end = Math.min(offset, text.length);
+    while (end < text.length && !sentenceEnds.includes(text[end])) end++;
+    while (end < text.length && (sentenceEnds.includes(text[end]) || closers.includes(text[end]))) end++;
+    if (end <= start) return null;
+    const nodeAt = (at) => {
+      let position = 0;
+      for (const node of run.nodes) {
+        if (at < position + node.textContent.length) return node;
+        position += node.textContent.length;
+      }
+      return run.nodes[run.nodes.length - 1];
+    };
+    return {xpath: xpathTo(container(nodeAt(start))), endXPath: xpathTo(container(nodeAt(end - 1))), text: text.slice(start, end)};
+  }
+
+  /// The first words on screen (a bookmark's title), and the place for it.
+  function pageStart() {
+    const place = firstVisiblePlace();
+    const run = textRuns()[place.run];
+    const text = run ? run.nodes.map((node) => node.textContent).join('').slice(place.offset).trim() : '';
+    return {xpath: currentXPath(), text: text.slice(0, 40)};
+  }
+
   window.bookReader = {open, update, repaint, next, previous, follow, currentXPath, resolveXPath, xpathTo, audit,
     highlight, clearHighlight,
     wordRuns, markWords, unmarkWords,
-    readAlong: {show: showReadAlong, clear: clearReadAlong, lastTap: () => lastTap, xpathOfRun, firstVisiblePlace},
-    pageCount: () => state.pages.length, page: () => state.page};
+    marks: {show: showUserMarks, sentenceAt, markAt, pageStart},
+    found: {show: (run, offset, length) => showReadAlong(run, offset, length, true, true), clear: clearReadAlong},
+    readAlong: {show: showReadAlong, clear: clearReadAlong, split: () => readAlongSplit, advance: advanceReadAlong, lastTap: () => lastTap, xpathOfRun, firstVisiblePlace},
+    pageCount: () => state.pages.length, page: () => state.page, autoScroll, textMetrics};
 })();

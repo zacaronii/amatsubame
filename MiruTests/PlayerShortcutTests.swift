@@ -47,6 +47,10 @@ import Testing
         #expect(match("", .leftArrow, .option) == nil)
         #expect(match("", .delete) == .normalSpeed)
         #expect(match("\u{8}", KeyEquivalent("\u{8}")) == .normalSpeed)
+        // mpv's chapter keys.
+        #expect(match("", .pageUp) == .previousChapter)
+        #expect(match("", .pageDown) == .nextChapter)
+        #expect(match("", .pageDown, .shift) == nil)
     }
 
     @Test func commandKeysNeedCommand() {

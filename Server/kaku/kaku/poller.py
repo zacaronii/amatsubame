@@ -33,8 +33,17 @@ class Poller:
         for library in libraries:
             if library['id'] not in enabled:
                 continue
-            for episode in self.audiobookshelf.episodes(library['id']):
-                priority = NEW if now - episode.added_at < self.new_days * 86400 else BACKLOG
+            episodes = self.audiobookshelf.episodes(library['id'])
+            self.db.sync_shows(library['id'], getattr(self.audiobookshelf, 'shows', {}).get(library['id'], {}))
+            # The web page's rules (1.10): a show skipped, high or low; the library new episodes only.
+            rules = self.db.rules(library['id'])
+            new_only = rules.get('') == 'new-only'
+            for episode in episodes:
+                mode = rules.get(episode.item_id)
+                is_new = now - episode.added_at < self.new_days * 86400
+                if mode == 'skip' or (new_only and not is_new and mode != 'high'):
+                    continue
+                priority = NEW if mode == 'high' else BACKLOG if mode == 'low' else NEW if is_new else BACKLOG
                 queued += self.db.offer(episode, priority, model_key(self.model), now=now)
         self.db.set_meta('last_poll', now)
         self.db.set_meta('last_poll_error', '')

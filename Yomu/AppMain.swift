@@ -1,7 +1,17 @@
 import AppCommon
+import Readers
 import SwiftUI
 #if os(iOS)
 import BackgroundTasks
+#endif
+
+#if os(iOS)
+/// Only for the readers' Lock Rotation: which orientations the app may turn to right now.
+final class YomuAppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        OrientationLock.mask
+    }
+}
 #endif
 
 @main
@@ -10,6 +20,9 @@ struct YomuApp: App {
 
     @State private var environment = AppEnvironment.live()
     @Environment(\.scenePhase) private var scenePhase
+    #if os(iOS)
+    @UIApplicationDelegateAdaptor(YomuAppDelegate.self) private var appDelegate
+    #endif
 
     var body: some Scene {
         WindowGroup {
@@ -19,6 +32,7 @@ struct YomuApp: App {
                 .environment(environment)
                 .environment(environment.common)
                 .task { await environment.start() }
+                .task { await environment.renewDemo() }
         }
         .commands { ReaderMenus(environment: environment) }
         .onChange(of: scenePhase) { _, phase in
@@ -26,7 +40,10 @@ struct YomuApp: App {
             case .active:
                 environment.syncNow(retryWaiting: true)
                 environment.autoDownloads.schedule()
-            case .background: scheduleOutboxRefresh()
+                Task { await environment.renewDemo() }
+            case .background:
+                scheduleOutboxRefresh()
+                environment.common.statsSync.send()
             default: break
             }
         }
@@ -69,6 +86,7 @@ struct ReaderMenus: Commands {
     let environment: AppEnvironment
     @FocusedValue(\.readerPaging) private var paging
     @FocusedValue(\.readerClose) private var close
+    @FocusedValue(\.bookSearch) private var bookSearch
 
     /// ⌘1… for each tab; on the Mac, Settings is ⌘, instead.
     static var shortcutTabs: [AppTab] {
@@ -91,13 +109,20 @@ struct ReaderMenus: Commands {
             Button("Back to Library") { close?() }
                 .keyboardShortcut("[", modifiers: .command)
                 .disabled(close == nil)
+            // While a book is open, ⌘F searches it and Search Dictionary moves to ⇧⌘F.
+            if let bookSearch {
+                Button("Search the Book") { bookSearch() }
+                    .keyboardShortcut("f", modifiers: .command)
+            }
             Button("Search Dictionary") {
                 close?()
                 environment.selectedTab = .dictionary
             }
-            .keyboardShortcut("f", modifiers: .command)
+            .keyboardShortcut("f", modifiers: bookSearch == nil ? .command : [.command, .shift])
         }
         CommandGroup(after: .sidebar) {
+            RefreshCommand()
+            Divider()
             ForEach(Array(Self.shortcutTabs.enumerated()), id: \.offset) { index, tab in
                 Button(tab.title) {
                     close?()

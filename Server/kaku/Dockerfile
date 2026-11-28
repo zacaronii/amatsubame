@@ -5,7 +5,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 python3
 # PyAV 16 dropped an option faster-whisper 1.2.1 still passes.
 RUN pip3 install --break-system-packages --no-cache-dir faster-whisper==1.2.1 "av<16" nvidia-ml-py \
     fastapi==0.128.8 "uvicorn==0.39.0" pydantic==2.13.5 pytest==8.4.2 httpx==0.28.1
-# The Hugging Face cache (the model, ~3 GB) is a volume, so rebuilding doesn't download it again.
+# The models folder is a volume: anime-whisper converted into it once (./convert-model.sh), and
+# the Hugging Face cache for any other model (KAKU_MODEL), so rebuilding downloads nothing again.
 ENV HF_HOME=/models PYTHONUNBUFFERED=1
 WORKDIR /app
 COPY kaku ./kaku

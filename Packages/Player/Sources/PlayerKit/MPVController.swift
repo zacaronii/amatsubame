@@ -2,28 +2,17 @@ import Foundation
 import Libmpv
 import Observation
 import QuartzCore
+import SwiftUI
 #if canImport(UIKit)
 import UIKit
 #else
 import AppKit
 #endif
 
-/// One mpv player drawing into a Metal layer (MoltenVK, as in MPVKit's demo).
-/// Properties update on the main actor from mpv's event loop.
+/// One mpv player drawing into a Metal layer (MoltenVK, as in MPVKit's demo): Miru's
+/// `PlayerEngine`. Properties update on the main actor from mpv's event loop.
 @MainActor @Observable
 public final class MPVController {
-    public struct Track: Identifiable, Equatable, Sendable {
-        public var id: Int
-        public var type: String
-        public var language: String?
-        public var title: String?
-        public var codec: String?
-        public var isExternal: Bool
-        public var isSelected: Bool
-        /// The stream's index in the file (FFmpeg numbering), for `MediaClipper`.
-        public var ffIndex: Int?
-    }
-
     public private(set) var timePosition: Double = 0
     public private(set) var duration: Double = 0
     public private(set) var isPaused = true
@@ -32,7 +21,19 @@ public final class MPVController {
     /// The file has started playing at its start position (mpv's first playback-restart).
     /// Before that, `timePosition` can still read 0 even when starting part-way in.
     public private(set) var hasStarted = false
-    public private(set) var tracks: [Track] = []
+    /// mpv has stopped to wait for more of the stream (its cache ran dry): the picture is
+    /// frozen though nothing is paused. `bufferPercent` is how far the refill is (0…100).
+    public private(set) var isBuffering = false
+    public private(set) var bufferPercent: Int?
+    /// While buffering: how fast the stream is arriving, in bits a second, once mpv has measured it.
+    public private(set) var streamSpeed: Double?
+    /// How many seconds of video mpv gathers before it carries on after running dry. It grows
+    /// when the stream keeps running dry (`BufferWait`), so a slow connection gets fewer, longer
+    /// waits instead of stopping every few seconds.
+    public private(set) var bufferWait = BufferWait()
+    public private(set) var tracks: [PlayerTrack] = []
+    /// The file's own chapters (mpv's `chapter-list`): start in seconds and title.
+    public private(set) var fileChapters: [(start: Double, title: String?)] = []
     public private(set) var lastError: String?
     /// mpv's own volume, 0…100 (the system volume is separate).
     public private(set) var volume: Double = 100
@@ -43,6 +44,10 @@ public final class MPVController {
     public private(set) var loop: (start: Double?, end: Double?) = (nil, nil)
     /// The video's display aspect ratio (width / height) once known.
     public private(set) var videoAspect: Double?
+    /// The player playing in mpv's place, if one is (`attach(_:)`).
+    @ObservationIgnored public private(set) weak var standIn: (any PlayerStandIn)?
+    /// Pause After Each Line's next stop (`setTimeBoundary`), checked on every time event.
+    @ObservationIgnored private var boundary: TimeBoundary?
 
     /// The layer mpv renders into; host it in a view (`MPVVideoView`).
     public let layer = MPVMetalLayer()
@@ -66,19 +71,25 @@ public final class MPVController {
             ("vo", "gpu-next"), ("gpu-api", "vulkan"), ("gpu-context", "moltenvk"),
             ("hwdec", "videotoolbox"), ("keep-open", "yes"), ("input-default-bindings", "no"),
             ("idle", "yes"), ("cache", "yes"), ("demuxer-max-bytes", "150MiB"),
+            // Gather a little before the first frame and after running dry, rather than starting
+            // on the first packet and stopping again at once (`BufferWait` raises the second).
+            ("cache-pause-initial", "yes"), ("cache-pause-wait", String(BufferWait.steps[0])),
+            // A dropped connection picks up where it was instead of ending the video.
+            ("stream-lavf-o", "reconnect=1,reconnect_streamed=1,reconnect_delay_max=5"),
             ("sub-auto", "no"), ("audio-display", "no"),
             ("input-builtin-bindings", "no"),
             // The app draws Japanese subtitles itself (tappable); mpv only draws a chosen secondary track.
             ("sid", "no"),
             // …at the top, clear of the app's Japanese line at the bottom.
-            ("sub-align-y", "top"), ("sub-margin-y", "60"),
-        ] + MPVOptions.noScripts + MPVOptions.audioSession {
+            ("sub-align-y", "top"), ("sub-margin-y", String(Self.subtitleMargin)),
+        ] + MPVOptions.noScripts + MPVOptions.audioSession + MPVOptions.audioFormat + Self.testOptions {
             mpv_set_option_string(mpv, name, value)
         }
         mpv_initialize(mpv)
         for (name, format) in [("time-pos", MPV_FORMAT_DOUBLE), ("duration", MPV_FORMAT_DOUBLE), ("pause", MPV_FORMAT_FLAG),
                                ("eof-reached", MPV_FORMAT_FLAG), ("track-list", MPV_FORMAT_NODE), ("volume", MPV_FORMAT_DOUBLE),
-                               ("video-params/aspect", MPV_FORMAT_DOUBLE)] {
+                               ("video-params/aspect", MPV_FORMAT_DOUBLE), ("paused-for-cache", MPV_FORMAT_FLAG),
+                               ("cache-buffering-state", MPV_FORMAT_INT64), ("chapter-list", MPV_FORMAT_NODE)] {
             mpv_observe_property(mpv, 0, name, format)
         }
         mpv_set_wakeup_callback(mpv, mpvWakeup, Unmanaged.passUnretained(self).toOpaque())
@@ -94,9 +105,10 @@ public final class MPVController {
 
     // MARK: Commands
 
-    /// Plays `url`, sending `headers` with every request, from `start` seconds.
+    /// Plays `url`, sending `headers` with every request, from `start` seconds. A file is passed
+    /// to mpv as its path, not a percent-encoded file URL.
     public func load(_ url: URL, headers: [String: String] = [:], start: Double = 0) {
-        load(url.absoluteString, headers: headers, start: start)
+        load(url.isFileURL ? url.path(percentEncoded: false) : url.absoluteString, headers: headers, start: start)
     }
 
     /// Plays anything mpv can open (a URL, a path, or e.g. `av://lavfi:testsrc`).
@@ -107,22 +119,61 @@ public final class MPVController {
         mpv_set_option_string(mpv, "start", String(format: "%.3f", max(start, 0)))
         reachedEnd = false
         hasStarted = false
+        // One video's failure isn't the next one's.
+        lastError = nil
+        isBuffering = false
+        bufferPercent = nil
+        streamSpeed = nil
+        bufferWait = BufferWait()
+        setString("cache-pause-wait", String(bufferWait.seconds))
         setLoop(start: nil, end: nil)
         command(["loadfile", location, "replace"])
         isLoaded = true
     }
 
+    /// mpv's secondary subtitles sit this far below the top, and at least this far in from the
+    /// sides (scaled pixels: 720 to the height; 25 is mpv's own side margin).
+    static let subtitleMargin = 60
+    static let subtitleSideMargin = 25
+
+    /// How much of the picture the view cuts off when it fills the screen, at the top and at
+    /// each side, as shares of the picture's height: mpv's subtitles move in by as much, so
+    /// they stay on screen.
+    public func setCrop(top: Double, side: Double) {
+        let margins = (y: Self.subtitleMargin + Int((max(top, 0) * 720).rounded()),
+                       x: Self.subtitleSideMargin + Int((max(side, 0) * 720).rounded()))
+        if margins.y != subtitleMarginsApplied.y { setString("sub-margin-y", String(margins.y)) }
+        if margins.x != subtitleMarginsApplied.x { setString("sub-margin-x", String(margins.x)) }
+        subtitleMarginsApplied = margins
+    }
+
+    @ObservationIgnored private var subtitleMarginsApplied = (y: MPVController.subtitleMargin, x: MPVController.subtitleSideMargin)
+
     public func setPaused(_ paused: Bool) {
+        if let standIn {
+            standIn.setPaused(paused)
+            return
+        }
         setFlag("pause", paused)
     }
 
     public func togglePause() { setPaused(!isPaused) }
 
     public func seek(to seconds: Double) {
+        if let standIn {
+            standIn.seek(to: max(seconds, 0))
+            return
+        }
+        bufferWait.noteSeek()
         command(["seek", String(format: "%.3f", max(seconds, 0)), "absolute+exact"])
     }
 
     public func seek(by seconds: Double) {
+        if standIn != nil {
+            seek(to: timePosition + seconds)
+            return
+        }
+        bufferWait.noteSeek()
         command(["seek", String(format: "%.3f", seconds), "relative+exact"])
     }
 
@@ -140,6 +191,16 @@ public final class MPVController {
         var level = (min(max(value, 0.25), 4) * 100).rounded() / 100
         mpv_set_property(mpv, "speed", MPV_FORMAT_DOUBLE, &level)
         speed = level
+        standIn?.setSpeed(level)
+    }
+
+    /// UI tests and recordings (`UITEST_MUTE=1`, Debug builds only): silent from the first frame.
+    private static var testOptions: [(String, String)] {
+        #if DEBUG
+        ProcessInfo.processInfo.environment["UITEST_MUTE"] != nil ? [("mute", "yes"), ("volume", "0")] : []
+        #else
+        []
+        #endif
     }
 
     public func setMuted(_ muted: Bool) {
@@ -149,7 +210,37 @@ public final class MPVController {
 
     /// One frame forward or back; mpv pauses (its `.` and `,`).
     public func frameStep(forward: Bool) {
+        guard standIn == nil else { return }
         command([forward ? "frame-step" : "frame-back-step"])
+    }
+
+    // MARK: Stand-in
+
+    /// `standIn` plays from here on: mpv pauses where it is and stops reporting its own time,
+    /// pause, end and buffering until `detach()`. The stand-in reports them (`standInReport`).
+    public func attach(_ standIn: any PlayerStandIn) {
+        setFlag("pause", true)
+        self.standIn = standIn
+        isBuffering = false
+        bufferPercent = nil
+        streamSpeed = nil
+    }
+
+    /// mpv reports for itself again (seek it to where the stand-in got to, then play).
+    public func detach() {
+        standIn = nil
+        isPaused = true
+        isBuffering = false
+        reachedEnd = false
+    }
+
+    /// Where the stand-in is: its time, whether it's paused, waiting for data, or at the end.
+    public func standInReport(time: Double, paused: Bool, buffering: Bool = false, ended: Bool = false) {
+        guard standIn != nil else { return }
+        if time.isFinite, abs(time - timePosition) > 0.0005 { moveTime(to: max(time, 0)) }
+        if paused != isPaused { isPaused = paused }
+        if buffering != isBuffering { isBuffering = buffering }
+        if ended != reachedEnd { reachedEnd = ended }
     }
 
     /// Loops between `start` and `end` (mpv's A–B loop); nil clears that end.
@@ -183,12 +274,14 @@ public final class MPVController {
     }
 
     /// Adds an external subtitle file mpv should draw (e.g. English), or turns mpv's subtitles off.
+    /// The file loads in the background (from Jellyfin it can take a while: the server pulls it
+    /// out of the video file): the track appears in `tracks`, selected, once it's in.
     public func showSubtitles(from url: URL?, headers: [String: String] = [:]) {
         guard let url else {
             setString("sid", "no")
             return
         }
-        command(["sub-add", url.absoluteString, "select"])
+        command(["sub-add", url.absoluteString, "select"], async: true)
     }
 
     /// Makes mpv adopt the view's new size. MPVKit's MoltenVK context only reads the
@@ -221,6 +314,12 @@ public final class MPVController {
         }
     }
 
+    /// The video's average bit rate (its size over its length), nil until both are known.
+    public var averageBitRate: Double? {
+        guard let size = int64("file-size"), size > 0, duration > 0 else { return nil }
+        return Double(size) * 8 / duration
+    }
+
     private func int64(_ name: String) -> Int64? {
         guard let mpv = handle else { return nil }
         var value: Int64 = 0
@@ -229,13 +328,14 @@ public final class MPVController {
 
     // MARK: mpv plumbing
 
-    private func command(_ args: [String]) {
+    /// Runs a command; `async`: without waiting for it (mpv copies the arguments).
+    private func command(_ args: [String], async: Bool = false) {
         guard let mpv = handle else { return }
         var cStrings = args.map { strdup($0) } + [nil]
         defer { cStrings.forEach { free($0) } }
         cStrings.withUnsafeMutableBufferPointer { buffer in
             buffer.baseAddress!.withMemoryRebound(to: UnsafePointer<CChar>?.self, capacity: buffer.count) { pointer in
-                _ = mpv_command(mpv, pointer)
+                _ = async ? mpv_command_async(mpv, 0, pointer) : mpv_command(mpv, pointer)
             }
         }
     }
@@ -244,6 +344,13 @@ public final class MPVController {
         guard let mpv = handle else { return }
         var flag: Int32 = value ? 1 : 0
         mpv_set_property(mpv, name, MPV_FORMAT_FLAG, &flag)
+    }
+
+    /// A property as mpv has it now (for tests: `sub-text`, the line it draws).
+    public func stringProperty(_ name: String) -> String? {
+        guard let mpv = handle, let value = mpv_get_property_string(mpv, name) else { return nil }
+        defer { mpv_free(value) }
+        return String(cString: value)
     }
 
     private func setString(_ name: String, _ value: String) {
@@ -287,7 +394,8 @@ public final class MPVController {
     }
 
     enum Update: Sendable {
-        case time(Double), duration(Double), paused(Bool), ended(Bool), tracks([Track]), volume(Double), aspect(Double)
+        case time(Double), duration(Double), paused(Bool), ended(Bool), tracks([PlayerTrack]), volume(Double), aspect(Double)
+        case buffering(Bool), bufferPercent(Int), chapters([(start: Double, title: String?)])
         case none
     }
 
@@ -305,16 +413,42 @@ public final class MPVController {
             return .volume(property.data.assumingMemoryBound(to: Double.self).pointee)
         case ("video-params/aspect", MPV_FORMAT_DOUBLE):
             return .aspect(property.data.assumingMemoryBound(to: Double.self).pointee)
+        case ("paused-for-cache", MPV_FORMAT_FLAG):
+            return .buffering(property.data.assumingMemoryBound(to: Int32.self).pointee != 0)
+        case ("cache-buffering-state", MPV_FORMAT_INT64):
+            return .bufferPercent(Int(property.data.assumingMemoryBound(to: Int64.self).pointee))
         case ("track-list", MPV_FORMAT_NODE):
             return .tracks(tracks(from: property.data.assumingMemoryBound(to: mpv_node.self).pointee))
+        case ("chapter-list", MPV_FORMAT_NODE):
+            return .chapters(chapters(from: property.data.assumingMemoryBound(to: mpv_node.self).pointee))
         default:
             return .none
         }
     }
 
-    nonisolated private static func tracks(from node: mpv_node) -> [Track] {
+    nonisolated private static func chapters(from node: mpv_node) -> [(start: Double, title: String?)] {
         guard node.format == MPV_FORMAT_NODE_ARRAY, let list = node.u.list?.pointee else { return [] }
-        return (0..<Int(list.num)).compactMap { index -> Track? in
+        return (0..<Int(list.num)).compactMap { index in
+            let item = list.values[index]
+            guard item.format == MPV_FORMAT_NODE_MAP, let map = item.u.list?.pointee else { return nil }
+            var start: Double?
+            var title: String?
+            for key in 0..<Int(map.num) {
+                guard let name = map.keys?[key] else { continue }
+                let value = map.values[key]
+                switch String(cString: name) {
+                case "time" where value.format == MPV_FORMAT_DOUBLE: start = value.u.double_
+                case "title" where value.format == MPV_FORMAT_STRING: title = value.u.string.map { String(cString: $0) }
+                default: break
+                }
+            }
+            return start.map { ($0, title) }
+        }
+    }
+
+    nonisolated private static func tracks(from node: mpv_node) -> [PlayerTrack] {
+        guard node.format == MPV_FORMAT_NODE_ARRAY, let list = node.u.list?.pointee else { return [] }
+        return (0..<Int(list.num)).compactMap { index -> PlayerTrack? in
             let item = list.values[index]
             guard item.format == MPV_FORMAT_NODE_MAP, let map = item.u.list?.pointee else { return nil }
             var values: [String: mpv_node] = [:]
@@ -334,24 +468,89 @@ public final class MPVController {
                 return node.u.flag != 0
             }
             guard let id = int("id"), let type = string("type") else { return nil }
-            return Track(id: id, type: type, language: string("lang"), title: string("title"), codec: string("codec"),
+            return PlayerTrack(id: id, type: type, language: string("lang"), title: string("title"), codec: string("codec"),
                          isExternal: flag("external"), isSelected: flag("selected"), ffIndex: int("ff-index"))
         }
     }
 
+    /// The time moves (mpv's or the stand-in's): a boundary it crosses fires first, in the same
+    /// step, before anything that follows `timePosition` sees the new time.
+    private func moveTime(to time: Double) {
+        let old = timePosition
+        timePosition = time
+        if let boundary, boundary.isCrossed(from: old, to: time) {
+            self.boundary = nil
+            boundary.action()
+        }
+    }
+
     private func apply(_ update: Update) {
+        // A stand-in plays: mpv (paused) doesn't speak for the playback.
+        if standIn != nil {
+            switch update {
+            case .time, .paused, .ended, .buffering, .bufferPercent: return
+            default: break
+            }
+        }
         switch update {
-        case .time(let value): timePosition = value
+        case .time(let value): moveTime(to: value)
         case .duration(let value): duration = value
         case .paused(let value): isPaused = value
         case .ended(let value): reachedEnd = value
         case .tracks(let value): tracks = value
+        case .chapters(let value): fileChapters = value
         case .volume(let value): volume = value
+        case .buffering(let value):
+            isBuffering = value
+            // The stream ran dry again soon after the last time: wait for more this time.
+            if hasStarted, bufferWait.note(buffering: value) {
+                setString("cache-pause-wait", String(bufferWait.seconds))
+            }
+            if !value { streamSpeed = nil }
+        case .bufferPercent(let value):
+            bufferPercent = value
+            if isBuffering, let speed = int64("cache-speed"), speed > 0 { streamSpeed = Double(speed) * 8 }
         case .aspect(let value):
             // Ignore the rotation nudge (a hair's change); only a new video's shape counts.
             if value > 0, videoAspect.map({ abs($0 - value) / $0 > 0.005 }) ?? true { videoAspect = value }
         case .none: break
         }
+    }
+}
+
+extension MPVController: PlayerEngine {
+    public var engineName: String { "mpv" }
+
+    public func setTimeBoundary(_ time: Double?, action: @escaping @MainActor () -> Void) {
+        boundary = time.map { TimeBoundary(time: $0, action: action) }
+    }
+
+    public func videoView(fills: Bool) -> AnyView {
+        AnyView(MPVVideoView(controller: self, fills: fills))
+    }
+
+    public var streamInfo: [(label: String, value: String)] {
+        func number(_ name: String, digits: Int = 0) -> String? {
+            property(name).flatMap(Double.init).map { String(format: "%.\(digits)f", $0) }
+        }
+        var rows: [(label: String, value: String)] = []
+        let size = [property("video-params/w"), property("video-params/h")].compactMap { $0 }.joined(separator: "×")
+        let video = [property("video-codec"), size.isEmpty ? nil : size, number("container-fps", digits: 3).map { "\($0) fps" }]
+            .compactMap { $0 }.joined(separator: " · ")
+        if !video.isEmpty { rows.append(("Video", video)) }
+        if let decoder = property("hwdec-current"), decoder != "no" { rows.append(("Decoding", "hardware (\(decoder))")) }
+        else { rows.append(("Decoding", "software")) }
+        let audio = [property("audio-codec-name"), number("audio-params/samplerate").map { "\($0) Hz" },
+                     property("audio-params/channel-count").map { "\($0) ch" }].compactMap { $0 }.joined(separator: " · ")
+        if !audio.isEmpty { rows.append(("Audio", audio)) }
+        rows.append(("Dropped frames", "\(property("frame-drop-count") ?? "0") (decoder \(property("decoder-frame-drop-count") ?? "0"))"))
+        if let cache = number("demuxer-cache-duration", digits: 1) { rows.append(("Buffered", "\(cache) s")) }
+        return rows
+    }
+
+    public var subtitleNote: String {
+        "mpv sid: \(stringProperty("sid") ?? "-")"
+            + (stringProperty("sub-text").flatMap { $0.isEmpty ? nil : ", mpv line: \($0)" } ?? "")
     }
 }
 
@@ -379,6 +578,17 @@ enum MPVOptions {
     static let audioSession: [(String, String)] = [("audio-exclusive", "yes")]
     #else
     static let audioSession: [(String, String)] = []
+    #endif
+
+    /// On macOS 27, mpv 0.41's CoreAudio output can't open multichannel planar float (48 kHz 5.1/7.1:
+    /// "unable to set the input channel layout", -50) and falls back to AVFoundation, but leaves its
+    /// device listener behind: the next audio device change (headphones, AirPods, a display) calls
+    /// it on the freed output and crashes (mpv#18274, fixed in mpv 0.42). Interleaved float opens
+    /// fine. Drop this once MPVKit ships mpv 0.42.
+    #if os(macOS)
+    static let audioFormat: [(String, String)] = [("audio-format", "float")]
+    #else
+    static let audioFormat: [(String, String)] = []
     #endif
 }
 

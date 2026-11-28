@@ -1,4 +1,5 @@
 import CoreGraphics
+import Lookup
 import OCR
 import SwiftUI
 
@@ -10,16 +11,23 @@ struct OCRTextLayer: View {
     static let space = "ocrTextLayer"
     let model: MangaReaderModel
     let page: Int
+    /// The part of the page this layer covers, normalised from the page's top left (half of a
+    /// split wide page, a page with its borders cropped); the layer is that part's size.
+    var shown = OCRTextLayer.whole
 
     var body: some View {
         GeometryReader { geometry in
             let size = geometry.size
             let frame = geometry.frame(in: .global)
+            let place = Placement(layer: size, shown: shown)
             ZStack(alignment: .topLeading) {
                 Color.clear.allowsHitTesting(false)
                 if let text = model.pageText[page] {
-                    ForEach(Array(text.blocks.enumerated()), id: \.offset) { _, block in
-                        let rect = block.box.pixels(in: size)
+                    // Only the blocks whose middle is in this part: one across the gutter belongs to
+                    // the half holding most of it, and the other half's can't be tapped through this one.
+                    ForEach(Array(text.blocks.enumerated()).filter { Self.isShown($0.element.box, in: shown) },
+                            id: \.offset) { _, block in
+                        let rect = place.rect(block.box)
                         Rectangle()
                             .fill(.clear)
                             .overlay {
@@ -31,12 +39,23 @@ struct OCRTextLayer: View {
                             .contentShape(.rect)
                             // Measured in the layer's space so the block's own rect applies directly.
                             .onTapGesture(coordinateSpace: .named(Self.space)) { location in
-                                let index = TextLayout.characterIndex(
-                                    of: location, in: rect,
-                                    characterCount: block.text.count, vertical: block.vertical
-                                )
+                                // The character whose place in the lettering the tap is in
+                                // (measured from the picture; estimated on pages without that).
+                                let index = TextLayout.characterIndex(of: location, in: rect, cells: block.characterRects(boxSize: rect.size))
                                 model.lookUp(block, page: page, characterIndex: index, anchor: rect.offsetBy(dx: frame.minX, dy: frame.minY))
                             }
+                            #if os(macOS)
+                            // Look Up on Hover: the character under the pointer, as a click would take it.
+                            .onContinuousHover(coordinateSpace: .named(Self.space)) { phase in
+                                switch phase {
+                                case .active(let location):
+                                    let index = TextLayout.characterIndex(of: location, in: rect, cells: block.characterRects(boxSize: rect.size))
+                                    model.hovered(block, page: page, characterIndex: index, anchor: rect.offsetBy(dx: frame.minX, dy: frame.minY))
+                                case .ended:
+                                    model.hoverEnded(block, page: page)
+                                }
+                            }
+                            #endif
                             .accessibilityElement()
                             .accessibilityLabel(block.text)
                             .accessibilityAddTraits(.isButton)
@@ -46,6 +65,25 @@ struct OCRTextLayer: View {
                             .position(x: rect.midX, y: rect.midY)
                     }
                 }
+                if let overlay = model.textOverlay(page: page), let range = overlay.highlight, Self.isShown(overlay.block.box, in: shown) {
+                    // The word being looked up, marked on the lettering itself: nothing is drawn
+                    // but a tint over its characters, so it shows what the tap was taken for.
+                    let rect = place.rect(overlay.block.box)
+                    ForEach(Array(Self.marks(overlay.block, range: range, in: rect).enumerated()), id: \.offset) { _, mark in
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(.tint.opacity(0.3))
+                            .frame(width: mark.width, height: mark.height)
+                            .position(x: mark.midX, y: mark.midY)
+                            .allowsHitTesting(false)
+                            .accessibilityElement()
+                            .accessibilityIdentifier("ocr.highlight")
+                    }
+                }
+                #if os(macOS)
+                // A key pressed while the pointer already rests on a word counts too.
+                Color.clear.allowsHitTesting(false)
+                    .onChange(of: HoverModifiers.shared.flags.rawValue) { model.lookUpHovered() }
+                #endif
                 if model.isSelecting {
                     Color.clear
                         .contentShape(.rect)
@@ -55,9 +93,12 @@ struct OCRTextLayer: View {
                                     let rect = CGRect(origin: drag.startLocation, size: .zero)
                                         .union(CGRect(origin: drag.location, size: .zero))
                                         .intersection(CGRect(origin: .zero, size: size))
-                                    model.selection = (page, rect)
+                                    // Kept in the whole page's terms (a half's layer is offset into it).
+                                    model.selection = (page, rect.offsetBy(dx: place.offset.x, dy: place.offset.y))
                                 }
-                                .onEnded { _ in model.finishSelection(pageSize: size, anchorOrigin: frame.origin) }
+                                .onEnded { _ in
+                                    model.finishSelection(pageSize: place.page, anchorOrigin: CGPoint(x: frame.minX - place.offset.x, y: frame.minY - place.offset.y))
+                                }
                         )
                 }
                 if let selection = model.selection, selection.page == page {
@@ -65,7 +106,7 @@ struct OCRTextLayer: View {
                         .stroke(.tint, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
                         .background(.tint.opacity(0.12))
                         .frame(width: selection.rect.width, height: selection.rect.height)
-                        .position(x: selection.rect.midX, y: selection.rect.midY)
+                        .position(x: selection.rect.midX - place.offset.x, y: selection.rect.midY - place.offset.y)
                         .allowsHitTesting(false)
                 }
             }
@@ -73,6 +114,60 @@ struct OCRTextLayer: View {
         }
         // Offsets are physical positions on the page, even in a right-to-left reader.
         .environment(\.layoutDirection, .leftToRight)
+    }
+}
+
+extension OCRTextLayer {
+    static let whole = CGRect(x: 0, y: 0, width: 1, height: 1)
+
+    /// A block is in the part of the page shown when its middle is.
+    static func isShown(_ box: NormalizedRect, in shown: CGRect) -> Bool {
+        (shown.minX...shown.maxX).contains(box.x + box.width / 2) && (shown.minY...shown.maxY).contains(box.y + box.height / 2)
+    }
+
+    /// Where the page's normalised boxes go in a layer covering `shown` of the page:
+    /// `x′ = (x − shown.minX) × page width`, the page being `layer.width / shown.width` wide (and
+    /// the same down).
+    struct Placement {
+        let page: CGSize
+        let offset: CGPoint
+
+        init(layer: CGSize, shown: CGRect) {
+            page = CGSize(width: layer.width / max(shown.width, 0.0001), height: layer.height / max(shown.height, 0.0001))
+            offset = CGPoint(x: shown.minX * page.width, y: shown.minY * page.height)
+        }
+
+        func rect(_ box: NormalizedRect) -> CGRect {
+            box.pixels(in: page).offsetBy(dx: -offset.x, dy: -offset.y)
+        }
+    }
+
+    /// The rects to tint for characters `range` of a block drawn in `rect`: one per line the
+    /// word runs over, a little larger than the ink.
+    static func marks(_ block: OCRBlock, range: Range<Int>, in rect: CGRect) -> [CGRect] {
+        // Only where each character's place was measured in the lettering: a mark that's a
+        // guess is worse than none.
+        guard block.cellsExact == true, let measured = block.cells, measured.count == block.text.count else { return [] }
+        let cells = measured.map(\.cgRect)
+        var marks: [CGRect] = []
+        for index in range where cells.indices.contains(index) {
+            let cell = CGRect(x: rect.minX + cells[index].minX * rect.width, y: rect.minY + cells[index].minY * rect.height,
+                              width: cells[index].width * rect.width, height: cells[index].height * rect.height)
+            // The same line as the one before: one mark for both.
+            if let last = marks.last,
+               block.vertical ? abs(last.midX - cell.midX) < cell.width / 2 : abs(last.midY - cell.midY) < cell.height / 2 {
+                marks[marks.count - 1] = last.union(cell)
+            } else {
+                marks.append(cell)
+            }
+        }
+        // Lettering that isn't in lines (a title drawn at angles) measures as one "line" as wide
+        // as the block: its places aren't character-shaped, so there's nothing exact to mark.
+        let count = CGFloat(range.count)
+        let along = marks.reduce(0) { $0 + (block.vertical ? $1.height : $1.width) } / max(count, 1)
+        let across = marks.map { block.vertical ? $0.width : $0.height }.max() ?? 0
+        guard along > 0, across <= along * 2.5 else { return [] }
+        return marks.map { $0.insetBy(dx: -2, dy: -2) }
     }
 }
 

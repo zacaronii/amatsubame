@@ -1,0 +1,365 @@
+import AVFoundation
+import Foundation
+import KikuWatchLink
+import MediaPlayer
+import Observation
+import UIKit
+
+/// Plays what's on this watch (docs/KIKU_PLAN.md milestone 2, #127): a long-form audio session,
+/// so watchOS routes it to headphones (and asks for them when none are connected), with Now
+/// Playing and the remote commands. Each item's place is kept here (`WatchPlaces`) and goes
+/// back to the phone with milestone 3.
+@MainActor @Observable
+final class WatchPlayer {
+    private(set) var item: WatchItem?
+    private(set) var isPlaying = false
+    /// This watch's speed, kept across launches.
+    private(set) var rate: Double = UserDefaults.standard.object(forKey: "kiku.watch.rate") as? Double ?? 1
+    /// Set when watchOS couldn't route the audio (no headphones chosen).
+    private(set) var problem: String?
+
+    @ObservationIgnored private var player: AVPlayer?
+    @ObservationIgnored private var timeObserver: Any?
+    @ObservationIgnored private var endObserver: NSObjectProtocol?
+    @ObservationIgnored private var replayObserver: Any?
+    @ObservationIgnored let places = WatchPlaces()
+    /// Listening, for the phone (milestone 3).
+    let log = WatchListeningLog()
+    /// The last time playback was counted.
+    @ObservationIgnored private var lastTick: Date?
+    @ObservationIgnored private var commandsSet = false
+    /// The position when nothing is loaded yet, and while a seek settles.
+    @ObservationIgnored private var lastPosition: Double = 0
+    @ObservationIgnored private var sampledAt = Date()
+
+    var skipBackward: Double = 15
+    var skipForward: Double = 30
+    /// The playing item's cover, when this watch has it (`WatchDownloads.covers`).
+    var artwork: Data? {
+        didSet { if artwork != oldValue { updateNowPlaying() } }
+    }
+    /// Something Now Playing shows changed (play, pause, a seek, another item): the complication
+    /// follows (`WatchSession`).
+    @ObservationIgnored var onChange: (() -> Void)?
+
+    /// The playing state in the remote's own terms, so Now Playing draws both modes alike.
+    var nowPlaying: WatchNowPlaying? {
+        guard let item else { return nil }
+        return WatchNowPlaying(itemId: item.itemId, episodeId: item.episodeId, title: item.title, subtitle: item.subtitle,
+                               chapter: chapter(at: lastPosition)?.title, position: lastPosition, duration: item.duration,
+                               rate: rate, isPlaying: isPlaying, sampledAt: sampledAt,
+                               skipBackward: skipBackward, skipForward: skipForward, artwork: artwork, transcript: item.transcript,
+                               chapters: item.chapters.isEmpty ? nil : item.chapters)
+    }
+
+    // MARK: Loading
+
+    /// Loads an item from its file, at its last place here, and plays it.
+    func play(_ item: WatchItem, file: URL) async {
+        if self.item?.key == item.key, player != nil {
+            await resume()
+            return
+        }
+        stop()
+        self.item = item
+        let player = AVPlayer(url: file)
+        player.automaticallyWaitsToMinimizeStalling = false
+        self.player = player
+        let start = places.position(item.key)
+        lastPosition = start
+        sampledAt = .now
+        if start > 0 { await player.seek(to: CMTime(seconds: start, preferredTimescale: 600)) }
+        observe(player)
+        setUpCommands()
+        await resume()
+    }
+
+    /// The phone's list changed this item's details (its transcript arrived): keep playing it.
+    func refresh(_ item: WatchItem) {
+        guard self.item?.key == item.key, self.item != item else { return }
+        self.item = item
+    }
+
+    /// Live Text's Replay: the line, then back to where you were (playing on if you were).
+    func replay(from start: Double, to end: Double) async {
+        guard let player, item != nil else { return }
+        if let replayObserver { player.removeTimeObserver(replayObserver) }
+        let back = currentTime
+        let wasPlaying = isPlaying
+        countListening()
+        await player.seek(to: CMTime(seconds: start, preferredTimescale: 600))
+        if isPlaying { lastTick = .now } else { await resume() }
+        sample()
+        replayObserver = player.addBoundaryTimeObserver(forTimes: [NSValue(time: CMTime(seconds: end, preferredTimescale: 600))],
+                                                        queue: .main) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, let player = self.player else { return }
+                if let observer = self.replayObserver { player.removeTimeObserver(observer) }
+                self.replayObserver = nil
+                Task {
+                    if !wasPlaying { self.pause() }
+                    self.countListening()
+                    await player.seek(to: CMTime(seconds: back, preferredTimescale: 600))
+                    if self.isPlaying { self.lastTick = .now }
+                    self.sample()
+                }
+            }
+        }
+    }
+
+    func stop() {
+        countListening()
+        lastTick = nil
+        log.flush()
+        savePlace()
+        player?.pause()
+        if let timeObserver { player?.removeTimeObserver(timeObserver) }
+        if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
+        if let replayObserver { player?.removeTimeObserver(replayObserver) }
+        replayObserver = nil
+        timeObserver = nil
+        endObserver = nil
+        player = nil
+        item = nil
+        isPlaying = false
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+        onChange?()
+    }
+
+    // MARK: Controls
+
+    func toggle() async {
+        if isPlaying { pause() } else { await resume() }
+    }
+
+    func pause() {
+        countListening()
+        lastTick = nil
+        player?.pause()
+        isPlaying = false
+        log.flush()
+        sample()
+        savePlace()
+    }
+
+    /// Activates the long-form session first: watchOS picks the headphones (or asks).
+    func resume() async {
+        guard let player else { return }
+        problem = nil
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setCategory(.playback, mode: .spokenAudio, policy: .longFormAudio)
+            let routed = try await session.activate()
+            guard routed else {
+                problem = "Connect headphones to listen on the watch"
+                return
+            }
+        } catch {
+            problem = "Couldn't start the audio: \(error.localizedDescription)"
+            return
+        }
+        player.playImmediately(atRate: Float(rate))
+        isPlaying = true
+        lastTick = .now
+        sample()
+    }
+
+    func skip(by seconds: Double) async {
+        guard let player, let item else { return }
+        let target = min(max(currentTime + seconds, 0), max(item.duration - 1, 0))
+        // What played before the skip counts; the skip itself doesn't.
+        countListening()
+        await player.seek(to: CMTime(seconds: target, preferredTimescale: 600))
+        if isPlaying { lastTick = .now }
+        sample()
+        savePlace()
+    }
+
+    /// A chapter's start, from the chapter list (playing on if it was).
+    func seek(to time: Double) async {
+        guard let player, let item else { return }
+        countListening()
+        await player.seek(to: CMTime(seconds: min(max(time, 0), max(item.duration - 1, 0)), preferredTimescale: 600))
+        if isPlaying { lastTick = .now }
+        sample()
+        savePlace()
+    }
+
+    func setRate(_ rate: Double) {
+        countListening()
+        self.rate = rate
+        UserDefaults.standard.set(rate, forKey: "kiku.watch.rate")
+        if isPlaying { player?.rate = Float(rate) }
+        sample()
+    }
+
+    var currentTime: Double {
+        guard let seconds = player?.currentTime().seconds, seconds.isFinite else { return lastPosition }
+        return seconds
+    }
+
+    private func chapter(at time: Double) -> WatchItem.Chapter? {
+        item?.chapters.last { $0.start <= time + 0.05 }
+    }
+
+    // MARK: Following
+
+    private func observe(_ player: AVPlayer) {
+        // Every 5 s: the remote works the position out between samples, so only the place and
+        // Now Playing need it.
+        timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 5, preferredTimescale: 1), queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.isPlaying else { return }
+                self.countListening()
+                self.sample()
+                self.savePlace()
+            }
+        }
+        endObserver = NotificationCenter.default.addObserver(forName: AVPlayerItem.didPlayToEndTimeNotification,
+                                                             object: player.currentItem, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                if let item = self.item {
+                    self.countListening(finished: true)
+                    self.log.listened(0, item: item, position: item.duration, rate: self.rate, finished: true)
+                }
+                self.lastTick = nil
+                self.isPlaying = false
+                self.log.flush()
+                self.sample()
+                if let key = self.item?.key { self.places.finished(key) }
+                self.updateNowPlaying()
+            }
+        }
+    }
+
+    /// The playback since the last count, as listening (wall-clock time while playing, at any
+    /// speed; a gap of more than a minute between counts isn't trusted).
+    private func countListening(finished: Bool = false) {
+        guard isPlaying, let item, let lastTick else { return }
+        let now = Date()
+        let seconds = now.timeIntervalSince(lastTick)
+        self.lastTick = now
+        guard seconds > 0, seconds < 60 else { return }
+        log.listened(seconds, item: item, position: finished ? item.duration : currentTime, rate: rate, at: now)
+    }
+
+    private func sample() {
+        lastPosition = currentTime
+        sampledAt = .now
+        updateNowPlaying()
+        onChange?()
+    }
+
+    private func savePlace() {
+        guard let item, player != nil else { return }
+        places.save(item.key, position: currentTime)
+    }
+
+    // MARK: Now Playing
+
+    private func updateNowPlaying() {
+        guard let item else { return }
+        var info: [String: Any] = [
+            MPMediaItemPropertyTitle: item.title,
+            MPMediaItemPropertyArtist: item.subtitle,
+            MPMediaItemPropertyPlaybackDuration: item.duration,
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: lastPosition,
+            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? rate : 0,
+            MPNowPlayingInfoPropertyDefaultPlaybackRate: rate,
+        ]
+        if let chapter = chapter(at: lastPosition) { info[MPMediaItemPropertyAlbumTitle] = chapter.title }
+        if let artwork, let image = UIImage(data: artwork) { info[MPMediaItemPropertyArtwork] = Self.artwork(image) }
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+    }
+
+    /// MediaPlayer asks for the image on its own queue: the closure mustn't be the main actor's.
+    nonisolated private static func artwork(_ image: UIImage) -> MPMediaItemArtwork {
+        MPMediaItemArtwork(boundsSize: image.size) { @Sendable _ in image }
+    }
+
+    private func setUpCommands() {
+        guard !commandsSet else { return }
+        commandsSet = true
+        let center = MPRemoteCommandCenter.shared()
+        center.playCommand.addTarget { [weak self] _ in
+            Task { @MainActor in await self?.resume() }
+            return .success
+        }
+        center.pauseCommand.addTarget { [weak self] _ in
+            Task { @MainActor in self?.pause() }
+            return .success
+        }
+        center.togglePlayPauseCommand.addTarget { [weak self] _ in
+            Task { @MainActor in await self?.toggle() }
+            return .success
+        }
+        center.skipBackwardCommand.preferredIntervals = [NSNumber(value: skipBackward)]
+        center.skipBackwardCommand.addTarget { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                await self.skip(by: -self.skipBackward)
+            }
+            return .success
+        }
+        center.skipForwardCommand.preferredIntervals = [NSNumber(value: skipForward)]
+        center.skipForwardCommand.addTarget { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                await self.skip(by: self.skipForward)
+            }
+            return .success
+        }
+    }
+}
+
+/// Each item's place on this watch, with when it was saved (milestone 3 sends them back).
+final class WatchPlaces {
+    struct Place: Codable, Equatable {
+        var position: Double
+        var updatedAt: Date
+        var finished = false
+    }
+
+    private static let key = "kiku.watch.places"
+    private var places: [String: Place]
+
+    init() {
+        places = UserDefaults.standard.data(forKey: Self.key)
+            .flatMap { try? JSONDecoder().decode([String: Place].self, from: $0) } ?? [:]
+    }
+
+    func place(_ key: String) -> Place? { places[key] }
+
+    /// Where to start: the saved place, or the start once finished.
+    func position(_ key: String) -> Double {
+        guard let place = places[key], !place.finished else { return 0 }
+        return place.position
+    }
+
+    func save(_ key: String, position: Double, at date: Date = .now) {
+        places[key] = Place(position: position, updatedAt: date)
+        write()
+    }
+
+    func finished(_ key: String, at date: Date = .now) {
+        places[key] = Place(position: places[key]?.position ?? 0, updatedAt: date, finished: true)
+        write()
+    }
+
+    /// The phone's place, when it's newer than this watch's.
+    func adopt(_ key: String, position: Double, updatedAt: Date) {
+        if let mine = places[key], mine.updatedAt >= updatedAt { return }
+        places[key] = Place(position: position, updatedAt: updatedAt)
+        write()
+    }
+
+    func forget(_ key: String) {
+        places[key] = nil
+        write()
+    }
+
+    private func write() {
+        if let data = try? JSONEncoder().encode(places) { UserDefaults.standard.set(data, forKey: Self.key) }
+    }
+}

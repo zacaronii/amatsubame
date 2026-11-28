@@ -17,6 +17,7 @@ struct ShowView: View {
     /// The show's episodes have come back from the server (or failed to): only then is an
     /// empty list news.
     @State private var loaded = false
+    @State private var editsAutoDownload = false
 
     private var show: AudiobookshelfItem? { environment.library.shows.first { $0.id == itemId } }
     private var entries: [EpisodeEntry] {
@@ -47,6 +48,11 @@ struct ShowView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(show?.title ?? environment.library.showTitle(itemId)).font(.title.bold()).lineLimit(3)
                         Text("Podcast · \(show?.media.numEpisodes ?? entries.count) episodes").foregroundStyle(.secondary)
+                        if let show, let status = AudioAutoDownloadText.status(environment.autoDownloads.coverage(of: show)) {
+                            Label(status, systemImage: "arrow.down.circle.dotted")
+                                .font(.footnote).foregroundStyle(.secondary)
+                                .accessibilityIdentifier("show.autoDownloadStatus")
+                        }
                     }
                 }
                 if let primary {
@@ -97,6 +103,17 @@ struct ShowView: View {
             if environment.library.showEpisodes[itemId] == nil { ProgressView() }
         }
         .navigationTitle(show?.title ?? environment.library.showTitle(itemId))
+        .toolbar {
+            if let show {
+                ToolbarItem {
+                    Button("Download Ahead and Playback", systemImage: "slider.horizontal.3") { editsAutoDownload = true }
+                        .accessibilityIdentifier("show.autoDownload")
+                }
+            }
+        }
+        .sheet(isPresented: $editsAutoDownload) {
+            if let show { ShowAutoDownloadView(show: show) }
+        }
         #if os(macOS)
         .pinnable(id: itemId, kind: "show", title: show?.title ?? environment.library.showTitle(itemId))
         #endif
@@ -107,7 +124,7 @@ struct ShowView: View {
             await environment.library.loadShow(itemId)
             loaded = true
         }
-        .refreshable {
+        .refreshableByCommand {
             CoverLoader.recheck()
             await environment.library.loadShow(itemId)
         }

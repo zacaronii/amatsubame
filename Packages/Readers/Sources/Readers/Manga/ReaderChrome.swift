@@ -6,6 +6,7 @@ struct ReaderChrome: View {
     let onClose: () -> Void
     let onSettings: () -> Void
     @State private var scrubPage: Double?
+    @State private var explainsBookmarks = false
 
     var body: some View {
         VStack {
@@ -20,6 +21,33 @@ struct ReaderChrome: View {
                     Text(model.chapter.title).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
                 .frame(maxWidth: .infinity)
+                if let bookmarks = model.bookmarks, model.state == .ready {
+                    let page = model.currentPage
+                    let marked = bookmarks.isBookmarked(page)
+                    Button(marked ? "Remove Bookmark" : "Bookmark Page", systemImage: marked ? "bookmark.fill" : "bookmark") {
+                        if marked || bookmarks.canBookmark { bookmarks.toggle(page) } else { explainsBookmarks = true }
+                    }
+                    .labelStyle(.iconOnly)
+                    .buttonBorderShape(.circle)
+                    .foregroundStyle(marked || bookmarks.canBookmark ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                    .accessibilityIdentifier("reader.bookmark")
+                    .accessibilityValue(marked ? "Bookmarked" : "")
+                    .alert("Page Bookmarks Are Off for This Account", isPresented: $explainsBookmarks) {
+                        Button("OK", role: .cancel) {}
+                    } message: {
+                        Text("Kavita keeps bookmarks only for accounts with its Bookmark role. An admin can turn it on in Kavita\u{2019}s user settings.")
+                    }
+                }
+                if model.settings.mode == .longStrip, model.state == .ready {
+                    // Starts scrolling and gets the controls out of the way.
+                    Button("Auto-Scroll", systemImage: "arrow.down.circle") {
+                        model.autoScroll.start()
+                        model.showsChrome = false
+                    }
+                    .labelStyle(.iconOnly)
+                    .buttonBorderShape(.circle)
+                    .accessibilityIdentifier("reader.autoScroll")
+                }
                 ReaderSettingsButton(action: onSettings)
                     .disabled(model.state != .ready)
             }
@@ -82,6 +110,11 @@ struct ReaderSettingsSheet: View {
                         Text("Left to right").tag(MangaReaderSettings.Direction.leftToRight)
                     }
                     .disabled(model.settings.mode == .longStrip)
+                    if model.settings.mode == .paged {
+                        TapZonesPicker(selection: $model.settings.tapZones)
+                        Toggle("Double-Tap to Zoom", isOn: $model.settings.doubleTapZooms)
+                    }
+                    RotationLockToggle()
                 }
                 if model.settings.mode == .paged {
                     Section("Two-Page Spreads") {
@@ -92,6 +125,18 @@ struct ReaderSettingsSheet: View {
                         }
                         Toggle("Show Cover Alone", isOn: $model.settings.coverAlone)
                     }
+                    Section {
+                        Toggle("Split Wide Pages", isOn: $model.settings.splitsWidePages)
+                            .accessibilityIdentifier("reader.splitWidePages")
+                    } footer: {
+                        Text("In portrait, a two-page scan is shown one half at a time.")
+                    }
+                    Section {
+                        Toggle("Crop Borders", isOn: $model.settings.cropsBorders)
+                            .accessibilityIdentifier("reader.cropBorders")
+                    } footer: {
+                        Text("Trims a page's blank white or black margins so the art fills more of the screen. A page that's mostly blank is shown whole.")
+                    }
                 } else {
                     Section("Page Width") {
                         RoundStepperRow("Page width", value: $model.settings.stripWidth, in: 0.6...1, step: 0.05) {
@@ -101,6 +146,7 @@ struct ReaderSettingsSheet: View {
                 }
                 Section {
                     Toggle("Show text boxes", isOn: $model.settings.showsTextBoxes)
+                    Toggle("Mark the Word on the Page", isOn: $model.settings.showsTextOverlay)
                     RoundStepperRow("OCR pages ahead", value: Binding {
                         Double(model.settings.ocrAhead)
                     } set: {
@@ -132,6 +178,35 @@ struct ReaderSettingsSheet: View {
         #else
         .presentationDetents([.medium, .large])
         .frame(minWidth: 380, minHeight: 460)
+        #endif
+    }
+}
+
+/// Tap to Turn Pages: the usual sides, swapped, or off (both readers' settings).
+struct TapZonesPicker: View {
+    @Binding var selection: ReaderTapZones
+
+    var body: some View {
+        Picker("Tap to Turn Pages", selection: $selection) {
+            Text("On").tag(ReaderTapZones.standard)
+            Text("Sides Swapped").tag(ReaderTapZones.inverted)
+            Text("Off").tag(ReaderTapZones.off)
+        }
+        .accessibilityIdentifier("reader.tapZones")
+    }
+}
+
+/// Lock Rotation (iPhone and iPad), in both readers' settings.
+struct RotationLockToggle: View {
+    #if os(iOS)
+    @State private var isOn = OrientationLock.isOn
+    #endif
+
+    var body: some View {
+        #if os(iOS)
+        Toggle("Lock Rotation", isOn: $isOn)
+            .onChange(of: isOn) { _, on in OrientationLock.isOn = on }
+            .accessibilityIdentifier("reader.lockRotation")
         #endif
     }
 }

@@ -205,6 +205,20 @@ import Testing
         #expect(TextScanner.scanText(text, utf16Offset: 999).isEmpty)
     }
 
+    /// 一 and dashes after katakana are read as ー; 一 before a kanji or つ (a number) is left alone.
+    @Test func longVowelLookalikesAfterKatakana() {
+        #expect(TextScanner.scanText("フリ一レン。", utf16Offset: 0) == "フリーレン。")
+        #expect(TextScanner.scanText("ヒ―ロ－だ", utf16Offset: 0) == "ヒーローだ")
+        #expect(TextScanner.scanText("コ—ヒ─", utf16Offset: 0) == "コーヒー")
+        #expect(TextScanner.scanText("カード一枚", utf16Offset: 0) == "カード一枚")
+        #expect(TextScanner.scanText("ケーキ一つ", utf16Offset: 0) == "ケーキ一つ")
+        #expect(TextScanner.scanText("リンゴ一ッ", utf16Offset: 0) == "リンゴ一ッ")
+        // At the end, after katakana: OCR's ー (ヒーロ一 → ヒーロー).
+        #expect(TextScanner.scanText("ヒーロ一", utf16Offset: 0) == "ヒーロー")
+        #expect(TextScanner.scanText("一つ", utf16Offset: 0) == "一つ")
+        #expect(TextScanner.scanText("今日一日", utf16Offset: 0) == "今日一日")
+    }
+
     @Test func sentenceAroundTap() {
         let text = "彼は言った。「もう食べられないよ。」そして寝た。"
         #expect(TextScanner.sentence(in: text, utf16Offset: 9) == "「もう食べられないよ。」")
@@ -225,5 +239,103 @@ import Testing
         let text = "𠮟る"
         #expect(TextScanner.scanText(text, utf16Offset: 1) == "𠮟る")
         #expect(TextScanner.scanText(text, utf16Offset: 2) == "る")
+    }
+}
+
+/// Frequency sorting as in Hachidori: nothing sorts unless a dictionary is chosen with a direction
+/// (choosing one sets its own: rank-based or unset ascending, occurrence counts descending), and a
+/// linked Hachidori's settings replace ours.
+@Suite struct FrequencyOrderTests {
+    /// 引責 has the higher term score; the frequency dictionary says 隕石 is far more common.
+    func homophones() -> TestDictionaryBuilder {
+        var terms = TestDictionaryBuilder(title: "Terms")
+        terms.terms = [
+            .init("引責", "いんせき", rules: "", glossary: ["taking responsibility"], definitionTags: "", score: 50),
+            .init("隕石", "いんせき", rules: "", glossary: ["meteorite"], definitionTags: "", score: 0),
+        ]
+        return terms
+    }
+
+    func expressions(_ library: DictionaryLibrary) async -> [String] {
+        Array(await library.engine.lookup("いんせき").map(\.expression).prefix(2))
+    }
+
+    func library(frequencies title: String, mode: String?, values: (Int, Int)) async throws -> DictionaryLibrary {
+        let library = try makeLibrary()
+        try await library.importDictionary(at: try homophones().write())
+        var frequency = TestDictionaryBuilder(title: title)
+        if let mode { frequency.index = ["frequencyMode": mode] }
+        frequency.frequencies = [("隕石", "いんせき", values.0, nil), ("引責", "いんせき", values.1, nil)]
+        try await library.importDictionary(at: try frequency.write())
+        return library
+    }
+
+    @Test func nothingSortsUntilChosen() async throws {
+        let library = try await library(frequencies: "Ranks", mode: "rank-based", values: (900, 24000))
+        #expect(try library.frequencySortSettings() == (nil, "auto"))
+        #expect(await expressions(library) == ["引責", "隕石"], "dictionary order and scores, as Hachidori's default")
+    }
+
+    @Test func choosingARankBasedDictionarySortsAscending() async throws {
+        let library = try await library(frequencies: "Ranks", mode: "rank-based", values: (900, 24000))
+        try await library.setFrequencySortDictionary("Ranks")
+        #expect(try library.frequencySortSettings() == ("Ranks", "ascending"))
+        #expect(await expressions(library) == ["隕石", "引責"])
+        try await library.setFrequencySortOrder("auto")
+        #expect(await expressions(library) == ["引責", "隕石"], "Automatic is dictionary order, even with one chosen")
+        try await library.setFrequencySortOrder("descending")
+        #expect(await expressions(library) == ["引責", "隕石"])
+        try await library.setFrequencySortOrder("disabled")
+        #expect(await expressions(library) == ["引責", "隕石"])
+        try await library.setFrequencySortDictionary(nil)
+        try await library.setFrequencySortOrder("ascending")
+        #expect(await expressions(library) == ["引責", "隕石"], "a direction needs a dictionary")
+    }
+
+    @Test func choosingAnOccurrenceBasedDictionarySortsDescending() async throws {
+        let library = try await library(frequencies: "Counts", mode: "occurrence-based", values: (5200, 40))
+        try await library.setFrequencySortDictionary("Counts")
+        #expect(try library.frequencySortSettings() == ("Counts", "descending"))
+        #expect(await expressions(library) == ["隕石", "引責"])
+    }
+
+    @Test func aDictionaryWithNoModeSortsAscendingWhenChosen() async throws {
+        let library = try await library(frequencies: "Plain", mode: nil, values: (900, 24000))
+        #expect(await expressions(library) == ["引責", "隕石"], "not chosen: it doesn't sort")
+        try await library.setFrequencySortDictionary("Plain")
+        #expect(await expressions(library) == ["隕石", "引責"])
+    }
+
+    /// A dictionary chosen before Sort order was a setting keeps sorting in its own direction.
+    @Test func aChoiceFromBeforeKeepsItsDirection() async throws {
+        let library = try await library(frequencies: "Counts", mode: "occurrence-based", values: (5200, 40))
+        try await library.updateSettings {
+            $0.frequencySortTitle = "Counts"
+            $0.frequencySortOrder = nil
+        }
+        try await library.reloadEngine()
+        #expect(try library.frequencySortSettings() == ("Counts", "descending"))
+        #expect(await expressions(library) == ["隕石", "引責"])
+    }
+
+    @Test func aLinkedHachidorisSettingsReplaceOurs() async throws {
+        let library = try await library(frequencies: "Counts", mode: "occurrence-based", values: (5200, 40))
+        try await library.setFrequencySortDictionary("Counts")
+        // Hachidori's default: no sort, though ours has one.
+        try await library.setHostFrequencySort(.init(dictionary: "", order: "auto"))
+        #expect(await expressions(library) == ["引責", "隕石"])
+        // Its own choice (here the wrong way round for counts, which shows it's the one used).
+        try await library.setHostFrequencySort(.init(dictionary: "Counts", order: "ascending"))
+        #expect(await expressions(library) == ["引責", "隕石"])
+        try await library.setHostFrequencySort(.init(dictionary: "Counts", order: "descending"))
+        #expect(await expressions(library) == ["隕石", "引責"])
+        try await library.setHostFrequencySort(nil)
+        #expect(await expressions(library) == ["隕石", "引責"], "ours again")
+    }
+
+    @Test func hostSettings() {
+        #expect(FrequencyOrder(hostSetting: "ascending") == .ascending && FrequencyOrder(hostSetting: "descending") == .descending)
+        #expect(FrequencyOrder(hostSetting: "auto") == nil && FrequencyOrder(hostSetting: "disabled") == nil)
+        #expect(FrequencyOrder(frequencyMode: "occurrence-based") == .descending && FrequencyOrder(frequencyMode: nil) == .ascending)
     }
 }

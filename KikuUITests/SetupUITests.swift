@@ -50,7 +50,7 @@ final class SetupUITests: XCTestCase {
         app.navigationBars.buttons.firstMatch.tap()
         app.tapContinue()
         XCTAssertTrue(app.staticTexts["setup.done"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.element("setup.checklist.Kaku transcripts").label.contains("Settings → Listening"))
+        XCTAssertTrue(app.element("setup.checklist.Kaku transcripts").label.contains("Settings → Connections → Kaku"))
         app.buttons["setup.start"].tap()
     }
 }

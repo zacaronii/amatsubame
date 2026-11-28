@@ -93,6 +93,34 @@ import Testing
         #expect(try store.all().keys.sorted() == [3])
     }
 
+    @Test func audioAutoDownloadSettingsByLibraryAndShow() throws {
+        let store = AudioAutoDownloadSettingsStore(database: try AppDatabase.inMemory())
+        #expect(try store.all().isEmpty)
+        try store.save(AudioAutoDownloadSetting(scope: AudioAutoDownloadSetting.library("lib"), ahead: 3, order: .inOrder))
+        try store.save(AudioAutoDownloadSetting(scope: AudioAutoDownloadSetting.show("show"), isOn: false))
+        let all = try store.all()
+        #expect(all["library:lib"]?.ahead == 3 && all["library:lib"]?.order == .inOrder)
+        #expect(all["show:show"]?.isOn == false)
+        // Back to the default forgets it.
+        try store.save(AudioAutoDownloadSetting(scope: AudioAutoDownloadSetting.show("show")))
+        #expect(try store.all().keys.sorted() == ["library:lib"])
+        // A book library with only Download Once Started is kept.
+        try store.save(AudioAutoDownloadSetting(scope: AudioAutoDownloadSetting.library("books"), onceStarted: true))
+        #expect(try store.all()["library:books"]?.onceStarted == true)
+    }
+
+    @Test func declinedAutomaticDownloadsAreRemembered() throws {
+        let store = AudioAutoDownloadSettingsStore(database: try AppDatabase.inMemory())
+        try store.decline("show/ep1")
+        try store.decline("book")
+        #expect(try store.declined() == ["show/ep1", "book"])
+        try store.undecline("book")
+        #expect(try store.declined() == ["show/ep1"])
+        // Keeping manual downloads is the default; turning it off is a saved choice.
+        try store.save(AudioAutoDownloadSetting(scope: AudioAutoDownloadSetting.library("lib"), removesPlayed: true, keepsManual: false))
+        #expect(try store.all()["library:lib"]?.keepsManual == false)
+    }
+
     @Test func failedDownloadsGoBackInLine() throws {
         let store = DownloadStore(database: try AppDatabase.inMemory())
         let id = try #require(try store.enqueue(record("A")).id)

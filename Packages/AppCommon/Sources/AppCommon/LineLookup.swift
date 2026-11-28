@@ -16,24 +16,28 @@ public final class LineLookup {
     }
 
     /// Looks up the word at `characterIndex` of `text` (newlines are dropped first) and
-    /// opens the popup; cards mined from it get `context`.
-    public func lookUp(_ text: String, characterIndex: Int, key: String, context: (any MiningContext)?) {
+    /// opens the popup; cards mined from it get `context`. `shown` runs once the popup is set,
+    /// with how long the dictionary lookup took (for timing slow lookups).
+    public func lookUp(_ text: String, characterIndex: Int, key: String, context: (any MiningContext)?,
+                       shown: (@MainActor (_ lookupSeconds: Double) -> Void)? = nil) {
         let sentence = TappableLine.sentence(text)
         let offset = String(sentence.prefix(characterIndex)).utf16.count
         let anchor = TappableLine.lastTap
         TappableLine.lastTap = nil
         Task {
-            let page = await service.lookup(text: sentence, utf16Offset: offset, showSource: true)
+            let started = Date()
+            let page = await service.lookup(text: sentence, utf16Offset: offset, keepsSource: true)
+            let lookupSeconds = Date().timeIntervalSince(started)
             self.key = key
             let popup = LookupPopupModel(page: page, context: context)
             popup.anchor = anchor
             self.popup = popup
+            shown?(lookupSeconds)
         }
     }
 
-    /// The looked-up characters: which line and the character range. It follows the popup:
-    /// a word tapped in the popup's sentence moves it, Back moves it back, and a word from a
-    /// definition (no sentence) leaves it on the sentence's last word.
+    /// The looked-up characters: which line and the character range. It follows the popup: a
+    /// word from a definition (no place in the line) leaves it on the line's word, and Back keeps it.
     public var highlight: (key: String, range: Range<Int>)? {
         guard let key, let page = popup?.pages.last(where: { $0.source != nil && !$0.results.isEmpty }),
               let source = page.source else { return nil }
@@ -69,12 +73,14 @@ public struct TextMiningContext: MiningContext {
 }
 
 nonisolated public enum CardSource {
-    /// "Star Captain — S1E1 · 12:34" for the card's MiscInfo.
+    /// "Star Captain — S1E1 · 12:34" for the card's MiscInfo; "Star Captain — 12:34" without an
+    /// episode (a film, a book position before its first chapter).
     public static func miscInfo(show: String, episode: String?, time: Double) -> String {
         let total = Int(max(time, 0))
         let stamp = total >= 3600
             ? String(format: "%d:%02d:%02d", total / 3600, total / 60 % 60, total % 60)
             : String(format: "%d:%02d", total / 60, total % 60)
+        let episode = episode?.trimmingCharacters(in: .whitespaces).isEmpty == false ? episode : nil
         return [show, [episode, stamp].compactMap(\.self).joined(separator: " · ")].joined(separator: " — ")
     }
 }

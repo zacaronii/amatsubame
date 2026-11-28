@@ -25,10 +25,13 @@ public struct WatchNowPlaying: Codable, Equatable, Sendable {
     /// Live Text's transcript for this episode (`WatchTranscript.id`): set with Live Text on and
     /// a transcript on the phone. The watch asks for it if it doesn't have it.
     public var transcript: String?
+    /// The book's or episode's chapters, for the watch's chapter list (nil from an older phone).
+    public var chapters: [WatchItem.Chapter]?
 
     public init(itemId: String, episodeId: String, title: String, subtitle: String, chapter: String? = nil,
                 position: Double, duration: Double, rate: Double, isPlaying: Bool, sampledAt: Date,
-                skipBackward: Double = 15, skipForward: Double = 30, artwork: Data? = nil, transcript: String? = nil) {
+                skipBackward: Double = 15, skipForward: Double = 30, artwork: Data? = nil, transcript: String? = nil,
+                chapters: [WatchItem.Chapter]? = nil) {
         self.itemId = itemId
         self.episodeId = episodeId
         self.title = title
@@ -43,6 +46,7 @@ public struct WatchNowPlaying: Codable, Equatable, Sendable {
         self.skipForward = skipForward
         self.artwork = artwork
         self.transcript = transcript
+        self.chapters = chapters
     }
 
     /// "<item>/<episode>", or a book's "<item>" (Kiku's progress key).
@@ -60,12 +64,42 @@ public struct WatchNowPlaying: Codable, Equatable, Sendable {
         duration > 0 ? min(max(position(at: date) / duration, 0), 1) : 0
     }
 
+    /// The speeds the watch offers: the phone's (`ListenSettings.speeds`).
+    public static let speeds: [Double] = [0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2]
+
+    /// "1.0×", "1.25×", as the phone writes them.
+    public static func speedText(_ speed: Double) -> String {
+        speed == speed.rounded() ? String(format: "%.1f×", speed) : String(format: "%g×", speed)
+    }
+
+    /// The chapter playing at `date`, by its index in `chapters`.
+    public func chapterIndex(at date: Date) -> Int? {
+        let time = position(at: date)
+        return chapters?.lastIndex { $0.start <= time + 0.05 }
+    }
+
+    /// Previous Chapter: the playing chapter's start, or the one before within 3 s of it
+    /// (as a music player's Previous does).
+    public func previousChapterStart(at date: Date) -> Double? {
+        guard let chapters, let index = chapterIndex(at: date) else { return nil }
+        if position(at: date) - chapters[index].start > 3 || index == 0 { return chapters[index].start }
+        return chapters[index - 1].start
+    }
+
+    /// Next Chapter's start; nil in the last one.
+    public func nextChapterStart(at date: Date) -> Double? {
+        guard let chapters else { return nil }
+        let next = chapterIndex(at: date).map { $0 + 1 } ?? 0
+        return next < chapters.count ? chapters[next].start : nil
+    }
+
     /// Whether `newer` tells the watch nothing new: the same episode, chapter, speed and play
     /// state, at the position this one predicts (within `tolerance` seconds). Then it isn't sent.
     public func predicts(_ newer: WatchNowPlaying, tolerance: Double = 1.5) -> Bool {
         key == newer.key && title == newer.title && chapter == newer.chapter && rate == newer.rate
             && isPlaying == newer.isPlaying && duration == newer.duration
             && skipBackward == newer.skipBackward && skipForward == newer.skipForward && transcript == newer.transcript
+            && chapters == newer.chapters
             && abs(position(at: newer.sampledAt) - newer.position) <= tolerance
     }
 }
@@ -140,6 +174,22 @@ public enum WatchCommand: Codable, Equatable, Sendable {
     case addCard(key: String, line: Int, character: Int)
     /// Live Text's transcript (by `WatchTranscript.id`), the lines from `from` on.
     case transcriptPart(id: String, from: Int)
+    /// A token that lasts, before the watch downloads (the phone's access token runs out in an hour).
+    case freshAccess
+    /// Plays the episode on from there (a chapter's start), if it's still the one playing.
+    case seek(key: String, to: Double)
+    /// The playback speed (one of `ListenSettings.speeds`).
+    case setRate(Double)
+
+    /// The episode a Live Text command is about (the phone answers one it isn't playing from its
+    /// saved transcript); nil for the rest, and for Replay, which plays on the phone's player.
+    public var lineKey: String? {
+        switch self {
+        case let .markLine(key, _), let .lookUp(key, _, _), let .addCard(key, _, _): key
+        case let .transcriptPart(id, _): id.split(separator: "#", maxSplits: 1).first.map(String.init)
+        default: nil
+        }
+    }
 }
 
 /// The phone's answer to a command.
@@ -154,16 +204,19 @@ public struct WatchReply: Codable, Equatable, Sendable {
     public var cardAdded: Bool?
     /// For `transcriptPart`: the lines.
     public var transcriptPart: WatchTranscriptPart?
+    /// For `freshAccess`.
+    public var access: WatchAccess?
     /// The state after the command, so the watch needn't wait for the next context.
     public var state: WatchState
 
     public init(message: String? = nil, markedAt: Double? = nil, lookup: WatchLookup? = nil, cardAdded: Bool? = nil,
-                transcriptPart: WatchTranscriptPart? = nil, state: WatchState) {
+                transcriptPart: WatchTranscriptPart? = nil, access: WatchAccess? = nil, state: WatchState) {
         self.message = message
         self.markedAt = markedAt
         self.lookup = lookup
         self.cardAdded = cardAdded
         self.transcriptPart = transcriptPart
+        self.access = access
         self.state = state
     }
 }
@@ -174,9 +227,27 @@ public enum WatchMessages {
     static let command = "command"
     static let reply = "reply"
     static let queuedMark = "queuedMark"
+    static let library = "library"
+    static let inventory = "inventory"
+    static let removed = "removedFromWatch"
 
-    public static func context(_ state: WatchState) -> [String: Any] { encode(state, as: Self.state) }
+    /// The phone's context: what's playing and, once anything was sent, the watch's library.
+    /// A context replaces the last one whole, so both go every time.
+    public static func context(_ state: WatchState, library: WatchLibrary? = nil) -> [String: Any] {
+        var context = encode(state, as: Self.state)
+        if let library { context.merge(encode(library, as: Self.library)) { $1 } }
+        return context
+    }
     public static func state(from context: [String: Any]) -> WatchState? { decode(context, Self.state) }
+    public static func library(from context: [String: Any]) -> WatchLibrary? { decode(context, Self.library) }
+
+    /// The watch's context: where each item is.
+    public static func context(_ inventory: WatchInventory) -> [String: Any] { encode(inventory, as: Self.inventory) }
+    public static func inventory(from context: [String: Any]) -> WatchInventory? { decode(context, Self.inventory) }
+
+    /// Removed on the watch (by key), sent with `transferUserInfo` so it arrives even later.
+    public static func userInfo(removed key: String) -> [String: Any] { [removed: key] }
+    public static func removedKey(from userInfo: [String: Any]) -> String? { userInfo[removed] as? String }
 
     public static func message(_ command: WatchCommand) -> [String: Any] { encode(command, as: Self.command) }
     public static func command(from message: [String: Any]) -> WatchCommand? { decode(message, Self.command) }
@@ -187,12 +258,12 @@ public enum WatchMessages {
     public static func userInfo(_ mark: WatchQueuedMark) -> [String: Any] { encode(mark, as: queuedMark) }
     public static func queuedMark(from userInfo: [String: Any]) -> WatchQueuedMark? { decode(userInfo, queuedMark) }
 
-    private static func encode(_ value: some Encodable, as key: String) -> [String: Any] {
+    static func encode(_ value: some Encodable, as key: String) -> [String: Any] {
         guard let data = try? JSONEncoder().encode(value) else { return [:] }
         return [key: data]
     }
 
-    private static func decode<Value: Decodable>(_ dictionary: [String: Any], _ key: String) -> Value? {
+    static func decode<Value: Decodable>(_ dictionary: [String: Any], _ key: String) -> Value? {
         guard let data = dictionary[key] as? Data else { return nil }
         return try? JSONDecoder().decode(Value.self, from: data)
     }
@@ -226,5 +297,26 @@ public enum WatchStateStore {
 
     public static func load() -> WatchState? {
         defaults.data(forKey: key).flatMap { try? JSONDecoder().decode(WatchState.self, from: $0) }
+    }
+
+    static let shownKey = "kiku.watch.shown"
+
+    /// What Now Playing shows, for the complication: the phone's, or in Watch mode this
+    /// watch's own playback (without its artwork). Nil when nothing plays in that mode.
+    public static func saveShown(_ playing: WatchNowPlaying?) {
+        var playing = playing
+        playing?.artwork = nil
+        guard let playing, let data = try? JSONEncoder().encode(playing) else {
+            defaults.set(Data(), forKey: shownKey)
+            return
+        }
+        defaults.set(data, forKey: shownKey)
+    }
+
+    /// What the complication shows: the saved Now Playing, else (before a watch app that saves
+    /// it) the phone's.
+    public static func loadShown() -> WatchNowPlaying? {
+        guard let data = defaults.data(forKey: shownKey) else { return load()?.nowPlaying }
+        return try? JSONDecoder().decode(WatchNowPlaying.self, from: data)
     }
 }

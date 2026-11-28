@@ -66,13 +66,15 @@ public actor OCRPipeline {
         var blocks: [OCRBlock] = []
         for index in order {
             let detection = texts[index]
-            let text = try read(detection.box, in: image)
-            guard !text.isEmpty else { continue }
+            let read = try read(detection.box, in: image)
+            guard !read.isEmpty else { continue }
             let pixels = detection.box.pixels(in: CGSize(width: image.width, height: image.height))
-            blocks.append(OCRBlock(
-                box: detection.box, text: text, vertical: TextOrientation.isVertical(pixelSize: pixels.size, text: text),
-                kind: detection.label == .textInBubble ? .bubbleText : .freeText, score: detection.score
-            ))
+            let guess = TextOrientation.isVertical(pixelSize: pixels.size, text: read)
+            let (vertical, text, layout) = TextLines.orientedLayout(of: detection.box, in: image, read: read, guess: guess)
+            var block = OCRBlock(box: detection.box, text: text, vertical: vertical,
+                                 kind: detection.label == .textInBubble ? .bubbleText : .freeText, score: detection.score)
+            block.place(layout)
+            blocks.append(block)
         }
         timings.recognition = clock.now - recognitionStart
         timings.blocks = blocks.count
@@ -81,9 +83,13 @@ public actor OCRPipeline {
 
     /// Reads a region the user drew (normalized to the page).
     public func recognize(region: NormalizedRect, in image: CGImage) throws -> OCRBlock {
-        let text = try read(region, in: image, padding: 0)
+        let read = try read(region, in: image, padding: 0)
         let pixels = region.pixels(in: CGSize(width: image.width, height: image.height))
-        return OCRBlock(box: region, text: text, vertical: TextOrientation.isVertical(pixelSize: pixels.size, text: text), kind: .manual)
+        let guess = TextOrientation.isVertical(pixelSize: pixels.size, text: read)
+        let (vertical, text, layout) = TextLines.orientedLayout(of: region, in: image, read: read, guess: guess)
+        var block = OCRBlock(box: region, text: text, vertical: vertical, kind: .manual)
+        block.place(layout)
+        return block
     }
 
     // MARK: Detection

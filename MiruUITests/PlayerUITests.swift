@@ -5,13 +5,16 @@ final class PlayerUITests: XCTestCase {
     func testTabsAndSettings() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launch()
         XCUIDevice.shared.orientation = .portrait
         XCTAssertTrue(app.descendants(matching: .any)["watch.placeholder"].waitForExistence(timeout: 10), "Watch tab")
         app.tabBars.buttons["Settings"].tap()
-        for row in ["settings.jellyfin", "settings.libraries", "settings.subtitles", "settings.playback", "settings.downloads",
-                    "settings.dictionaries", "settings.audioSources", "settings.anki", "settings.kechimochi", "settings.advanced"] {
+        // In order down the screen: Watching, Lookup, Anki, Connections, then Advanced.
+        for row in ["settings.libraries", "settings.subtitles", "settings.playback",
+                    "settings.dictionaries", "settings.popup", "settings.audioSources", "settings.wordMarks", "settings.anki",
+                    "settings.jellyfin", "settings.jimaku", "settings.kaku", "settings.hachidori", "settings.kechimochi", "settings.advanced"] {
             // Lower rows only exist once scrolled to.
             let element = app.descendants(matching: .any)[row].firstMatch
             for _ in 0..<4 where !element.waitForExistence(timeout: 2) {
@@ -19,6 +22,15 @@ final class PlayerUITests: XCTestCase {
             }
             XCTAssertTrue(element.exists, "\(row) in Settings")
         }
+        // Connections: the iCloud switch, under kechimochi (it says why it can't sync here).
+        let cloud = app.switches["stats.iCloud"].firstMatch
+        for _ in 0..<4 where !cloud.waitForExistence(timeout: 2) { app.swipeUp() }
+        XCTAssertTrue(cloud.exists, "Sync with iCloud in Settings")
+        XCTAssertEqual(cloud.value as? String, "1", "on by default")
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "settings-stats-icloud"
+        shot.lifetime = .keepAlways
+        add(shot)
         // Skip intros under Playback, Card Picture on the Anki page.
         let playback = app.descendants(matching: .any)["settings.playback"].firstMatch
         for _ in 0..<4 where !playback.waitForExistence(timeout: 2) { app.swipeDown() }
@@ -41,7 +53,7 @@ final class PlayerUITests: XCTestCase {
         for _ in 0..<4 where !storage.waitForExistence(timeout: 2) { app.swipeUp() }
         storage.tap()
         XCTAssertTrue(app.descendants(matching: .any)["storage.summary"].waitForExistence(timeout: 5), "the storage summary")
-        XCTAssertTrue(app.staticTexts["Saved subtitles"].exists, "saved subtitles in Storage")
+        XCTAssertTrue(app.buttons["storage.clearSubtitles"].exists, "saved subtitles in Storage, with Clear")
         app.descendants(matching: .any)["storage.downloads"].firstMatch.tap()
         XCTAssertTrue(app.descendants(matching: .any)["downloads.empty"].waitForExistence(timeout: 5), "no downloads")
         XCTAssertTrue(app.descendants(matching: .any)["downloads.storage"].exists, "storage header")
@@ -50,6 +62,7 @@ final class PlayerUITests: XCTestCase {
     /// The Stats tab with a few days of seeded watching (a screenshot to check by eye).
     func testStatsTab() throws {
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_STATS"] = "1"
         app.launch()
@@ -67,6 +80,7 @@ final class PlayerUITests: XCTestCase {
     func testTranscriptShowsWordMarks() throws {
         guard let zips = ProcessInfo.processInfo.environment["UITEST_DICTIONARY_ZIPS"] else { throw XCTSkip("Needs UITEST_DICTIONARY_ZIPS.") }
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_TRANSCRIPT"] = "1"
         app.launchEnvironment["UITEST_DICTIONARY_ZIPS"] = zips
@@ -87,6 +101,7 @@ final class PlayerUITests: XCTestCase {
     func testSearchThisEpisode() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_TRANSCRIPT"] = "1"
         app.launch()
@@ -115,6 +130,7 @@ final class PlayerUITests: XCTestCase {
     func testSavedTranscriptInLines() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_TRANSCRIPT"] = "1"
         app.launch()

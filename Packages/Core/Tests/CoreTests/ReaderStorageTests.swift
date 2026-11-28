@@ -98,6 +98,25 @@ import Testing
 }
 
 @Suite struct MangaReaderSettingsDecodingTests {
+    @Test func autoScrollSpeedsHaveDefaultsForSettingsSavedBefore() throws {
+        let manga = try JSONDecoder().decode(MangaReaderSettings.self, from: Data(#"{"mode":"longStrip"}"#.utf8))
+        #expect(manga.autoScrollLevel == 5)
+        let book = try JSONDecoder().decode(BookReaderSettings.self, from: Data(#"{"layout":"scroll"}"#.utf8))
+        #expect(book.autoScrollCharactersPerMinute == 300)
+        var faster = BookReaderSettings()
+        faster.autoScrollCharactersPerMinute = 450
+        #expect(try JSONDecoder().decode(BookReaderSettings.self, from: JSONEncoder().encode(faster)).autoScrollCharactersPerMinute == 450)
+    }
+
+    @Test func splitWidePagesIsOnForSettingsSavedBefore() throws {
+        let old = try JSONDecoder().decode(MangaReaderSettings.self, from: Data(#"{"mode":"paged","coverAlone":false}"#.utf8))
+        #expect(old.splitsWidePages)
+        #expect(!old.coverAlone)
+        var off = MangaReaderSettings()
+        off.splitsWidePages = false
+        #expect(try JSONDecoder().decode(MangaReaderSettings.self, from: JSONEncoder().encode(off)).splitsWidePages == false)
+    }
+
     @Test func settingsFromOlderVersionsKeepNewDefaults() throws {
         let old = Data(#"{"mode":"longStrip","direction":"leftToRight","spreads":"off","coverAlone":false,"stripWidth":0.8}"#.utf8)
         let settings = try JSONDecoder().decode(MangaReaderSettings.self, from: old)
@@ -140,5 +159,40 @@ import Testing
         try cache.remove(chapterId: 1)
         #expect(try cache.totalBytes() == 0)
         #expect(cache.data(for: PageCacheKey(chapterId: 1, page: 0)) == nil)
+    }
+}
+
+@Suite struct BookFontStoreTests {
+    @Test func fontsAreKeptRenamedAndRemoved() throws {
+        let store = BookFontStore(database: try AppDatabase.inMemory())
+        let id = UUID().uuidString
+        try store.add(BookFont(id: id, name: "My Mincho", fileName: "\(id).otf", addedAt: Date(timeIntervalSince1970: 1_800_000_000)))
+        #expect(try store.fonts().map(\.name) == ["My Mincho"])
+        try store.rename(id, to: "  Reading Font ")
+        #expect(try store.font(id: id)?.name == "Reading Font")
+        try store.rename(id, to: "   ")
+        #expect(try store.font(id: id)?.name == "Reading Font", "a blank name is ignored")
+        try store.remove(id)
+        #expect(try store.fonts().isEmpty)
+    }
+
+    /// Only an id's own characters: nothing that could be a path.
+    @Test func idsAreOnlyLettersDigitsAndDashes() throws {
+        #expect(BookFont.isValidID(UUID().uuidString))
+        #expect(!BookFont.isValidID("../secret"))
+        #expect(!BookFont.isValidID("a/b"))
+        #expect(!BookFont.isValidID(""))
+        #expect(!BookFont.isValidID("%2e%2e"))
+        #expect(try BookFontStore(database: try AppDatabase.inMemory()).font(id: "..") == nil)
+    }
+
+    @Test func aCustomFontInSettingsAndOlderSettings() throws {
+        var settings = BookReaderSettings()
+        settings.font = .custom
+        settings.customFont = "ABC-123"
+        let decoded = try JSONDecoder().decode(BookReaderSettings.self, from: JSONEncoder().encode(settings))
+        #expect(decoded.font == .custom && decoded.customFont == "ABC-123")
+        let old = try JSONDecoder().decode(BookReaderSettings.self, from: Data(#"{"font":"mincho"}"#.utf8))
+        #expect(old.font == .mincho && old.customFont == nil)
     }
 }

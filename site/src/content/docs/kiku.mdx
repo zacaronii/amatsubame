@@ -30,7 +30,7 @@ The first time you open Kiku, setup asks for your server address (for example
 from Audiobookshelf. Then it shows your libraries and asks which ones are Japanese. Setup also offers
 Kaku as a recommended extra. [Getting started](/getting-started/) covers the rest.
 
-Later, the server is in **Settings → Audiobookshelf**, Kaku in **Settings → Transcripts**, and the
+Later, the server is in **Settings → Audiobookshelf**, Kaku in **Settings → Kaku**, and the
 libraries in **Settings → Libraries**. Turn off a library you don't listen to in Japanese.
 
 ## Listening
@@ -38,8 +38,9 @@ libraries in **Settings → Libraries**. Turn off a library you don't listen to 
 Kiku has four tabs: **Listen**, **Marks**, **Stats** and **Settings**.
 
 - **Listen** starts with **Today**: your listening time today and your streak (tap it for Stats).
-  Below it are **Continue Listening**, your **Downloaded** episodes and **New Episodes** from
-  your shows, with a link to the whole **Library** (filter it by **All**, **Podcasts**,
+  Below it are **Continue Listening**, your **Downloaded** episodes, **Recently Added** books
+  (with audiobook libraries) and **New Episodes** from your shows (with podcast libraries),
+  with a link to the whole **Library** (filter it by **All**, **Podcasts**,
   **Audiobooks** or **Downloaded**). Search finds shows, books and episodes.
 - A show's page lists its episodes (**All**, **Unplayed** or **Downloaded**), with **Play Latest**
   or **Resume**.
@@ -54,6 +55,9 @@ Kiku has four tabs: **Listen**, **Marks**, **Stats** and **Settings**.
 - If Audiobookshelf can't be reached, the library from the last time it loaded still shows, and
   downloaded episodes play.
 
+Touch and hold an episode in a list to **Mark as Played** or **Mark as Unplayed** (for one you heard
+elsewhere, or don't want in New Episodes); Audiobookshelf gets the change like any other progress.
+
 ### The player
 
 The player shows the transcript, with the line being spoken highlighted and kept in view.
@@ -64,8 +68,42 @@ The player shows the transcript, with the line being spoken highlighted and kept
   **Back to Now** picks it up again.
 - The speech-bubble button hides the transcript and shows the artwork, with the current line small
   underneath; tap that line to bring the transcript back. Kiku remembers your choice.
-- The **⋯** menu has the **Sleep Timer** (15 to 60 minutes, or **End of Episode**), **Share**,
+- To put the player away on iPhone or iPad, pull it down from the top bar, the artwork or the
+  controls at the bottom (or tap the arrow). The mini player that takes its place opens it again
+  with a tap or a swipe up.
+- Touch and hold a line to **Copy Line** or **Play from Here**.
+- **⋯ → Lines** has **Pause After Each Line** (playback stops as each line ends, until you press
+  play), **Repeat the Line** (the line playing loops until you switch it off), and the transcript's
+  **Text Size**.
+- The speed menu's **Only for This Show** (or **This Book**) keeps a speed for that show alone.
+- With a keyboard: Space plays and pauses, ← and → go to the previous and next line, **R** replays the
+  line, **[** and **]** change the speed, **M** marks, and **T** shows or hides the transcript.
+- After a pause, playback picks up from the start of the line that was cut off, so you hear it whole.
+- **Up Next:** touch and hold an episode and choose **Play Next** (to the top) or **Play Last** (to
+  the end). Up Next shows on Listen; **Edit** (or **See All**) lets you drag episodes into another
+  order, swipe one away, or **Clear** it. An episode leaves Up Next as it starts. Up Next is kept on
+  Audiobookshelf as a playlist named "Up Next" in the podcast library (one you made yourself is
+  used), so it's the same on your other devices and in Audiobookshelf. Audiobooks aren't queued.
+  The player's **⋯** menu has **Play Next in Up Next**, and in CarPlay, Now Playing's **Up Next**
+  button lists the queue.
+- **Widgets and Siri:** Kiku's Home Screen widget (small or medium) shows what you're listening to,
+  with a play button that resumes without opening Kiku; the medium one also shows what's next. On the
+  Lock Screen there's a progress ring and a line with the title and time left. Control Center can hold
+  **Resume** and **Mark** buttons. Say "Resume in Kiku" or "Mark in Kiku" to Siri, or use them in
+  Shortcuts and on the Action Button.
+- When a podcast episode ends, the first in Up Next plays. With Up Next empty, the show's next one
+  starts by itself (the next by date that you haven't finished). Turn that off in **Settings →
+  Playback → Play the Next Episode**; the sleep timer's **End of Episode** stops there either way.
+- The **⋯** menu has the **Sleep Timer** (15 to 60 minutes, **End of Episode**, or for a book **End
+  of Chapter** and **End of Book**), **Find in Transcript**, **Share**,
   **Stop Playing**, and for books **Chapters**, **Previous Chapter** and **Next Chapter**.
+- The sleep timer fades the sound out over its last half minute. On iPhone and iPad, while a timer
+  of minutes runs, shake the device to start it again from the full length (the screen can be
+  off). Up to two minutes after it stopped playback, a shake plays on with the timer set again,
+  while Kiku is on screen; once the phone is locked that may not work.
+- **Find in Transcript** (or **⌘F** with a keyboard) shows the lines holding what you type, starting
+  from the line playing: the arrows go from one to the next, and playback carries on until you tap
+  a line's time. **Done** puts the bar away; **Back to Now** returns to the line playing.
 
 Kiku shows on the Lock Screen and in Control Center. Their skip buttons (and your AirPods' or car's)
 jump by the intervals you set in **Settings → Playback**: 10 to 60 seconds back and forward.
@@ -85,7 +123,7 @@ and pause, and a big **Mark** button. The Digital Crown turns your iPhone's volu
 out of reach, a mark waits and is saved at the right moment when it's back. Add the Kiku complication
 to a watch face to see how far along you are and open the remote with one tap.
 
-**Live Text** puts the transcript on your wrist. Turn it on in **Settings ▸ Playback ▸ Live Text on
+**Live Text** puts the transcript on your wrist. Turn it on in **Settings ▸ Apple Watch ▸ Live Text on
 Apple Watch** (it's off until you do), then tap the transcript button at the top left of the remote.
 The line playing is large, with the lines before it dimmed above.
 
@@ -96,7 +134,42 @@ The line playing is large, with the lines before it dimmed above.
 - **Turn the Digital Crown** to scroll back. Tap an earlier line to get **Mark** and **Replay** (which
   plays that line on your iPhone, then carries on), and **Back to now** to follow along again.
 
-Live Text needs your iPhone nearby, since the lookups happen there.
+Beside **Mark** are a chapters button (for anything with chapters: Previous, Next and the list)
+and the speed. Both work for whichever is playing, your iPhone or the watch. In Watch mode the
+complication follows the watch's own playback, and Now Playing shows the cover.
+
+Live Text works for episodes playing on the watch too: each one you send takes its transcript
+along (the watch fetches it while your iPhone is near), so the lines, Mark Line and Replay work
+with your iPhone at home. Lookups still happen on your iPhone: out of its reach, tapping a word
+does nothing (use **Mark Line** to look it up in **Marks** later).
+
+#### Listening on the watch
+
+Send an episode or a book to your watch and leave your iPhone at home:
+
+1. On your iPhone, long-press an episode (or use the watch button on a book's page, or **Send to
+   Watch** in the player's ⋯ menu). The watch downloads it from Audiobookshelf by itself, most
+   readily on its charger. **Settings ▸ Apple Watch ▸ On Apple Watch** shows how far along
+   each one is and how much space the watch has left. The download starts as soon as the watch
+   hears about it if Kiku's complication is on your watch face; otherwise it starts the next time
+   you open Kiku on the watch. If your watch can't reach your server (it's only on a VPN or at
+   home), download the episode on your iPhone first, then long-press it there and choose **Send from
+   iPhone**: your iPhone sends its own copy instead.
+2. On the watch, the button at the top right shows where Kiku is playing: an iPhone or a watch.
+   Tap it for **Play On** and **On This Watch**, then tap an episode to play it on the watch. Connect
+   Bluetooth headphones first (the watch asks if none are connected).
+3. Your listening, place and marks go back to your iPhone when it's near, and from there to
+   Audiobookshelf and Stats. **Sync Now** on either side sends them straight away, and each shows
+   when it last synced. If your iPhone was further along than where the watch got to, Kiku asks
+   which place to continue from rather than jumping back.
+4. To fill the watch by itself, open **Settings ▸ Apple Watch**: **Sync Once Started**
+   sends what you start playing on your iPhone, **Download Ahead** keeps the first episodes of each
+   show you download ahead, and **Remove Played** clears what you've finished. A storage limit
+   keeps the rules in check. Remove something a rule added and it stays off.
+
+Your Audiobookshelf server needs to be reachable from the watch's own Wi-Fi or cellular connection
+for it to download. If you're an admin, Kiku adds an API key called "Kiku on Apple Watch" for this,
+and removes it when you sign out.
 
 ### Transcripts from Kaku
 
@@ -105,10 +178,14 @@ Kaku is still working, the player shows how far along it is, or your place in Ka
 opening the episode moves it up. Transcripts you've played or downloaded are saved on your device,
 so they work offline.
 
+In the player, **More → Transcript** says which model and Kaku version made the transcript, and when.
+**Transcribe Again** asks Kaku for a fresh one (after changing its model, say): the current one stays
+until the new one is ready. It needs Kaku 1.6.
+
 ### Looking words up
 
-Tap any word in the transcript. Playback pauses, and a sheet shows the line (with a button to hear
-its clip) above the dictionary popup. Close it and playback carries on. A card mined here gets:
+Tap any word in the transcript. Playback pauses, and the dictionary popup opens with the line at
+its top. Close it and playback carries on. A card mined here gets:
 
 - the line as the sentence,
 - the line's audio clip (cut on your device for downloaded episodes, or by Kaku while streaming),
@@ -137,6 +214,14 @@ line just as in the player. A mined mark shows what you mined for a day and then
 removes one you don't need. If an episode's transcript isn't ready yet, its marks say
 **Transcribing** and fill in when Kaku finishes.
 
+A mark can carry a **note** of your own (what struck you, what to look up). Right after marking in
+the player, **Add Note** shows beside "Marked 13:21" for a few seconds; in **Marks**, a mark's
+**Note** button or its menu (touch and hold) adds or edits one, and clearing the text removes it. Notes
+show under the mark, and the search finds them. With **Sync with iCloud** on, marks and their notes
+are the same on all your devices: mark on the phone, mine on the Mac. A mark cleared or mined on one
+device is cleared or shown mined on the others. If a note is edited on two devices before they sync,
+the later edit is kept. With a keyboard, Return starts a new line and **⌘Return** saves.
+
 The search at the top of Marks looks through your marks and the transcripts of every episode you've
 played, on your device, so it works offline too.
 
@@ -150,8 +235,41 @@ you were listening to. Yomu tells you if that book isn't paired yet.
 
 Download an episode or a book from its page to listen offline. The audio, cover and transcript all
 come along. On iPhone and iPad, downloads wait for Wi-Fi unless **Download over Cellular** is on in
-**Settings → Downloads**; nothing downloads unless you ask. **Settings → Storage** lists what's on the device by
-show, and the saved transcripts.
+**Settings → Download Rules**; nothing downloads unless you ask (or turn on download ahead, below). **Settings → Storage** lists what's on the device by
+show, and the saved transcripts. Each download says why it's there (**By Hand**, **Ahead** or
+**Started**), and the top of the list shows how much space each takes.
+
+### Download ahead
+
+**Settings → Download Rules → Automatic Downloads** (a podcast library) keeps upcoming episodes downloaded for each podcast
+library, off until you turn it on:
+
+- **Keep Downloaded:** how many episodes of each show (1 to 10).
+- **Order:** **Newest** keeps the latest episodes, for news; **In Order** keeps the next ones after
+  the episode you're on, oldest first, for shows you hear from the start.
+
+It covers the shows you've played in the last 15 days, in Kiku or any other Audiobookshelf app. A show
+you haven't played for longer is paused, and playing it starts it again. A show's page shows its state
+under the title, and its settings button (in the toolbar) sets that show apart. It also has the
+show's **Playback** settings: **Skip the First** and **Skip the Last** seconds of every episode, for a
+jingle and a sign-off. Download Ahead for the show:
+**Library Setting**, **On** (always, with its own count and order if you like, even when you haven't
+played it lately) or **Off** (never). Download ahead itself never deletes anything (see Removing played downloads).
+
+### Download once started
+
+Turn on **Download Once Started** for a library (podcasts or books) in **Settings → Download Rules**, and
+an episode or book you start playing downloads while you listen. Next time it plays from the device,
+even offline. Just opening one doesn't count: it has to play for a few seconds.
+
+### Removing played downloads
+
+**Remove Played Downloads** (also per library, off until you turn it on) removes a download a day
+after you finish the episode or mark the book finished, never the one playing. With **Keep Downloads
+You Made by Hand** on (the default), only automatic downloads go; turn it off and yours go too.
+
+If you delete a download that download ahead or download once started fetched, Kiku remembers and
+won't fetch it again on its own. Downloading it yourself undoes that.
 
 ## Progress sync
 
@@ -159,18 +277,30 @@ Your place is saved on the device and sent to Audiobookshelf every 15 seconds wh
 you pause, so the Audiobookshelf web app and other players stay in step. Kiku resumes from whichever
 is newer, your device or the server. Progress made offline is sent later.
 
+Your listening also goes to Audiobookshelf as listening sessions, so its stats and listening history
+(and tools that read them) show what you listened to and for how long. Listening from before this
+arrived is sent once, as one session per sitting.
+
 ## Stats
 
 The **Stats** tab shows your listening time by week, month or all time (only real playback counts,
 not seeking), along with lookups, cards mined and your streak. Your
-[kechimochi](https://github.com/Morgawr/kechimochi) log can show there too (**Settings → Stats**).
+[kechimochi](https://github.com/Morgawr/kechimochi) log can show there too (**Settings → Connections → kechimochi**).
 
 ## Settings
 
-- **Listening:** Audiobookshelf, Libraries, Transcripts (Kaku), Playback (Lock Screen skip
-  intervals) and Downloads.
-- **Lookup and Mining:** dictionaries, word audio sources and Anki. See
+- **Listening:** Libraries, Playback (Lock Screen skip intervals, playing the next episode), Download Rules
+  (over cellular, automatic downloads per library) and, on iPhone, **Apple Watch** (Live Text, what goes
+  to the watch and what's on it now).
+- **Lookup:** dictionaries, the popup, word audio sources and word marks. **Anki:** the connection and cards. See
   [Lookup and Anki](/lookup-and-anki/).
-- **Stats:** the kechimochi address.
-- **Storage**, **Advanced** (sharing the setup with your other apps, things waiting to sync, Run
+- **Connections:** every server and account in one place: Audiobookshelf, Kaku (transcripts),
+  Hachidori, the kechimochi address, and **Sync with iCloud** (on unless you turn it off), which keeps
+  the Stats tab and your playback settings the same on all your devices signed in to the same iCloud
+  account: the skips, starting speed, transcript, next episode and pausing after lines, each show's
+  own speed and skips, your marks with their notes, the libraries you've hidden (on the same
+  Audiobookshelf server) and the kechimochi address (the latest change wins). Live Text on Apple Watch
+  stays on each device. When this app shares its setup with your other apps (and no Hachidori is linked), the lookup
+  popup's settings are kept the same too.
+- **Storage** (what's downloaded and saved, each with **Clear**), **Advanced** (sharing the setup with your other apps, things waiting to sync, Run
   Setup Again, Export Logs) and **About**.

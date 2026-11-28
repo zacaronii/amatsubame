@@ -27,6 +27,7 @@ struct JellyfinLibrariesSettingsView: View {
             } footer: {
                 Text("Turned-off libraries are hidden from the Watch tab.")
             }
+            JapaneseAudioOnlySection()
         }
         .formStyle(.grouped)
         .navigationTitle("Libraries")
@@ -59,7 +60,9 @@ struct JapaneseAudioOnlySection: View {
     var body: some View {
         Section {
             if libraries.isEmpty {
-                Text(environment.jellyfinClient() == nil ? "Sign in to Jellyfin to choose libraries." : "Loading libraries…")
+                Text(environment.jellyfinClient() == nil ? "Sign in to Jellyfin to choose libraries."
+                     : state == .loading ? "Loading libraries…"
+                     : state == .failed ? "Couldn\u{2019}t reach Jellyfin." : "No libraries are shown in Miru.")
                     .foregroundStyle(.secondary)
             }
             ForEach(libraries) { library in
@@ -73,11 +76,19 @@ struct JapaneseAudioOnlySection: View {
         } header: {
             Text("Japanese Audio Only")
         } footer: {
-            Text("Hides movies and shows without a Japanese audio track. Untagged audio counts as not Japanese; a show is told by its first episode. Episodes with several audio tracks always start on the Japanese one.")
+            Text("Hides titles without Japanese audio (untagged audio doesn't count; a show goes by its first episode). Episodes with several audio tracks start on the Japanese one.")
         }
         .task {
             guard let client = environment.jellyfinClient() else { return }
-            libraries = ((try? await client.views()) ?? []).filter { !environment.hiddenLibraries.contains($0.id) }
+            guard let views = try? await client.views() else {
+                state = .failed
+                return
+            }
+            libraries = views.filter { !environment.hiddenLibraries.contains($0.id) }
+            state = .loaded
         }
     }
+
+    private enum LoadState { case loading, loaded, failed }
+    @State private var state = LoadState.loading
 }

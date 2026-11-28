@@ -30,13 +30,29 @@ public actor OCRService {
 
     public var modelsInstalled: Bool { OCRModelStore.isInstalled(in: storeDirectory) }
 
+    /// The page's text when it's cached and ready to use. Nil too for a page whose lettering
+    /// was measured by an older version (or never): `page(chapterId:page:imageData:)` then
+    /// measures it again from its picture, without the models.
     public func cachedPage(chapterId: Int, page: Int) -> OCRPage? {
-        cache.page(chapterId: chapterId, page: page)
+        guard let cached = cache.page(chapterId: chapterId, page: page), !Self.needsMeasuring(cached) else { return nil }
+        return cached
+    }
+
+    static func needsMeasuring(_ page: OCRPage) -> Bool {
+        page.blocks.contains { $0.measured != TextLines.version }
     }
 
     /// The page's text blocks, from the cache or by running OCR on `imageData`.
     public func page(chapterId: Int, page: Int, imageData: Data) async throws -> OCRResult {
-        if let cached = cache.page(chapterId: chapterId, page: page) { return OCRResult(page: cached, timings: nil) }
+        if let cached = cache.page(chapterId: chapterId, page: page) {
+            // Measured by an older version (or not at all): measure the lettering now (no models needed).
+            guard Self.needsMeasuring(cached), let image = try? Self.decode(imageData) else {
+                return OCRResult(page: cached, timings: nil)
+            }
+            let measured = Self.measuringLines(cached, in: image)
+            try? cache.store(measured, chapterId: chapterId, page: page)
+            return OCRResult(page: measured, timings: nil)
+        }
         let key = PageKey(chapterId: chapterId, page: page)
         if let task = inFlight[key] { return try await task.value }
         let pipeline = try loadedPipeline()
@@ -50,6 +66,22 @@ public actor OCRService {
         inFlight[key] = task
         defer { inFlight[key] = nil }
         return try await task.value
+    }
+
+    /// The page with each block's lines of lettering measured where they're missing (and its
+    /// orientation checked again, as a fresh read would: `TextLines.orientedLayout`).
+    static func measuringLines(_ page: OCRPage, in image: CGImage) -> OCRPage {
+        var page = page
+        page.blocks = page.blocks.map { block in
+            guard block.measured != TextLines.version else { return block }
+            var block = block
+            let (vertical, text, layout) = TextLines.orientedLayout(of: block.box, in: image, read: block.text, guess: block.vertical)
+            block.vertical = vertical
+            block.text = text
+            block.place(layout)
+            return block
+        }
+        return page
     }
 
     /// Reads a region the user drew on a page.

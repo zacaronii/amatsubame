@@ -1,0 +1,5 @@
+{"data":{"Page":{"media":[
+{"id":900001,"idMal":800001,"type":"MANGA","format":"MANGA","seasonYear":null,"startDate":{"year":2020},"episodes":null,"title":{"native":"架空の物語","romaji":"Kakuu no Monogatari","english":"A Made-Up Story"},"synonyms":["Kakū no Monogatari"],"coverImage":{"medium":null}},
+{"id":900002,"idMal":null,"type":"MANGA","format":"NOVEL","seasonYear":null,"startDate":{"year":2019},"episodes":null,"title":{"native":"架空の物語","romaji":"Kakuu no Monogatari","english":null},"synonyms":[],"coverImage":{"medium":null}},
+{"id":900003,"idMal":null,"type":"MANGA","format":"MANGA","seasonYear":null,"startDate":{"year":2022},"episodes":null,"title":{"native":"架空の物語 外伝","romaji":"Kakuu no Monogatari Gaiden","english":null},"synonyms":[],"coverImage":{"medium":null}}
+]}}}

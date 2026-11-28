@@ -1,0 +1,5 @@
+{"results": [
+ {"id": "pl-other", "name": "Favourites", "libraryId": "lib-pod", "userId": "user-1", "description": null, "lastUpdate": 1, "createdAt": 1, "items": []},
+ {"id": "pl-1", "name": "Up Next", "libraryId": "lib-pod", "userId": "user-1", "description": null, "lastUpdate": 1, "createdAt": 1,
+  "items": [{"libraryItemId": "show-a", "episodeId": "ep-3"}]}
+], "total": 2, "limit": 0, "page": 0}

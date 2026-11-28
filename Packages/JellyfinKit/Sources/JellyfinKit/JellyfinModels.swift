@@ -50,6 +50,9 @@ public struct JellyfinItem: Decodable, Identifiable, Equatable, Hashable, Sendab
     public var providerIds: [String: String]?
     /// Scrub thumbnails the server made, by media source id, then by thumbnail width.
     public var trickplay: [String: [String: JellyfinTrickplayInfo]]?
+    /// The video's chapters, from its file (on `item(id:)`; verified on 12.4.0: several can
+    /// share a start, e.g. a prologue and the opening both at 0).
+    public var chapters: [JellyfinChapter]?
 
     public init(id: String, name: String, type: String) {
         self.id = id
@@ -137,6 +140,9 @@ public struct JellyfinMediaSource: Decodable, Equatable, Hashable, Sendable {
     public var supportsDirectPlay: Bool?
     public var defaultAudioStreamIndex: Int?
     public var mediaStreams: [JellyfinMediaStream]?
+    /// Where the server's transcoded stream is (a path on the server), when one was asked
+    /// for (`JellyfinClient.transcodingInfo`).
+    public var transcodingUrl: String?
 }
 
 public struct JellyfinPlaybackInfo: Decodable, Sendable {
@@ -245,10 +251,13 @@ public struct JellyfinProgressPayload: Codable, Equatable, Sendable {
     /// When the position was taken (a queued report can be sent much later; nil in reports
     /// queued by older versions).
     public var reportedAt: Date?
+    /// True when the server is transcoding the stream (a lower quality was asked for).
+    public var isTranscoding: Bool?
 
     public init(itemId: String, mediaSourceId: String, playSessionId: String?, positionTicks: Int64,
                 isPaused: Bool = false, event: Event, audioStreamIndex: Int? = nil, subtitleStreamIndex: Int? = nil,
-                reportedAt: Date? = nil) {
+                reportedAt: Date? = nil, isTranscoding: Bool? = nil) {
+        self.isTranscoding = isTranscoding
         self.itemId = itemId
         self.mediaSourceId = mediaSourceId
         self.playSessionId = playSessionId
@@ -352,6 +361,19 @@ public struct LiveClock: Equatable, Sendable {
         guard let anchoredAt else { return anchor }
         return isPaused ? anchor : anchor + max(date.timeIntervalSince(anchoredAt), 0)
     }
+}
+
+/// A chapter of a video: where it starts and its name ("Chapter 01" when the file has none).
+public struct JellyfinChapter: Decodable, Equatable, Hashable, Sendable {
+    public var startPositionTicks: Int64
+    public var name: String?
+
+    public init(startPositionTicks: Int64, name: String?) {
+        self.startPositionTicks = startPositionTicks
+        self.name = name
+    }
+
+    public var start: Double { JellyfinTicks.seconds(startPositionTicks) }
 }
 
 /// One size of a video's trickplay thumbnails: sheets (`tileWidth` × `tileHeight` thumbnails

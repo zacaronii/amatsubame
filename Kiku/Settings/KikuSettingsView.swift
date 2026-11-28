@@ -14,45 +14,54 @@ struct KikuSettingsView: View {
                 SettingsStatusCard(items: statusItems)
 
                 Section {
+                    NavigationLink {
+                        KikuLibrariesSettingsView()
+                    } label: {
+                        SettingsRowLabel("Libraries", value: librariesSummary, systemImage: "books.vertical.fill", color: .orange)
+                    }
+                    .accessibilityIdentifier("settings.libraries")
+                    NavigationLink {
+                        Self.playback
+                    } label: {
+                        SettingsRowLabel("Playback", subtitle: "Skip intervals, playing the next episode", systemImage: "play.circle.fill", color: .red)
+                    }
+                    .accessibilityIdentifier("settings.playback")
+                    NavigationLink {
+                        KikuDownloadSettingsView()
+                    } label: {
+                        SettingsRowLabel("Download Rules", subtitle: "Over cellular, download ahead", systemImage: "arrow.down.circle.fill", color: .blue)
+                    }
+                    .accessibilityIdentifier("settings.downloads")
+                    #if os(iOS)
+                    NavigationLink {
+                        AppleWatchSettingsView()
+                    } label: {
+                        SettingsRowLabel("Apple Watch", subtitle: environment.watchLibrary.isWatchAppInstalled ? "Live Text, downloads" : "Kiku isn\u{2019}t on your watch",
+                                         systemImage: "applewatch", color: .gray)
+                    }
+                    .accessibilityIdentifier("settings.appleWatch")
+                    #endif
+                } header: {
+                    Text("Listening")
+                }
+
+                LookupSection()
+
+                AnkiSection {
+                    AnkiSettingsPage(environment: environment.common)
+                }
+
+                ConnectionsSection {
                     NavigationLink(value: ServerKind.audiobookshelf) {
                         SettingsRowLabel("Audiobookshelf", subtitle: accounts[.audiobookshelf]?.hostAndAccount ?? "Not set up",
                                          systemImage: "server.rack", color: .indigo, dot: accounts[.audiobookshelf]?.dotColor)
                     }
                     .accessibilityIdentifier("settings.audiobookshelf")
-                    NavigationLink {
-                        KikuLibrariesSettingsView()
-                    } label: {
-                        SettingsRowLabel("Libraries", systemImage: "books.vertical.fill", color: .orange)
-                    }
-                    .accessibilityIdentifier("settings.libraries")
                     NavigationLink(value: ServerKind.kaku) {
-                        SettingsRowLabel("Transcripts", subtitle: accounts[.kaku].map { "Kaku · \($0.hostAndAccount)" } ?? "Kaku · not set up",
-                                         systemImage: "text.quote", color: .teal, dot: accounts[.kaku]?.dotColor)
+                        KakuSettingsRow()
                     }
-                    .accessibilityIdentifier("settings.transcripts")
-                    NavigationLink {
-                        Self.playback
-                    } label: {
-                        SettingsRowLabel("Playback", subtitle: "Lock Screen skip intervals", systemImage: "play.circle.fill", color: .red)
-                    }
-                    .accessibilityIdentifier("settings.playback")
-                    NavigationLink {
-                        Self.downloads
-                    } label: {
-                        SettingsRowLabel("Downloads", subtitle: "Wi-Fi or cellular", systemImage: "arrow.down.circle.fill", color: .blue)
-                    }
-                    .accessibilityIdentifier("settings.downloads")
-                } header: {
-                    Text("Listening")
-                } footer: {
-                    Text("Transcripts come from Kaku. Without it, episodes play without their text.")
+                    .accessibilityIdentifier("settings.kaku")
                 }
-
-                LookupAndMiningSection {
-                    AnkiSettingsPage(environment: environment.common)
-                }
-
-                StatsSettingsLink()
 
                 SettingsFooterSection(storageTotal: storageTotal) {
                     StorageView()
@@ -64,6 +73,8 @@ struct KikuSettingsView: View {
             }
             .formStyle(.grouped)
             .navigationTitle("Settings")
+            // For the Libraries row's "N of M".
+            .task { if environment.library.libraries.isEmpty { await environment.library.refreshLibraries() } }
             .navigationDestination(for: ServerKind.self) { Self.serverPage($0, environment: environment) }
             .onAppear {
                 let downloads = environment.downloader.records.values.reduce(Int64(0)) { $0 + ($1.state == .done ? ($1.bytesTotal ?? 0) : $1.bytesDone) }
@@ -71,6 +82,13 @@ struct KikuSettingsView: View {
                 storageTotal = (downloads + transcripts + environment.common.dictionaries.totalBytes()).storageText
             }
         }
+    }
+
+    private var librariesSummary: String? {
+        let libraries = environment.library.libraries
+        guard !libraries.isEmpty else { return nil }
+        let hidden = environment.library.hiddenLibraries
+        return "\(libraries.filter { !hidden.contains($0.id) }.count) of \(libraries.count)"
     }
 
     static var playback: some View {
@@ -88,17 +106,37 @@ struct KikuSettingsView: View {
                 Text("For the Lock Screen, AirPods and CarPlay. The player's own buttons jump by lines.")
                 #endif
             }
-            #if os(iOS)
-            WatchLiveTextSection()
-            #endif
+            PlaysNextSection()
         }
         .formStyle(.grouped)
         .navigationTitle("Playback")
     }
 
+    /// When an episode ends, the show's next one starts (on by default).
+    private struct PlaysNextSection: View {
+        @Environment(KikuEnvironment.self) private var environment
+        @State private var isOn = true
+
+        var body: some View {
+            Section {
+                Toggle("Play the Next Episode", isOn: $isOn)
+                    .accessibilityIdentifier("settings.playsNext")
+            } footer: {
+                Text("When a podcast episode ends, the show's next one starts by itself: the next by date that you haven't finished. The sleep timer's End of Episode still stops there.")
+            }
+            .onAppear { isOn = ListenSettings.load(environment.common.database).playsNextEpisode }
+            .onChange(of: isOn) { _, on in
+                var settings = ListenSettings.load(environment.common.database)
+                guard settings.playsNextEpisode != on else { return }
+                settings.playsNextEpisode = on
+                try? settings.save(environment.common.database)
+            }
+        }
+    }
+
     #if os(iOS)
     /// Live Text on Apple Watch (docs/watch.md): off by default; off, no transcripts go to the watch.
-    private struct WatchLiveTextSection: View {
+    struct WatchLiveTextSection: View {
         @Environment(KikuEnvironment.self) private var environment
         @State private var isOn = false
 
@@ -117,14 +155,8 @@ struct KikuSettingsView: View {
     }
     #endif
 
-    static var downloads: some View {
-        Form { DownloadSettingsSection { _ in } }
-            .formStyle(.grouped)
-            .navigationTitle("Downloads")
-    }
-
     static var advanced: some View {
-        AdvancedSettingsView(kinds: [.ankiNote, .audiobookshelfProgress],
+        AdvancedSettingsView(kinds: [.ankiNote, .audiobookshelfProgress, .audiobookshelfSession],
                              extraLogs: [URL.applicationSupportDirectory.appending(path: "dev-setup.log")])
     }
 
@@ -143,16 +175,16 @@ struct KikuSettingsView: View {
     static func statusItems(_ environment: KikuEnvironment) -> [StatusItem] {
         let accounts = environment.common.serverAccounts
         return [
-            StatusItem("Audiobookshelf", isSetUp: accounts[.audiobookshelf] != nil) {
+            StatusItem("Audiobookshelf", isSetUp: accounts[.audiobookshelf] != nil, opens: { AnyView(serverPage(.audiobookshelf, environment: environment)) }) {
                 _ = try await environment.audiobookshelfClient()?.me()
             },
-            StatusItem("Kaku", isSetUp: accounts[.kaku] != nil) {
+            StatusItem("Kaku", isSetUp: accounts[.kaku] != nil, opens: { AnyView(serverPage(.kaku, environment: environment)) }) {
                 _ = try await environment.kakuClient()?.health()
             },
-            StatusItem("Anki", isSetUp: accounts[.anki] != nil) {
+            StatusItem("Anki", isSetUp: accounts[.anki] != nil, opens: { AnyView(serverPage(.anki, environment: environment)) }) {
                 _ = try await environment.common.ankiClient()?.version()
             },
-            StatusItem("kechimochi", isSetUp: ((try? environment.common.activity.kechimochiURL()) ?? nil) != nil) {
+            StatusItem("kechimochi", isSetUp: ((try? environment.common.activity.kechimochiURL()) ?? nil) != nil, opens: { AnyView(KechimochiPage()) }) {
                 try await environment.common.checkKechimochi()
             },
         ]
@@ -168,18 +200,22 @@ struct MacSettingsView: View {
         MacSettingsWindow(groups: [
             MacSettingsGroup(pages: [.overview(KikuSettingsView.statusItems(environment))]),
             MacSettingsGroup("Listening", pages: [
-                MacSettingsPage("audiobookshelf", title: "Audiobookshelf", systemImage: "server.rack") {
-                    KikuSettingsView.serverPage(.audiobookshelf, environment: environment)
-                },
                 MacSettingsPage("libraries", title: "Libraries", systemImage: "books.vertical") { KikuLibrariesSettingsView() },
-                MacSettingsPage("transcripts", title: "Transcripts", systemImage: "text.quote") { KakuSettingsView(environment: environment.common) },
-                MacSettingsPage("playback", title: "Playback", systemImage: "play.circle") { KikuSettingsView.playback },
-                MacSettingsPage("downloads", title: "Downloads", systemImage: "arrow.down.circle") { KikuSettingsView.downloads },
+                MacSettingsPage("playback", title: "Playback", systemImage: "play.circle",
+                                keywords: ["Skip Back", "Skip Forward", "Play the Next Episode"]) { KikuSettingsView.playback },
+                MacSettingsPage("downloads", title: "Download Rules", systemImage: "arrow.down.circle",
+                                keywords: ["Automatic Downloads", "Download Ahead", "Download Once Started", "Remove Played Downloads",
+                                           "Keep Downloads You Made by Hand"]) { KikuDownloadSettingsView() },
             ]),
-        ] + MacSettingsGroup.shared {
+        ] + MacSettingsGroup.shared(servers: [
+            MacSettingsPage("audiobookshelf", title: "Audiobookshelf", systemImage: "server.rack") {
+                KikuSettingsView.serverPage(.audiobookshelf, environment: environment)
+            },
+            MacSettingsPage("kaku", title: "Kaku", systemImage: "text.quote") { KakuSettingsView(environment: environment.common) },
+        ]) {
             AnkiSettingsPage(environment: environment.common)
         } + [
-            .footer {
+            .footer(storageKeywords: ["Saved Transcripts"]) {
                 StorageView()
             } advanced: {
                 KikuSettingsView.advanced
@@ -198,6 +234,7 @@ struct StorageView: View {
     @Environment(KikuEnvironment.self) private var environment
     @State private var dictionaryBytes: Int64 = 0
     @State private var transcriptBytes: Int64 = 0
+    @State private var confirmsClearTranscripts = false
 
     private var downloadBytes: Int64 {
         environment.downloader.records.values.reduce(0) { $0 + ($1.state == .done ? ($1.bytesTotal ?? 0) : $1.bytesDone) }
@@ -207,7 +244,7 @@ struct StorageView: View {
         Form {
             Section {
                 StorageSummary(parts: [
-                    .init("Downloads", bytes: downloadBytes, color: .blue),
+                    .init("Downloaded", bytes: downloadBytes, color: .blue),
                     .init("Dictionaries", bytes: dictionaryBytes, color: .purple),
                     .init("Transcripts", bytes: transcriptBytes, color: .teal),
                 ])
@@ -216,7 +253,7 @@ struct StorageView: View {
                 NavigationLink {
                     DownloadedEpisodesView()
                 } label: {
-                    SettingsRowLabel("Downloads", value: downloadBytes.storageText, systemImage: "arrow.down.circle.fill", color: .blue)
+                    SettingsRowLabel("Downloaded", value: downloadBytes.storageText, systemImage: "arrow.down.circle.fill", color: .blue)
                 }
                 .accessibilityIdentifier("storage.downloads")
                 NavigationLink {
@@ -224,13 +261,29 @@ struct StorageView: View {
                 } label: {
                     SettingsRowLabel("Dictionaries", value: dictionaryBytes.storageText, systemImage: "character.book.closed.ja", color: .purple)
                 }
-                SettingsRowLabel("Saved Transcripts", value: transcriptBytes.storageText, systemImage: "text.quote", color: .teal)
+                HStack {
+                    SettingsRowLabel("Saved Transcripts", value: transcriptBytes.storageText, systemImage: "text.quote", color: .teal)
+                    Button("Clear", role: .destructive) { confirmsClearTranscripts = true }
+                        #if os(iOS)
+                        .buttonStyle(.borderless)
+                        #endif
+                        .disabled(transcriptBytes == 0)
+                        .accessibilityIdentifier("storage.clearTranscripts")
+                }
             } footer: {
                 Text("Transcripts of episodes you've played or downloaded, for the player offline and Marks search.")
             }
         }
         .formStyle(.grouped)
         .navigationTitle("Storage")
+        .confirmationDialog("Clear saved transcripts?", isPresented: $confirmsClearTranscripts, titleVisibility: .visible) {
+            Button("Clear Transcripts", role: .destructive) {
+                try? environment.transcripts.clearAll()
+                transcriptBytes = Int64((try? environment.transcripts.approximateBytes()) ?? 0)
+            }
+        } message: {
+            Text("They download again when you play an episode with your server in reach. Until then, Marks search can't find lines in them.")
+        }
         .onAppear {
             dictionaryBytes = environment.common.dictionaries.totalBytes()
             transcriptBytes = Int64((try? environment.transcripts.approximateBytes()) ?? 0)
@@ -276,7 +329,9 @@ struct KikuLibrariesSettingsView: View {
                     if loading && environment.audiobookshelfClient() != nil {
                         ProgressView()
                     } else {
-                        Text("Sign in to Audiobookshelf to choose libraries.").foregroundStyle(.secondary)
+                        Text(environment.audiobookshelfClient() == nil ? "Sign in to Audiobookshelf to choose libraries."
+                             : "Couldn\u{2019}t reach Audiobookshelf.")
+                            .foregroundStyle(.secondary)
                     }
                 }
                 ForEach(environment.library.libraries) { library in

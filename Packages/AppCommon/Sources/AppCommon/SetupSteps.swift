@@ -6,6 +6,8 @@ import SwiftUI
 struct SetupWelcome: View {
     @Environment(SetupFlow.self) private var flow
     @State private var asksToSkip = false
+    @State private var fetchingDemo = false
+    @State private var demoProblem: String?
 
     var body: some View {
         let info = flow.info
@@ -38,6 +40,20 @@ struct SetupWelcome: View {
                 }
                 .buttonStyle(.glassProminent)
                 .accessibilityIdentifier("setup.getStarted")
+                if !flow.common.setup.isRerun {
+                    // No server of your own: the public demo servers, which nothing is saved to.
+                    Button {
+                        Task { await tryDemo() }
+                    } label: {
+                        if fetchingDemo { ProgressView() } else { Text("Try It with the Demo Servers") }
+                    }
+                    .disabled(fetchingDemo)
+                    .accessibilityIdentifier("setup.demo")
+                    if let demoProblem {
+                        Text(demoProblem).font(.footnote).foregroundStyle(.secondary)
+                            .accessibilityIdentifier("setup.demo.problem")
+                    }
+                }
                 Button(flow.common.setup.isRerun ? "Close" : "I'll set it up later") {
                     if flow.common.setup.isRerun { flow.finish() } else { asksToSkip = true }
                 }
@@ -52,6 +68,18 @@ struct SetupWelcome: View {
             Button("Continue Setup", role: .cancel) {}
         } message: {
             Text("\(info.name) shows nothing until \(info.serverName) is connected. You can set it up any time in Settings → Advanced → Run Setup Again.")
+        }
+    }
+
+    private func tryDemo() async {
+        fetchingDemo = true
+        defer { fetchingDemo = false }
+        do {
+            flow.demo = try await DemoConfig.fetch(http: flow.common.http)
+            demoProblem = nil
+            flow.advance(from: nil)
+        } catch {
+            demoProblem = error.localizedDescription
         }
     }
 
@@ -131,7 +159,8 @@ struct SetupSharedStep: View {
     }
 }
 
-/// Step 5: the recommended dictionaries download, with Keep Them Up to Date.
+/// Step 5: dictionaries. Download the recommended ones (they finish in the background), import
+/// your own, or skip for now: nothing downloads until it's asked for.
 struct SetupDictionariesStep: View {
     @Environment(SetupFlow.self) private var flow
     @State private var selection: Set<String> = []
@@ -139,16 +168,17 @@ struct SetupDictionariesStep: View {
     @State private var removed: Set<String> = []
     @State private var autoUpdate = true
     @State private var started = false
+    @State private var hasDictionaries = false
 
     var body: some View {
         let updater = flow.common.dictionaryUpdater
         SetupPage(step: .dictionaries, systemImage: "character.book.closed.ja", title: "Get dictionaries",
-                  subtitle: "Word lookups use these. They're stored on this \(StorageSummary.deviceName) and work offline.",
-                  buttonTitle: buttonTitle, canContinue: hasRequired && !updater.isInstalling,
-                  action: { flow.advance(from: .dictionaries) }) {
+                  subtitle: "Lookups use these. They're stored on this \(StorageSummary.deviceName) and work offline.",
+                  buttonTitle: offersDownload ? "Download \(selection.count == 1 ? "1 Dictionary" : "\(selection.count) Dictionaries")" : "Continue",
+                  action: { offersDownload ? install() : flow.advance(from: .dictionaries) }) {
             SetupHachidoriCard(onCopied: refresh)
             VStack(alignment: .leading, spacing: 6) {
-                Text(rememberedHachidori ? "Or Download the Recommended Ones" : "Recommended")
+                Text(rememberedHachidori ? "Or Download the Recommended Ones" : "Download the Recommended Ones")
                     .font(.footnote).foregroundStyle(.secondary).padding(.leading, 16)
                 SetupCard {
                     RecommendedDictionaryRows(selection: $selection, installed: installed, removed: removed)
@@ -156,12 +186,18 @@ struct SetupDictionariesStep: View {
                         .padding(.vertical, 8)
                 }
             }
-            if !selection.isEmpty, !updater.isInstalling {
-                Button("Download \(selection.count == 1 ? "1 Dictionary" : "\(selection.count) Dictionaries")") { install() }
-                    .accessibilityIdentifier("setup.downloadDictionaries")
+            if updater.isInstalling {
+                Label("\(progress) They finish in the background, so you can go on.", systemImage: "arrow.down.circle")
+                    .font(.callout).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("setup.dictionaries.progress")
             }
             if let failure = failure {
                 Label(failure, systemImage: "exclamationmark.triangle").foregroundStyle(.orange).font(.callout)
+            }
+            if !hasDictionaries, !updater.isInstalling {
+                Text("Lookups need a dictionary. You can add one later in Settings.")
+                    .font(.footnote).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("setup.dictionaries.later")
             }
             SetupCard {
                 Toggle(isOn: $autoUpdate) {
@@ -176,14 +212,24 @@ struct SetupDictionariesStep: View {
                 .accessibilityIdentifier("setup.autoUpdate")
             }
         } footer: {
-            // Under the button, so it stays in view however long the page gets (an error line
-            // used to push it under Continue).
-            NavigationLink("Have your own dictionaries? Import Yomitan zips from Files.") {
-                DictionariesView()
+            // Under the button, so they stay in view however long the page gets (an error line
+            // used to push them under Continue).
+            VStack(spacing: 8) {
+                if offersDownload {
+                    Text("About \(Self.size(of: selection)). Use Wi-Fi if you can.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                        .accessibilityIdentifier("setup.dictionaries.size")
+                }
+                HStack(spacing: 24) {
+                    NavigationLink("Import My Own…") { DictionariesView() }
+                        .accessibilityIdentifier("setup.importDictionaries")
+                    if !hasDictionaries, !updater.isInstalling {
+                        Button("Skip for Now") { flow.advance(from: .dictionaries) }
+                            .accessibilityIdentifier("setup.dictionaries.skip")
+                    }
+                }
+                .font(.footnote)
             }
-            .font(.footnote)
-            .multilineTextAlignment(.center)
-            .accessibilityIdentifier("setup.importDictionaries")
         }
         .onAppear {
             refresh()
@@ -191,26 +237,38 @@ struct SetupDictionariesStep: View {
             guard !started else { return }
             started = true
             selection = RecommendedDictionaries.defaultSelection.subtracting(installed).subtracting(removed)
-            // With a Hachidori address already known (another app's setup), its copy is the
-            // likely choice: nothing downloads until one is picked.
-            if !selection.isEmpty, !rememberedHachidori { install() }
         }
+        // An import from the Dictionaries page counts too.
+        .task {
+            do {
+                for try await records in flow.common.dictionaries.observeDictionaries() {
+                    hasDictionaries = records.contains(where: \.hasTerms)
+                    refresh()
+                }
+            } catch {}
+        }
+    }
+
+    /// Nothing yet and nothing downloading: the main button downloads the picked ones.
+    private var offersDownload: Bool {
+        !hasDictionaries && !flow.common.dictionaryUpdater.isInstalling && !selection.isEmpty
+    }
+
+    /// "About 390 MB": what the picked recommended dictionaries download.
+    static func size(of ids: Set<String>) -> String {
+        let bytes = ids.compactMap { RecommendedDictionaries.entry($0)?.approximateBytes }.reduce(0, +)
+        return ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
     }
 
     private var rememberedHachidori: Bool {
         !flow.common.hachidoriSettings.address.isEmpty
     }
 
-    private var hasRequired: Bool {
-        installed.contains(RecommendedDictionaries.required) || !((try? flow.common.dictionaries.dictionaries()) ?? []).filter(\.hasTerms).isEmpty
-    }
-
-    private var buttonTitle: String {
+    private var progress: String {
         let updater = flow.common.dictionaryUpdater
-        guard updater.isInstalling else { return "Continue" }
         let total = updater.items.count
         let done = updater.items.values.filter { $0 == .installed }.count
-        return "Downloading… \(min(done + 1, total)) of \(total)"
+        return "Downloading \(min(done + 1, total)) of \(total)."
     }
 
     private var failure: String? {
@@ -460,8 +518,10 @@ struct SetupDoneStep: View {
     private func checklist(_ common: CommonEnvironment) -> [SetupChecklistItem] {
         let app = items()
         let dictionaries = (try? common.dictionaries.dictionaries()) ?? []
-        let dictionary = SetupChecklistItem("Dictionaries", detail: dictionaries.isEmpty
-            ? "None yet · In Settings → Lookup and Mining → Dictionaries"
+        let dictionary = SetupChecklistItem("Dictionaries", detail: common.dictionaryUpdater.isInstalling
+            ? "Downloading · finishing in the background"
+            : dictionaries.isEmpty
+            ? "None yet · In Settings → Lookup → Dictionaries"
             : "\(dictionaries.count) installed\(common.dictionaryUpdater.autoUpdate ? " · kept up to date" : "")",
             isDone: !dictionaries.isEmpty)
         let settings = try? common.ankiSettings.settings()
@@ -469,7 +529,7 @@ struct SetupDoneStep: View {
         let reused = common.setupMode == .shared && flow.sharedOrigin.available
         let anki = SetupChecklistItem("Anki", detail: common.serverAccounts[.anki] != nil
             ? [settings?.deck, settings?.noteType].compactMap { $0 }.joined(separator: " · ")
-            : "\(reused ? "Not set up" : "Later") · In Settings → Lookup and Mining → Anki",
+            : "\(reused ? "Not set up" : "Later") · In Settings → Anki",
             isDone: common.serverAccounts[.anki] != nil)
         return Array(app.prefix(1)) + [dictionary, anki] + Array(app.dropFirst())
     }
@@ -576,3 +636,32 @@ struct SetupPresentation<Flow: View>: ViewModifier {
     }
 }
 #endif
+
+/// The server step while trying the demo: what it is instead of an address to type, and a way
+/// back to your own server.
+public struct SetupDemoServerCard: View {
+    let serverName: String
+    let ownServer: () -> Void
+
+    public init(serverName: String, ownServer: @escaping () -> Void) {
+        self.serverName = serverName
+        self.ownServer = ownServer
+    }
+
+    public var body: some View {
+        SetupCard {
+            VStack(alignment: .leading, spacing: 6) {
+                Label("Demo \(serverName)", systemImage: "sparkles").font(.headline)
+                Text("Sample books, videos and audio that are free to share. Nothing you do is saved to it: your places and marks stay on this \(StorageSummary.deviceName).")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("setup.demo.card")
+        Button("Use My Own Server Instead", action: ownServer)
+            .font(.footnote)
+            .accessibilityIdentifier("setup.demo.ownServer")
+    }
+}

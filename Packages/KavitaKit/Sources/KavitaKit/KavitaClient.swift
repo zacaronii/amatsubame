@@ -118,6 +118,16 @@ public struct KavitaClient: Sendable {
         try await http.decode(KavitaSeries.self, from: request("api/Series/\(id)"), decoder: KavitaJSON.decoder)
     }
 
+    /// One series by id with Kavita's own bytes (what the library cache keeps).
+    public func seriesWithRaw(id: Int) async throws(ConnectionError) -> (KavitaSeries, raw: Data) {
+        let response = try await http.send(request("api/Series/\(id)"))
+        do {
+            return (try KavitaJSON.decoder.decode(KavitaSeries.self, from: response.data), raw: response.data)
+        } catch {
+            throw .unexpectedResponse(String(describing: error))
+        }
+    }
+
     /// The summary, genres and writers Kavita has for a series.
     public func seriesMetadata(seriesId: Int) async throws(ConnectionError) -> KavitaSeriesMetadata {
         try await http.decode(KavitaSeriesMetadata.self, from: request("api/Series/metadata", query: [
@@ -148,7 +158,7 @@ public struct KavitaClient: Sendable {
         return try decodeEach(KavitaVolume.self, response.data).map { ($0.0, raw: $0.1) }
     }
 
-    private func paged<T: Decodable & Sendable>(_ request: URLRequest) async throws(ConnectionError) -> KavitaPage<(T, raw: Data)> {
+    func paged<T: Decodable & Sendable>(_ request: URLRequest) async throws(ConnectionError) -> KavitaPage<(T, raw: Data)> {
         let response = try await http.send(request)
         let items = try decodeEach(T.self, response.data).map { ($0.0, raw: $0.1) }
         let pagination = (response.response.value(forHTTPHeaderField: "Pagination")?.data(using: .utf8))
@@ -178,7 +188,9 @@ public struct KavitaClient: Sendable {
 
     /// Writes progress. Call only from the outbox handler; UI code enqueues instead.
     public func saveProgress(_ progress: KavitaProgressPayload) async throws(ConnectionError) {
-        _ = try await http.send(jsonRequest("POST", "api/Reader/progress", body: progress))
+        var body = progress
+        body.madeAt = nil   // the device's own bookkeeping
+        _ = try await http.send(jsonRequest("POST", "api/Reader/progress", body: body))
     }
 
     /// The page image request. The key travels as a query parameter because this
@@ -270,5 +282,15 @@ struct SeriesFilter: Encodable {
 
     init(libraryId: Int) {
         statements = [Statement(value: String(libraryId))]
+    }
+
+    /// Every series (Want to Read's list takes the filter too).
+    init() {
+        statements = []
+    }
+
+    /// A collection's series (Kavita's field 7, CollectionTags).
+    init(collectionId: Int) {
+        statements = [Statement(field: 7, value: String(collectionId))]
     }
 }

@@ -14,8 +14,6 @@ final class ReadAlongModel: BookReadAlongHost {
     let pair: ReadAlongPair
     let cues: ReadAlongCues
     let audio = AudioPlayer()
-    /// The looked-up sentence on its own (the popup's clip row), without moving the main audio.
-    let clip = ClipPlayer()
     private(set) var currentIndex: Int?
     /// Keep the spoken sentence on screen; turning pages by hand turns it off.
     private(set) var follows = true
@@ -39,6 +37,9 @@ final class ReadAlongModel: BookReadAlongHost {
     @ObservationIgnored private var duration: Double = 0
     /// Turned on from the switch: listen from the page on screen, not where listening stopped.
     @ObservationIgnored private var startsFromPage = false
+    /// Listening not yet reported as an Audiobookshelf session (as Kiku counts it: real playback at any speed).
+    @ObservationIgnored private var unreported: Double = 0
+    @ObservationIgnored private var lastTick: Double?
 
     init(pair: ReadAlongPair, cues: ReadAlongCues, reader: BookReaderModel, environment: AppEnvironment, isOn: Bool) {
         self.pair = pair
@@ -65,7 +66,7 @@ final class ReadAlongModel: BookReadAlongHost {
     func start() async {
         guard isOn, !isLoaded, let reader else { return }
         let client = environment.audiobookshelfClient()
-        localFile = ReadAlongAudio.localFile(itemId: pair.itemId)
+        localFile = environment.readAlongDownloads.localFile(itemId: pair.itemId)
         var source: (url: URL, headers: [String: String])?
         if let localFile {
             source = (localFile, [:])
@@ -81,9 +82,13 @@ final class ReadAlongModel: BookReadAlongHost {
             }
         }
         guard let source else {
-            problem = "Sign in to Audiobookshelf in Settings, or download the audio, to read along."
+            // Signed in but no answer: the server, not the sign-in.
+            problem = client == nil ? "Sign in to Audiobookshelf in Settings, or download the audio, to read along."
+                : "Couldn\u{2019}t reach Audiobookshelf. Turn read-along off and on to try again, or download the audio."
             return
         }
+        // Switched off while the audio was being found: nothing starts (and the next time loads afresh).
+        guard isOn else { return }
         let local = try? environment.listenProgress.progress(itemId: key)
         let server = try? await client?.progress(itemId: pair.itemId, episodeId: "")
         let listened = LocalWatchProgress.resumePosition(local: local, server: server?.currentTime, serverDate: server?.updatedAt)
@@ -144,6 +149,12 @@ final class ReadAlongModel: BookReadAlongHost {
         reader?.showMessage(on ? "Reading along" : "Read-along off")
     }
 
+    /// Loads the audio again after it couldn't be (the server was out of reach).
+    func retry() async {
+        problem = nil
+        await start()
+    }
+
     func toggle() {
         if !isLoaded { return }
         if !audio.isPlaying { follow() }
@@ -195,8 +206,25 @@ final class ReadAlongModel: BookReadAlongHost {
             currentIndex = index
             reader?.showReadAlong(index.map { cues.cues[$0] }, follow: follows)
         }
+        if follows, audio.isPlaying { reader?.readAlongPlayed(to: time) }
         // While playing: the player's first tick (0, before it seeks) isn't listening.
         if audio.isPlaying, abs(time - lastSaved) >= 15 { saveProgress() }
+        if audio.isPlaying, let lastTick {
+            let step = time - lastTick
+            if step > 0, step < 1.5 { unreported += 0.25 }
+        }
+        lastTick = time
+        if unreported >= 10 { reportListening() }
+    }
+
+    private func reportListening(send: Bool = false) {
+        if unreported > 0 {
+            environment.sessions.listened(unreported, item: ListenedItem(itemId: pair.itemId, episodeId: "",
+                                                                         duration: audio.duration > 0 ? audio.duration : duration),
+                                          position: audio.currentTime)
+            unreported = 0
+        }
+        if send { environment.sessions.send() }
     }
 
     private func playStateChanged(_ playing: Bool) {
@@ -208,7 +236,9 @@ final class ReadAlongModel: BookReadAlongHost {
         } else {
             // Only when it moved: stopping unplayed audio mustn't look like listening since reading.
             saveProgress(force: abs(audio.currentTime - lastSaved) > 1)
+            reportListening(send: true)
         }
+        lastTick = nil
     }
 
     // MARK: BookReadAlongHost
@@ -222,18 +252,7 @@ final class ReadAlongModel: BookReadAlongHost {
         }
     }
 
-    /// The sentence a word was looked up in, while reading along: what the card's audio is.
-    var tappedCue: ReadAlongCue? { isOn ? tappedIndex.map { cues.cues[$0] } : nil }
-
-    /// Plays (or stops) the looked-up sentence, with the same lead-in and tail as the card's.
-    func playTappedClip() {
-        if clip.isPlaying { return clip.stop() }
-        guard let cue = tappedCue, let source else { return }
-        clip.play(url: source.url, headers: source.headers, from: max(cue.start - AudioClips.leadIn, 0), to: cue.end + AudioClips.tail)
-    }
-
     func lookupClosed() {
-        clip.stop()
         if resumesAfterLookup {
             resumesAfterLookup = false
             audio.play()
@@ -281,6 +300,7 @@ final class ReadAlongModel: BookReadAlongHost {
     func close() {
         // Only when the place moved, so an unchanged one doesn't look newer than reading since.
         saveProgress(force: abs(audio.currentTime - lastSaved) > 1)
+        reportListening(send: true)
         audio.stop()
         isLoaded = false
         ScreenAwake.set(false)
@@ -291,9 +311,4 @@ final class ReadAlongModel: BookReadAlongHost {
 /// Yomu's own copies of paired audiobooks, for reading along offline.
 enum ReadAlongAudio {
     static var folder: URL { URL.applicationSupportDirectory.appending(path: "ReadAlongAudio") }
-
-    static func localFile(itemId: String) -> URL? {
-        let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
-        return files.first { $0.deletingPathExtension().lastPathComponent == itemId && $0.pathExtension != "part" }
-    }
 }

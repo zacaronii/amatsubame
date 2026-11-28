@@ -145,28 +145,34 @@ public struct DictionarySettings: Codable, Equatable, Sendable, FetchableRecord,
     public static let databaseTableName = "dictionarySettings"
 
     public var id = 1
-    /// Frequency dictionary used to sort results; nil picks the first enabled one.
+    /// Hachidori's Sort by frequency dictionary (its `frequencyDictionary`); nil: none.
     public var frequencySortTitle: String?
+    /// Hachidori's Sort order (its `frequencyOrder`): "auto" (dictionary order, the default),
+    /// "ascending", "descending" or "disabled". nil, from before it was a setting: the chosen
+    /// dictionary's own direction, as choosing it sets.
+    public var frequencySortOrder: String?
     /// Keep Recommended Up to Date (Settings ▸ Dictionaries ▸ Updates).
     public var autoUpdate: Bool
     public var lastUpdateCheck: Date?
     /// Recommended dictionaries the user deleted: Add Recommended and setup leave them out.
     public var removedRecommended: [String]
 
-    public init(frequencySortTitle: String? = nil, autoUpdate: Bool = true, lastUpdateCheck: Date? = nil,
-                removedRecommended: [String] = []) {
+    public init(frequencySortTitle: String? = nil, frequencySortOrder: String? = "auto", autoUpdate: Bool = true,
+                lastUpdateCheck: Date? = nil, removedRecommended: [String] = []) {
         self.frequencySortTitle = frequencySortTitle
+        self.frequencySortOrder = frequencySortOrder
         self.autoUpdate = autoUpdate
         self.lastUpdateCheck = lastUpdateCheck
         self.removedRecommended = removedRecommended
     }
 
-    enum CodingKeys: String, CodingKey { case id, frequencySortTitle, autoUpdate, lastUpdateCheck, removedRecommended }
+    enum CodingKeys: String, CodingKey { case id, frequencySortTitle, frequencySortOrder, autoUpdate, lastUpdateCheck, removedRecommended }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(Int.self, forKey: .id) ?? 1
         frequencySortTitle = try container.decodeIfPresent(String.self, forKey: .frequencySortTitle)
+        frequencySortOrder = try container.decodeIfPresent(String.self, forKey: .frequencySortOrder)
         autoUpdate = try container.decodeIfPresent(Bool.self, forKey: .autoUpdate) ?? true
         lastUpdateCheck = try container.decodeIfPresent(Date.self, forKey: .lastUpdateCheck)
         // Stored as JSON text.
@@ -178,6 +184,7 @@ public struct DictionarySettings: Codable, Equatable, Sendable, FetchableRecord,
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
         try container.encode(frequencySortTitle, forKey: .frequencySortTitle)
+        try container.encode(frequencySortOrder, forKey: .frequencySortOrder)
         try container.encode(autoUpdate, forKey: .autoUpdate)
         try container.encode(lastUpdateCheck, forKey: .lastUpdateCheck)
         let removed = (try? JSONEncoder().encode(removedRecommended)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"

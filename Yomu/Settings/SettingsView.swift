@@ -3,8 +3,8 @@ import Core
 import OCR
 import SwiftUI
 
-/// Settings in the shape every app shares: status, Reading, Lookup
-/// and Mining, Stats, then Storage, Advanced and About.
+/// Settings in the shape every app shares: status, Reading, Lookup, Anki, Connections, then
+/// Storage, Advanced and About.
 struct SettingsView: View {
     @Environment(AppEnvironment.self) private var environment
     @State private var storageTotal: String?
@@ -15,11 +15,6 @@ struct SettingsView: View {
                 SettingsStatusCard(items: statusItems)
 
                 Section {
-                    NavigationLink(value: ServerKind.kavita) {
-                        SettingsRowLabel("Kavita", subtitle: environment.serverAccounts[.kavita]?.hostAndAccount ?? "Not set up",
-                                         systemImage: "server.rack", color: .indigo, dot: environment.serverAccounts[.kavita]?.dotColor)
-                    }
-                    .accessibilityIdentifier("settings.kavita")
                     NavigationLink {
                         LibrariesSettingsView()
                     } label: {
@@ -29,7 +24,7 @@ struct SettingsView: View {
                     NavigationLink {
                         ReadingDownloadsView()
                     } label: {
-                        SettingsRowLabel("Downloads", subtitle: "Automatic downloads, cellular, text read ahead",
+                        SettingsRowLabel("Download Rules", subtitle: "Automatic, over cellular, text read ahead",
                                          systemImage: "arrow.down.circle.fill", color: .blue)
                     }
                     .accessibilityIdentifier("settings.downloads")
@@ -42,21 +37,37 @@ struct SettingsView: View {
                     NavigationLink {
                         ReadAlongSettingsView()
                     } label: {
-                        SettingsRowLabel("Read-Along", subtitle: "Audiobookshelf and Kaku", systemImage: "headphones", color: .orange,
+                        SettingsRowLabel("Read-Along", subtitle: readAlongSummary,
+                                         systemImage: "headphones", color: .orange,
                                          dot: environment.serverAccounts[.audiobookshelf]?.dotColor)
                     }
                     .accessibilityIdentifier("settings.readAlong")
                 } header: {
                     Text("Reading")
-                } footer: {
-                    Text("Read-Along plays a matching audiobook with the text. It's optional.")
                 }
 
-                LookupAndMiningSection {
+                LookupSection(wordMarksNote: Self.wordMarksNote, popupExtras: AnyView(LookupTimingsToggle()))
+
+                AnkiSection {
                     Self.anki(environment)
                 }
 
-                StatsSettingsLink()
+                ConnectionsSection {
+                    NavigationLink(value: ServerKind.kavita) {
+                        SettingsRowLabel("Kavita", subtitle: environment.serverAccounts[.kavita]?.hostAndAccount ?? "Not set up",
+                                         systemImage: "server.rack", color: .indigo, dot: environment.serverAccounts[.kavita]?.dotColor)
+                    }
+                    .accessibilityIdentifier("settings.kavita")
+                    NavigationLink(value: ServerKind.audiobookshelf) {
+                        SettingsRowLabel("Audiobookshelf", subtitle: environment.serverAccounts[.audiobookshelf]?.hostAndAccount ?? "Optional · for read-along",
+                                         systemImage: "headphones", color: .orange, dot: environment.serverAccounts[.audiobookshelf]?.dotColor)
+                    }
+                    .accessibilityIdentifier("settings.audiobookshelf")
+                    NavigationLink(value: ServerKind.kaku) {
+                        KakuSettingsRow()
+                    }
+                    .accessibilityIdentifier("settings.kaku")
+                }
 
                 SettingsFooterSection(storageTotal: storageTotal) {
                     StorageView()
@@ -74,9 +85,9 @@ struct SettingsView: View {
     }
 
     static var advanced: some View {
-        AdvancedSettingsView(kinds: [.ankiNote, .kavitaProgress, .audiobookshelfProgress],
+        AdvancedSettingsView(kinds: [.ankiNote, .kavitaProgress, .audiobookshelfProgress, .audiobookshelfSession],
                              extraLogs: [URL.applicationSupportDirectory.appending(path: "dev-setup.log")]) {
-            LookupTimingsToggle()
+            LibraryDataSection()
         }
     }
 
@@ -89,8 +100,11 @@ struct SettingsView: View {
     }
 
     static func anki(_ environment: AppEnvironment) -> some View {
-        AnkiSettingsPage(environment: environment.common, wordMarksNote: "Books only; manga pages aren\u{2019}t marked.")
+        AnkiSettingsPage(environment: environment.common)
     }
+
+    /// Word marks are drawn in books only.
+    static let wordMarksNote = "Books only; manga pages aren\u{2019}t marked."
 
     /// What a link to a server opens.
     @ViewBuilder static func serverPage(_ kind: ServerKind, environment: AppEnvironment) -> some View {
@@ -103,23 +117,33 @@ struct SettingsView: View {
         }
     }
 
+    /// Read-Along needs both: Audiobookshelf for the audiobook, Kaku for its transcript.
+    private var readAlongSummary: String {
+        switch (environment.serverAccounts[.audiobookshelf] != nil, environment.serverAccounts[.kaku] != nil) {
+        case (false, false): "Optional"
+        case (true, false): "Needs Kaku"
+        case (false, true): "Needs Audiobookshelf"
+        case (true, true): "Ready"
+        }
+    }
+
     private var statusItems: [StatusItem] { Self.statusItems(environment) }
 
     static func statusItems(_ environment: AppEnvironment) -> [StatusItem] {
         let accounts = environment.serverAccounts
         return [
-            StatusItem("Kavita", isSetUp: accounts[.kavita] != nil) {
+            StatusItem("Kavita", isSetUp: accounts[.kavita] != nil, opens: { AnyView(serverPage(.kavita, environment: environment)) }) {
                 // Any user may ask who they are (server info is for admins).
                 _ = try await environment.kavitaClient()?.currentUser()
             },
-            StatusItem("Anki", isSetUp: accounts[.anki] != nil) {
+            StatusItem("Anki", isSetUp: accounts[.anki] != nil, opens: { AnyView(serverPage(.anki, environment: environment)) }) {
                 _ = try await environment.common.ankiClient()?.version()
             },
-            StatusItem("Read-Along", isSetUp: accounts[.audiobookshelf] != nil) {
+            StatusItem("Read-Along", isSetUp: accounts[.audiobookshelf] != nil, opens: { AnyView(ReadAlongSettingsView()) }) {
                 _ = try await environment.audiobookshelfClient()?.me()
                 if accounts[.kaku] != nil { _ = try await environment.kakuClient()?.health() }
             },
-            StatusItem("kechimochi", isSetUp: (try? environment.common.activity.kechimochiURL()) ?? nil != nil) {
+            StatusItem("kechimochi", isSetUp: (try? environment.common.activity.kechimochiURL()) ?? nil != nil, opens: { AnyView(KechimochiPage()) }) {
                 try await environment.common.checkKechimochi()
             },
         ]
@@ -159,16 +183,25 @@ struct MacSettingsView: View {
         MacSettingsWindow(groups: [
             MacSettingsGroup(pages: [.overview(SettingsView.statusItems(environment))]),
             MacSettingsGroup("Reading", pages: [
-                MacSettingsPage("kavita", title: "Kavita", systemImage: "server.rack") { KavitaSettingsView(environment: environment.common) },
                 MacSettingsPage("libraries", title: "Libraries", systemImage: "books.vertical") { LibrariesSettingsView() },
-                MacSettingsPage("downloads", title: "Downloads", systemImage: "arrow.down.circle") { ReadingDownloadsView() },
-                MacSettingsPage("ocr", title: "Manga Text Recognition", systemImage: "text.viewfinder") { OCRSettingsView() },
-                MacSettingsPage("readAlong", title: "Read-Along", systemImage: "headphones") { ReadAlongSettingsView() },
+                MacSettingsPage("downloads", title: "Download Rules", systemImage: "arrow.down.circle",
+                                keywords: ["Automatic Downloads", "Read Text on Downloaded Pages"]) { ReadingDownloadsView() },
+                MacSettingsPage("ocr", title: "Manga Text Recognition", systemImage: "text.viewfinder",
+                                keywords: ["OCR", "Models"]) { OCRSettingsView() },
+                MacSettingsPage("readAlong", title: "Read-Along", systemImage: "headphones",
+                                keywords: ["Audiobook"]) { ReadAlongSettingsView() },
             ]),
-        ] + MacSettingsGroup.shared {
+        ] + MacSettingsGroup.shared(wordMarksNote: SettingsView.wordMarksNote, popupExtras: AnyView(LookupTimingsToggle()), servers: [
+            MacSettingsPage("kavita", title: "Kavita", systemImage: "server.rack") { KavitaSettingsView(environment: environment.common) },
+            MacSettingsPage("audiobookshelf", title: "Audiobookshelf", systemImage: "headphones") {
+                AudiobookshelfSettingsView(environment: environment.common, tokens: environment.audiobookshelfTokens, appName: "Yomu")
+            },
+            MacSettingsPage("kaku", title: "Kaku", systemImage: "text.quote") { KakuSettingsView(environment: environment.common) },
+        ]) {
             SettingsView.anki(environment)
         } + [
-            .footer {
+            .footer(storageKeywords: ["Read-Along Audio", "Text Recognition Models", "Cache"],
+                    advancedKeywords: ["Character Counts"]) {
                 StorageView()
             } advanced: {
                 SettingsView.advanced

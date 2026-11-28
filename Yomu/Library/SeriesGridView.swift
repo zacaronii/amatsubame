@@ -12,11 +12,10 @@ struct SeriesGridView: View {
     @State private var search = ""
     @State private var shelf = Shelf.all
     @State private var cacheBytes = 0
-    #if os(macOS)
-    // The Mac's toolbar filter and sort; Downloaded is in the sidebar instead.
+    // The Mac's toolbar filter and sort (Downloaded is in its sidebar); on iPhone and iPad a
+    // menu with Unread and Finished beside the All · Reading · Downloaded picker, and the sort.
     @AppStorage("library.filter") private var filter = LibraryFilter.all
     @AppStorage("library.sort") private var sort = LibrarySort.title
-    #endif
 
     /// All · Reading (started, not finished) · Downloaded.
     enum Shelf: String, CaseIterable {
@@ -29,9 +28,13 @@ struct SeriesGridView: View {
         var series = environment.isLibraryOffline || shelf == .downloaded ? series.filter { downloaded.contains($0.id) } : series
         if shelf == .reading { series = series.filter { $0.progress == .started } }
         #if os(macOS)
+        let filter = filter
+        #else
+        // Reading is the picker's; the menu's Unread or Finished don't apply on top of it.
+        let filter = shelf == .reading ? LibraryFilter.all : filter
+        #endif
         series = series.filtered(filter, sortedBy: sort, progress: \.progress, title: { $0.sortName ?? $0.name },
                                  added: \.created, opened: \.latestReadDate)
-        #endif
         guard !search.isEmpty else { return series }
         return series.filter { $0.displayName.localizedCaseInsensitiveContains(search) || $0.name.localizedCaseInsensitiveContains(search) }
     }
@@ -67,28 +70,32 @@ struct SeriesGridView: View {
                 ProgressView()
             } else if filtered.isEmpty && search.isEmpty && !isRefreshing {
                 #if os(macOS)
-                if filter == .notStarted, !environment.isLibraryOffline {
+                let reading = filter == .started
+                #else
+                let reading = shelf == .reading
+                #endif
+                if !reading, filter == .notStarted, !environment.isLibraryOffline {
                     ContentUnavailableView("Nothing Unread", systemImage: "book.closed")
-                } else if filter == .finished, !environment.isLibraryOffline {
+                } else if !reading, filter == .finished, !environment.isLibraryOffline {
                     ContentUnavailableView("Nothing Finished", systemImage: "checkmark.circle")
                 } else {
-                    emptyShelf(reading: filter == .started)
+                    emptyShelf(reading: reading)
                 }
-                #else
-                emptyShelf(reading: shelf == .reading)
-                #endif
             }
         }
         .searchable(text: $search, prompt: "Filter")
         .navigationTitle(library.name)
         #if os(macOS)
         .libraryToolbar(filter: $filter, sort: $sort, words: .reading)
+        #else
+        .libraryMenu(filter: $filter, sort: $sort, words: .reading, filters: [.all, .notStarted, .finished])
         #endif
         .refreshable {
             CoverLoader.recheck()
             await load()
         }
         .task { await load() }
+        .onReceive(NotificationCenter.default.publisher(for: .refreshRequested)) { _ in Task { await load() } }
         .task(id: shelf) {
             guard shelf == .downloaded else { return }
             cacheBytes = await environment.books.unpinnedBytes() + ((try? environment.pageCache.unpinnedBytes()) ?? 0)

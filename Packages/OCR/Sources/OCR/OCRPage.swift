@@ -59,13 +59,43 @@ public struct OCRBlock: Codable, Equatable, Hashable, Sendable {
     public var vertical: Bool
     public var kind: Kind
     public var score: Double
+    /// The block's lines of lettering in reading order, each a rect in the block's own unit
+    /// square (`TextLines`), for matching a tap to a character. Nil on pages read before this
+    /// was kept, and for `.mokuro` data without it.
+    public var lines: [NormalizedRect]?
+    /// Each character's place in the block's unit square, in reading order (`TextLines.cells`):
+    /// one per `Character` of `text`. Nil where it wasn't measured.
+    public var cells: [NormalizedRect]?
+    /// Whether `cells` were all found in the lettering (they can be drawn on the page) or are
+    /// a best guess (enough to aim a tap by).
+    public var cellsExact: Bool?
+    /// The `TextLines.version` that measured `lines` and `cells`.
+    public var measured: Int?
 
-    public init(box: NormalizedRect, text: String, vertical: Bool, kind: Kind, score: Double = 1) {
+    /// Takes the lines and places measured in the block's picture.
+    public mutating func place(_ layout: TextLines.Layout) {
+        lines = layout.lines.map(NormalizedRect.init)
+        cells = layout.cells.map(NormalizedRect.init)
+        cellsExact = layout.exact
+        measured = TextLines.version
+    }
+
+    /// Where each character is, measured if it was and estimated otherwise: what taps are
+    /// matched against and what the looked-up word's highlight is drawn on.
+    public func characterRects(boxSize: CGSize) -> [CGRect] {
+        if let cells, cells.count == text.count, !cells.isEmpty { return cells.map(\.cgRect) }
+        return TextLayout.characterRects(characterCount: text.count, vertical: vertical, lines: (lines ?? []).map(\.cgRect), boxSize: boxSize)
+    }
+
+    public init(box: NormalizedRect, text: String, vertical: Bool, kind: Kind, score: Double = 1, lines: [NormalizedRect]? = nil,
+                cells: [NormalizedRect]? = nil) {
+        self.cells = cells
         self.box = box
         self.text = text
         self.vertical = vertical
         self.kind = kind
         self.score = score
+        self.lines = lines
     }
 }
 

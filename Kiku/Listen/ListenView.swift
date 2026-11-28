@@ -8,6 +8,12 @@ enum ListenRoute: Hashable {
     case only(AudiobookshelfLibrary)
     case show(String)
     case book(String)
+    /// See All under New Episodes.
+    case newEpisodes
+    /// Up Next, to reorder and clear.
+    case upNext
+    /// Shows and episodes by title (the search button, as in Yomu's Library and Miru's Watch).
+    case search
 }
 
 /// What a Listen route opens (also in the Mac's library rows).
@@ -20,7 +26,20 @@ struct ListenDestination: View {
         case .only(let library): LibraryView(only: library)
         case .show(let id): ShowView(itemId: id)
         case .book(let id): BookView(itemId: id)
+        case .newEpisodes: AllNewEpisodesView()
+        case .upNext: UpNextView()
+        case .search: ListenSearchView()
         }
+    }
+}
+
+/// Every new episode (See All).
+private struct AllNewEpisodesView: View {
+    @Environment(KikuEnvironment.self) private var environment
+
+    var body: some View {
+        ScrollView { EpisodeList(entries: environment.library.newEpisodes).padding() }
+            .navigationTitle("New Episodes")
     }
 }
 
@@ -33,12 +52,31 @@ struct ListenView: View {
     @Environment(KikuEnvironment.self) private var environment
     @Environment(\.scenePhase) private var scenePhase
     @State private var today: TodaySummary?
-    @State private var query = ""
     @State private var path: [ListenRoute] = []
+    /// The account the library on screen was loaded for.
+    @State private var shownAccount: String?
+
+    /// The Audiobookshelf server and user ("" signed out).
+    private var account: String {
+        environment.common.serverAccounts[.audiobookshelf].map { "\($0.baseURL.absoluteString) \($0.username ?? "")" } ?? ""
+    }
     /// Bumped when the Listen tab is tapped again.
     var reset = 0
 
     private var library: PodcastLibrary { environment.library }
+
+    private var connectAudiobookshelf: some View {
+        ContentUnavailableView {
+            Label("Connect Audiobookshelf", systemImage: "headphones")
+        } description: {
+            Text("Sign in to your Audiobookshelf server in Settings to see your podcasts.")
+        } actions: {
+            Button("Open Settings") { environment.selectedTab = .settings }
+                .buttonStyle(.borderedProminent)
+                .filledButtonTint()
+                .accessibilityIdentifier("listen.openSettings")
+        }
+    }
 
     var body: some View {
         WideSplitStack(path: $path) {
@@ -46,22 +84,27 @@ struct ListenView: View {
                 if !environment.common.accountsLoaded {
                     ProgressView()
                 } else if environment.common.serverAccounts[.audiobookshelf] == nil {
-                    ContentUnavailableView {
-                        Label("Connect Audiobookshelf", systemImage: "headphones")
-                    } description: {
-                        Text("Sign in to your Audiobookshelf server in Settings to see your podcasts.")
-                    } actions: {
-                        Button("Open Settings") { environment.selectedTab = .settings }
-                            .buttonStyle(.borderedProminent)
+                    // Scrolls when it doesn't fit (the largest text sizes), so Open Settings can
+                    // always be reached above the mini player.
+                    ViewThatFits(in: .vertical) {
+                        connectAudiobookshelf
+                        ScrollView { connectAudiobookshelf }
                     }
-                } else if !query.isEmpty {
-                    SearchResults(query: query)
                 } else {
                     home
                 }
             }
             .navigationTitle("Listen")
-            .searchable(text: $query, prompt: "Shows and episodes")
+            .toolbar {
+                if environment.common.serverAccounts[.audiobookshelf] != nil {
+                    ToolbarItem(placement: .primaryAction) {
+                        SplitLink(value: ListenRoute.search) {
+                            Label("Search", systemImage: "magnifyingglass")
+                        }
+                        .accessibilityIdentifier("listen.search")
+                    }
+                }
+            }
         } destination: { route in
             ListenDestination(route: route)
         } empty: {
@@ -70,15 +113,19 @@ struct ListenView: View {
         }
         .onChange(of: reset) {
             path = []
-            query = ""
         }
         .onChange(of: environment.requestedLibrary, initial: true) { _, library in
             guard let library else { return }
             environment.requestedLibrary = nil
-            query = ""
             path = [.only(library)]
         }
-        .task(id: environment.common.serverAccounts[.audiobookshelf]?.baseURL) {
+        .task(id: account) {
+            // Another server or user than the library on screen came from: start clean.
+            if let shown = shownAccount, shown != account {
+                environment.stopPlayback()
+                library.clear()
+            }
+            shownAccount = account
             if library.shows.isEmpty { await library.refresh() }
         }
         .onAppear { loadToday() }
@@ -97,7 +144,8 @@ struct ListenView: View {
     }
 
     private var home: some View {
-        ScrollView {
+        let kinds = library.shownKinds()
+        return ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 if library.isOffline {
                     Label("Can't reach Audiobookshelf. Your library is from the last time it loaded, and downloaded episodes play.",
@@ -122,52 +170,105 @@ struct ListenView: View {
                         .shelfScrollClip()
                     }
                 }
+                if !environment.upNext.isEmpty {
+                    UpNextShelf()
+                }
                 if library.isOffline, !environment.downloadedEntries.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Downloaded").font(.title2.bold())
                         EpisodeList(entries: environment.downloadedEntries)
                     }
                 }
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text("New Episodes").font(.title2.bold())
-                        Spacer()
-                        NavigationLink("Library", value: ListenRoute.library)
-                            .accessibilityIdentifier("listen.library")
-                    }
-                    if library.newEpisodes.isEmpty {
-                        Group {
-                            if library.isLoading {
-                                ProgressView().frame(maxWidth: .infinity)
-                            } else if let error = library.error, !library.isOffline {
-                                Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.secondary)
-                            } else if !library.isOffline {
-                                Text("You're up to date.").foregroundStyle(.secondary)
+                if kinds.books, !library.recentlyAddedBooks.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        header("Recently Added", library: true)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(alignment: .top, spacing: 14) {
+                                ForEach(library.recentlyAddedBooks) { BookCard(book: $0) }
                             }
                         }
-                        .padding(.vertical)
-                    } else {
-                        EpisodeList(entries: Array(library.newEpisodes.prefix(Self.newEpisodesShown)))
-                        if library.newEpisodes.count > Self.newEpisodesShown {
-                            NavigationLink {
-                                ScrollView { EpisodeList(entries: library.newEpisodes).padding() }
-                                    .navigationTitle("New Episodes")
-                            } label: {
-                                Text("See All \(library.newEpisodes.count)").frame(maxWidth: .infinity)
+                        .shelfScrollClip()
+                    }
+                } else if kinds.books, !kinds.podcasts {
+                    // Audiobooks only, nothing to show yet: the Library link, and why.
+                    VStack(alignment: .leading, spacing: 8) {
+                        header("Recently Added", library: true)
+                        if library.isLoading {
+                            ProgressView().frame(maxWidth: .infinity).padding(.vertical)
+                        } else if let error = library.error, !library.isOffline {
+                            Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.secondary).padding(.vertical)
+                        }
+                    }
+                }
+                if kinds.podcasts {
+                    VStack(alignment: .leading, spacing: 8) {
+                        header("New Episodes", library: !kinds.books || library.recentlyAddedBooks.isEmpty)
+                        if library.newEpisodes.isEmpty {
+                            Group {
+                                if library.isLoading {
+                                    ProgressView().frame(maxWidth: .infinity)
+                                } else if let error = library.error, !library.isOffline {
+                                    Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.secondary)
+                                } else if !library.isOffline {
+                                    Text("You're up to date.").foregroundStyle(.secondary)
+                                }
                             }
-                            .buttonStyle(.bordered)
-                            .buttonBorderShape(.capsule)
-                            .accessibilityIdentifier("newEpisodes.seeAll")
+                            .padding(.vertical)
+                        } else {
+                            EpisodeList(entries: Array(library.newEpisodes.prefix(Self.newEpisodesShown)))
+                            if library.newEpisodes.count > Self.newEpisodesShown {
+                                // A route like the rest, so the Listen tab tapped again leaves it.
+                                SplitLink(value: ListenRoute.newEpisodes) {
+                                    Text("See All \(library.newEpisodes.count)").frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.bordered)
+                                .buttonBorderShape(.capsule)
+                                .accessibilityIdentifier("newEpisodes.seeAll")
+                            }
                         }
                     }
                 }
             }
             .padding()
         }
-        .refreshable {
+        .refreshableByCommand {
             CoverLoader.recheck()
             await library.refresh()
         }
+    }
+}
+
+extension ListenView {
+    /// A section's title, with the Library link on the first section.
+    fileprivate func header(_ title: String, library: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title).font(.title2.bold())
+            Spacer()
+            if library {
+                SplitLink("Library", value: ListenRoute.library)
+                    .accessibilityIdentifier("listen.library")
+            }
+        }
+    }
+}
+
+/// A Recently Added card: the book's cover, title and author; opens the book.
+private struct BookCard: View {
+    let book: AudiobookshelfItem
+
+    var body: some View {
+        SplitLink(value: ListenRoute.book(book.id)) {
+            VStack(alignment: .leading, spacing: 6) {
+                ShowCover(itemId: book.id, cornerRadius: 16)
+                Text(book.title).font(.subheadline).lineLimit(2).multilineTextAlignment(.leading)
+                if let author = book.media.metadata.authorName ?? book.media.metadata.author {
+                    Text(author).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            .frame(width: 160)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("listen.recentBook")
     }
 }
 
@@ -217,6 +318,30 @@ private struct ContinueCard: View {
     }
 }
 
+/// Search from Listen's search button: its field is active on opening.
+private struct ListenSearchView: View {
+    @State private var query = ""
+    @State private var searching = false
+    @State private var opened = false
+
+    var body: some View {
+        Group {
+            if query.isEmpty {
+                ContentUnavailableView("Search", systemImage: "magnifyingglass",
+                                       description: Text("Shows, books and episodes by title."))
+            } else {
+                SearchResults(query: query)
+            }
+        }
+        .searchable(text: $query, isPresented: $searching, prompt: "Shows and episodes")
+        .onAppear {
+            if !opened { searching = true }
+            opened = true
+        }
+        .navigationTitle("Search")
+    }
+}
+
 /// Shows and episodes whose titles match (K1's search; transcript search lives in Marks).
 private struct SearchResults: View {
     @Environment(KikuEnvironment.self) private var environment
@@ -233,7 +358,7 @@ private struct SearchResults: View {
             if !shows.isEmpty {
                 Section("Shows and Books") {
                     ForEach(shows) { show in
-                        NavigationLink(value: show.isBook ? ListenRoute.book(show.id) : ListenRoute.show(show.id)) {
+                        SplitLink(value: show.isBook ? ListenRoute.book(show.id) : ListenRoute.show(show.id), rowStyle: true) {
                             HStack(spacing: 12) {
                                 ShowCover(itemId: show.id).frame(width: 44, height: 44)
                                 Text(show.title)

@@ -84,6 +84,34 @@ final class ExtensionLookupUITests: XCTestCase {
         attach(safari.screenshot(), "after mine")
     }
 
+    /// The README's screenshots (`UITEST_CAPTURE=1`, `scripts/readme-screenshots.sh`): Hiku's own
+    /// screen, then 坊っちゃん on Aozora Bunko (public domain) in Safari with the popup open on 無鉄砲.
+    func testReadmeCapture() throws {
+        guard ProcessInfo.processInfo.environment["UITEST_CAPTURE"] != nil else { throw XCTSkip("Set UITEST_CAPTURE=1 to record.") }
+        XCUIApplication().launch()
+        readmeScreenshot("readme-1-home", settle: 3)
+        enableExtension()
+        let safari = XCUIApplication(bundleIdentifier: "com.apple.mobilesafari")
+        safari.terminate()
+        XCUIDevice.shared.system.open(try XCTUnwrap(URL(string: "https://www.aozora.gr.jp/cards/000148/files/752_14964.html")))
+        XCTAssertTrue(safari.wait(for: .runningForeground, timeout: 10))
+        allowOnThisSite(safari)
+        // Safari's one-time tip about its menu.
+        let tipClose = safari.buttons["Close"].firstMatch
+        if tipClose.waitForExistence(timeout: 3) { tipClose.tap() }
+        let title = safari.webViews.staticTexts["坊っちゃん"].firstMatch
+        XCTAssertTrue(title.waitForExistence(timeout: 30), "the page loaded")
+        sleep(2)
+        // 無 in the first line of the text (親譲りの無鉄砲で…), from where the page lays it out on
+        // an iPhone 17 Pro; `UITEST_CAPTURE_AT=x,y` (points) moves it for another screen.
+        let at = (ProcessInfo.processInfo.environment["UITEST_CAPTURE_AT"] ?? "103,236").split(separator: ",").compactMap { Double($0) }
+        safari.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: at[0], dy: at[1])).tap()
+        let gloss = safari.webViews.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] 'reckless'")).firstMatch
+        let found = gloss.waitForExistence(timeout: 180)
+        XCTAssertTrue(found, "the popup shows 無鉄砲")
+        readmeScreenshot("readme-2-lookup")
+    }
+
     /// Only turns the extension on, for a simulator set up for hands-on testing
     /// (`TEST_RUNNER_UITEST_ENABLE_EXTENSION_ONLY=1`; nothing is looked up or mined).
     func testEnableExtensionOnly() throws {

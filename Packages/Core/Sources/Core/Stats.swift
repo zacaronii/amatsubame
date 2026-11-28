@@ -26,9 +26,12 @@ public struct ActivitySession: Codable, Equatable, Sendable, FetchableRecord, Mu
     public var characters: Int
     public var pages: Int
     public var seconds: Double
+    /// Nil for what this device logged; another device's name for what came from it (`StatsSync`).
+    public var device: String?
 
     public init(id: Int64? = nil, kind: Kind, seriesKey: String, seriesTitle: String, itemKey: String, start: Date, end: Date,
-                characters: Int = 0, pages: Int = 0, seconds: Double = 0) {
+                characters: Int = 0, pages: Int = 0, seconds: Double = 0, device: String? = nil) {
+        self.device = device
         self.id = id
         self.kind = kind
         self.seriesKey = seriesKey
@@ -82,6 +85,8 @@ public struct ActivityLog: Sendable {
         try database.writer.write { db in
             if var open = try ActivitySession
                 .filter(Column("kind") == subject.kind.rawValue && Column("itemKey") == subject.itemKey)
+                // Only this device's own: another device's session isn't ours to add to.
+                .filter(Column("device") == nil)
                 .filter(Column("end") >= date.addingTimeInterval(-Self.gap))
                 .order(Column("end").desc)
                 .fetchOne(db) {
@@ -106,9 +111,11 @@ public struct ActivityLog: Sendable {
         }
     }
 
-    public func sessions(kind: ActivitySession.Kind, since date: Date? = nil) throws -> [ActivitySession] {
+    /// Every device's sessions (those synced from the others too), or only this device's own.
+    public func sessions(kind: ActivitySession.Kind, since date: Date? = nil, localOnly: Bool = false) throws -> [ActivitySession] {
         try database.reader.read { db in
             var request = ActivitySession.filter(Column("kind") == kind.rawValue)
+            if localOnly { request = request.filter(Column("device") == nil) }
             if let date { request = request.filter(Column("end") >= date) }
             return try request.order(Column("start")).fetchAll(db)
         }
@@ -211,10 +218,16 @@ public struct StatsSummary: Equatable, Sendable {
         case week, month, allTime
     }
 
+    /// What the chart and the headline count. Watching and listening are always time; reading
+    /// can be time (books and manga alike), characters (books) or pages (manga).
+    public enum Measure: String, CaseIterable, Sendable {
+        case time, characters, pages
+    }
+
     public struct Bar: Equatable, Sendable, Identifiable {
         /// The day (or month, for all time) the bar covers.
         public var date: Date
-        /// Characters read, or seconds watched.
+        /// In the summary's measure: seconds, characters or pages.
         public var value: Double
         public var isCurrent: Bool
         public var id: Date { date }
@@ -232,11 +245,14 @@ public struct StatsSummary: Equatable, Sendable {
         public var id: String { key }
     }
 
+    public var measure: Measure
     public var bars: [Bar]
-    /// Characters read, or seconds watched, in the period.
+    /// The period's total in `measure`: seconds, characters or pages.
     public var total: Double
     public var streak: Int
     public var seconds: Double
+    public var characters: Int
+    public var pages: Int
     /// Distinct chapters or episodes in the period.
     public var items: Int
     public var cards: Int
@@ -244,9 +260,12 @@ public struct StatsSummary: Equatable, Sendable {
     public var series: [Series]
 
     /// Builds the summary. `cards` are every card mined (all apps, by date) and `ownCards`
-    /// the ones this app mined, for the by-series counts.
-    public static func make(kind: ActivitySession.Kind, period: Period, sessions: [ActivitySession], lookups: [Date],
-                            cards: [Date], ownCards: [MinedCardStat], now: Date = Date(), calendar: Calendar = .current) -> StatsSummary {
+    /// the ones this app mined, for the by-series counts. `measure` is for reading (nil:
+    /// characters); watching and listening are measured in time.
+    public static func make(kind: ActivitySession.Kind, period: Period, measure: Measure? = nil, sessions: [ActivitySession],
+                            lookups: [Date], cards: [Date], ownCards: [MinedCardStat], now: Date = Date(),
+                            calendar: Calendar = .current) -> StatsSummary {
+        let measure = kind.isTimed ? Measure.time : measure ?? .characters
         let today = calendar.startOfDay(for: now)
         let starts: [Date]
         switch period {
@@ -267,7 +286,18 @@ public struct StatsSummary: Equatable, Sendable {
         let from = starts.first ?? today
         let inPeriod = sessions.filter { $0.start >= from }
         func value(_ session: ActivitySession) -> Double {
-            kind.isTimed ? session.seconds : Double(session.characters)
+            switch measure {
+            case .time: session.duration
+            case .characters: Double(session.characters)
+            case .pages: Double(session.pages)
+            }
+        }
+        func value(_ series: Series) -> Double {
+            switch measure {
+            case .time: series.seconds
+            case .characters: Double(series.characters)
+            case .pages: Double(series.pages)
+            }
         }
         func bucket(_ date: Date) -> Date {
             period == .allTime ? (calendar.dateInterval(of: .month, for: date)?.start ?? date) : calendar.startOfDay(for: date)
@@ -303,14 +333,20 @@ public struct StatsSummary: Equatable, Sendable {
         }
 
         return StatsSummary(
+            measure: measure,
             bars: bars,
             total: inPeriod.reduce(0) { $0 + value($1) },
             streak: streak(sessions: sessions, kind: kind, now: now, calendar: calendar),
             seconds: inPeriod.reduce(0) { $0 + $1.duration },
+            characters: inPeriod.reduce(0) { $0 + $1.characters },
+            pages: inPeriod.reduce(0) { $0 + $1.pages },
             items: Set(watchedItems.map(\.itemKey)).count,
             cards: cards.filter { $0 >= from }.count,
             lookups: lookups.filter { $0 >= from }.count,
-            series: series.values.sorted { ($0.characters, $0.seconds, $0.cards) > ($1.characters, $1.seconds, $1.cards) }
+            // By what's being counted first, so manga isn't under every book when counting pages or time.
+            series: series.values.sorted {
+                (value($0), Double($0.characters), $0.seconds, $0.cards) > (value($1), Double($1.characters), $1.seconds, $1.cards)
+            }
         )
     }
 

@@ -1,6 +1,6 @@
 # Third-party notices
 
-Amatsubame's apps are licensed under the GNU General Public License v3.0 (`LICENSE`). Kaku, the
+Amatsubame's apps are licensed under the GNU General Public License, version 3 only (GPL-3.0-only) (`LICENSE`). Kaku, the
 transcription server in `Server/kaku`, is a separate program under the MIT License
 (`Server/kaku/LICENSE`).
 
@@ -29,7 +29,7 @@ They include or use the following. Each keeps its own license; the full texts ar
 | [GRDB.swift](https://github.com/groue/GRDB.swift) | MIT |
 | [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) | MIT |
 | [zstd](https://github.com/facebook/zstd) | BSD-3-Clause (dual BSD/GPL-2.0) |
-| [MPVKit](https://github.com/mpvkit/MPVKit) (LGPL build) with mpv, FFmpeg and MoltenVK | LGPL-3.0 (MPVKit), LGPL-2.1+ (mpv, FFmpeg), Apache-2.0 (MoltenVK), plus the licenses of the libraries MPVKit bundles |
+| [MPVKit](https://github.com/mpvkit/MPVKit) (LGPL build, from the owner's fork [zacaronii/MPVKit](https://github.com/zacaronii/MPVKit) with upstream's binaries mirrored on the forks of its build repos; docs/miru.md) with mpv, FFmpeg and MoltenVK | LGPL-3.0 (MPVKit), LGPL-2.1+ (mpv, FFmpeg), Apache-2.0 (MoltenVK), plus the licenses of the libraries MPVKit bundles |
 
 ## Followed, not copied
 - [Hachidori](https://github.com/bee-san/hachidori) (GPL-3.0): how lookups are counted and the
@@ -42,5 +42,11 @@ They include or use the following. Each keeps its own license; the full texts ar
 - Recommended dictionaries (Hachidori's defaults: Jitendex, JMnedict, Bee's Ultimate Kanji Dictionary, Jiten,
   Bee's Ultimate Grammar Dictionary; and Kanjium, optional), each under its own license
   shown in the apps' About screens.
-- Kaku: [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (MIT) and the Whisper large-v3
-  weights (MIT), plus its Python dependencies listed in `Server/kaku/Dockerfile`.
+- Character names: casts (names and pictures) from [AniList](https://anilist.co)'s public API under its terms of use, for
+  the series open in Yomu and Miru only; which AniList series a manga or light novel is, from
+  [MangaBaka](https://mangabaka.org) (its data CC BY-NC-SA 4.0). Credited in the apps' About screens.
+- Kaku: [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (MIT), the
+  [anime-whisper](https://huggingface.co/litagin/anime-whisper) weights (MIT; converted on the server by
+  `Server/kaku/convert-model.sh`, with transformers (Apache-2.0), CTranslate2 (MIT) and PyTorch (BSD),
+  none of them shipped) and, optionally, the Whisper large-v3 weights (MIT), plus its Python
+  dependencies listed in `Server/kaku/Dockerfile`.

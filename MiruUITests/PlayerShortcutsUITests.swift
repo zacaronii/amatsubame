@@ -7,10 +7,15 @@ final class PlayerShortcutsUITests: XCTestCase {
 
     override func setUpWithError() throws {
         guard let video = ProcessInfo.processInfo.environment["UITEST_PLAYER_VIDEO"] else {
-            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to a video file to test the shortcuts.")
+            throw XCTSkip("Set TEST_RUNNER_UITEST_PLAYER_VIDEO to the 60 s test video (scripts/make-test-media.sh) to test the shortcuts.")
         }
         continueAfterFailure = false
+        // Sideways: the overlay layout, where hiding the Japanese line leaves none on screen
+        // (upright, the Lines strip under the picture shows them too).
+        XCUIDevice.shared.orientation = .landscapeLeft
+        addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
         app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
         app.launchEnvironment["UITEST_PLAYER"] = "1"
         app.launchEnvironment["UITEST_PLAYER_VIDEO"] = video
         app.launchEnvironment["UITEST_JIMAKU"] = "1"
@@ -120,10 +125,16 @@ final class PlayerShortcutsUITests: XCTestCase {
 
     func testCheatSheetInSettings() {
         app.launchEnvironment["UITEST_PLAYER_VIDEO"] = nil
+        // Settings, not the player: upright (sideways the row sat below the fold, and a swipe
+        // from the middle landed on the status chips instead of scrolling the list).
+        XCUIDevice.shared.orientation = .portrait
         app.launch()
         app.tabBars.buttons["Settings"].firstMatch.tap()
+        // A list builds rows as they scroll into view.
         let row = app.descendants(matching: .any)["settings.shortcuts"].firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Watching"].firstMatch.waitForExistence(timeout: 10))
+        for _ in 0..<6 where !(row.exists && row.isHittable) { app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(row.exists && row.isHittable, "Keyboard Shortcuts in Settings")
         row.tap()
         XCTAssertTrue(app.descendants(matching: .any)["shortcut.fullScreen"].exists == false, "no full screen on iPhone and iPad")
         XCTAssertTrue(app.descendants(matching: .any)["shortcut.playPause"].waitForExistence(timeout: 5))

@@ -4,10 +4,9 @@ import SwiftUI
 struct PagedReaderView: View {
     let model: MangaReaderModel
     /// Pages stay out of these (the pager itself runs edge to edge, so paging lines up).
-    var sideInsets = SideInsets()
     let onOpenChapter: (ReaderChapter) -> Void
     @State private var position: Int?
-    @State private var lastSlots: [[Int]] = []
+    @State private var lastSlots: [ReaderSlot] = []
     /// A tap's page turn is animating: swiping is held off until it lands.
     @State private var turning = false
     /// The scroll offset and page width, to notice a page left part-way.
@@ -17,7 +16,7 @@ struct PagedReaderView: View {
     @State private var realigning = false
     @FocusState private var focused: Bool
 
-    private var slots: [[Int]] { model.slots }
+    private var slots: [ReaderSlot] { model.slots }
     /// Pages built on each side of the current one.
     static let builtAround = 2
     private var endIndex: Int { slots.count }
@@ -36,15 +35,20 @@ struct PagedReaderView: View {
                                 if index < endIndex, abs(index - (position ?? 0)) > Self.builtAround {
                                     Color.clear
                                 } else if index < endIndex {
-                                    ZoomableContainer {
+                                    // The slot is taken here, not in the page's closure: SwiftUI
+                                    // can run that again after the slots shrink (spreads coming on
+                                    // as the Duo unfolds or the phone turns) and before this row is
+                                    // dropped, and the old index then ran past the end.
+                                    let slot = slots[index]
+                                    ZoomablePage(doubleTapZooms: model.settings.doubleTapZooms) { tap in
                                         // Taps are handled inside the zoomable content: the native
                                         // zoom view receives touches/clicks before outer gestures.
-                                        SpreadView(model: model, pages: slots[index], sideInsets: sideInsets)
+                                        SpreadView(model: model, slot: slot)
                                             .contentShape(.rect)
-                                            .onTapGesture(coordinateSpace: .global) { location in
+                                            .gesture(tap { globalX in
                                                 let frame = geometry.frame(in: .global)
-                                                handleTap(at: location.x - frame.minX, width: frame.width)
-                                            }
+                                                handleTap(at: globalX - frame.minX, width: frame.width)
+                                            })
                                             .manualSelectionGesture(model)
                                     }
                                 } else {
@@ -75,19 +79,22 @@ struct PagedReaderView: View {
                     realign(proxy)
                 }
                 .onChange(of: slots) { _, newSlots in
-                    // Spreads toggled or rotated: stay on the same page, or the one just looked up on.
-                    position = SpreadLayout.slotIndex(containing: model.pageToKeep, in: newSlots)
+                    // Spreads toggled or rotated: stay on the same page, or the one just looked up on
+                    // (and on the same half while it's still split).
+                    position = SpreadLayout.slotIndex(keeping: shown(in: lastSlots), page: model.pageToKeep, in: newSlots)
                     lastSlots = newSlots
                     realign(proxy)
                 }
-                .onChange(of: position) { _, index in
+                .onChange(of: position) { old, index in
                     // Mid-resize the scroll view reports whatever page its old offset now falls
                     // on; that isn't a page being read.
                     guard let index, !realigning, geometry.size.width == pageWidth else { return }
+                    let before = old.flatMap { slots.indices.contains($0) ? slots[$0] : nil }
+                    if SpreadLayout.isHalfMove(from: before, to: slots.indices.contains(index) ? slots[index] : nil) { model.halfChanged() }
                     if index >= endIndex {
                         model.reachedEnd()
                     } else if slots.indices.contains(index) {
-                        model.pagesShown(first: slots[index].min() ?? 0, lastVisible: slots[index].max() ?? 0)
+                        model.pagesShown(first: slots[index].pages.min() ?? 0, lastVisible: slots[index].pages.max() ?? 0)
                     }
                 }
                 .scrollIndicators(.hidden)
@@ -99,7 +106,7 @@ struct PagedReaderView: View {
         }
         .ignoresSafeArea()
         .accessibilityIdentifier("reader.paged")
-        .accessibilityValue("Page \(model.currentPage + 1) of \(model.pageCount)" + alignmentNote)
+        .accessibilityValue("Page \(model.currentPage + 1) of \(model.pageCount)" + halfNote + alignmentNote)
         .focusable()
         .focusEffectDisabled()
         .focused($focused)
@@ -125,7 +132,7 @@ struct PagedReaderView: View {
     /// screen), and the next swipe went on from there, far from the page being read. Goes back
     /// to that page once the new size is laid out.
     private func realign(_ proxy: ScrollViewProxy) {
-        let keep = SpreadLayout.slotIndex(containing: model.pageToKeep, in: slots)
+        let keep = SpreadLayout.slotIndex(keeping: shown(in: slots), page: model.pageToKeep, in: slots)
         realigning = true
         position = keep
         Task { @MainActor in
@@ -145,10 +152,12 @@ struct PagedReaderView: View {
         // With the popup open, a tap outside the text only closes it.
         if model.popup != nil {
             model.popup = nil
+        } else if model.settings.tapZones == .off {
+            model.showsChrome.toggle()
         } else if x < width / 3 {
-            turn(physicalLeft: true)
+            turn(physicalLeft: model.settings.tapZones != .inverted)
         } else if x > width * 2 / 3 {
-            turn(physicalLeft: false)
+            turn(physicalLeft: model.settings.tapZones == .inverted)
         } else {
             model.showsChrome.toggle()
         }
@@ -164,6 +173,17 @@ struct PagedReaderView: View {
         // A swipe during the animation used to leave the page stuck half-way.
         turning = true
         withAnimation(.easeInOut(duration: 0.25)) { position = target } completion: { turning = false }
+    }
+
+    /// The slot at the current position of `slots` (the half being shown of a split page).
+    private func shown(in slots: [ReaderSlot]) -> ReaderSlot? {
+        position.flatMap { slots.indices.contains($0) ? slots[$0] : nil }
+    }
+
+    /// A split page's half, for VoiceOver (the counter shows real pages).
+    private var halfNote: String {
+        guard let half = shown(in: slots)?.half else { return "" }
+        return (half == .first) == isRightToLeft ? ", right half" : ", left half"
     }
 
     /// Debug builds: whether the pager sits on a page boundary, for the page-turn UI tests.
@@ -186,42 +206,55 @@ struct PagedReaderView: View {
     }
 }
 
-/// One or two pages side by side. In RTL the environment mirrors the HStack,
-/// so the lower page number sits on the right like a printed manga.
+/// One or two pages side by side, or half of a wide page. In RTL the environment mirrors the
+/// HStack, so the lower page number sits on the right like a printed manga.
 private struct SpreadView: View {
     let model: MangaReaderModel
-    let pages: [Int]
-    let sideInsets: SideInsets
-    @Environment(\.layoutDirection) private var layoutDirection
+    let slot: ReaderSlot
 
     var body: some View {
         HStack(spacing: 0) {
-            ForEach(pages, id: \.self) { page in
-                PageImageView(chapterId: model.chapter.chapterId, page: page,
-                              aspectRatio: model.aspectRatio(of: page), pages: model.pages)
-                    .overlay { OCRTextLayer(model: model, page: page) }
+            let shown = model.shown(slot)
+            ForEach(Array(zip(slot.pages, shown)), id: \.0) { page, part in
+                PartPageView(model: model, page: page, shown: part)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // The insets are the screen's left and right; this view may be mirrored (right to left).
-        .padding(.leading, layoutDirection == .rightToLeft ? sideInsets.right : sideInsets.left)
-        .padding(.trailing, layoutDirection == .rightToLeft ? sideInsets.left : sideInsets.right)
         // A little room above the progress bar along the screen's bottom edge.
         .padding(.bottom, 10)
     }
 }
 
-/// The screen's left and right safe areas, in screen terms.
-struct SideInsets: Equatable {
-    var left: CGFloat = 0
-    var right: CGFloat = 0
+/// A page, or the part of it shown: half of a wide page, or the page with Crop Borders' margins
+/// off. The decoded page is drawn at the size that puts `shown` in this view and clipped to it
+/// (both halves are the same size, so they share the decoded image). The text over it is laid
+/// out for the part alone, so the other half's blocks can't be tapped. A mined card's picture
+/// is still the whole page.
+private struct PartPageView: View {
+    let model: MangaReaderModel
+    let page: Int
+    /// The part of the page shown, normalised from its top left.
+    let shown: CGRect
 
-    init() {}
-
-    /// From a geometry's insets (laid out left to right).
-    init(_ insets: EdgeInsets) {
-        left = insets.leading
-        right = insets.trailing
+    var body: some View {
+        GeometryReader { geometry in
+            let full = CGSize(width: geometry.size.width / shown.width, height: geometry.size.height / shown.height)
+            PageImageView(chapterId: model.chapter.chapterId, page: page, aspectRatio: model.aspectRatio(of: page), pages: model.pages,
+                          measures: model.settings.cropsBorders && model.settings.mode == .paged) { model.measureBorders(page: page, image: $0) }
+                .frame(width: full.width, height: full.height)
+                .offset(x: -shown.minX * full.width, y: -shown.minY * full.height)
+                // A whole page as it always was; a part's picture is only a drawing.
+                .allowsHitTesting(shown == OCRTextLayer.whole)
+                .accessibilityHidden(shown != OCRTextLayer.whole)
+        }
+        .clipped()
+        .overlay { OCRTextLayer(model: model, page: page, shown: shown) }
+        .aspectRatio(model.aspectRatio(of: page) * shown.width / shown.height, contentMode: .fit)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier(shown.width < 1 && shown.height < 1 ? "reader.page.cropped" : "reader.page")
+        .accessibilityLabel("Page \(page + 1)")
+        // Offsets are physical positions on the page, even in a right-to-left reader.
+        .environment(\.layoutDirection, .leftToRight)
     }
 }
 
@@ -233,7 +266,10 @@ struct EndOfChapterView: View {
         VStack(spacing: 16) {
             Text("End of \(model.chapter.title)")
                 .font(.title3.bold())
-            if let next = model.nextChapter {
+            if let offer = model.nextOffer {
+                NextOfferButtons(offer: offer, none: "No more chapters in this series.", open: onOpenChapter)
+                    .padding(.horizontal)
+            } else if let next = model.nextChapter {
                 Button {
                     onOpenChapter(next)
                 } label: {
@@ -248,5 +284,26 @@ struct EndOfChapterView: View {
         .foregroundStyle(.white)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .environment(\.layoutDirection, .leftToRight)
+    }
+}
+
+/// One zoomable page (or spread) and its taps: a single tap turns the page or shows the
+/// controls; with Double-Tap to Zoom on, a double tap zooms in around the finger and back, and
+/// a single tap waits a moment to see which it is.
+private struct ZoomablePage<Content: View>: View {
+    let doubleTapZooms: Bool
+    /// Builds the page, given a maker of its tap gesture (called with the tap's global x).
+    @ViewBuilder let content: (@escaping (@escaping (CGFloat) -> Void) -> AnyGesture<Void>) -> Content
+    @State private var zoom = ZoomControl()
+
+    var body: some View {
+        ZoomableContainer(control: zoom) {
+            content { single in
+                let one = SpatialTapGesture(count: 1, coordinateSpace: .global).onEnded { single($0.location.x) }
+                guard doubleTapZooms else { return AnyGesture(one.map { _ in }) }
+                let two = SpatialTapGesture(count: 2, coordinateSpace: .local).onEnded { zoom.toggleZoom(at: $0.location) }
+                return AnyGesture(two.exclusively(before: one).map { _ in })
+            }
+        }
     }
 }

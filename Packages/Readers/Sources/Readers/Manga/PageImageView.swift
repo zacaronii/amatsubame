@@ -7,6 +7,9 @@ struct PageImageView: View {
     let page: Int
     let aspectRatio: Double
     let pages: MangaPageRepository
+    /// Told the decoded image while `measures` (Crop Borders, when on, measures it).
+    var measures = false
+    var onDecoded: ((CGImage) -> Void)? = nil
     @Environment(\.displayScale) private var displayScale
     @State private var image: CGImage?
     @State private var error: String?
@@ -58,7 +61,15 @@ struct PageImageView: View {
             }
         }
         .aspectRatio(aspectRatio, contentMode: .fit)
+        .onChange(of: MeasureKey(image: image, measures: measures), initial: true) { _, key in
+            if key.measures, let image = key.image { onDecoded?(image) }
+        }
         .accessibilityLabel("Page \(page + 1)")
+    }
+
+    private struct MeasureKey: Equatable {
+        var image: CGImage?
+        var measures: Bool
     }
 
     private struct LoadKey: Equatable {

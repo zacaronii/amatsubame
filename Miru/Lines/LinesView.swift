@@ -21,6 +21,9 @@ struct LinesView: View {
     @State private var live: LiveSessionsModel?
     @State private var query = ""
     @State private var results: [TranscriptSearchGroup] = []
+    /// The text the shown results are for: "No Results" waits until a search for what's typed
+    /// has run (it flashed on the first character while the debounce ran).
+    @State private var searched: String?
     @State private var playback: PlaybackSession?
     @State private var path: [LinesRoute] = []
     /// Bumped when the Lines tab is tapped again.
@@ -48,7 +51,10 @@ struct LinesView: View {
         } empty: {
             // Wide, nothing picked yet: the latest episode.
             if let entry = history?.entries.first {
+                // Its own identity: the latest episode changes after watching another, and the
+                // pane would keep the old one's lines under the new title.
                 TranscriptView(route: Self.route(entry), playback: $playback)
+                    .id(entry.id)
             } else {
                 ContentUnavailableView("Choose an Episode", systemImage: "text.quote")
             }
@@ -63,6 +69,7 @@ struct LinesView: View {
             try? await Task.sleep(for: .milliseconds(200))
             guard !Task.isCancelled else { return }
             results = (try? environment.transcripts.search(query)) ?? []
+            searched = query
         }
         .task(id: common.serverAccounts[.jellyfin]?.userId) {
             let model = history ?? LinesHistoryModel(environment: environment)
@@ -86,7 +93,7 @@ struct LinesView: View {
     // MARK: History
 
     private func episodeLink(_ entry: LinesHistoryModel.Entry, _ history: LinesHistoryModel, wide: Bool) -> some View {
-        NavigationLink(value: LinesRoute.transcript(Self.route(entry))) {
+        SplitLink(value: LinesRoute.transcript(Self.route(entry)), rowStyle: true) {
             HistoryRow(entry: entry)
         }
         .listRowBackground(isSelected(entry, history, wide: wide) ? Color.accentColor.opacity(0.18) : nil)
@@ -123,8 +130,13 @@ struct LinesView: View {
             }
             if let sessions = live?.sessions, !sessions.isEmpty {
                 Section("Watching Now") {
+                    if live?.isUnreachable == true {
+                        Label("Can\u{2019}t reach Jellyfin: showing the last list.", systemImage: "wifi.exclamationmark")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .accessibilityIdentifier("lines.liveUnreachable")
+                    }
                     ForEach(sessions) { session in
-                        NavigationLink(value: LinesRoute.live(LiveRoute(sessionId: session.id))) {
+                        SplitLink(value: LinesRoute.live(LiveRoute(sessionId: session.id)), rowStyle: true) {
                             LiveSessionRow(session: session)
                         }
                         .accessibilityIdentifier("lines.live")
@@ -165,7 +177,7 @@ struct LinesView: View {
                 }
             }
         }
-        .refreshable { await history.refresh() }
+        .refreshableByCommand { await history.refresh() }
     }
 
     // MARK: Search
@@ -175,8 +187,8 @@ struct LinesView: View {
             ForEach(results) { group in
                 Section(TranscriptView.title(group.transcript)) {
                     ForEach(group.lines, id: \.cue) { line in
-                        NavigationLink(value: LinesRoute.transcript(TranscriptRoute(itemId: group.transcript.itemId,
-                                                                                    title: TranscriptView.title(group.transcript), focusCue: line.cue))) {
+                        SplitLink(value: LinesRoute.transcript(TranscriptRoute(itemId: group.transcript.itemId,
+                                                                                    title: TranscriptView.title(group.transcript), focusCue: line.cue)), rowStyle: true) {
                             HStack(alignment: .firstTextBaseline, spacing: 10) {
                                 Text(TranscriptView.timestamp(line.start))
                                     .font(.caption.monospacedDigit())
@@ -190,10 +202,19 @@ struct LinesView: View {
             }
         }
         .overlay {
-            if results.isEmpty {
+            if Self.showsNoResults(results.isEmpty, searched: searched, query: query) {
                 ContentUnavailableView.search(text: query)
+                    .accessibilityIdentifier("lines.noResults")
             }
         }
+    }
+
+    /// "No Results" once a search for what's typed has run, not while the debounce waits; and
+    /// it stays while typing on from a text that found nothing (the search is by containment, so
+    /// a longer text finds nothing either). Deleting back waits for the search.
+    static func showsNoResults(_ empty: Bool, searched: String?, query: String) -> Bool {
+        guard empty, let searched = searched?.trimmingCharacters(in: .whitespacesAndNewlines), !searched.isEmpty else { return false }
+        return query.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix(searched)
     }
 
     /// The line with each occurrence of `query` in bold and tinted.
@@ -216,9 +237,14 @@ private struct HistoryRow: View {
     let entry: LinesHistoryModel.Entry
     /// For a group: how many episodes of the show were watched back to back.
     var episodes = 1
+    /// At the accessibility text sizes the picture goes above the text, which gets the width and
+    /// as many lines as it needs.
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(spacing: 12) {
+        let large = dynamicTypeSize.isAccessibilitySize
+        let lines = large ? nil : 1 as Int?
+        (large ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 12))) {
             JellyfinImage(itemId: entry.id, tag: entry.imageTag, aspectRatio: 16 / 9, placeholder: "film")
                 .frame(width: 96)
                 .overlay(alignment: .bottom) {
@@ -229,17 +255,17 @@ private struct HistoryRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(entry.show)
                     .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
+                    .lineLimit(lines)
                 if episodes > 1 {
                     Text("\(episodes) episodes · latest \(entry.detail)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .lineLimit(lines)
                 } else if !entry.detail.isEmpty {
                     Text(entry.detail)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .lineLimit(lines)
                 }
                 if entry.hasJapanese == false {
                     Label("No Japanese subtitles", systemImage: "captions.bubble")
@@ -251,7 +277,7 @@ private struct HistoryRow: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            Spacer(minLength: 0)
+            if !large { Spacer(minLength: 0) }
         }
     }
 }

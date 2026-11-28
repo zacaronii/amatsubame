@@ -2,18 +2,25 @@ import KikuWatchLink
 import SwiftUI
 import WatchKit
 
-/// The first screen: what's playing on the iPhone, its controls and a large Mark button; or a
-/// calm note when nothing is. The crown turns the iPhone's volume. With Live Text on, the
-/// top-left button opens the transcript.
+/// The first screen: what's playing (on the iPhone, or in Watch mode on this watch), its
+/// controls and a large Mark button; or a calm note when nothing is. The crown turns the
+/// volume of whichever plays. With Live Text on, the top-left button opens the transcript; the
+/// top-right one shows the mode (a phone or a watch) and opens Play On and On This Watch.
 struct NowPlayingScreen: View {
     @Environment(WatchSession.self) private var session
+    #if DEBUG
+    /// Simulator checks: opens Live Text at launch (SIMCTL_CHILD_KIKU_WATCH_OPEN_LIVE_TEXT=1).
+    @State private var opensLiveText = ProcessInfo.processInfo.environment["KIKU_WATCH_OPEN_LIVE_TEXT"] != nil
+    #endif
 
     var body: some View {
         ZStack {
             if let playing = session.nowPlaying {
                 NowPlayingControls(playing: playing)
+            } else if session.mode == .watch {
+                NothingPlaying(text: "Choose something on this watch: tap the watch button above.")
             } else {
-                NothingPlaying()
+                NothingPlaying(text: "Start something in Kiku on your iPhone")
             }
             if let confirmation = session.confirmation {
                 ConfirmationCard(confirmation: confirmation)
@@ -21,6 +28,9 @@ struct NowPlayingScreen: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: session.confirmation)
+        #if DEBUG
+        .navigationDestination(isPresented: $opensLiveText) { LiveTextScreen() }
+        #endif
         .toolbar {
             if session.liveTextOn, session.nowPlaying != nil {
                 ToolbarItem(placement: .topBarLeading) {
@@ -33,6 +43,15 @@ struct NowPlayingScreen: View {
                     .accessibilityLabel("Live Text")
                     .accessibilityIdentifier("watch.liveText")
                 }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink {
+                    OnThisWatchScreen()
+                } label: {
+                    Image(systemName: session.mode == .watch ? "applewatch" : "iphone").foregroundStyle(.white)
+                }
+                .accessibilityLabel(session.mode == .watch ? "Playing on this watch" : "Playing on iPhone")
+                .accessibilityIdentifier("watch.onThisWatch")
             }
         }
     }
@@ -49,14 +68,43 @@ private struct NowPlayingControls: View {
                 header
                 progress(at: context.date)
                 controls
-                Button { session.send(.mark) } label: {
-                    Label("Mark", systemImage: "bookmark")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
+                HStack(spacing: 6) {
+                    // Chapters and speed beside Mark (a bottom toolbar covered it).
+                    if playing.chapters?.isEmpty == false {
+                        NavigationLink {
+                            ChaptersScreen()
+                        } label: {
+                            Image(systemName: "list.bullet").font(.footnote.weight(.semibold))
+                        }
+                        .buttonStyle(.bordered)
+                        .buttonBorderShape(.circle)
+                        .frame(width: 40)
+                        .accessibilityLabel("Chapters")
+                        .accessibilityIdentifier("watch.chapters")
+                    }
+                    Button { session.send(.mark) } label: {
+                        Label("Mark", systemImage: "bookmark")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("watch.mark")
+                    NavigationLink {
+                        SpeedScreen()
+                    } label: {
+                        Text(WatchNowPlaying.speedText(playing.rate))
+                            .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                            .fixedSize()
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .frame(width: 52)
+                    .accessibilityLabel("Speed \(WatchNowPlaying.speedText(playing.rate))")
+                    .accessibilityIdentifier("watch.speed")
                 }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("watch.mark")
-                if let notice = session.notice {
+                // In Watch mode the player's own trouble (no headphones) shows here too, or Play
+                // would seem to do nothing.
+                if let notice = session.mode == .watch ? session.player.problem ?? session.notice : session.notice {
                     Text(notice).font(.caption2).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 }
             }
@@ -71,8 +119,10 @@ private struct NowPlayingControls: View {
                 Text(playing.chapter ?? playing.subtitle).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 0)
-            // Takes the crown: it turns the iPhone's volume, as in Apple's Now Playing.
-            PhoneVolume().scaleEffect(0.55).frame(width: 26, height: 26)
+            // Takes the crown: it turns the volume of whichever plays, as in Apple's Now Playing.
+            Volume(origin: session.mode == .watch ? .local : .companion)
+                .id(session.mode)
+                .scaleEffect(0.55).frame(width: 26, height: 26)
         }
         // Clear of the Live Text button in the top corner.
         .padding(.top, session.liveTextOn ? 10 : 0)
@@ -146,6 +196,8 @@ private struct Artwork: View {
 }
 
 private struct NothingPlaying: View {
+    let text: String
+
     var body: some View {
         VStack(spacing: 10) {
             Image("KikuGlyph")
@@ -154,7 +206,7 @@ private struct NothingPlaying: View {
                 .foregroundStyle(.tint)
                 .frame(width: 48, height: 48)
                 .accessibilityHidden(true)
-            Text("Start something in Kiku on your iPhone")
+            Text(text)
                 .font(.footnote)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
@@ -181,10 +233,13 @@ struct ConfirmationCard: View {
     }
 }
 
-/// The iPhone's volume on the crown (`WKInterfaceVolumeControl` with the companion as origin).
-private struct PhoneVolume: WKInterfaceObjectRepresentable {
+/// The volume on the crown (`WKInterfaceVolumeControl`): the iPhone's (`.companion`), or this
+/// watch's own in Watch mode (`.local`).
+private struct Volume: WKInterfaceObjectRepresentable {
+    let origin: WKInterfaceVolumeControl.Origin
+
     func makeWKInterfaceObject(context: Context) -> WKInterfaceVolumeControl {
-        WKInterfaceVolumeControl(origin: .companion)
+        WKInterfaceVolumeControl(origin: origin)
     }
 
     func updateWKInterfaceObject(_ control: WKInterfaceVolumeControl, context: Context) {

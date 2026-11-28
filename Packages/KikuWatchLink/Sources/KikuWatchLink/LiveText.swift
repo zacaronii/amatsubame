@@ -155,7 +155,8 @@ public struct WatchLookup: Codable, Equatable, Sendable {
     public var range: Range<Int> { start..<(start + max(length, 1)) }
 }
 
-/// The transcripts the watch keeps on disk: the last few, newest first.
+/// The transcripts the watch keeps on disk: one for each item on it (milestone 5), and the last
+/// few others, newest first.
 public struct WatchTranscriptStore: Sendable {
     public static let kept = 5
     let folder: URL
@@ -164,13 +165,20 @@ public struct WatchTranscriptStore: Sendable {
         self.folder = folder
     }
 
-    public func save(_ transcript: WatchTranscript) throws {
+    /// Saves it; `keeping` (the keys of what's on the watch) are never pruned.
+    public func save(_ transcript: WatchTranscript, keeping: Set<String> = []) throws {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         // One file per episode: a newer transcript of it replaces the older.
         try transcript.encoded().write(to: file(for: transcript.key), options: .atomic)
+        prune(keeping: keeping)
+    }
+
+    /// Drops all but the items' transcripts and the last few others.
+    public func prune(keeping: Set<String>) {
+        let kept = Set(keeping.map { file(for: $0).lastPathComponent })
         let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
-        let byAge = files.sorted { modified($0) > modified($1) }
-        for old in byAge.dropFirst(Self.kept) { try? FileManager.default.removeItem(at: old) }
+        let others = files.filter { !kept.contains($0.lastPathComponent) }.sorted { modified($0) > modified($1) }
+        for old in others.dropFirst(Self.kept) { try? FileManager.default.removeItem(at: old) }
     }
 
     /// The transcript with this id (key and fingerprint), if it's here.

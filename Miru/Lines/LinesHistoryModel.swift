@@ -56,6 +56,8 @@ final class LinesHistoryModel {
         }
         isLoading = true
         defer { isLoading = false }
+        // What's saved shows while Jellyfin is asked (it may take a minute to not answer).
+        if entries.isEmpty { showSaved(saved) }
         do {
             let libraries = try await client.views().filter { !environment.hiddenLibraries.contains($0.id) }
             cursors = [:]

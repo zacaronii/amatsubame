@@ -1,6 +1,8 @@
 import CoreGraphics
 import Core
 import Foundation
+import ImageIO
+import UniformTypeIdentifiers
 @testable import OCR
 import Testing
 
@@ -130,6 +132,32 @@ import Testing
         #expect(try newer.count() == 0)
     }
 
+    /// A page read by an earlier version (its lettering measured the old way, or not at all)
+    /// isn't handed out as it is: opening it measures it again from its picture, with no models.
+    @Test func pagesMeasuredBeforeAreMeasuredAgain() async throws {
+        let cache = OCRCache(database: try AppDatabase.inMemory(), modelVersion: "v1")
+        let service = OCRService(cache: cache, storeDirectory: FileManager.default.temporaryDirectory.appending(path: "no-models-\(UUID())"))
+        let text = "今日はいい天"
+        let width = 96, height = 6 * 51 + 48
+        let context = SyntheticPage.context(width: width, height: height)
+        SyntheticPage.draw(text, in: context, at: CGPoint(x: 24, y: 24), vertical: true, height: height)
+        let data = NSMutableData()
+        let destination = try #require(CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil))
+        CGImageDestinationAddImage(destination, context.makeImage()!, nil)
+        CGImageDestinationFinalize(destination)
+        // As an earlier version left it: lines and places, but no word on how they were measured.
+        var old = OCRBlock(box: NormalizedRect(x: 0, y: 0, width: 1, height: 1), text: text, vertical: true, kind: .bubbleText)
+        old.lines = [NormalizedRect(x: 0, y: 0, width: 1, height: 1)]
+        old.cells = (0..<6).map { NormalizedRect(x: 0, y: Double($0) / 6, width: 1, height: 1.0 / 6) }
+        try cache.store(OCRPage(imageWidth: width, imageHeight: height, blocks: [old]), chapterId: 7, page: 0)
+
+        #expect(await service.cachedPage(chapterId: 7, page: 0) == nil, "not used as it is")
+        let measured = try await service.page(chapterId: 7, page: 0, imageData: data as Data).page
+        #expect(measured.blocks.first?.measured == TextLines.version)
+        #expect(measured.blocks.first?.cellsExact == true)
+        #expect(await service.cachedPage(chapterId: 7, page: 0) == measured, "and kept")
+    }
+
     @Test func blockHitTesting() {
         let block = OCRBlock(box: NormalizedRect(x: 0.5, y: 0.1, width: 0.1, height: 0.3), text: "あ", vertical: true, kind: .bubbleText)
         let page = OCRPage(imageWidth: 1, imageHeight: 1, blocks: [block])
@@ -199,5 +227,283 @@ import CoreML
     ])
     func orientation(size: CGSize, text: String, vertical: Bool) {
         #expect(TextOrientation.isVertical(pixelSize: size, text: text) == vertical)
+    }
+}
+
+/// A block's real lines, measured from its picture, place a tap on the right character.
+@Suite struct TextLinesTests {
+    /// Black cells on white: `columns` are the vertical lines right to left, each a count of
+    /// characters; `furigana` adds a thin strip beside the first one. Cells are 20 px with a 4 px
+    /// gap, columns 12 px apart.
+    static func block(columns: [Int], furigana: Bool = false, inverted: Bool = false) -> (gray: [UInt8], width: Int, height: Int) {
+        let cell = 20, gap = 4, between = 12, margin = 10
+        let width = margin * 2 + columns.count * cell + (columns.count - 1) * between + (furigana ? 10 : 0)
+        let height = margin * 2 + (columns.max() ?? 1) * (cell + gap)
+        var gray = [UInt8](repeating: inverted ? 0 : 255, count: width * height)
+        let ink: UInt8 = inverted ? 255 : 0
+        for (index, count) in columns.enumerated() {
+            // The first column is the rightmost.
+            let x = width - margin - (furigana ? 10 : 0) - (index + 1) * cell - index * between
+            for character in 0..<count {
+                let y = margin + character * (cell + gap)
+                for row in y..<(y + cell) { for column in x..<(x + cell) { gray[row * width + column] = ink } }
+            }
+        }
+        if furigana {
+            let x = width - margin - 6
+            for row in (margin + 4)..<(margin + 40) { for column in x..<(x + 5) { gray[row * width + column] = ink } }
+        }
+        return (gray, width, height)
+    }
+
+    @Test func findsColumnsOfDifferentLengths() {
+        let picture = Self.block(columns: [5, 5, 2])
+        let lines = TextLines.lines(gray: picture.gray, width: picture.width, height: picture.height, vertical: true)
+        #expect(lines.count == 3)
+        #expect(lines[0].midX > lines[1].midX && lines[1].midX > lines[2].midX, "right to left")
+        #expect(lines[2].height < lines[0].height * 0.5, "the last column is short")
+    }
+
+    @Test func furiganaIsNotALineAndWhiteOnBlackWorks() {
+        let withFurigana = Self.block(columns: [4, 3], furigana: true)
+        #expect(TextLines.lines(gray: withFurigana.gray, width: withFurigana.width, height: withFurigana.height, vertical: true).count == 2)
+        let inverted = Self.block(columns: [4, 4, 4], inverted: true)
+        #expect(TextLines.lines(gray: inverted.gray, width: inverted.width, height: inverted.height, vertical: true).count == 3)
+    }
+
+    /// The case the even spread gets wrong: 12 characters as 5 + 5 + 2.
+    @Test func aTapLandsOnItsCharacter() {
+        let picture = Self.block(columns: [5, 5, 2])
+        let lines = TextLines.lines(gray: picture.gray, width: picture.width, height: picture.height, vertical: true)
+        let box = CGRect(x: 0, y: 0, width: picture.width, height: picture.height)
+        /// The middle of character `row` in column `column` (0 = rightmost).
+        func tap(_ column: Int, _ row: Int) -> CGPoint {
+            CGPoint(x: Double(picture.width - 10 - column * 32 - 10), y: Double(10 + row * 24 + 10))
+        }
+        var measured = 0, even = 0
+        let cells = [(0, 5), (1, 5), (2, 2)].flatMap { column, count in (0..<count).map { (column, $0) } }
+        for (expected, cell) in cells.enumerated() {
+            let point = tap(cell.0, cell.1)
+            if TextLayout.characterIndex(of: point, in: box, characterCount: 12, vertical: true, lines: lines) == expected { measured += 1 }
+            if TextLayout.characterIndex(of: point, in: box, characterCount: 12, vertical: true) == expected { even += 1 }
+        }
+        #expect(measured == 12, "every character, with the measured lines")
+        #expect(even < 12, "the even spread misses some (\(even) of 12), which is what was reported")
+    }
+
+    /// Each character gets the box its glyph is in: cut at the gaps, not just evenly.
+    @Test func cellsSitOnTheGlyphs() {
+        let picture = Self.block(columns: [5, 5, 2])
+        let lines = TextLines.lines(gray: picture.gray, width: picture.width, height: picture.height, vertical: true)
+        let cells = TextLines.cells(gray: picture.gray, width: picture.width, height: picture.height, vertical: true, lines: lines, count: 12)
+        #expect(cells.count == 12)
+        let all = [(0, 5), (1, 5), (2, 2)].flatMap { column, count in (0..<count).map { (column, $0) } }
+        for (index, place) in all.enumerated() where index < cells.count {
+            // The drawn glyph: 20 px square, columns 32 px apart from the right, rows 24 px apart.
+            let glyph = CGRect(x: Double(picture.width - 10 - place.0 * 32 - 20), y: Double(10 + place.1 * 24), width: 20, height: 20)
+            let cell = CGRect(x: cells[index].minX * Double(picture.width), y: cells[index].minY * Double(picture.height),
+                              width: cells[index].width * Double(picture.width), height: cells[index].height * Double(picture.height))
+            #expect(cell.insetBy(dx: -1.5, dy: -1.5).contains(glyph), "character \(index): \(cell) holds \(glyph)")
+            #expect(cell.height <= 25, "and no more than the gap to the next (\(cell.height))")
+            #expect(TextLayout.characterIndex(of: CGPoint(x: glyph.midX, y: glyph.midY),
+                                              in: CGRect(x: 0, y: 0, width: picture.width, height: picture.height), cells: cells) == index)
+        }
+    }
+
+    /// Characters of different widths in a row (a title: 第1夜:…): each place is its glyph's.
+    @Test func narrowAndSplitGlyphsKeepTheirOwnPlaces() {
+        // Widths of the glyphs, and a 3 px gap; the fourth character is in two parts (い).
+        let glyphs: [[Int]] = [[20], [5], [20], [7, 7], [20], [20]]
+        let height = 30
+        var x = 6
+        var spans: [ClosedRange<Int>] = []
+        var parts: [ClosedRange<Int>] = []
+        for glyph in glyphs {
+            let from = x
+            for (index, part) in glyph.enumerated() {
+                parts.append(x...(x + part - 1))
+                x += part + (index < glyph.count - 1 ? 4 : 0)
+            }
+            spans.append(from...(x - 1))
+            x += 3
+        }
+        let width = x + 3
+        var gray = [UInt8](repeating: 255, count: width * height)
+        for part in parts { for row in 6..<24 { for column in part { gray[row * width + column] = 0 } } }
+        let lines = TextLines.lines(gray: gray, width: width, height: height, vertical: false)
+        #expect(lines.count == 1)
+        let cells = TextLines.cells(gray: gray, width: width, height: height, vertical: false, lines: lines, count: glyphs.count)
+        #expect(cells.count == glyphs.count)
+        for (index, span) in spans.enumerated() where index < cells.count {
+            let from = cells[index].minX * Double(width), to = cells[index].maxX * Double(width)
+            #expect(from <= Double(span.lowerBound) && to >= Double(span.upperBound + 1), "character \(index): \(from)…\(to) holds \(span)")
+            #expect(to - from <= Double(span.count) + 4, "and little else (\(to - from) for \(span.count))")
+        }
+    }
+
+    /// Bold glyphs that touch: the cut goes where the ink is thinnest between them.
+    @Test func touchingGlyphsAreCutAtTheThinnestPlace() {
+        // Three 20 px glyphs; the first two joined by a 2 px bridge at x = 28…29 (thin: 2 rows).
+        let width = 80, height = 30
+        var gray = [UInt8](repeating: 255, count: width * height)
+        for (from, to) in [(6, 27), (30, 49), (54, 73)] { for row in 6..<24 { for column in from...to { gray[row * width + column] = 0 } } }
+        for row in 14..<16 { for column in 28...29 { gray[row * width + column] = 0 } }
+        let lines = TextLines.lines(gray: gray, width: width, height: height, vertical: false)
+        let cells = TextLines.cells(gray: gray, width: width, height: height, vertical: false, lines: lines, count: 3)
+        #expect(cells.count == 3)
+        guard cells.count == 3 else { return }
+        let cut = cells[0].maxX * Double(width)
+        #expect(cut >= 28 && cut <= 30, "between the first two glyphs (\(cut))")
+        #expect(abs(cells[1].maxX * Double(width) - 52) <= 1.5, "and in the gap before the third")
+    }
+
+    @Test func estimatedPlacesWhenNothingWasMeasured() {
+        // No lines: the even spread, right to left.
+        let even = TextLayout.characterRects(characterCount: 4, vertical: true, lines: [], boxSize: CGSize(width: 100, height: 100))
+        #expect(even.count == 4)
+        #expect(even[0].midX > even[2].midX && even[0].midY < even[1].midY)
+        // Lines only: along them by length.
+        let lines = [CGRect(x: 0.6, y: 0, width: 0.3, height: 1), CGRect(x: 0.1, y: 0, width: 0.3, height: 0.5)]
+        let rects = TextLayout.characterRects(characterCount: 6, vertical: true, lines: lines, boxSize: CGSize(width: 100, height: 100))
+        #expect(rects.count == 6)
+        #expect(rects[3].minX == 0.6 && rects[4].minX == 0.1)
+        // A tap outside every cell goes to the nearest.
+        #expect(TextLayout.characterIndex(of: CGPoint(x: 50, y: 99), in: CGRect(x: 0, y: 0, width: 100, height: 100), cells: rects) == 5
+                || TextLayout.characterIndex(of: CGPoint(x: 50, y: 99), in: CGRect(x: 0, y: 0, width: 100, height: 100), cells: rects) == 3)
+    }
+
+    @Test func charactersAreSharedByLength() {
+        #expect(TextLayout.characterCounts([100, 100, 40], total: 12) == [5, 5, 2])
+        #expect(TextLayout.characterCounts([100, 10], total: 5) == [4, 1], "a line always has one")
+        #expect(TextLayout.characterCounts([50, 50], total: 7).reduce(0, +) == 7)
+    }
+
+    /// Lettering is set one character to a square, but not everything read is: the … drawn in
+    /// one square is read as three dots, and ⁉ as two marks. The text is matched to the squares.
+    @Test func dotsAndPairedMarksShareTheirSquares() {
+        let width = 48 + 48, height = 6 * 51 + 48
+        let context = SyntheticPage.context(width: width, height: height)
+        SyntheticPage.draw("本当に何…⁉", in: context, at: CGPoint(x: 24, y: 24), vertical: true, height: height)
+        let layout = TextLines.layout(of: NormalizedRect(x: 0, y: 0, width: 1, height: 1), in: context.makeImage()!, vertical: true, text: "本当に何．．．！？")
+        #expect(layout.exact)
+        #expect(layout.cells.count == 9)
+        guard layout.cells.count == 9 else { return }
+        // The first four in their own squares, the dots sharing the fifth, the marks side by
+        // side in the sixth.
+        let fifth = CGFloat(24 + 4 * 50) / CGFloat(height), sixth = CGFloat(24 + 5 * 50) / CGFloat(height)
+        #expect(layout.cells[3].maxY <= fifth + 0.02)
+        for dot in 4...6 { #expect(layout.cells[dot].minY >= fifth - 0.02 && layout.cells[dot].maxY <= sixth + 0.02) }
+        #expect(layout.cells[7].minY >= layout.cells[6].maxY - 0.01 && layout.cells[7].maxX <= layout.cells[8].minX + 0.001)
+    }
+
+    /// A bubble's outline through the block's corners, the screen tone beyond it and a stray
+    /// mark beside the lettering are not lettering: the characters are still all found.
+    @Test func outlineToneAndStrayMarksAreLeftOut() {
+        let columns = ["今日はいい天", "気ですね。"]
+        let width = 2 * 48 + 26 + 120, height = 6 * 51 + 100
+        let context = SyntheticPage.context(width: width, height: height)
+        for (index, text) in columns.enumerated() {
+            SyntheticPage.draw(text, in: context, at: CGPoint(x: Double(width - 60 - 48 - index * 74), y: 50), vertical: true, height: height)
+        }
+        context.setStrokeColor(CGColor(gray: 0, alpha: 1))
+        context.setLineWidth(4)
+        // The outline cuts the corners off; past it, dots of tone.
+        context.strokeEllipse(in: CGRect(x: -20, y: -20, width: width + 40, height: height + 40))
+        context.setFillColor(CGColor(gray: 0, alpha: 1))
+        for dot in 0..<4 { context.fillEllipse(in: CGRect(x: 3 + dot % 2 * 9, y: 3 + dot / 2 * 9, width: 4, height: 4)) }
+        // A sweat drop beside the lettering.
+        context.fillEllipse(in: CGRect(x: 34, y: height / 2, width: 9, height: 14))
+        let layout = TextLines.layout(of: NormalizedRect(x: 0, y: 0, width: 1, height: 1), in: context.makeImage()!, vertical: true, text: columns.joined())
+        #expect(layout.exact)
+        #expect(layout.lines.count == 2, "two lines (found \(layout.lines.count))")
+        #expect(layout.cells.count == 11)
+    }
+
+    /// #13: a 「 or 『 the recognizer added before a horizontal block's text is dropped, and only
+    /// then; made-up text.
+    @Test func aStrayOpenerIsDroppedOnlyWhenItIsStray() {
+        #expect(RecognizedText.droppingStrayOpener("「ダメ！そんな", vertical: false) == "ダメ！そんな")
+        #expect(RecognizedText.droppingStrayOpener("『ダメ！そんな", vertical: false) == "ダメ！そんな")
+        #expect(RecognizedText.droppingStrayOpener("「ダメ」と言った", vertical: false) == "「ダメ」と言った", "closed in the block: a real quote")
+        #expect(RecognizedText.droppingStrayOpener("『本』を読む", vertical: false) == "『本』を読む")
+        #expect(RecognizedText.droppingStrayOpener("「ダメ！そんな", vertical: true) == "「ダメ！そんな", "vertical: kept")
+        #expect(RecognizedText.droppingStrayOpener("「", vertical: false) == "「", "only the bracket: left as it is")
+        #expect(RecognizedText.droppingStrayOpener("「「ダメ", vertical: false) == "「ダメ", "only the first, once")
+        #expect(RecognizedText.droppingStrayOpener("．．．ダメ", vertical: false) == "．．．ダメ", "a leading ellipsis isn't touched")
+        #expect(RecognizedText.droppingStrayOpener("ダメ「", vertical: false) == "ダメ「")
+    }
+
+    /// With the stray 「 dropped before the text is matched to the lettering, each character
+    /// keeps its own square: the first cell belongs to the first character drawn, so a tap on
+    /// the first word looks up that word.
+    @Test func withTheStrayOpenerDroppedTheCellsLineUp() {
+        let drawn = "ダメそんな"
+        let image = SyntheticPage.text(drawn, vertical: false)
+        let box = NormalizedRect(x: 0, y: 0, width: 1, height: 1)
+        let read = "「" + drawn
+        let text = RecognizedText.droppingStrayOpener(read, vertical: false)
+        let layout = TextLines.layout(of: box, in: image, vertical: false, text: text)
+        #expect(layout.exact, "matched to what's drawn")
+        #expect(layout.cells.count == drawn.count)
+        guard layout.cells.count == drawn.count else { return }
+        // The first cell starts where the first glyph is drawn (24 px in from the left).
+        #expect(abs(layout.cells[0].minX - 24.0 / Double(image.width)) < 0.03)
+        #expect(zip(layout.cells, layout.cells.dropFirst()).allSatisfy { $0.minX < $1.minX }, "in order along the line")
+        // Kept, the stray 「 takes the first square and everything after is one off.
+        #expect(!TextLines.layout(of: box, in: image, vertical: false, text: read).exact)
+    }
+
+    /// Text that doesn't match what's drawn (a character missed in reading) is placed as well
+    /// as can be, but not called exact: nothing will be drawn on the page for it.
+    @Test func misreadTextIsNotExact() {
+        let width = 96, height = 5 * 51 + 48
+        let context = SyntheticPage.context(width: width, height: height)
+        SyntheticPage.draw("食べたいな", in: context, at: CGPoint(x: 24, y: 24), vertical: true, height: height)
+        let layout = TextLines.layout(of: NormalizedRect(x: 0, y: 0, width: 1, height: 1), in: context.makeImage()!, vertical: true, text: "食べたい")
+        #expect(!layout.exact)
+        #expect(layout.cells.count == 4)
+    }
+
+    /// Real glyphs (Hiragino, drawn as manga columns): columns of 6, 5 and 2 characters, with
+    /// characters that have gaps inside them (い, 川) and small punctuation.
+    @Test func realLetteringInThreeColumns() {
+        let columns = ["今日はいい天", "気ですね。", "川い"]
+        let width = 3 * 48 + 2 * 26 + 48, height = 6 * 51 + 48
+        let context = SyntheticPage.context(width: width, height: height)
+        for (index, text) in columns.enumerated() {
+            SyntheticPage.draw(text, in: context, at: CGPoint(x: Double(width - 24 - 48 - index * 74), y: 24), vertical: true, height: height)
+        }
+        let image = context.makeImage()!
+        let lines = TextLines.lines(of: NormalizedRect(x: 0, y: 0, width: 1, height: 1), in: image, vertical: true)
+        #expect(lines.count == 3, "three columns (found \(lines.count))")
+        guard lines.count == 3 else { return }
+        let counts = TextLayout.characterCounts(lines.map(\.height), total: 13)
+        #expect(counts == [6, 5, 2], "characters per column from their lengths (\(counts))")
+        // A tap in the middle of each character finds it.
+        let box = CGRect(x: 0, y: 0, width: width, height: height)
+        var right = 0
+        var expected = 0
+        for (index, text) in columns.enumerated() {
+            for row in 0..<text.count {
+                let point = CGPoint(x: Double(width - 24 - 24 - index * 74), y: 24 + Double(row) * 48 * 1.05 + 24)
+                if TextLayout.characterIndex(of: point, in: box, characterCount: 13, vertical: true, lines: lines) == expected { right += 1 }
+                expected += 1
+            }
+        }
+        #expect(right >= 12, "\(right) of 13 taps land on their character")
+        // And the measured places of real glyphs: every tap in the middle of a character.
+        let layout = TextLines.layout(of: NormalizedRect(x: 0, y: 0, width: 1, height: 1), in: image, vertical: true, text: columns.joined())
+        #expect(layout.cells.count == 13)
+        #expect(layout.exact, "found on the grid")
+        var exact = 0
+        expected = 0
+        for (index, text) in columns.enumerated() {
+            for row in 0..<text.count {
+                let point = CGPoint(x: Double(width - 24 - 24 - index * 74), y: 24 + Double(row) * 48 * 1.05 + 24)
+                if TextLayout.characterIndex(of: point, in: box, cells: layout.cells) == expected { exact += 1 }
+                expected += 1
+            }
+        }
+        #expect(exact == 13, "\(exact) of 13 taps land with the measured places")
     }
 }

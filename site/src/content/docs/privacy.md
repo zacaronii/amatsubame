@@ -3,7 +3,7 @@ title: Privacy
 description: What the Amatsubame apps and Kaku keep, where it stays, and which outside services they contact and why.
 ---
 
-**Effective 12 November 2026.**
+**Effective 25 November 2026.**
 
 Amatsubame is a set of apps you build yourself and connect to your own servers. In short: there's
 nothing to sign up for with us, the apps don't collect anything about you, and nothing is sent to the
@@ -31,7 +31,16 @@ Keychain too.
 
 Each app also keeps a small log of server errors, syncing, dictionary updates and setup, with tokens,
 keys and passwords blanked out. It stays on the device unless you share it yourself with **Export
-Logs**.
+Logs**. The log can list the titles you've read, watched or listened to, so look through it before
+posting it anywhere public.
+
+## iCloud
+
+With **Sync with iCloud** on (in Settings ▸ Connections; on by default), Yomu, Miru and Kiku keep a copy of your Stats,
+daily goals, reader and player settings and a few choices (hidden libraries, read-along pairings,
+subtitle timings) in the app's own folder in **your** iCloud, so your other devices show the same.
+It goes between your devices through Apple's iCloud; the developers can't see it. Turn the switch off
+to keep everything on each device.
 
 ## Your own servers
 
@@ -71,6 +80,9 @@ A few things come from public services. Each is contacted only for the reason gi
 | `huggingface.co` | Yomu | Downloading the manga text recognition models, only when you ask for them in Settings. Recognition itself runs on your device. |
 | `jimaku.cc` | Miru | Searching for Japanese subtitles and downloading the file you pick, only after you add your own Jimaku API key. Miru sends the show's AniList number or its name, and your key. |
 | `arm.haglund.dev` | Miru | Finding a show's AniList number from its AniDB number, when your Jellyfin library provides one, so Jimaku finds the right show. Only the AniDB number is sent. |
+| `graphql.anilist.co` and AniList's image server | Yomu, Miru | **Character Names** (Settings ▸ Dictionaries; on by default): the characters of the series or show you open, with their pictures, so their names can be looked up. AniList gets the series' AniList number, or its title to find one. |
+| `api.mangabaka.org` | Yomu | Finding a manga's or light novel's AniList number from its title, for Character Names, when Kavita doesn't have one. Only the title is sent. |
+| `demo.amatsubame.com` and the demo servers | Yomu, Miru, Kiku | Only if you choose **Try It with the Demo Servers**: the demo's details are fetched, and the app uses the demo server in place of your own. It's shared by everyone trying the apps; nothing you do is saved to it, and your places and marks stay on your device. |
 
 Dictionaries are downloaded once and then used offline: looking a word up never leaves the device.
 
@@ -83,10 +95,17 @@ without changing the page itself. All of this is handled on your device by Hiku 
 record of the pages you visit or send them anywhere; the only time a page's title and address leave the device is on a
 card you make, which goes to your own AnkiConnect.
 
+## Testing a beta
+
+If you install a beta through **TestFlight**, Apple's TestFlight sends the developers the crash
+reports and app usage information Apple collects for beta testing, and any feedback or screenshots you
+choose to send, under Apple's terms. The apps themselves add nothing to it.
+
 ## Your choices
 
 - Each outside service above is used only for the feature it serves: turn off the JapanesePod101
-  audio source, skip the downloads, or leave Jimaku unset, and it isn't contacted.
+  audio source or Character Names, skip the downloads, or leave Jimaku unset, and it isn't contacted.
+- Turn off **Sync with iCloud** to keep your Stats and settings on each device.
 - Deleting a dictionary or a download removes it from the device.
 - On iPhone and iPad, deleting an app removes its own data with it.
 

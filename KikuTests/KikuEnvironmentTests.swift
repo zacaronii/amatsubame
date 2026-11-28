@@ -13,6 +13,17 @@ import Testing
                                downloadsDirectory: temp.appending(path: "Downloads"), backgroundDownloads: false, sendsProgress: false, sendsCards: false)
     }
 
+    /// Setup's Done list sends what's still to do to where it is now: every server is under
+    /// Settings ▸ Connections (the Settings rework, #284).
+    @Test func setupsChecklistPointsAtConnections() {
+        let details = KikuSetup.checklist(environment()).map(\.detail)
+        #expect(details.count == 3)
+        for detail in details {
+            #expect(detail.contains("Settings → Connections"), "\(detail)")
+            #expect(!detail.contains("Listening"), "\(detail)")
+        }
+    }
+
     @Test func markNeedsSomethingPlaying() {
         #expect(environment().mark(.shortcut) == nil)
     }
@@ -73,5 +84,57 @@ import Testing
         #expect(entry.chapter(at: 29.9)?.title == "一" && entry.chapter(at: 31)?.title == "二")
         #expect(EpisodeAudio.miscInfo(entry, at: 45) == CardSource.miscInfo(show: "本", episode: "二", time: 45))
         #expect(entry.fileCount == 1)
+    }
+
+    /// Listening updates the shelves' progress without dropping what makes a book a book (its
+    /// chapters went, and the player lost its Chapters menu until the next refresh).
+    @Test func aBookKeepsItsChaptersAsProgressUpdates() async throws {
+        let environment = environment()
+        let server = URL(string: "http://127.0.0.1:9")!
+        try environment.common.accounts.save(ServerAccount(kind: .audiobookshelf, baseURL: server))
+        try environment.common.secrets.setSecret("t", for: .audiobookshelfToken)
+        let json = ##"{"id":"book","libraryId":"books","mediaType":"book","media":{"metadata":{"title":"本","authorName":"著者"},"duration":60,"chapters":[{"id":0,"start":0,"end":30,"title":"一"},{"id":1,"start":30,"end":60,"title":"二"}],"tracks":[{"index":1,"ino":"9","startOffset":0,"duration":60}]}}"##
+        let item = try JSONDecoder().decode(AudiobookshelfItem.self, from: Data(json.utf8))
+        let entry = try #require(environment.library.entry(book: item))
+        let saved = PodcastLibrary.Saved(server: server, shows: [], newEpisodes: [], continueListening: [entry],
+                                         progress: [:], transcriptStatus: [:], newCounts: [:])
+        try AudiobookshelfCacheStore(database: environment.common.database).save(JSONEncoder().encode(saved), for: "home")
+        await environment.library.refresh()
+        #expect(environment.library.continueListening.first?.isBook == true)
+
+        environment.library.update(progress: AudiobookshelfProgress(libraryItemId: "book", episodeId: nil, duration: 60, progress: 0.5,
+                                                                    currentTime: 30, isFinished: false, lastUpdate: 1))
+        let updated = try #require(environment.library.continueListening.first)
+        #expect(updated.progress?.currentTime == 30)
+        #expect(updated.isBook && updated.chapters.count == 2 && updated.collectionTitle == "本")
+    }
+
+    /// Mark as Played / Unplayed from a row's menu: here at once, and queued for Audiobookshelf.
+    @Test func markingPlayedUpdatesTheShelvesAndQueuesIt() async throws {
+        let environment = environment()
+        let server = URL(string: "http://127.0.0.1:9")!
+        try environment.common.accounts.save(ServerAccount(kind: .audiobookshelf, baseURL: server))
+        try environment.common.secrets.setSecret("t", for: .audiobookshelfToken)
+        let json = ##"{"id":"book","libraryId":"books","mediaType":"book","media":{"metadata":{"title":"本","authorName":"著者"},"duration":60,"chapters":[],"tracks":[{"index":1,"ino":"9","startOffset":0,"duration":60}]}}"##
+        let entry = try #require(environment.library.entry(book: try JSONDecoder().decode(AudiobookshelfItem.self, from: Data(json.utf8))))
+        let saved = PodcastLibrary.Saved(server: server, shows: [], newEpisodes: [], continueListening: [entry],
+                                         progress: [:], transcriptStatus: [:], newCounts: [:])
+        try AudiobookshelfCacheStore(database: environment.common.database).save(JSONEncoder().encode(saved), for: "home")
+        await environment.library.refresh()
+
+        environment.setPlayed(entry, true)
+        #expect(environment.library.progress["book"]?.isFinished == true)
+        #expect(environment.library.continueListening.first?.isFinished == true)
+        #expect(try environment.listenProgress.progress(itemId: "book")?.position == 60)
+        let jobs = try environment.common.outbox.jobs(states: [.pending, .inFlight, .failed, .sent]).filter { $0.kind == .audiobookshelfProgress }
+        #expect(jobs.count == 1)
+        #expect(try jobs.first?.decodePayload(AudiobookshelfProgressPayload.self).isFinished == true)
+
+        environment.setPlayed(entry, false)
+        #expect(environment.library.progress["book"]?.isFinished == false)
+        #expect(try environment.listenProgress.progress(itemId: "book")?.position == 0)
+        let after = try environment.common.outbox.jobs(states: [.pending, .inFlight, .failed, .sent]).filter { $0.kind == .audiobookshelfProgress }
+        #expect(after.count == 1, "the newer state replaces the one waiting")
+        #expect(try after.first?.decodePayload(AudiobookshelfProgressPayload.self).isFinished == false)
     }
 }

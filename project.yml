@@ -1,4 +1,7 @@
 name: Amatsubame
+include:
+  # Kiku's widgets (docs/kiku.md ▸ Widgets).
+  - path: kiku-widgets.yml
 options:
   bundleIdPrefix: com.amatsubame
   deploymentTarget:
@@ -17,7 +20,7 @@ settings:
     # with AMATSUBAME_APP_GROUP = YES (Config/Signing.xcconfig), which needs a paid developer team.
     SWIFT_VERSION: "6.0"
     CODE_SIGN_STYLE: Automatic
-    MARKETING_VERSION: "0.3.0"
+    MARKETING_VERSION: "0.4.0"
     CURRENT_PROJECT_VERSION: "1"
     # The apps only use encryption through Apple's networking (HTTPS) and the video player's TLS.
     INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
@@ -49,6 +52,8 @@ packages:
     path: Packages/JimakuKit
   KikuWatchLink:
     path: Packages/KikuWatchLink
+  KikuIntents:
+    path: Packages/KikuIntents
   Browser:
     path: Packages/Browser
   AudiobookshelfKit:
@@ -57,6 +62,8 @@ packages:
     path: Packages/KechimochiKit
   HachidoriKit:
     path: Packages/HachidoriKit
+  Names:
+    path: Packages/Names
 
 targets:
   Yomu:
@@ -71,10 +78,10 @@ targets:
         PRODUCT_MODULE_NAME: Yomu
         PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).yomu
         CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Shared/SharedSetup.entitlements
-        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: $(AMATSUBAME_DEVICE_ENTITLEMENTS)
+        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: $(AMATSUBAME_CLOUD_DEVICE_ENTITLEMENTS)
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         TARGETED_DEVICE_FAMILY: "1,2"
-        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Shared/App-macOS$(AMATSUBAME_MAC_SUFFIX).entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Shared/App-macOS$(AMATSUBAME_CLOUD_MAC_SUFFIX).entitlements
         ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_FILE: Yomu/Resources/Info.plist
@@ -85,10 +92,16 @@ targets:
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortraitUpsideDown"
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
+      configs:
+        Debug:
+          # Test runs load the package frameworks from the build folder, signed ad hoc, so the
+          # hardened runtime's library check stops the app before any test (Debug only).
+          RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION[sdk=macosx*]: YES
     dependencies:
       - package: AppCommon
       - package: Core
       - package: KavitaKit
+      - package: Names
       - package: AudiobookshelfKit
       - package: Anki
       - package: Readers
@@ -142,10 +155,10 @@ targets:
         PRODUCT_MODULE_NAME: Miru
         PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).miru
         CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Shared/SharedSetup.entitlements
-        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: $(AMATSUBAME_DEVICE_ENTITLEMENTS)
+        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: $(AMATSUBAME_CLOUD_DEVICE_ENTITLEMENTS)
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         TARGETED_DEVICE_FAMILY: "1,2"
-        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Shared/App-macOS$(AMATSUBAME_MAC_SUFFIX).entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Shared/App-macOS$(AMATSUBAME_CLOUD_MAC_SUFFIX).entitlements
         ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_FILE: Miru/Resources/Info.plist
@@ -156,6 +169,11 @@ targets:
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortraitUpsideDown"
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
+      configs:
+        Debug:
+          # Test runs load the package frameworks from the build folder, signed ad hoc, so the
+          # hardened runtime's library check stops the app before any test (Debug only).
+          RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION[sdk=macosx*]: YES
     dependencies:
       - package: AppCommon
       - package: Core
@@ -183,7 +201,7 @@ targets:
         CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: $(KIKU_DEVICE_ENTITLEMENTS)
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         TARGETED_DEVICE_FAMILY: "1,2"
-        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Shared/App-macOS$(AMATSUBAME_MAC_SUFFIX).entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: Shared/App-macOS$(AMATSUBAME_CLOUD_MAC_SUFFIX).entitlements
         ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_FILE: Kiku/Resources/Info.plist
@@ -195,6 +213,11 @@ targets:
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: NO
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortraitUpsideDown"
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
+      configs:
+        Debug:
+          # Test runs load the package frameworks from the build folder, signed ad hoc, so the
+          # hardened runtime's library check stops the app before any test (Debug only).
+          RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION[sdk=macosx*]: YES
     dependencies:
       - package: AppCommon
       - package: Core
@@ -203,6 +226,7 @@ targets:
       - package: Dictionary
       - package: Lookup
       - package: KikuWatchLink
+      - package: KikuIntents
       # Kiku on Apple Watch rides inside the iPhone app.
       - target: KikuWatch
         destinationFilters: [iOS]
@@ -215,6 +239,15 @@ targets:
     deploymentTarget: "26.0"
     sources:
       - path: KikuWatch
+        excludes:
+          - Info.plist
+    # Merged with the generated keys below: background audio, for playing on the watch (#127).
+    info:
+      path: KikuWatch/Info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UIBackgroundModes: [audio]
     settings:
       base:
         PRODUCT_NAME: KikuWatch
@@ -290,6 +323,11 @@ targets:
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
+      configs:
+        Debug:
+          # Test runs load the package frameworks from the build folder, signed ad hoc, so the
+          # hardened runtime's library check stops the app before any test (Debug only).
+          RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION[sdk=macosx*]: YES
     dependencies:
       - target: HikuExtension
       - package: AppCommon
@@ -303,6 +341,7 @@ targets:
     platform: auto
     sources:
       - path: HikuUITests
+      - path: SharedUITests
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).hiku.uitests
@@ -395,6 +434,7 @@ targets:
       - package: AppCommon
       - package: Core
       - package: JellyfinKit
+      - package: Lookup
 
   MiruUITests:
     type: bundle.ui-testing

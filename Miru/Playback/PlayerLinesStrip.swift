@@ -14,7 +14,7 @@ struct PlayerLinesStrip: View {
 
     var body: some View {
         let cues = model.subtitles?.cues ?? []
-        let current = model.subtitles?.currentOrPrevious(at: model.mpv.timePosition)?.id
+        let current = model.subtitles?.currentOrPrevious(at: model.engine.timePosition)?.id
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 2) {
@@ -74,7 +74,7 @@ struct PlayerLinesStrip: View {
 
     private func row(_ cue: SubtitleCue, isCurrent: Bool) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Button { model.mpv.seek(to: cue.start) } label: {
+            Button { model.engine.seek(to: cue.start) } label: {
                 Text(TranscriptView.timestamp(cue.start))
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(isCurrent ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))

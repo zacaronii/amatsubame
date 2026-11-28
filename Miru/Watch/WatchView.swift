@@ -50,7 +50,7 @@ struct PinnedStack: View {
 /// Home: Today, Continue Watching (in progress), Next Up and each library's newest shows.
 struct WatchView: View {
     /// The Watch tab's navigation (a suggestion from the player opens a series here).
-    @State private var path: [JellyfinItem] = []
+    @State private var path = NavigationPath()
     @Environment(PlayerEnvironment.self) private var environment
     @Environment(CommonEnvironment.self) private var common
     @Environment(\.scenePhase) private var scenePhase
@@ -81,12 +81,17 @@ struct WatchView: View {
         NavigationStack(path: $path) {
             Group {
                 if common.serverAccounts[.jellyfin]?.userId == nil {
-                    ContentUnavailableView(
-                        "Connect Jellyfin",
-                        systemImage: "play.rectangle",
-                        description: Text("Sign in to your Jellyfin server in Settings.")
-                    )
-                    .accessibilityIdentifier("watch.placeholder")
+                    ContentUnavailableView {
+                        Label("Connect Jellyfin", systemImage: "play.rectangle")
+                            .accessibilityIdentifier("watch.placeholder")
+                    } description: {
+                        Text("Sign in to your Jellyfin server in Settings to see your anime and films.")
+                    } actions: {
+                        Button("Open Settings") { environment.selectedTab = .settings }
+                            .buttonStyle(.borderedProminent)
+                            .filledButtonTint()
+                            .accessibilityIdentifier("watch.openSettings")
+                    }
                 } else {
                     home
                 }
@@ -95,9 +100,9 @@ struct WatchView: View {
             .toolbar {
                 if common.serverAccounts[.jellyfin]?.userId != nil {
                     ToolbarItem(placement: .primaryAction) {
-                        NavigationLink {
-                            JellyfinSearchView(playback: $playback)
-                        } label: {
+                        // On the path like the shows it opens: a screen pushed outside the path was
+                        // rebuilt (empty, in front again) when a result joined the path (#145).
+                        NavigationLink(value: JellyfinSearchRoute()) {
                             Label("Search", systemImage: "magnifyingglass")
                         }
                         .accessibilityIdentifier("watch.search")
@@ -105,11 +110,12 @@ struct WatchView: View {
                 }
             }
             .navigationDestination(for: JellyfinItem.self) { WatchDestination(item: $0, playback: $playback) }
+            .navigationDestination(for: JellyfinSearchRoute.self) { _ in JellyfinSearchView(playback: $playback) }
         }
         .playbackPresentation($playback)
         .onChange(of: environment.openSeriesRequest, initial: true) { _, series in
             guard let series else { return }
-            path = [series]
+            path = NavigationPath([series])
             environment.openSeriesRequest = nil
         }
         .task(id: common.serverAccounts[.jellyfin]?.userId) { await load() }
@@ -192,14 +198,15 @@ struct WatchView: View {
                                     ScrollView { nextUpRows(allNextUp).padding() }
                                         .navigationTitle("Next Up")
                                 }
+                                .textButtonTint()
                                 .accessibilityIdentifier("nextUp.seeAll")
                             }
                         }
                         nextUpRows(nextUp)
                     }
                 }
-                if error != nil, !onDevice.isEmpty {
-                    // Jellyfin is unreachable: what can still be watched.
+                if error != nil || (isLoading && libraries.isEmpty), !onDevice.isEmpty {
+                    // Jellyfin is unreachable, or hasn't answered yet: what can be watched meanwhile.
                     section("On This Device") {
                         VStack(alignment: .leading, spacing: 12) {
                             ForEach(onDevice) { record in
@@ -221,9 +228,9 @@ struct WatchView: View {
             .padding()
         }
         .overlay {
-            if libraries.isEmpty && isLoading { ProgressView() }
+            if libraries.isEmpty && isLoading && onDevice.isEmpty { ProgressView() }
         }
-        .refreshable {
+        .refreshableByCommand {
             CoverLoader.recheck()
             await load()
         }
@@ -255,6 +262,7 @@ struct WatchView: View {
     }
 
     @ViewBuilder private func downloadMenu(_ item: JellyfinItem) -> some View {
+        WatchedMenuItem(item: item)
         if let record = environment.downloader.records[item.id] {
             Button("Delete Download", systemImage: "trash", role: .destructive) {
                 Task { await environment.downloader.delete(record) }
@@ -329,6 +337,7 @@ private struct LibraryShelf: View {
                 .buttonStyle(.plain)
                 Spacer()
                 NavigationLink("See All", value: library)
+                    .textButtonTint()
                     .accessibilityIdentifier("library.\(library.name)")
             }
             if !items.isEmpty {
@@ -362,12 +371,37 @@ private struct LibraryShelf: View {
     }
 }
 
+/// Search's place on the Watch tab's path.
+struct JellyfinSearchRoute: Hashable {}
+
+/// Mark as Watched / Unwatched for an episode or movie (a row's menu): for something watched
+/// elsewhere, or to clear a sampled episode out of Continue Watching.
+struct WatchedMenuItem: View {
+    @Environment(PlayerEnvironment.self) private var environment
+    let item: JellyfinItem
+
+    var body: some View {
+        if item.type == "Episode" || item.type == "Movie" {
+            if item.userData?.played == true {
+                Button("Mark as Unwatched", systemImage: "circle") { environment.setWatched(item, false) }
+            } else {
+                Button("Mark as Watched", systemImage: "checkmark.circle") { environment.setWatched(item, true) }
+                // Started but not finished: back to the beginning, and out of Continue Watching.
+                if (item.resumePosition ?? 0) > 0 {
+                    Button("Mark as Unwatched", systemImage: "circle") { environment.setWatched(item, false) }
+                }
+            }
+        }
+    }
+}
+
 /// Shows and movies in every library by name (Jellyfin's search).
 struct JellyfinSearchView: View {
     @Environment(PlayerEnvironment.self) private var environment
     @Binding var playback: PlaybackSession?
     @State private var query = ""
     @State private var searching = false
+    @State private var opened = false
     @State private var results: [JellyfinItem] = []
     @State private var error: String?
 
@@ -399,7 +433,11 @@ struct JellyfinSearchView: View {
         }
         // The field takes the keyboard as the screen opens.
         .searchable(text: $query, isPresented: $searching, prompt: "Shows and Movies")
-        .onAppear { searching = true }
+        // Only as it opens: coming back from a result, the results are what's wanted.
+        .onAppear {
+            if !opened { searching = true }
+            opened = true
+        }
         .navigationTitle("Search")
         .task(id: query) {
             let text = query.trimmingCharacters(in: .whitespaces)
@@ -517,7 +555,7 @@ struct JellyfinImage: View {
                         .foregroundStyle(.tertiary)
                 }
             }
-            .clipShape(.rect(cornerRadius: 8))
+            .coverShape(cornerRadius: 8)
             .task(id: "\(itemId)/\(tag ?? "")#\(CoverGeneration.shared.value)") {
                 guard let client = environment.jellyfinClient() else { return }
                 let request = client.imageRequest(itemId: itemId, type: type, tag: tag, maxWidth: 480)

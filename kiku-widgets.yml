@@ -1,0 +1,40 @@
+# Kiku's Home Screen, Lock Screen and Control Center widgets (docs/kiku.md ▸ Widgets).
+# Its App ID (`.kiku.widgets`, with the App Group) is registered in the developer account.
+targets:
+  Kiku:
+    dependencies:
+      - target: KikuWidgets
+        destinationFilters: [iOS]
+
+  KikuWidgets:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: KikuWidgets
+        excludes:
+          - Info.plist
+    # Written by XcodeGen from these properties.
+    info:
+      path: KikuWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: Kiku
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_NAME: KikuWidgets
+        PRODUCT_MODULE_NAME: KikuWidgets
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).kiku.widgets
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: KikuWidgets/Info.plist
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        # The App Group holds the snapshot Kiku writes.
+        CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Shared/SharedSetup.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: $(AMATSUBAME_DEVICE_ENTITLEMENTS)
+        SKIP_INSTALL: YES
+    dependencies:
+      - package: KikuIntents

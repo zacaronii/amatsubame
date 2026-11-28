@@ -11,6 +11,7 @@ public struct BookReaderView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var showsSettings = false
     @State private var showsContents = false
+    @State private var showsSearch = false
     @State private var pageWidth: CGFloat = 0
     /// The hinge of a foldable iPhone (the Duo): closed is when the folded page is measured.
     @State private var hinge = Fold.Hinge.unknown
@@ -24,8 +25,6 @@ public struct BookReaderView: View {
     private let accessory: AnyView?
     /// The app's button in the top bar, before Reader Settings (Yomu's read-along switch).
     private let barItem: AnyView?
-    /// Above the lookup popup (Yomu's read-along clip row).
-    private let popupHeader: AnyView?
 
     public init(model: BookReaderModel, onClose: @escaping () -> Void, onOpenChapter: @escaping (ReaderChapter) -> Void) {
         self.model = model
@@ -33,19 +32,17 @@ public struct BookReaderView: View {
         self.onOpenChapter = onOpenChapter
         accessory = nil
         barItem = nil
-        popupHeader = nil
     }
 
-    public init<Accessory: View, BarItem: View, PopupHeader: View>(
+    public init<Accessory: View, BarItem: View>(
         model: BookReaderModel, onClose: @escaping () -> Void, onOpenChapter: @escaping (ReaderChapter) -> Void,
-        @ViewBuilder accessory: () -> Accessory, @ViewBuilder barItem: () -> BarItem, @ViewBuilder popupHeader: () -> PopupHeader
+        @ViewBuilder accessory: () -> Accessory, @ViewBuilder barItem: () -> BarItem
     ) {
         self.model = model
         self.onClose = onClose
         self.onOpenChapter = onOpenChapter
         self.accessory = AnyView(accessory())
         self.barItem = AnyView(barItem())
-        self.popupHeader = AnyView(popupHeader())
     }
 
     public var body: some View {
@@ -77,7 +74,7 @@ public struct BookReaderView: View {
                             .readerLookupOverlay(model.spread ? nil : model.popup, lookup: model.lookup, anchor: model.popupAnchor,
                                                  beside: model.isVertical, onClose: { model.popup = nil }) { popup, lookup in
                                 VStack(spacing: 0) {
-                                    if let popupHeader { popupHeader }
+                                    HighlightBar(model: model)
                                     LookupPopupView(service: lookup, model: popup, drawsBackground: false)
                                 }
                             }
@@ -113,6 +110,16 @@ public struct BookReaderView: View {
                 }
                 if model.spread, let frames, let popup = model.popup {
                     lookupPanel(popup, over: model.popupOnCompanion ? frames.first : frames.second)
+                }
+                if model.autoScroll.isShown, !model.showsChrome, model.settings.layout == .scroll, model.state == .ready {
+                    let speed = model.settings.autoScrollCharactersPerMinute
+                    let speeds = AutoScroll.bookSpeeds
+                    AutoScrollCapsule(autoScroll: model.autoScroll, speed: "\(speed) 字/分", spokenSpeed: "\(speed) characters a minute",
+                                      canSlowDown: speed > speeds.first!, canSpeedUp: speed < speeds.last!,
+                                      slower: { model.settings.autoScrollCharactersPerMinute = speeds.last { $0 < speed } ?? speed },
+                                      faster: { model.settings.autoScrollCharactersPerMinute = speeds.first { $0 > speed } ?? speed })
+                        .frame(maxHeight: .infinity, alignment: .bottom)
+                        .padding(.bottom, 28)
                 }
                 if model.showsChrome || model.state != .ready {
                     // Facing pages: the controls stay inside the first page.
@@ -155,15 +162,45 @@ public struct BookReaderView: View {
             model.prefersDark = colorScheme == .dark
             await model.load()
         }
+        .task { await model.marks?.follow() }
         .onChange(of: colorScheme) { _, scheme in model.prefersDark = scheme == .dark }
         // A word mined, Anki refreshed, or marks switched off: restyle the words on the page.
         .onChange(of: model.lookup?.mining?.revision) { Task { await model.markWords() } }
         .onDisappear { model.flushProgress() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { model.repaint() } else { model.flushProgress() }
+            model.autoScroll.set(.background, phase != .active)
+        }
+        // Auto-scroll: the page moves while it does (again at a new speed), and it stops after
+        // 30 minutes without a touch, key or pointer move.
+        .task(id: AutoScrollKey(moving: model.autoScroll.isMoving, speed: model.settings.autoScrollCharactersPerMinute)) {
+            await model.applyAutoScroll()
+            while model.autoScroll.isMoving, !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                model.autoScroll.checkIdle()
+            }
+        }
+        .onChange(of: model.settings.layout) { _, layout in if layout != .scroll { model.autoScroll.close() } }
+        #if os(macOS)
+        .onContinuousHover { _ in model.autoScroll.noteInput() }
+        #endif
+        .background {
+            if model.settings.layout == .scroll, model.state == .ready, model.readAlongCue == nil {
+                Button("Auto-Scroll") {
+                    model.autoScroll.noteInput()
+                    model.autoScroll.isOn ? model.autoScroll.stop() : model.autoScroll.start()
+                }
+                .keyboardShortcut(.downArrow, modifiers: .command)
+                .opacity(0)
+                .accessibilityHidden(true)
+            }
         }
         .sheet(isPresented: $showsSettings) { BookSettingsSheet(model: model) }
         .sheet(isPresented: $showsContents) { contents }
+        .modifier(BookSearchSupport(model: model, showsSearch: $showsSearch))
+        .sheet(item: $model.editingNote) { mark in
+            NoteEditor(mark: mark) { note in model.marks?.edit(mark, note: note, slot: mark.slot) }
+        }
         #if os(iOS)
         // Hidden with the controls too: on the open iPhone Duo the clock and Wi-Fi drew over the
         // first column and the Aa button.
@@ -181,12 +218,12 @@ public struct BookReaderView: View {
         }
     }
 
-    /// Hoshi-style progress: percentage, characters read of the whole book, and time left at
-    /// this reader's speed ("0.5% · 433 / 93,540 字 · ~6 h left").
+    /// Hoshi-style progress: percentage, characters read of the whole book, and time left in the
+    /// chapter and the book at this reader's speed ("0.5% · 433 / 93,540 字 · ~12 min in chapter · ~6 h left").
     private var progressLine: some View {
         // Rounded down, like the series page.
         let percent = model.progressFraction.formatted(.percent.precision(.fractionLength(model.progressFraction < 0.1 ? 1 : 0)).rounded(rule: .down))
-        let parts = [percent, "\(model.charactersRead.formatted()) / \(model.totalCharacters.formatted()) 字", model.timeLeft]
+        let parts = [percent, "\(model.charactersRead.formatted()) / \(model.totalCharacters.formatted()) 字", model.chapterTimeLeft, model.timeLeft]
         return Text(parts.compactMap(\.self).joined(separator: " · "))
             .font(.caption2)
             .monospacedDigit()
@@ -209,7 +246,9 @@ public struct BookReaderView: View {
     }
 
     private var positionDescription: String {
-        "Section \(model.spineIndex + 1) of \(model.sectionCount), page \(model.sectionPage + 1) of \(model.sectionPages)"
+        let place = "Section \(model.spineIndex + 1) of \(model.sectionCount), page \(model.sectionPage + 1) of \(model.sectionPages)"
+        // Scrolling has one page a section: how far in is in the characters read.
+        return model.settings.layout == .scroll ? place + ", \(model.charactersRead) characters read" : place
     }
 
     // MARK: Facing pages
@@ -283,7 +322,7 @@ public struct BookReaderView: View {
     private func lookupPanel(_ popup: LookupPopupModel, over page: CGRect) -> some View {
         let height = min(page.height - 16, 560)
         return VStack(spacing: 0) {
-            if let popupHeader { popupHeader }
+            HighlightBar(model: model)
             if let lookup = model.lookup { LookupPopupView(service: lookup, model: popup, drawsBackground: false) }
         }
         .accessibilityElement(children: .contain)
@@ -323,11 +362,36 @@ public struct BookReaderView: View {
                     Text(model.currentSectionTitle ?? model.chapter.title).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
                 .frame(maxWidth: .infinity)
+                Button("Search", systemImage: "magnifyingglass") { showsSearch = true }
+                    .labelStyle(.iconOnly)
+                    .buttonBorderShape(.circle)
+                    .disabled(model.state != .ready)
+                    .accessibilityIdentifier("reader.search")
                 Button("Contents", systemImage: "list.bullet") { showsContents = true }
                     .labelStyle(.iconOnly)
                     .buttonBorderShape(.circle)
                     .disabled(model.package?.toc.isEmpty ?? true)
+                if model.marks != nil, model.state == .ready {
+                    let marked = model.currentBookmark != nil
+                    Button(marked ? "Remove Bookmark" : "Bookmark This Place", systemImage: marked ? "bookmark.fill" : "bookmark") {
+                        model.toggleBookmark()
+                    }
+                    .labelStyle(.iconOnly)
+                    .buttonBorderShape(.circle)
+                    .accessibilityIdentifier("reader.bookmark")
+                    .accessibilityValue(marked ? "Bookmarked" : "")
+                }
                 if let barItem { barItem }
+                if model.settings.layout == .scroll, model.state == .ready, model.readAlongCue == nil {
+                    // Starts scrolling at the reading speed and gets the controls out of the way.
+                    Button("Auto-Scroll", systemImage: "arrow.down.circle") {
+                        model.autoScroll.start()
+                        model.showsChrome = false
+                    }
+                    .labelStyle(.iconOnly)
+                    .buttonBorderShape(.circle)
+                    .accessibilityIdentifier("reader.autoScroll")
+                }
                 ReaderSettingsButton { showsSettings = true }
             }
             .buttonStyle(.bordered)
@@ -339,7 +403,15 @@ public struct BookReaderView: View {
             Spacer()
 
             if model.reachedEnd {
-                if let next = model.nextChapter {
+                if let offer = model.nextOffer {
+                    NextOfferButtons(offer: offer, none: "End of book") { next in
+                        model.flushProgress()
+                        onOpenChapter(next)
+                    }
+                    .padding(12)
+                    .glassEffect(in: .rect(cornerRadius: 20))
+                    .padding(.horizontal)
+                } else if let next = model.nextChapter {
                     Button("Read \(next.title)", systemImage: "arrow.forward.circle.fill") {
                         model.flushProgress()
                         onOpenChapter(next)
@@ -437,6 +509,15 @@ struct BookSettingsSheet: View {
                         Text("ゴシック").tag(BookReaderSettings.Font.gothic)
                     }
                     .pickerStyle(.segmented)
+                    if let library = model.fonts {
+                        NavigationLink {
+                            BookFontsView(model: model, library: library)
+                        } label: {
+                            LabeledContent("Added Fonts", value: model.settings.font == .custom
+                                           ? ((model.settings.customFont.flatMap { try? library.store.font(id: $0) })?.name ?? "") : "")
+                        }
+                        .accessibilityIdentifier("settings.addedFonts")
+                    }
                     RoundStepperRow("Size", value: $model.settings.fontSize, in: 12...40, step: 1) { "\(Int($0)) pt" }
                     RoundStepperRow("Line spacing", value: $model.settings.lineHeight, in: 1.2...2.6, step: 0.1) {
                         $0.formatted(.number.precision(.fractionLength(1)))
@@ -453,6 +534,8 @@ struct BookSettingsSheet: View {
                         Text("Vertical").tag(BookReaderSettings.WritingMode.vertical)
                         Text("Horizontal").tag(BookReaderSettings.WritingMode.horizontal)
                     }
+                    TapZonesPicker(selection: $model.settings.tapZones)
+                    RotationLockToggle()
                 }
                 Section {
                     if let mining = model.lookup?.mining {
@@ -527,4 +610,10 @@ private struct OptionalPopupBackground: ViewModifier {
     func body(content: Content) -> some View {
         if let lookup { content.lookupPopupBackground(lookup) } else { content.background(.background) }
     }
+}
+
+/// What the page's auto-scroll follows: whether it moves, and how fast.
+private struct AutoScrollKey: Equatable {
+    var moving: Bool
+    var speed: Int
 }

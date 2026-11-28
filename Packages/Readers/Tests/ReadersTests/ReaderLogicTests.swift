@@ -107,11 +107,49 @@ import UniformTypeIdentifiers
         #expect(try queuedPayloads().isEmpty)
 
         recorder.flush()
-        #expect(try queuedPayloads() == [KavitaProgressPayload(volumeId: 206, chapterId: 206, pageNum: 4, seriesId: 4, libraryId: 1)])
+        // Stamped with when the page was turned (the device's row), not when it was queued.
+        let turned = try #require(try progress.progress(chapterId: 206)?.updatedAt)
+        let queued = try queuedPayloads()
+        #expect(queued.count == 1)
+        #expect(queued.first.map { $0.madeAt.map { abs($0.timeIntervalSince(turned)) < 0.01 } } == true)
+        var plain = try #require(queued.first)
+        plain.madeAt = nil
+        #expect(plain == KavitaProgressPayload(volumeId: 206, chapterId: 206, pageNum: 4, seriesId: 4, libraryId: 1))
         #expect(syncs == 1)
 
         recorder.flush()
         #expect(syncs == 1, "nothing new to send")
+    }
+
+    /// Auto-scroll reports a book's place every few seconds: each report is recorded and
+    /// flushed, and the chapter still has one progress job waiting, the newest.
+    @Test func reportsWhileAutoScrollingKeepOneJobPerChapter() throws {
+        let recorder = recorder()
+        recorder.start(at: 0)
+        for step in 1...12 {
+            recorder.record(page: 2, scrollId: "/html/body/p[\(step)]", characters: step * 100)
+            recorder.flush()
+        }
+        let queued = try queuedPayloads()
+        #expect(queued.count == 1)
+        #expect(queued.first?.bookScrollId == "/html/body/p[12]")
+    }
+
+    /// Where the reader opens follows the sender: a queued turn it will drop (Kavita newer, not
+    /// this device's) doesn't hold this device's place; one it will send does.
+    @Test func theStartFollowsWhatTheSenderWillDo() throws {
+        let recorder = recorder()
+        recorder.start(at: 0)
+        recorder.record(page: 19)
+        recorder.flush()
+        let local = try #require(try progress.progress(chapterId: 206))
+        let elsewhere = KavitaServerProgress(chapterId: 206, pageNum: 60, lastModifiedUtc: local.updatedAt.addingTimeInterval(3600))
+        let unsent = recorder.queuedChangeStillGoes(server: elsewhere)
+        #expect(!unsent)
+        #expect(ProgressSyncPolicy.startPage(local: local, server: elsewhere, pages: 100, unsent: unsent) == 60)
+        let older = KavitaServerProgress(chapterId: 206, pageNum: 3, lastModifiedUtc: local.updatedAt.addingTimeInterval(-3600))
+        #expect(recorder.queuedChangeStillGoes(server: older))
+        #expect(ProgressSyncPolicy.startPage(local: local, server: older, pages: 100, unsent: true) == 19)
     }
 
     @Test func openingAChapterRecordsNothing() throws {
@@ -145,7 +183,9 @@ import UniformTypeIdentifiers
         let recorder = recorder(debounce: .milliseconds(50))
         recorder.start(at: 0)
         recorder.record(page: 2)
-        try await Task.sleep(for: .milliseconds(300))
+        // Waits for it rather than a fixed time: with web views in the same test run, the main
+        // actor can be busy past a short sleep.
+        for _ in 0..<40 where try queuedPayloads().isEmpty { try await Task.sleep(for: .milliseconds(50)) }
         #expect(try queuedPayloads().map(\.pageNum) == [2])
     }
 }

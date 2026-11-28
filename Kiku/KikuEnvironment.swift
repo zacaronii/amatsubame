@@ -12,6 +12,9 @@ final class KikuEnvironment {
     let common: CommonEnvironment
     /// Local listening positions (the same store Miru uses for watching), keyed "<item>/<episode>".
     let listenProgress: WatchProgressStore
+    /// Listening reported to Audiobookshelf as sessions (its stats and history).
+    let sessions: ListeningSessionReporter
+    @ObservationIgnored private let sendsProgress: Bool
     let transcripts: AudioTranscriptStore
     /// "Mark now, mine later": marks made while listening.
     let marks: AudioMarkStore
@@ -27,15 +30,25 @@ final class KikuEnvironment {
     var requestedLibrary: AudiobookshelfLibrary?
     /// Shows, new episodes and progress from Audiobookshelf, shared by the tabs.
     @ObservationIgnored private(set) lazy var library = PodcastLibrary(environment: self)
+    /// Download ahead (Settings ▸ Downloads ▸ Automatic Downloads, and each show's own setting).
+    @ObservationIgnored private(set) lazy var autoDownloads = AudioAutoDownloadManager(environment: self)
     #if os(iOS)
     /// Kiku on Apple Watch: what's playing goes to the watch, its buttons come back.
     @ObservationIgnored private(set) lazy var watch = WatchBridge(environment: self)
+    /// What's sent to Apple Watch to play there (docs/KIKU_PLAN.md milestone 2).
+    @ObservationIgnored private(set) lazy var watchLibrary = WatchLibraryModel(environment: self)
     #endif
     /// The episode loaded in the player (the mini player shows it), and whether the full player is open.
     private(set) var playback: PlaybackModel?
     var showsPlayer = false
     /// Read in Yomu found no Yomu to open.
     var yomuMissing = false
+    /// Up Next per podcast library (`UpNext.swift`).
+    var upNext: [String: [UpNextItem]] = [:] {
+        didSet { widgets.update() }
+    }
+    /// The Home Screen and Lock Screen widgets' snapshot (`KikuWidgetPublisher`).
+    @ObservationIgnored private(set) lazy var widgets = KikuWidgetPublisher(environment: self)
     @ObservationIgnored private(set) var downloader: EpisodeDownloader!
     /// Downloaded episodes' audio, by episode key (UI tests swap in their own).
     @ObservationIgnored var localAudioFile: (_ key: String) -> URL? = { _ in nil }
@@ -50,15 +63,20 @@ final class KikuEnvironment {
          startupError: String? = nil, sendsProgress: Bool = true, sendsCards: Bool = true, sharedSetup: SharedSetup? = nil) {
         let tokens = AudiobookshelfTokens(secrets: secrets)
         self.tokens = tokens
-        common = CommonEnvironment(
+        let common = CommonEnvironment(
             database: database, secrets: secrets, mediaDirectory: mediaDirectory, dictionaryDirectory: dictionaryDirectory,
             startupError: startupError, sendsCards: sendsCards, sharedSetup: sharedSetup,
             appHandlers: { context in
                 guard sendsProgress else { return [] }
                 let makeClient = AudioServers.audiobookshelfClientFactory(accounts: context.accounts, tokens: tokens, http: context.http)
-                return [AudiobookshelfProgressHandler(makeClient: makeClient)]
+                return [AudiobookshelfProgressHandler(makeClient: makeClient), AudiobookshelfSessionHandler(makeClient: makeClient),
+                        AudiobookshelfUpNextHandler(store: UpNextStore(database: database), makeClient: makeClient)]
             }
         )
+        self.common = common
+        self.sendsProgress = sendsProgress
+        sessions = ListeningSessionReporter(outbox: common.outbox, device: .current(clientName: "Kiku"),
+                                            syncNow: { common.syncNow(retryWaiting: false) })
         // Kiku orange (its AccentColor), with dark brown text on filled buttons.
         common.lookup.accent = ("#F79A3E", "#3A1A05")
         listenProgress = WatchProgressStore(database: database)
@@ -126,13 +144,54 @@ final class KikuEnvironment {
             settings.watchLiveText = true
             try? settings.save(environment.common.database)
         }
+        if env["UITEST_KIKU_UP_NEXT"] != nil {
+            // An episode waiting in Up Next (the player's ⋯ menu offers it).
+            try? environment.upNextStore.set([UpNextItem(itemId: "uitest-show", episodeId: "uitest-next", title: "次の回", showTitle: "番組")],
+                                             libraryId: "uitest-lib")
+            environment.reloadUpNext()
+        }
         if env["UITEST_KIKU_PLAYER"] != nil { environment.openUITestEpisode() }
         if env["UITEST_KIKU_BOOK"] != nil { environment.openUITestEpisode(book: true) }
+        if let folder = env["UITEST_KIKU_CAPTURE"] { environment.openCaptureEpisode(folder: URL(filePath: folder)) }
         environment.common.pendingDictionaryImports = (env["UITEST_DICTIONARY_ZIPS"] ?? "")
             .split(separator: "|").map { URL(filePath: String($0)) }
         // In-memory UI tests start set up.
         environment.common.setup.finish()
         return environment
+    }
+
+    /// The README's capture (`UITEST_KIKU_CAPTURE=<folder>`, docs/media/capture/kiku): a public-domain
+    /// clip (`clip.m4a`) with Kaku's own transcript of it (`transcript.json`), playing from 0:25.
+    private func openCaptureEpisode(folder: URL) {
+        struct Capture: Decodable {
+            struct Sentence: Decodable {
+                struct Word: Decodable { var text: String; var start: Double; var end: Double }
+                var text: String; var start: Double; var end: Double; var words: [Word]?
+            }
+            var sentences: [Sentence]
+        }
+        guard let data = try? Data(contentsOf: folder.appending(path: "transcript.json")),
+              let capture = try? JSONDecoder().decode(Capture.self, from: data) else { return }
+        let duration = capture.sentences.last.map { ceil($0.end) } ?? 150
+        let json = #"{"id":"bocchan","libraryItemId":"librivox","title":"坊っちゃん（一）","duration":\#(duration),"publishedAt":1793800000000,"audioFile":{"ino":"1","duration":\#(duration)}}"#
+        guard let episode = try? JSONDecoder().decode(AudiobookshelfEpisode.self, from: Data(json.utf8)) else { return }
+        let entry = EpisodeEntry(episode: episode, showTitle: "夏目漱石", progress: nil)
+        let info = AudioTranscriptInfo(itemId: entry.itemId, episodeId: episode.id, showTitle: entry.showTitle, episodeTitle: episode.title,
+                                       fingerprint: nil, duration: duration, savedAt: .now, lastPlayedAt: .now)
+        try? transcripts.save(info, sentences: capture.sentences.enumerated().map { index, sentence in
+            AudioSentence(key: info.key, position: index, start: sentence.start, end: sentence.end, text: sentence.text,
+                          words: (sentence.words ?? []).map { .init(text: $0.text, start: $0.start, end: $0.end) })
+        })
+        let clip = folder.appending(path: "clip.m4a")
+        localAudioFile = { $0 == entry.id ? clip : nil }
+        // Opened at once; it plays from just before "小学校にいる自分、学校の2階から飛び降りて…"
+        // (0:27) once the dictionaries handed in are imported, so the lookup has them.
+        play(entry, at: 23, autoplay: false)
+        Task { [weak self] in
+            for _ in 0..<240 where self?.common.lookup.lacksDictionaries ?? false { try? await Task.sleep(for: .milliseconds(250)) }
+            try? await Task.sleep(for: .seconds(1))
+            self?.play(entry, at: 23, autoplay: true)
+        }
     }
 
     /// UI tests: an episode (or a book with three chapters) with a saved transcript and a minute
@@ -158,7 +217,9 @@ final class KikuEnvironment {
         }
         let episode = entry.episode
         // Long enough to scroll; the first lines are the ones the tests look at.
-        let texts = ["ほんとにそうですね。", "駅前の本屋で先に見つけてた", "え、もう読んだんですか？", "雨の日の過ごし方を考えていくと", "みんなで相談して決めるんですけど"]
+        // The sixth is long: three rows or more where the transcript is off, under the artwork.
+        let texts = ["ほんとにそうですね。", "駅前の本屋で先に見つけてた", "え、もう読んだんですか？", "雨の日の過ごし方を考えていくと", "みんなで相談して決めるんですけど",
+                     "雨の日は家で本を読んだり映画を見たりするのもいいけれど、たまには傘をさして近所をゆっくり散歩して、いつもと違う景色を見るのも楽しいんですよね。"]
             + (1...20).map { "家でゆっくりしたい、その\($0)番目の理由です。" }
         let info = AudioTranscriptInfo(itemId: entry.itemId, episodeId: episode.id, showTitle: entry.showTitle, episodeTitle: episode.title,
                                        fingerprint: nil, duration: 60, savedAt: .now, lastPlayedAt: .now)
@@ -193,6 +254,26 @@ final class KikuEnvironment {
                 }
             }
         }
+        #if os(iOS)
+        // KIKU_WATCH_LIVE_TEXT=1: Live Text on Apple Watch on, as its setting does.
+        if env["KIKU_WATCH_LIVE_TEXT"] != nil { watch.setLiveText(true) }
+        if let key = env["KIKU_SEND_TO_WATCH"] {
+            // Sends "<item>/<episode>" (or a book's "<item>") to the paired watch, as Send to Watch does.
+            Task { [weak self] in
+                guard let self else { return }
+                await library.refresh()
+                let parts = key.split(separator: "/").map(String.init)
+                if let entry = await entry(itemId: parts[0], episodeId: parts.count > 1 ? parts[1] : "", showTitle: "") {
+                    await watchLibrary.send(entry)
+                    // KIKU_SEND_FROM_PHONE=1: downloads it here too, then Send from iPhone.
+                    guard env["KIKU_SEND_FROM_PHONE"] != nil else { return }
+                    if downloader.localFile(key: entry.id) == nil { await downloader.download(entry) }
+                    for _ in 0..<120 where downloader.localFile(key: entry.id) == nil { try? await Task.sleep(for: .seconds(1)) }
+                    watchLibrary.sendFromPhone(entry.id)
+                }
+            }
+        }
+        #endif
         if let zips = env["KIKU_IMPORT_DICTIONARIES"] {
             common.pendingDictionaryImports = zips.split(separator: "|").map { URL(filePath: String($0)) }
         }
@@ -223,6 +304,14 @@ final class KikuEnvironment {
     func start() async {
         guard !started else { return }
         started = true
+        // Listening from before Kiku reported sessions (#103), once. Queued first: both starts
+        // below keep observing and never return, and the common one's first sync sends these.
+        if sendsProgress, audiobookshelfClient() != nil {
+            ListeningSessionBackfill.runOnce(activity: common.activity, outbox: common.outbox,
+                                             device: .current(clientName: "Kiku")) { [listenProgress] key in
+                (try? listenProgress.progress(itemId: key)).flatMap { $0 }.map { ($0.position, $0.duration) }
+            }
+        }
         async let common: Void = common.start()
         async let downloads: Void = downloader.start()
         _ = await (common, downloads)
@@ -239,24 +328,84 @@ final class KikuEnvironment {
 
     /// Opens the player on an episode (at `time`, or where you left off) and starts it.
     func play(_ entry: EpisodeEntry, at time: Double? = nil, autoplay: Bool = true) {
+        // Started from Up Next or anywhere else: it leaves the queue.
+        leaveUpNext(entry)
         if let playback, playback.key == entry.id {
             if let time { playback.audio.seek(to: time) }
             if !playback.audio.isPlaying { playback.audio.play() }
             showsPlayer = true
             return
         }
+        if playback != nil { autoDownloads.schedule() }
         playback?.close()
         let model = PlaybackModel(entry: entry, environment: self)
         playback = model
         showsPlayer = true
+        widgets.update()
         Task { await model.start(at: time, autoplay: autoplay) }
     }
 
     /// Stops and forgets the episode (the mini player goes away).
+    /// An episode ended: the show's next one starts by itself, when Settings ▸ Playback says so
+    /// (podcasts only; a book has nothing after it). The player stays as it was, open or small.
+    func playNext(after entry: EpisodeEntry) {
+        guard !entry.isBook else { return }
+        // Up Next first: its first episode, whatever the setting below.
+        switch UpNextChoice.after(libraryId: libraryId(of: entry), queues: upNext,
+                                  playsNextEpisode: ListenSettings.load(common.database).playsNextEpisode) {
+        case .queued(let item, let libraryId):
+            playQueued(item, libraryId: libraryId, after: entry)
+            return
+        case .nothing: return
+        case .showsNext: break
+        }
+        Task {
+            if library.showEpisodes[entry.itemId] == nil { await library.loadShow(entry.itemId) }
+            let episodes = library.showEpisodes[entry.itemId] ?? downloadedEntries.filter { $0.itemId == entry.itemId }.map(\.episode)
+            // Still the one that ended (nothing else was started meanwhile).
+            guard playback?.key == entry.id,
+                  let next = PodcastLibrary.episode(after: entry.episode, in: episodes, finished: { library.progress[$0.key]?.isFinished == true }) else { return }
+            let shows = showsPlayer
+            play(library.entry(next, showTitle: entry.showTitle))
+            showsPlayer = shows
+        }
+    }
+
+    /// Marks an episode or book played, or not started (its row's menu): here at once, then on
+    /// Audiobookshelf through the outbox, like listening does.
+    func setPlayed(_ entry: EpisodeEntry, _ played: Bool) {
+        let duration = entry.duration
+        let time = played ? duration : 0
+        let now = Date.now
+        try? listenProgress.save(LocalWatchProgress(itemId: entry.id, seriesId: entry.itemId, position: time, duration: duration, updatedAt: now))
+        let payload = AudiobookshelfProgressPayload(itemId: entry.itemId, episodeId: entry.episode.id, currentTime: time,
+                                                    duration: duration, isFinished: played, reportedAt: now)
+        try? common.outbox.enqueue(payload, kind: .audiobookshelfProgress, coalesceKey: payload.coalesceKey)
+        common.syncNow(retryWaiting: false)
+        library.update(progress: AudiobookshelfProgress(
+            libraryItemId: entry.itemId, episodeId: entry.isBook ? nil : entry.episode.id, duration: duration, progress: played ? 1 : 0,
+            currentTime: time, isFinished: played, lastUpdate: now.timeIntervalSince1970 * 1000))
+    }
+
+    /// "Resume in Kiku" (Siri, the widgets, Control Center): plays what's loaded, else the
+    /// first in Continue Listening. Its title, or nil with nothing to play.
+    func resumeListening() async -> String? {
+        if let playback {
+            if !playback.audio.isPlaying { playback.audio.play() }
+            return playback.entry.episode.title
+        }
+        if library.continueListening.isEmpty { await library.refresh() }
+        guard let entry = library.continueListening.first else { return nil }
+        play(entry)
+        return entry.episode.title
+    }
+
     func stopPlayback() {
         playback?.close()
         playback = nil
+        widgets.update()
         showsPlayer = false
+        autoDownloads.schedule()
     }
 
     /// Marks what's playing at its current position (the player, or the Action Button and Siri
@@ -294,7 +443,9 @@ final class KikuEnvironment {
                         played: Bool) throws -> [AudioSentence] {
         let info = AudioTranscriptInfo(itemId: itemId, episodeId: episodeId, showTitle: showTitle,
                                        episodeTitle: episodeTitle, fingerprint: document.source.fingerprint,
-                                       duration: document.source.duration, savedAt: .now, lastPlayedAt: played ? .now : nil)
+                                       duration: document.source.duration, savedAt: .now, lastPlayedAt: played ? .now : nil,
+                                       model: document.source.model, kakuVersion: document.source.kaku,
+                                       transcribedAt: document.source.created)
         let sentences = document.sentences.enumerated().map { index, sentence in
             AudioSentence(key: info.key, position: index, start: sentence.start, end: sentence.end, text: sentence.text,
                           words: sentence.words.map { AudioSentence.Word(text: $0.text, start: $0.start, end: $0.end) })
@@ -339,11 +490,13 @@ final class KikuEnvironment {
         return EpisodeEntry(episode: episode, showTitle: meta.showTitle, progress: library.progress[meta.key], book: book)
     }
 
-    /// A downloaded episode takes its transcript along, if Kaku has it ready.
-    private func fetchTranscriptForDownload(_ entry: EpisodeEntry) async {
+    /// A downloaded episode (or one sent to the watch) takes its transcript along, if Kaku has it
+    /// ready. True when one was saved now.
+    @discardableResult
+    func fetchTranscriptForDownload(_ entry: EpisodeEntry) async -> Bool {
         guard (try? transcripts.transcript(key: entry.id)) == nil, let kaku = kakuClient(),
-              case .ready(let document)? = try? await kaku.transcript(itemId: entry.itemId, episodeId: entry.episode.id) else { return }
-        try? saveTranscript(document, entry: entry, played: false)
+              case .ready(let document)? = try? await kaku.transcript(itemId: entry.itemId, episodeId: entry.episode.id) else { return false }
+        return (try? saveTranscript(document, entry: entry, played: false)) != nil
     }
 
     // MARK: Servers
@@ -354,4 +507,24 @@ final class KikuEnvironment {
 
     /// Nil until Kaku's URL and token are saved in Settings.
     func kakuClient() -> KakuClient? { AudioServers.kakuClient(common) }
+}
+
+extension KikuEnvironment {
+    /// The demo Audiobookshelf's sign-in, after its nightly reset (`DemoRenewal`).
+    func renewDemo() async {
+        await DemoRenewal.renew(common, kind: .audiobookshelf) {
+            guard let client = audiobookshelfClient() else { return .unknown }
+            return await DemoRenewal.check { _ = try await client.me() }
+        } signIn: { config in
+            guard let demo = config.audiobookshelf else { return false }
+            let model = AudiobookshelfSettingsModel(environment: common, tokens: tokens)
+            model.isDemo = true
+            model.method = .password
+            model.urlText = demo.url.absoluteString
+            model.username = demo.user
+            model.password = demo.password
+            await model.signIn()
+            if case .ok = model.status { return true } else { return false }
+        }
+    }
 }

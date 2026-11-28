@@ -1,0 +1,68 @@
+{
+ "id": "pl-1",
+ "name": "Up Next",
+ "libraryId": "lib-pod",
+ "userId": "user-1",
+ "description": null,
+ "lastUpdate": 1795651200000,
+ "createdAt": 1795651200000,
+ "items": [
+  {
+   "libraryItemId": "show-a",
+   "episodeId": "ep-3",
+   "episode": {
+    "id": "ep-3",
+    "title": "Episode three",
+    "duration": 1800
+   },
+   "libraryItem": {
+    "id": "show-a",
+    "libraryId": "lib-pod",
+    "mediaType": "podcast",
+    "media": {
+     "metadata": {
+      "title": "Sample Show A"
+     }
+    }
+   }
+  },
+  {
+   "libraryItemId": "show-a",
+   "episodeId": "ep-2",
+   "episode": {
+    "id": "ep-2",
+    "title": "Episode two",
+    "duration": 1700
+   },
+   "libraryItem": {
+    "id": "show-a",
+    "libraryId": "lib-pod",
+    "mediaType": "podcast",
+    "media": {
+     "metadata": {
+      "title": "Sample Show A"
+     }
+    }
+   }
+  },
+  {
+   "libraryItemId": "show-b",
+   "episodeId": "ep-9",
+   "episode": {
+    "id": "ep-9",
+    "title": "Another show's episode",
+    "duration": 2400
+   },
+   "libraryItem": {
+    "id": "show-b",
+    "libraryId": "lib-pod",
+    "mediaType": "podcast",
+    "media": {
+     "metadata": {
+      "title": "Sample Show B"
+     }
+    }
+   }
+  }
+ ]
+}

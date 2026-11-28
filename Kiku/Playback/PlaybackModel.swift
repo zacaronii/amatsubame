@@ -21,6 +21,8 @@ final class PlaybackModel: Identifiable, LineLookupHost {
     enum SleepTimer: Equatable {
         case minutes(Int, ends: Date)
         case endOfEpisode
+        /// A book: when the chapter playing ends (its end, in seconds).
+        case endOfChapter(end: Double)
     }
 
     let entry: EpisodeEntry
@@ -37,7 +39,23 @@ final class PlaybackModel: Identifiable, LineLookupHost {
     private(set) var showsTranscript = true
     /// The line looked up, for the popup's sentence bar.
     private(set) var lookupSentence: AudioSentence?
-    private(set) var sleepTimer: SleepTimer?
+    private(set) var sleepTimer: SleepTimer? {
+        didSet { updateShakeWatch() }
+    }
+    /// A shake restarted or brought back the sleep timer (for the player's note).
+    private(set) var sleepExtended = 0
+    /// The newest place is more than a minute behind where this phone was (listening on the
+    /// watch or another app since): the player asks which, rather than jump back silently.
+    private(set) var resumeChoice: ResumeChoice?
+
+    struct ResumeChoice: Equatable {
+        /// The newer place, and where it's from ("Apple Watch").
+        var newer: Double
+        var newerFrom: String
+        /// This phone's own.
+        var mine: Double
+        var plays: Bool
+    }
 
     var id: String { entry.id }
     var key: String { entry.id }
@@ -47,13 +65,35 @@ final class PlaybackModel: Identifiable, LineLookupHost {
     @ObservationIgnored private var lastSaved: Double = -100
     @ObservationIgnored private var lastTick: Double?
     @ObservationIgnored private var unlogged: Double = 0
+    /// Download Once Started was asked about this episode (once, on its first real listening).
+    @ObservationIgnored private var offeredDownload = false
     @ObservationIgnored private var transcriptTask: Task<Void, Never>?
+    @ObservationIgnored private var againTask: Task<Void, Never>?
+    /// The audio reached its end in this player.
+    @ObservationIgnored private var playedToEnd = false
+    /// When playback was last paused (for picking up from the line's start).
+    @ObservationIgnored private var pausedAt: Date?
+    /// `close()` has run: nothing still on its way may start the audio or a transcript loop.
+    @ObservationIgnored private var closed = false
+    /// What made the transcript showing and when (the More menu); nil until one is saved.
+    private(set) var transcriptSource: AudioTranscriptInfo?
+    /// Kaku was asked to transcribe this again; its new transcript replaces the one showing.
+    private(set) var isTranscribingAgain = false
+    private(set) var transcribeAgainProblem: String?
     @ObservationIgnored private var sleepTask: Task<Void, Never>?
+    /// The last timer of minutes set, and when a timer stopped playback: a shake brings it back.
+    @ObservationIgnored private var lastSleepMinutes: Int?
+    @ObservationIgnored private var sleepStoppedAt: Date?
+    @ObservationIgnored private var shakeGraceTask: Task<Void, Never>?
+    #if os(iOS)
+    @ObservationIgnored private let shakes = ShakeDetector()
+    #endif
     @ObservationIgnored private var lastRecovery: Date?
     /// Where the audio comes from (the download or the stream), clips and card media.
     @ObservationIgnored let episodeAudio: EpisodeAudio
 
     init(entry: EpisodeEntry, environment: KikuEnvironment) {
+        show = ShowListenSetting.load(environment.common.database, itemId: entry.itemId)
         self.entry = entry
         self.environment = environment
         episodeAudio = EpisodeAudio(entry: entry)
@@ -75,7 +115,9 @@ final class PlaybackModel: Identifiable, LineLookupHost {
         }
         let settings = ListenSettings.load(environment.common.database)
         showsTranscript = settings.showsTranscript
-        audio.rate = Float(settings.speed)
+        transcriptScale = settings.transcriptScale
+        pausesAfterLines = settings.pausesAfterLines
+        audio.rate = Float(show.speed ?? settings.speed)
         audio.skipIntervals = (settings.skipBackward, settings.skipForward)
     }
 
@@ -87,7 +129,20 @@ final class PlaybackModel: Identifiable, LineLookupHost {
         var position = time ?? LocalWatchProgress.resumePosition(
             local: local, server: entry.progress?.currentTime, serverDate: entry.progress?.updatedAt)
         if time == nil, entry.isFinished || (entry.duration > 0 && position > entry.duration - 5) { position = 0 }
-        if let problem = await episodeAudio.resolve(environment: environment) {
+        // From the top: past the show's jingle.
+        if time == nil, position == 0, show.skipStart > 0, entry.duration > show.skipStart + 30 { position = show.skipStart }
+        var autoplay = autoplay
+        // Not in the car: the question is a dialog on the phone, and the car would stay silent.
+        if time == nil, !Self.playsInCar, let choice = Self.resumeChoice(local: local, entry: entry, position: position, autoplay: autoplay,
+                                                       watchPlayedAt: watchPlayedAt) {
+            // Loaded at the newer place, paused until you choose.
+            resumeChoice = choice
+            autoplay = false
+        }
+        let problem = await episodeAudio.resolve(environment: environment)
+        // Stopped (or another episode started) while the audio was being found.
+        guard !closed else { return }
+        if let problem {
             audio.pauseWithError(problem)
             return
         }
@@ -101,9 +156,36 @@ final class PlaybackModel: Identifiable, LineLookupHost {
         loadTranscript()
     }
 
+    /// The phone's last place when it's more than a minute ahead of the newer one being resumed.
+    static func resumeChoice(local: LocalWatchProgress?, entry: EpisodeEntry, position: Double, autoplay: Bool,
+                             watchPlayedAt: Date?) -> ResumeChoice? {
+        guard let local, let server = entry.progress, server.updatedAt > local.updatedAt, !server.isFinished,
+              position == server.currentTime, local.position - position > 60,
+              local.duration <= 0 || local.duration - local.position >= 30 else { return nil }
+        let fromWatch = watchPlayedAt.map { abs($0.timeIntervalSince(server.updatedAt)) < 2 } ?? false
+        return ResumeChoice(newer: position, newerFrom: fromWatch ? "Apple Watch" : "Audiobookshelf", mine: local.position, plays: autoplay)
+    }
+
+    /// Continue from the place chosen.
+    func resume(at position: Double) {
+        guard let choice = resumeChoice else { return }
+        resumeChoice = nil
+        if position != choice.newer { audio.seek(to: position) }
+        if choice.plays { audio.play() }
+    }
+
+    private var watchPlayedAt: Date? {
+        #if os(iOS)
+        environment.watchLibrary.watchPlayedAt[key]
+        #else
+        nil
+        #endif
+    }
+
     // MARK: Transcript
 
     func loadTranscript() {
+        guard !closed else { return }
         transcriptTask?.cancel()
         transcriptTask = Task { [weak self] in
             guard let self else { return }
@@ -113,7 +195,9 @@ final class PlaybackModel: Identifiable, LineLookupHost {
                 // Kaku may have split its lines again since (kaku.resplit): take the new ones, quietly.
                 guard let kaku = environment.kakuClient(),
                       case .ready(let document)? = try? await kaku.transcript(itemId: entry.itemId, episodeId: entry.episode.id),
-                      !Task.isCancelled, document.sentences.map(\.text) != saved.map(\.text),
+                      !Task.isCancelled,
+                      // …or made it again, or this copy is from before its source was kept.
+                      document.sentences.map(\.text) != saved.map(\.text) || Self.isNewer(document, than: transcriptSource),
                       let fresh = try? environment.saveTranscript(document, entry: entry, played: true) else { return }
                 show(fresh)
                 return
@@ -186,8 +270,59 @@ final class PlaybackModel: Identifiable, LineLookupHost {
         }
     }
 
+    /// Whether Kaku's transcript is another one than the saved copy (made at another time).
+    static func isNewer(_ document: KakuTranscript, than saved: AudioTranscriptInfo?) -> Bool {
+        guard let created = document.source.created else { return false }
+        guard let known = saved?.transcribedAt else { return true }
+        return abs(created.timeIntervalSince(known)) > 1
+    }
+
+    /// "large-v3 · Kaku 1.5.0 · 5 Nov 2026": what made the transcript, for the More menu.
+    static func sourceText(_ info: AudioTranscriptInfo) -> String {
+        // A copy from before the model was kept has only its date.
+        KakuTranscriptSource.text(model: info.model, kaku: info.kakuVersion, made: info.transcribedAt, saved: info.savedAt)
+    }
+
+    /// Asks Kaku to transcribe this episode again (Kaku 1.6), first in its queue, and shows the
+    /// new transcript when it's made. The one showing stays until then.
+    func transcribeAgain() {
+        guard !isTranscribingAgain else { return }
+        guard let kaku = environment.kakuClient() else {
+            transcribeAgainProblem = "Set up Kaku in Settings first."
+            return
+        }
+        let before = transcriptSource
+        let asked = Date.now
+        isTranscribingAgain = true
+        transcribeAgainProblem = nil
+        againTask = Task { [weak self] in
+            guard let self else { return }
+            defer { isTranscribingAgain = false }
+            do {
+                guard try await kaku.requestJob(itemId: entry.itemId, episodeId: entry.episode.id, force: true) != nil else {
+                    // An older Kaku ignores `force` and answers that the transcript is current.
+                    transcribeAgainProblem = "Kaku needs to be 1.6 or newer to transcribe again."
+                    return
+                }
+            } catch {
+                if !error.isCancellation { transcribeAgainProblem = "Couldn't reach Kaku. \(error.localizedDescription)" }
+                return
+            }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(15))
+                guard !Task.isCancelled, case .ready(let document)? = try? await kaku.transcript(itemId: entry.itemId, episodeId: entry.episode.id),
+                      before?.transcribedAt != nil ? Self.isNewer(document, than: before)
+                        : (document.source.created ?? .distantPast) > asked.addingTimeInterval(-120),
+                      let fresh = try? environment.saveTranscript(document, entry: entry, played: true) else { continue }
+                show(fresh)
+                return
+            }
+        }
+    }
+
     private func show(_ sentences: [AudioSentence]) {
         self.sentences = sentences
+        transcriptSource = try? environment.transcripts.transcript(key: key)
         currentIndex = TranscriptFollow.index(at: audio.currentTime, in: sentences)
         // From a little before the line playing, so the lines on screen are marked first.
         let lines = sentences.map { TappableLine.sentence($0.text) }
@@ -260,35 +395,177 @@ final class PlaybackModel: Identifiable, LineLookupHost {
 
     func setSpeed(_ speed: Double) {
         audio.rate = Float(speed)
+        if show.speed != nil {
+            // This show keeps its own.
+            show.speed = speed
+            try? show.save(environment.common.database)
+        } else {
+            var settings = ListenSettings.load(environment.common.database)
+            settings.speed = speed
+            try? settings.save(environment.common.database)
+        }
+    }
+
+    /// The next speed up or down the menu's list ([ and ] on a keyboard).
+    func stepSpeed(_ step: Int) {
+        let speeds = ListenSettings.speeds
+        let current = speeds.enumerated().min { abs($0.element - Double(audio.rate)) < abs($1.element - Double(audio.rate)) }?.offset ?? 2
+        setSpeed(speeds[min(max(current + step, 0), speeds.count - 1)])
+    }
+
+    /// The line playing again from its start (R on a keyboard).
+    func replayLine() {
+        guard let currentIndex, sentences.indices.contains(currentIndex) else { return }
+        audio.seek(to: sentences[currentIndex].start)
+        if !audio.isPlaying { audio.play() }
+    }
+
+    /// Whether this show (or book) keeps its own speed, apart from everything else.
+    var usesShowSpeed: Bool { show.speed != nil }
+
+    func setUsesShowSpeed(_ own: Bool) {
+        show.speed = own ? Double(audio.rate) : nil
+        try? show.save(environment.common.database)
+        if !own { audio.rate = Float(ListenSettings.load(environment.common.database).speed) }
+    }
+
+    // MARK: Lines: size, pausing, repeating
+
+    /// The transcript's text size (Settings keeps it).
+    private(set) var transcriptScale: Double = 1
+    /// Stop at the end of every line until play is pressed (kept), or play the line over and
+    /// over (until switched off or another line is chosen).
+    private(set) var pausesAfterLines = false
+    var repeatsLine = false
+    /// The line last paused after, so play doesn't pause on it again.
+    @ObservationIgnored private var handledLine: Int?
+    @ObservationIgnored private var endedEarly = false
+    /// This show's own speed and skips.
+    @ObservationIgnored private var show: ShowListenSetting
+
+    func setTranscriptScale(_ scale: Double) {
+        transcriptScale = scale
         var settings = ListenSettings.load(environment.common.database)
-        settings.speed = speed
+        settings.transcriptScale = scale
+        try? settings.save(environment.common.database)
+    }
+
+    func setPausesAfterLines(_ on: Bool) {
+        pausesAfterLines = on
+        handledLine = nil
+        if on { repeatsLine = false }
+        var settings = ListenSettings.load(environment.common.database)
+        settings.pausesAfterLines = on
         try? settings.save(environment.common.database)
     }
 
     func setSleepTimer(minutes: Int?) {
         sleepTask?.cancel()
+        sleepStoppedAt = nil
+        audio.volume = 1
         guard let minutes else { sleepTimer = nil; return }
+        lastSleepMinutes = minutes
         let ends = Date.now.addingTimeInterval(Double(minutes) * 60)
         sleepTimer = .minutes(minutes, ends: ends)
         sleepTask = Task { [weak self] in
             try? await Task.sleep(until: .now + .seconds(Double(minutes) * 60))
             guard !Task.isCancelled else { return }
-            self?.audio.pause()
-            self?.sleepTimer = nil
+            self?.sleepStopped()
         }
     }
 
     func sleepAtEndOfEpisode() {
         sleepTask?.cancel()
+        sleepStoppedAt = nil
+        audio.volume = 1
         sleepTimer = .endOfEpisode
+    }
+
+    /// Stops at the end of the chapter playing now (books with chapters).
+    func sleepAtEndOfChapter() {
+        guard let chapter = currentChapter else { return }
+        sleepTask?.cancel()
+        sleepStoppedAt = nil
+        audio.volume = 1
+        sleepTimer = .endOfChapter(end: chapter.end)
+    }
+
+    /// The timer ran out: playback stops (faded out by then) and the volume is back for next time.
+    private func sleepStopped(pauses: Bool = true) {
+        sleepTask?.cancel()
+        let arms = sleepTimer.map { SleepTimerRules.armsResume(stopping: $0, wasPlaying: audio.isPlaying) } ?? false
+        // The pause reports a play-state change at once, which ends any earlier grace first.
+        if pauses { audio.pause() }
+        audio.volume = 1
+        sleepTimer = nil
+        guard arms else { return }
+        sleepStoppedAt = .now
+        updateShakeWatch()
+        // The grace for a shake, then the motion watch stops.
+        shakeGraceTask?.cancel()
+        shakeGraceTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(SleepTimerRules.shakeGrace))
+            guard !Task.isCancelled else { return }
+            self?.sleepStoppedAt = nil
+            self?.updateShakeWatch()
+        }
+    }
+
+    /// The phone was shaken: a timer of minutes starts again, or one that just stopped playback
+    /// plays on with it set again.
+    func shook() {
+        switch SleepTimerRules.shake(timer: sleepTimer, lastMinutes: lastSleepMinutes, stoppedAt: sleepStoppedAt, now: .now) {
+        case .restart(let minutes)?:
+            setSleepTimer(minutes: minutes)
+        case .resume(let minutes)?:
+            setSleepTimer(minutes: minutes)
+            audio.play()
+        case nil:
+            return
+        }
+        sleepExtended += 1
+    }
+
+    /// Motion is watched only while a shake would do something.
+    private func updateShakeWatch() {
+        #if os(iOS)
+        let watching: Bool = if case .minutes? = sleepTimer { true } else { sleepTimer == nil && sleepStoppedAt != nil }
+        if watching, !closed {
+            shakes.start { [weak self] in self?.shook() }
+        } else {
+            shakes.stop()
+        }
+        #endif
+    }
+
+    /// The fade-out: the volume follows the time left on the timer.
+    private func fadeForSleep(at time: Double) {
+        let target: Float = if let sleepTimer, audio.isPlaying {
+            SleepTimerRules.volume(remaining: SleepTimerRules.remaining(sleepTimer, now: .now, time: time, stopsAt: episodeStop, rate: Double(audio.rate)))
+        } else { 1 }
+        if audio.volume != target { audio.volume = target }
+    }
+
+    /// Where the episode stops by itself: its end, or the show's sign-off skipped.
+    private var episodeStop: Double {
+        guard audio.duration > 0 else { return 0 }
+        return show.skipEnd > 0 && audio.duration > show.skipEnd + 30 ? audio.duration - show.skipEnd : audio.duration
     }
 
     /// Saves the place and stops (the player was closed for good).
     func close() {
+        closed = true
         saveProgress(force: true)
         flushListening()
+        environment.sessions.send()
         transcriptTask?.cancel()
+        againTask?.cancel()
         sleepTask?.cancel()
+        shakeGraceTask?.cancel()
+        audio.volume = 1
+        #if os(iOS)
+        shakes.stop()
+        #endif
         clip.stop()
         audio.stop()
         episodeAudio.discard()
@@ -329,6 +606,25 @@ final class PlaybackModel: Identifiable, LineLookupHost {
 
     private func tick(_ time: Double) {
         let index = TranscriptFollow.index(at: time, in: sentences)
+        // Repeat Line, then Pause After Each Line, as the line playing ends.
+        if audio.isPlaying, repeatsLine || pausesAfterLines,
+           let ended = TranscriptFollow.lineJustEnded(at: time, previous: currentIndex, in: sentences) {
+            if repeatsLine {
+                audio.seek(to: sentences[ended].start)
+                return
+            } else if handledLine != ended {
+                handledLine = ended
+                audio.pause()
+            }
+        }
+        if let handledLine, sentences.indices.contains(handledLine), time < sentences[handledLine].start { self.handledLine = nil }
+        // The show's sign-off: finished here, as if it had played out.
+        if show.skipEnd > 0, !endedEarly, audio.isPlaying, audio.duration > show.skipEnd + 30, time >= audio.duration - show.skipEnd {
+            endedEarly = true
+            audio.pause()
+            finished()
+            return
+        }
         if index != currentIndex { currentIndex = index }
         if audio.isPlaying, let lastTick {
             let step = time - lastTick
@@ -338,30 +634,66 @@ final class PlaybackModel: Identifiable, LineLookupHost {
         lastTick = time
         if unlogged >= 10 { flushListening() }
         if abs(time - lastSaved) >= 15 { saveProgress() }
-        if case .minutes(_, let ends) = sleepTimer, ends <= .now { sleepTimer = nil }
+        if case .minutes(_, let ends) = sleepTimer, ends <= .now { sleepStopped() }
+        // The chapter's last moment: stop there, at the start of the next one.
+        if case .endOfChapter(let end) = sleepTimer, audio.isPlaying, time >= end - 0.3 {
+            sleepStopped()
+        }
+        fadeForSleep(at: time)
     }
 
     private func playStateChanged(_ playing: Bool) {
+        // Played or paused by hand during the shake's grace: it's over.
+        if sleepStoppedAt != nil {
+            sleepStoppedAt = nil
+            shakeGraceTask?.cancel()
+            updateShakeWatch()
+        }
         if playing {
+            // From the start of the line the pause cut off.
+            if let pausedAt, let target = TranscriptFollow.resumeTarget(at: audio.currentTime, in: sentences,
+                                                                        pausedFor: Date.now.timeIntervalSince(pausedAt)) {
+                audio.seek(to: target)
+            }
+            pausedAt = nil
             // Pressing play yourself while the popup is open: don't resume again when it closes.
             resumesAfterLookup = false
+            // Started some other way (AirPods, the Lock Screen): the place loaded is the answer.
+            resumeChoice = nil
         } else {
+            pausedAt = .now
             saveProgress(force: true)
             flushListening()
+            environment.sessions.send()
         }
         lastTick = nil
+        environment.widgets.update()
     }
 
     private func finished() {
-        if sleepTimer == .endOfEpisode { sleepTimer = nil }
+        // The sleep timer's End of Episode means stop here.
+        let stopsHere = sleepTimer == .endOfEpisode
+        if stopsHere { sleepStopped(pauses: false) }
+        pausedAt = nil
         saveProgress(force: true, finished: true)
         flushListening()
+        environment.sessions.send()
+        // Download ahead moves on past a finished episode.
+        environment.autoDownloads.schedule()
+        if !stopsHere { environment.playNext(after: entry) }
     }
 
     private func flushListening() {
         guard unlogged > 0 else { return }
+        if !offeredDownload {
+            offeredDownload = true
+            environment.autoDownloads.startedPlaying(entry)
+        }
         let subject = ActivitySubject(kind: .listening, seriesKey: entry.itemId, seriesTitle: entry.collectionTitle, itemKey: key)
         try? environment.common.activity.record(subject, seconds: unlogged)
+        environment.sessions.listened(unlogged, item: ListenedItem(itemId: entry.itemId, episodeId: entry.episode.id,
+                                                                   title: entry.episode.title, duration: audio.duration > 0 ? audio.duration : entry.duration),
+                                      position: audio.currentTime)
         unlogged = 0
     }
 
@@ -371,7 +703,10 @@ final class PlaybackModel: Identifiable, LineLookupHost {
         guard duration > 0, force || abs(time - lastSaved) >= 15 else { return }
         lastSaved = time
         let now = Date.now
-        let isFinished = finished || (entry.isFinished && time >= duration - 5)
+        if finished { playedToEnd = true }
+        // Still finished when the place is saved again at the end (closing the player, the next
+        // episode starting): it used to go back to unfinished at 100%.
+        let isFinished = finished || ((playedToEnd || entry.isFinished) && time >= duration - 5)
         try? environment.listenProgress.save(LocalWatchProgress(itemId: key, seriesId: entry.itemId, position: time, duration: duration, updatedAt: now))
         let payload = AudiobookshelfProgressPayload(itemId: entry.itemId, episodeId: entry.episode.id, currentTime: time,
                                                     duration: duration, isFinished: isFinished, reportedAt: now)

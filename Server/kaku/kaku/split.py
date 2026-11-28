@@ -20,6 +20,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 ENDERS = ('。', '！', '？', '!', '?')
+# Marks that close a sentence after its ender, kept on the same line when they follow at once
+# (anime-whisper writes "!?" as two tokens; a lone "?" line would be left otherwise).
+CLOSERS = set('。！？!?」』）)…')
 # Where a long line can be cut without splitting a thought: after a comma or a clause ending.
 CLAUSE_ENDINGS = ('、', ',', 'けど', 'けれど', 'けれども', 'よね', 'から', 'ので', 'って', 'たら', 'ても', 'でも', 'し')
 # Neither half of a cut line is shorter than this (seconds).
@@ -89,11 +92,14 @@ def split(words, pause=0.8, max_length=15.0):
     words = [word for word in words if word.text.strip()]
     sentences = []
     current = Sentence()
+    ended = False  # the line's ender came, with closing marks still following
     for index, word in enumerate(words):
         current.words.append(word)
         following = words[index + 1] if index + 1 < len(words) else None
-        ends = word.text.strip().endswith(ENDERS)
         gap = following.start - word.end if following is not None else 0.0
+        closes_too = following is not None and gap <= pause and set(following.text.strip()) <= CLOSERS
+        ended = word.text.strip().endswith(ENDERS) or (ended and set(word.text.strip()) <= CLOSERS)
+        ends = ended and not closes_too
         paused = gap > pause and (gap > WORD_PAUSE or not holds_together(word, following))
         if ends or paused or following is None:
             sentences.append(current)

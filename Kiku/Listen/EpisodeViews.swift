@@ -108,6 +108,7 @@ struct NewEpisodeRow: View {
         }
         .padding(.vertical, 6)
         .contentShape(.rect)
+        .contextMenu { EpisodeMenu(entry: entry) }
         .accessibilityIdentifier("listen.episode")
     }
 }
@@ -133,6 +134,7 @@ struct ShowEpisodeRow: View {
         .padding(.vertical, 10)
         .contentShape(.rect)
         .onTapGesture { environment.play(entry) }
+        .contextMenu { EpisodeMenu(entry: entry) }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { environment.play(entry) }
@@ -169,5 +171,33 @@ enum PlainText {
         }
         return text.replacingOccurrences(of: "\n{3,}", with: "\n\n", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+/// An episode row's menu: mark it played or unplayed (heard elsewhere, or not wanted), and send
+/// it to the watch.
+struct EpisodeMenu: View {
+    @Environment(KikuEnvironment.self) private var environment
+    let entry: EpisodeEntry
+
+    var body: some View {
+        // What the library knows now, not the row's copy (it may be a moment behind).
+        let finished = environment.library.progress[entry.id]?.isFinished ?? entry.isFinished
+        Group {
+            if finished {
+                Button("Mark as Unplayed", systemImage: "circle") { environment.setPlayed(entry, false) }
+            } else {
+                Button("Mark as Played", systemImage: "checkmark.circle") { environment.setPlayed(entry, true) }
+            }
+        }
+        // Not the one playing: its place is the player's to save.
+        .disabled(environment.playback?.key == entry.id)
+        if environment.libraryId(of: entry) != nil, environment.playback?.key != entry.id {
+            Button("Play Next", systemImage: "text.line.first.and.arrowtriangle.forward") { environment.addToUpNext(entry, next: true) }
+                .accessibilityIdentifier("episode.playNext")
+            Button("Play Last", systemImage: "text.line.last.and.arrowtriangle.forward") { environment.addToUpNext(entry, next: false) }
+                .accessibilityIdentifier("episode.playLast")
+        }
+        SendToWatchButton(entry: entry)
     }
 }

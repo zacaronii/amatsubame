@@ -1,0 +1,11 @@
+[
+  {
+    "id": 5,
+    "chapterId": 10,
+    "pageNumber": 4,
+    "title": "テスト用のしおり",
+    "bookScrollId": "//body/div[1]/p[7]",
+    "selectedText": "テスト用のしおり",
+    "chapterTitle": null
+  }
+]

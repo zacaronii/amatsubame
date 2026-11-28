@@ -1,4 +1,5 @@
 import AudiobookshelfKit
+import Core
 import Foundation
 @testable import Kiku
 import Testing
@@ -26,6 +27,18 @@ import Testing
         // What's in Continue isn't listed again.
         #expect(sections[1].rows.map(\.title) == ["Episode b"])
         #expect(sections[1].rows[0].progress == nil)
+    }
+
+    @Test func recentlyAddedBooksComeBeforeNewEpisodes() throws {
+        let json = #"{"id":"bk","libraryId":"3","mediaType":"book","media":{"metadata":{"title":"坊っちゃん","authorName":"夏目漱石"}}}"#
+        let book = try JSONDecoder().decode(AudiobookshelfItem.self, from: Data(json.utf8))
+        let sections = CarPlaySections.listenNow(continueListening: [], newEpisodes: [entry("b")], recentBooks: [book], playingKey: nil)
+        #expect(sections.map(\.title) == ["Recently Added", "New Episodes"])
+        #expect(sections[0].rows[0].detail == "夏目漱石")
+        #expect(sections[0].rows[0].action == .playBook(itemId: "bk"))
+        // Audiobooks only: no New Episodes.
+        #expect(CarPlaySections.listenNow(continueListening: [], newEpisodes: [], recentBooks: [book], playingKey: nil).map(\.title)
+            == ["Recently Added"])
     }
 
     @Test func emptySectionsAreLeftOut() {
@@ -79,5 +92,16 @@ import Testing
         #expect(CarPlaySpeeds.next(after: 2, speeds: [0.75, 1, 1.5, 2]) == 0.75)
         // A speed between steps goes to the next one up.
         #expect(CarPlaySpeeds.next(after: 1.2, speeds: [0.75, 1, 1.5, 2]) == 1.5)
+    }
+
+    /// Now Playing's Up Next button (a podcast episode): the queue in order, each row playing it.
+    @Test func upNextListsTheQueueInOrder() {
+        let first = UpNextItem(itemId: "show", episodeId: "e1", title: "第1回", showTitle: "番組")
+        let second = UpNextItem(itemId: "other", episodeId: "e2", title: "第2回", showTitle: "別の番組")
+        let sections = CarPlaySections.upNext([(item: first, libraryId: "lib"), (item: second, libraryId: "lib")])
+        #expect(sections.count == 1 && sections[0].rows.map(\.title) == ["第1回", "第2回"])
+        #expect(sections[0].rows[1].detail == "別の番組" && sections[0].rows[1].artworkItemId == "other")
+        #expect(sections[0].rows[0].action == .playUpNext(first, libraryId: "lib"))
+        #expect(CarPlaySections.upNext([]).isEmpty)
     }
 }

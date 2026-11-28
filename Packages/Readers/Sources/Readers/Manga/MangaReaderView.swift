@@ -9,8 +9,6 @@ public struct MangaReaderView: View {
     let onOpenChapter: (ReaderChapter) -> Void
     @Environment(\.scenePhase) private var scenePhase
     @State private var showsSettings = false
-    /// The screen's side safe areas: on the iPhone Duo's outer screen, the status column.
-    @State private var sideInsets = SideInsets()
     /// Debug: show how long the last tap-to-popup took (Settings → OCR).
     @AppStorage("showLookupTimings") private var showsTimings = false
 
@@ -54,6 +52,16 @@ public struct MangaReaderView: View {
                         .allowsHitTesting(false)
                         .accessibilityIdentifier("reader.toast")
                 }
+                if model.autoScroll.isShown, !model.showsChrome, model.settings.mode == .longStrip, model.state == .ready {
+                    let level = model.settings.autoScrollLevel
+                    AutoScrollCapsule(autoScroll: model.autoScroll, speed: "\(level)", spokenSpeed: "\(level) of 10",
+                                      canSlowDown: level > AutoScroll.mangaLevels.lowerBound,
+                                      canSpeedUp: level < AutoScroll.mangaLevels.upperBound,
+                                      slower: { model.settings.autoScrollLevel = level - 1 },
+                                      faster: { model.settings.autoScrollLevel = level + 1 })
+                        .frame(maxHeight: .infinity, alignment: .bottom)
+                        .padding(.bottom, 24)
+                }
                 if model.showsChrome || model.state != .ready {
                     ReaderChrome(model: model, onClose: close, onSettings: { showsSettings = true })
                         .transition(.opacity)
@@ -70,24 +78,43 @@ public struct MangaReaderView: View {
             }
             .onAppear {
                 updateSpreadFit(geometry.size)
-                sideInsets = SideInsets(geometry.safeAreaInsets)
             }
             .onChange(of: geometry.size) { _, size in
                 updateSpreadFit(size)
             }
-            .onChange(of: SideInsets(geometry.safeAreaInsets)) { _, insets in sideInsets = insets }
         }
         .readerLookupOverlay(model.popup, lookup: model.lookup, anchor: model.popupAnchor, in: .global,
                              beside: true, onClose: { model.popup = nil }) { popup, lookup in
             LookupPopupView(service: lookup, model: popup, drawsBackground: false)
         }
         .animation(.easeInOut(duration: 0.2), value: model.showsChrome)
-        .focusedSceneValue(\.readerPaging, ReaderPaging(next: { model.requestPage(1) }, previous: { model.requestPage(-1) }))
+        // Paging keys count as someone reading too (auto-scroll's idle limit).
+        .focusedSceneValue(\.readerPaging, ReaderPaging(next: { model.autoScroll.noteInput(); model.requestPage(1) },
+                                                       previous: { model.autoScroll.noteInput(); model.requestPage(-1) }))
         .task { await model.load() }
+        .task { await model.bookmarks?.follow() }
         .onDisappear { model.flushProgress() }
         .onChange(of: scenePhase) { _, phase in
             if phase != .active { model.flushProgress() }
+            model.autoScroll.set(.background, phase != .active)
         }
+        // Pointer moves and keys count as someone reading (auto-scroll's idle limit).
+        #if os(macOS)
+        .onContinuousHover { _ in model.autoScroll.noteInput() }
+        #endif
+        .background {
+            if model.settings.mode == .longStrip, model.state == .ready {
+                Button("Auto-Scroll") {
+                    model.autoScroll.noteInput()
+                    model.autoScroll.isOn ? model.autoScroll.stop() : model.autoScroll.start()
+                }
+                .keyboardShortcut(.downArrow, modifiers: .command)
+                .opacity(0)
+                .accessibilityHidden(true)
+            }
+        }
+        // Paged again: nothing to scroll.
+        .onChange(of: model.settings.mode) { _, mode in if mode != .longStrip { model.autoScroll.close() } }
         .sheet(isPresented: $showsSettings) {
             ReaderSettingsSheet(model: model)
         }
@@ -102,7 +129,7 @@ public struct MangaReaderView: View {
     @ViewBuilder private var content: some View {
         switch model.settings.mode {
         case .paged:
-            PagedReaderView(model: model, sideInsets: sideInsets, onOpenChapter: openNext)
+            PagedReaderView(model: model, onOpenChapter: openNext)
         case .longStrip:
             LongStripReaderView(model: model, onOpenChapter: openNext)
         }
@@ -134,6 +161,7 @@ public struct MangaReaderView: View {
 
     private func updateSpreadFit(_ size: CGSize) {
         model.spreadsFitScreen = size.width > size.height && size.width >= 700
+        model.viewportIsPortrait = size.height > size.width
     }
 
     private func openNext(_ chapter: ReaderChapter) {

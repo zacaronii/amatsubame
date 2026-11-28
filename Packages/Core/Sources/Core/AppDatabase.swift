@@ -730,6 +730,444 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v41_audio_auto_downloads") { db in
+            // Kiku: download ahead, per podcast library ("library:<id>") or show ("show:<item id>").
+            try db.create(table: "audioAutoDownloadSetting") { t in
+                t.primaryKey("scope", .text)
+                t.column("ahead", .integer).notNull().defaults(to: 0)
+                t.column("order", .text).notNull().defaults(to: "newest")
+                t.column("isOn", .boolean)
+            }
+        }
+
+        migrator.registerMigration("v42_download_once_started") { db in
+            // Kiku: a library's "Download Once Started" (podcasts and books).
+            try db.alter(table: "audioAutoDownloadSetting") { t in
+                t.add(column: "onceStarted", .boolean).notNull().defaults(to: false)
+            }
+        }
+
+        migrator.registerMigration("v43_remove_played_downloads") { db in
+            // Kiku: a library's Remove Played Downloads and Keep Downloads You Made by Hand, and
+            // the automatic downloads you deleted (never fetched again).
+            try db.alter(table: "audioAutoDownloadSetting") { t in
+                t.add(column: "removesPlayed", .boolean).notNull().defaults(to: false)
+                t.add(column: "keepsManual", .boolean).notNull().defaults(to: true)
+            }
+            try db.create(table: "audioDownloadDeclined") { t in
+                t.primaryKey("key", .text)
+                t.column("declinedAt", .datetime).notNull()
+            }
+        }
+
+        migrator.registerMigration("v44_kiku_watch_items") { db in
+            // Kiku: what's sent to Apple Watch (docs/KIKU_PLAN.md milestone 2), each item as
+            // KikuWatchLink's WatchItem JSON (Core doesn't know its type).
+            try db.create(table: "kikuWatchItem") { t in
+                t.primaryKey("key", .text)
+                t.column("item", .blob).notNull()
+                t.column("addedAt", .datetime).notNull()
+            }
+        }
+
+        migrator.registerMigration("v45_kiku_watch_listening") { db in
+            // Kiku: listening on Apple Watch the phone has applied (milestone 3), by the watch's
+            // id: the version applied (its seconds and end), so a stretch sent again adds only
+            // what's new and one sent twice nothing.
+            try db.create(table: "kikuWatchListening") { t in
+                t.primaryKey("id", .text)
+                t.column("seconds", .double).notNull()
+                t.column("endedAt", .datetime).notNull()
+                t.column("appliedAt", .datetime).notNull()
+            }
+        }
+
+        migrator.registerMigration("v46_kiku_watch_rules") { db in
+            // Kiku: automatic rules for Apple Watch (docs/KIKU_PLAN.md milestone 4), one row, and
+            // the automatic items removed from the watch (never added again).
+            try db.create(table: "kikuWatchRules") { t in
+                t.primaryKey("id", .integer)
+                t.column("onceStarted", .boolean).notNull().defaults(to: false)
+                t.column("ahead", .integer).notNull().defaults(to: 0)
+                t.column("removesPlayed", .boolean).notNull().defaults(to: false)
+                t.column("keepsManual", .boolean).notNull().defaults(to: true)
+                t.column("storageLimit", .integer).notNull().defaults(to: 0)
+            }
+            try db.create(table: "kikuWatchDeclined") { t in
+                t.primaryKey("key", .text)
+                t.column("declinedAt", .datetime).notNull()
+            }
+        }
+
+        migrator.registerMigration("v47_transcript_source") { db in
+            // Kiku: what made each saved transcript and when, for the player's Transcript menu (#149).
+            try db.alter(table: "audioTranscript") { t in
+                t.add(column: "model", .text)
+                t.add(column: "kakuVersion", .text)
+                t.add(column: "transcribedAt", .datetime)
+            }
+        }
+
+        migrator.registerMigration("v48_hover_lookup") { db in
+            // Settings ▸ Popup ▸ Look Up on Hover (the Mac): the key held while pointing at a word,
+            // Shift by default; "always" needs no key, "off" keeps lookups to clicks.
+            try db.alter(table: "popupSettings") { t in
+                t.add(column: "hoverLookup", .text).notNull().defaults(to: "shift")
+            }
+        }
+
+        migrator.registerMigration("v49_player_speed_and_line_pause") { db in
+            // Miru: the speed chosen in the player is kept, and Pause After Each Line (off by default).
+            try db.alter(table: "playerSettings") { t in
+                t.add(column: "speed", .double).notNull().defaults(to: 1)
+                t.add(column: "pausesAfterLines", .boolean).notNull().defaults(to: false)
+            }
+        }
+
+        migrator.registerMigration("v50_kiku_plays_next") { db in
+            // Kiku: Play the Next Episode (Settings ▸ Playback), on by default.
+            try db.alter(table: "listenSettings") { t in
+                t.add(column: "playsNextEpisode", .boolean).notNull().defaults(to: true)
+            }
+        }
+
+        migrator.registerMigration("v51_kiku_listening_extras") { db in
+            // Kiku: the transcript's text size, Pause After Each Line, and each show's own speed
+            // and seconds to skip at the start and end.
+            try db.alter(table: "listenSettings") { t in
+                t.add(column: "transcriptScale", .double).notNull().defaults(to: 1)
+                t.add(column: "pausesAfterLines", .boolean).notNull().defaults(to: false)
+            }
+            try db.create(table: "showListenSetting") { t in
+                t.primaryKey("itemId", .text)
+                t.column("speed", .double)
+                t.column("skipStart", .double).notNull().defaults(to: 0)
+                t.column("skipEnd", .double).notNull().defaults(to: 0)
+            }
+        }
+
+        migrator.registerMigration("v52_miru_subtitle_look") { db in
+            // Miru: the subtitles' size and height, blurring them until tapped, and pausing while
+            // the pointer is on them (the Mac).
+            try db.alter(table: "playerSettings") { t in
+                t.add(column: "subtitleScale", .double).notNull().defaults(to: 1)
+                t.add(column: "subtitleLift", .double).notNull().defaults(to: 0)
+                t.add(column: "concealsSubtitles", .boolean).notNull().defaults(to: false)
+                t.add(column: "pausesOnHover", .boolean).notNull().defaults(to: false)
+            }
+        }
+
+        migrator.registerMigration("v53_stats_sync") { db in
+            // Stats across devices (StatsSync): rows that came from another device carry its
+            // name; this install's own name; and what's been sent and read so far.
+            try db.alter(table: "activitySession") { t in
+                t.add(column: "device", .text)
+            }
+            try db.alter(table: "lookupEvent") { t in
+                t.add(column: "device", .text)
+            }
+            try db.alter(table: "statsState") { t in
+                t.add(column: "deviceId", .text)
+                t.add(column: "deviceHardware", .text)
+            }
+            try db.create(table: "statsSyncFile") { t in
+                t.primaryKey("name", .text)
+                t.column("token", .text).notNull()
+            }
+        }
+
+        migrator.registerMigration("v54_miru_stream_quality") { db in
+            // Miru: the streaming quality (0 = the original file; else Jellyfin transcodes down to it).
+            try db.alter(table: "playerSettings") { t in
+                t.add(column: "maxStreamBitrate", .integer).notNull().defaults(to: 0)
+            }
+        }
+
+        migrator.registerMigration("v55_popup_close_on_pointer_exit") { db in
+            // Settings ▸ Popup ▸ Close When the Pointer Leaves (the Mac), off by default.
+            try db.alter(table: "popupSettings") { t in
+                t.add(column: "closeOnPointerExit", .boolean).notNull().defaults(to: false)
+            }
+        }
+
+        migrator.registerMigration("v56_reader_marks") { db in
+            // Yomu's bookmarks and highlights, kept on Kavita: the device's copy and what's unsent.
+            try db.create(table: "readerMark") { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("account", .text).notNull()
+                t.column("kind", .text).notNull()
+                t.column("serverId", .integer)
+                t.column("libraryId", .integer).notNull()
+                t.column("seriesId", .integer).notNull()
+                t.column("volumeId", .integer).notNull()
+                t.column("chapterId", .integer).notNull()
+                t.column("page", .integer).notNull()
+                t.column("xpath", .text)
+                t.column("endXPath", .text)
+                t.column("text", .text)
+                t.column("title", .text)
+                t.column("note", .text)
+                t.column("slot", .integer).notNull().defaults(to: 0)
+                t.column("state", .text).notNull()
+                t.column("revision", .integer).notNull().defaults(to: 0)
+                t.column("createdAt", .datetime).notNull()
+                t.column("updatedAt", .datetime).notNull()
+            }
+            try db.create(index: "readerMark_series", on: "readerMark", columns: ["account", "seriesId"])
+            // What a Kavita server turned out not to offer (annotations before 0.8.8, page
+            // bookmarks without the Bookmark role).
+            try db.create(table: "kavitaFeature") { t in
+                t.column("account", .text).notNull()
+                t.column("feature", .text).notNull()
+                t.column("available", .boolean).notNull()
+                t.column("checkedAt", .datetime).notNull()
+                t.primaryKey(["account", "feature"])
+            }
+        }
+
+        migrator.registerMigration("v57_want_to_read") { db in
+            // Kavita's Want to Read per account: its list, and the toggles not sent yet.
+            try db.create(table: "wantToRead") { t in
+                t.column("account", .text).notNull()
+                t.column("seriesId", .integer).notNull()
+                t.column("state", .text).notNull()
+                t.column("position", .integer).notNull().defaults(to: 0)
+                t.column("revision", .integer).notNull().defaults(to: 0)
+                t.column("updatedAt", .datetime).notNull()
+                t.primaryKey(["account", "seriesId"])
+            }
+        }
+
+        migrator.registerMigration("v58_collections") { db in
+            // Kavita's collections per account, and their series: Kavita's lists and the
+            // changes not sent yet.
+            try db.create(table: "kavitaCollection") { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("account", .text).notNull()
+                t.column("serverId", .integer)
+                t.column("title", .text).notNull()
+                t.column("isOwn", .boolean).notNull()
+                t.column("owner", .text)
+                t.column("promoted", .boolean).notNull()
+                t.column("source", .integer).notNull()
+                t.column("itemCount", .integer).notNull()
+                t.column("position", .integer).notNull()
+                t.column("state", .text).notNull()
+                t.column("confirmed", .boolean).notNull()
+                t.column("createAttempts", .integer).notNull()
+                t.column("seriesReadAt", .datetime)
+                t.column("revision", .integer).notNull()
+                t.column("updatedAt", .datetime).notNull()
+            }
+            try db.create(index: "kavitaCollection_account", on: "kavitaCollection", columns: ["account"])
+            try db.create(table: "kavitaCollectionSeries") { t in
+                t.column("collectionId", .integer).notNull().references("kavitaCollection", onDelete: .cascade)
+                t.column("seriesId", .integer).notNull()
+                t.column("state", .text).notNull()
+                t.column("inKavita", .boolean).notNull()
+                t.column("revision", .integer).notNull()
+                t.column("updatedAt", .datetime).notNull()
+                t.primaryKey(["collectionId", "seriesId"])
+            }
+        }
+
+        migrator.registerMigration("v59_reading_lists") { db in
+            // Kavita's reading lists per account, their items, and moves not sent yet.
+            try db.create(table: "kavitaReadingList") { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("account", .text).notNull()
+                t.column("serverId", .integer)
+                t.column("title", .text).notNull()
+                t.column("isOwn", .boolean).notNull()
+                t.column("owner", .text)
+                t.column("promoted", .boolean).notNull()
+                t.column("isSynced", .boolean).notNull()
+                t.column("kavitaItemCount", .integer)
+                t.column("position", .integer).notNull()
+                t.column("state", .text).notNull()
+                t.column("createAttempts", .integer).notNull()
+                t.column("itemsReadAt", .datetime)
+                t.column("itemsStale", .boolean).notNull()
+                t.column("revision", .integer).notNull()
+                t.column("updatedAt", .datetime).notNull()
+            }
+            try db.create(index: "kavitaReadingList_account", on: "kavitaReadingList", columns: ["account"])
+            try db.create(table: "kavitaReadingListItem") { t in
+                t.column("listId", .integer).notNull().references("kavitaReadingList", onDelete: .cascade)
+                t.column("chapterId", .integer).notNull()
+                t.column("serverItemId", .integer)
+                t.column("seriesId", .integer).notNull()
+                t.column("volumeId", .integer).notNull()
+                t.column("libraryId", .integer).notNull()
+                t.column("format", .integer).notNull()
+                t.column("seriesName", .text).notNull()
+                t.column("title", .text).notNull()
+                t.column("kavitaOrder", .integer).notNull()
+                t.column("state", .text).notNull()
+                t.column("inKavita", .boolean).notNull()
+                t.column("revision", .integer).notNull()
+                t.column("updatedAt", .datetime).notNull()
+                t.primaryKey(["listId", "chapterId"])
+            }
+            try db.create(table: "kavitaReadingListMove") { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("listId", .integer).notNull().references("kavitaReadingList", onDelete: .cascade)
+                t.column("chapterId", .integer).notNull()
+                t.column("anchors", .text).notNull()
+                t.column("createdAt", .datetime).notNull()
+            }
+        }
+
+        migrator.registerMigration("v60_outbox_waiting") { db in
+            // A job waiting for another one (`OutboxWait`), told apart from one that failed.
+            try db.alter(table: "outboxJob") { t in
+                t.add(column: "waitingFor", .text)
+            }
+        }
+
+        migrator.registerMigration("v61_reading_list_reading") { db in
+            // Kavita's reading of each reading list item as last read (no backfill: filled at
+            // the next read of the list).
+            try db.alter(table: "kavitaReadingListItem") { t in
+                t.add(column: "kavitaPagesRead", .integer)
+                t.add(column: "kavitaPages", .integer)
+                t.add(column: "kavitaReadAt", .datetime)
+            }
+        }
+
+        migrator.registerMigration("v62_audio_mark_note") { db in
+            // Kiku: a note on a mark (device-only, like the mark).
+            try db.alter(table: "audioMark") { t in
+                t.add(column: "note", .text)
+            }
+        }
+
+        migrator.registerMigration("v63_book_fonts") { db in
+            // Yomu: fonts the reader added for books (the files are in this device's container).
+            try db.create(table: "bookFont") { t in
+                t.primaryKey("id", .text)
+                t.column("name", .text).notNull()
+                t.column("fileName", .text).notNull()
+                t.column("addedAt", .datetime).notNull()
+            }
+        }
+
+        migrator.registerMigration("v64_daily_goals") { db in
+            // A daily goal per activity, kept as a history (each change from its day).
+            try db.create(table: "dailyGoal") { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("kind", .text).notNull()
+                t.column("measure", .text).notNull()
+                t.column("target", .integer).notNull()
+                t.column("since", .datetime).notNull()
+            }
+        }
+
+        migrator.registerMigration("v65_record_sync") { db in
+            // Sync with iCloud (RecordSync): each synced record as last merged here.
+            try db.create(table: "syncRecord") { t in
+                t.column("collection", .text).notNull()
+                t.column("id", .text).notNull()
+                t.column("value", .blob)
+                t.column("editedAt", .integer).notNull()
+                t.column("deleted", .boolean).notNull().defaults(to: false)
+                t.column("device", .text).notNull()
+                t.primaryKey(["collection", "id"])
+            }
+        }
+
+        migrator.registerMigration("v66_audio_mark_uuid") { db in
+            // Kiku's marks with Sync with iCloud: an id that's the same on every device.
+            try db.alter(table: "audioMark") { t in
+                t.add(column: "uuid", .text)
+            }
+            try db.execute(sql: "UPDATE audioMark SET uuid = lower(hex(randomblob(16))) WHERE uuid IS NULL")
+            try db.create(index: "audioMark_uuid", on: "audioMark", columns: ["uuid"], unique: true)
+        }
+
+        migrator.registerMigration("v67_up_next") { db in
+            // Kiku's Up Next, per podcast library, as Audiobookshelf's "Up Next" playlist has it
+            // (or will once the outbox sends it), and that playlist's id.
+            try db.create(table: "upNextItem") { t in
+                t.column("libraryId", .text).notNull()
+                t.column("position", .integer).notNull()
+                t.column("itemId", .text).notNull()
+                t.column("episodeId", .text).notNull()
+                t.column("title", .text).notNull()
+                t.column("showTitle", .text).notNull()
+                t.primaryKey(["libraryId", "position"])
+            }
+            try db.create(table: "upNextPlaylist") { t in
+                t.primaryKey("libraryId", .text)
+                t.column("playlistId", .text)
+            }
+        }
+
+        migrator.registerMigration("v68_series_player_setting") { db in
+            // Miru: a show's own player settings (Condensed), by series (or a movie's item) id.
+            try db.create(table: "seriesPlayerSetting") { t in
+                t.primaryKey("seriesKey", .text)
+                t.column("condensed", .boolean).notNull().defaults(to: false)
+            }
+        }
+
+        migrator.registerMigration("v69_character_names") { db in
+            // The names dictionary (Packages/Names): casts by AniList media, which media each
+            // series is, the series each app has open, and its switch.
+            try db.create(table: "characterCast") { t in
+                t.primaryKey("mediaKey", .text)
+                t.column("title", .text).notNull()
+                t.column("fetchedAt", .datetime).notNull()
+                t.column("characters", .blob).notNull()
+            }
+            try db.create(table: "characterNameMatch") { t in
+                t.primaryKey("seriesKey", .text)
+                t.column("mediaKey", .text)
+                t.column("source", .text).notNull()
+                t.column("title", .text).notNull()
+                t.column("matchedAt", .datetime).notNull()
+            }
+            try db.create(table: "characterNameOpenSeries") { t in
+                t.primaryKey("app", .text)
+                t.column("seriesKey", .text).notNull()
+                t.column("openedAt", .datetime).notNull()
+            }
+            try db.create(table: "characterNameSettings") { t in
+                t.primaryKey("id", .integer)
+                t.column("enabled", .boolean).notNull().defaults(to: true)
+            }
+        }
+
+        migrator.registerMigration("v70_read_along_source") { db in
+            // Yomu: what made the transcript a read-along was aligned with (#149).
+            try db.alter(table: "readAlongPair") { t in
+                t.add(column: "transcriptModel", .text)
+                t.add(column: "transcriptKaku", .text)
+                t.add(column: "transcribedAt", .datetime)
+            }
+        }
+
+        migrator.registerMigration("v71_demo_server") { db in
+            // The public demo servers: nothing is written to them. Their jobs' kinds are held
+            // (kept, unsent) while signed in, and discarded on leaving.
+            try db.alter(table: "serverAccount") { t in
+                t.add(column: "isDemo", .boolean).notNull().defaults(to: false)
+            }
+            try db.create(table: "outboxHeld") { t in
+                t.primaryKey("kind", .text)
+                // When the hold began: only jobs written since are the demo's.
+                t.column("since", .datetime).notNull()
+            }
+        }
+
+        migrator.registerMigration("v72_frequency_sort_order") { db in
+            // Hachidori's Sort order beside its Sort by frequency dictionary. Left empty here: a
+            // dictionary chosen before keeps its own direction (what choosing one sets).
+            try db.alter(table: "dictionarySettings") { t in
+                t.add(column: "frequencySortOrder", .text)
+            }
+        }
+
         return migrator
     }
 }

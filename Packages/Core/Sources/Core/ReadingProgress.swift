@@ -36,6 +36,47 @@ public struct LocalReadingProgress: Codable, Equatable, Sendable, FetchableRecor
     }
 }
 
+extension LocalReadingProgress {
+    /// Kavita counts pages read: the page on screen, except that reaching the last page counts
+    /// all `pages`, which is what marks the chapter read.
+    public static func pagesRead(forPage page: Int, pages: Int) -> Int {
+        guard pages > 0 else { return 0 }
+        return page >= pages - 1 ? pages : max(page, 0)
+    }
+
+    /// This row as Kavita's pages read.
+    public var pagesRead: Int { Self.pagesRead(forPage: page, pages: pages) }
+
+    /// The one rule for whose place a chapter is at, used by the series page, a reading list and
+    /// the reader's start: this device's while it has a change for the chapter (or its series)
+    /// not sent yet (`unsent`: waiting, backing off, held or being sent; at a reader's start, only
+    /// a change the sender will still send, `KavitaProgressCheck.queuedChangeStillGoes`), so what
+    /// was read here offline is what's shown while it waits; whether it reaches Kavita is the
+    /// sender's call by when it was made. Otherwise the newer of the two, so a chapter marked
+    /// unread (or read less far) elsewhere shows here too. Kavita without a date (never read
+    /// there): this device's.
+    public static func devicesPlaceWins(localAt: Date?, kavitaAt: Date?, unsent: Bool) -> Bool {
+        if unsent { return true }
+        guard let kavitaAt else { return true }
+        guard let localAt else { return false }
+        return localAt > kavitaAt
+    }
+
+    /// A chapter's pages read by that rule. Kavita's count without a date (an older cache) can't
+    /// be weighed: the larger of the two, as before.
+    public static func pagesRead(kavita: Int, kavitaAt: Date?, local: Int, localAt: Date?, pages: Int, unsent: Bool) -> Int {
+        let local = min(local, pages)
+        if kavitaAt == nil, !unsent { return max(kavita, local) }
+        return devicesPlaceWins(localAt: localAt, kavitaAt: kavitaAt, unsent: unsent) ? local : kavita
+    }
+
+    /// The outbox keys a change to this chapter's progress is queued under (the chapter's page
+    /// turns and marks, and its series' marks).
+    public static func progressKeys(chapterId: Int, seriesId: Int) -> [String] {
+        ["kavita.chapter.\(chapterId)", "kavita.series.\(seriesId)"]
+    }
+}
+
 public struct ReadingProgressStore: Sendable {
     public let database: AppDatabase
 
@@ -56,6 +97,23 @@ public struct ReadingProgressStore: Sendable {
         try database.writer.write { try progress.save($0) }
     }
 
+    /// The same, read once (before the observation's first value).
+    public func places(seriesId: Int) throws -> DevicePlaces {
+        try database.reader.read { db in
+            DevicePlaces(rows: try LocalReadingProgress.filter(Column("seriesId") == seriesId).fetchAll(db),
+                         unsentKeys: try OutboxStore.unsentProgressKeys(db))
+        }
+    }
+
+    /// A series' progress rows on this device and the progress changes not sent yet, whenever
+    /// either changes (a page turned, a mark, a change sent or skipped).
+    public func observePlaces(seriesId: Int) -> AsyncThrowingStream<DevicePlaces, any Error> {
+        database.values { db in
+            DevicePlaces(rows: try LocalReadingProgress.filter(Column("seriesId") == seriesId).fetchAll(db),
+                         unsentKeys: try OutboxStore.unsentProgressKeys(db))
+        }
+    }
+
     /// Most recently read chapters, one per series, for the offline Continue Reading shelf.
     public func recentlyRead(limit: Int = 20) throws -> [LocalReadingProgress] {
         try database.reader.read { db in
@@ -65,5 +123,22 @@ public struct ReadingProgressStore: Sendable {
                 ORDER BY p.updatedAt DESC LIMIT ?
                 """, arguments: [limit])
         }
+    }
+}
+
+/// This device's progress rows for a series and the queue's unsent progress keys.
+public struct DevicePlaces: Equatable, Sendable {
+    public var rows: [LocalReadingProgress]
+    public var unsentKeys: Set<String>
+
+    public init(rows: [LocalReadingProgress], unsentKeys: Set<String>) {
+        self.rows = rows
+        self.unsentKeys = unsentKeys
+    }
+
+    /// The chapters with a change not sent yet.
+    public func unsentChapters(seriesId: Int) -> Set<Int> {
+        if unsentKeys.contains("kavita.series.\(seriesId)") { return Set(rows.map(\.chapterId)) }
+        return Set(rows.map(\.chapterId).filter { unsentKeys.contains("kavita.chapter.\($0)") })
     }
 }

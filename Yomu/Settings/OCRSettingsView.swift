@@ -15,6 +15,7 @@ struct OCRSettingsView: View {
                     Button("Download Models (\(OCRModelStore.totalBytes.formatted(.byteCount(style: .file))))", systemImage: "arrow.down.circle") {
                         store.install()
                     }
+                    .textButtonTint()
                     .accessibilityIdentifier("ocr.download")
                 case .downloading(let fraction):
                     ProgressView(value: fraction) { Text("Downloading…") }

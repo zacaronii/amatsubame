@@ -27,6 +27,8 @@ final class WatchSession: NSObject, WCSessionDelegate {
     }
 
     static let complicationKind = "KikuNowPlaying"
+    /// One for the app and its delegate (background downloads can wake it with no window).
+    static let shared = WatchSession()
 
     /// The phone's state: nil until it's heard from (or kept from last time).
     private(set) var state: WatchState?
@@ -51,12 +53,196 @@ final class WatchSession: NSObject, WCSessionDelegate {
         folder: URL.applicationSupportDirectory.appending(path: "LiveText"))
     /// A transcript coming from the phone in parts.
     @ObservationIgnored private var fetching: WatchTranscriptAssembly?
+    /// Transcripts the phone couldn't send this launch (not asked for again until the next).
+    @ObservationIgnored private var unavailable: Set<String> = []
+    /// A lookup paused this watch's player (Watch mode).
+    @ObservationIgnored private var resumesAfterLookup = false
+    /// What's on this watch (docs/KIKU_PLAN.md milestone 2).
+    let downloads = WatchDownloads()
+    /// Plays it (#127).
+    let player = WatchPlayer()
 
-    var nowPlaying: WatchNowPlaying? { state?.nowPlaying }
-    /// Live Text is on in Kiku's settings on the phone.
+    /// What Now Playing controls: Kiku on the iPhone, or this watch's own player.
+    enum Mode: String {
+        case phone, watch
+    }
+
+    private(set) var mode: Mode = Mode(rawValue: UserDefaults.standard.string(forKey: "kiku.watch.mode") ?? "") ?? .phone {
+        didSet { UserDefaults.standard.set(mode.rawValue, forKey: "kiku.watch.mode") }
+    }
+
+    /// What Now Playing shows: the phone's, or this watch's own in Watch mode.
+    var nowPlaying: WatchNowPlaying? { mode == .watch ? player.nowPlaying : state?.nowPlaying }
+
+    /// This watch's copy of an item's cover (Watch mode's artwork).
+    private func coverForPlayer() {
+        player.artwork = player.item.flatMap { downloads.covers[$0.itemId] }
+    }
+    /// Live Text is on in Kiku's settings on the phone. It follows whichever player Now Playing
+    /// shows; in Watch mode from the transcripts kept with each item (milestone 5).
     var liveTextOn: Bool { state?.liveText ?? false }
 
+    func setMode(_ mode: Mode) {
+        guard mode != self.mode else { return }
+        if mode == .phone { player.pause() }
+        self.mode = mode
+        followTranscript()
+        updateComplication()
+    }
+
+    /// The Now Playing the complication last showed.
+    @ObservationIgnored private var shown: WatchNowPlaying?
+    @ObservationIgnored private var shownMode: Mode?
+
+    /// The complication follows Now Playing, on real changes only (play, pause, a seek, another
+    /// episode or chapter, the mode): its budget is small.
+    private func updateComplication() {
+        let playing = nowPlaying
+        let same = shownMode == mode && shown?.key == playing?.key && shown?.isPlaying == playing?.isPlaying
+            && shown?.chapter == playing?.chapter && shown?.rate == playing?.rate
+            && (playing.map { now in shown.map { abs($0.position(at: now.sampledAt) - now.position) < 5 } ?? false } ?? (shown == nil))
+        guard !same else { return }
+        shown = playing
+        shownMode = mode
+        WatchStateStore.saveShown(playing)
+        WidgetCenter.shared.reloadTimelines(ofKind: Self.complicationKind)
+    }
+
+    /// Plays an item that's on this watch, here (switching to Watch mode).
+    func playOnWatch(_ item: WatchItem) async {
+        guard let file = downloads.file(for: item) else { return }
+        // The phone stops, so the two don't play at once.
+        if state?.nowPlaying?.isPlaying == true { send(.togglePlay) }
+        mode = .watch
+        await player.play(item, file: file)
+        followTranscript()
+    }
+
+    /// Listening goes to the phone: straight away when it's near (its answer drops what it has),
+    /// otherwise queued with `transferUserInfo`, acknowledged later in its context.
+    private func sendListening(_ stretches: [WatchListening]) {
+        let session = WCSession.default
+        guard session.activationState == .activated else { return }
+        let message = WatchMessages.userInfo(listening: stretches)
+        // Each send has every pending stretch: an older copy still queued can go.
+        for transfer in session.outstandingUserInfoTransfers where WatchMessages.listening(from: transfer.userInfo) != nil {
+            transfer.cancel()
+        }
+        guard session.isReachable else {
+            session.transferUserInfo(message)
+            return
+        }
+        session.sendMessage(message) { @Sendable [weak self] reply in
+            let applied = WatchMessages.acknowledged(from: reply)
+            Task { @MainActor in if let applied { self?.player.log.acknowledge(applied) } }
+        } errorHandler: { @Sendable _ in
+            session.transferUserInfo(message)
+        }
+    }
+
+    /// Sync Now: what's waiting goes now, and the list is checked again.
+    func syncNow() async {
+        player.log.flush()
+        await downloads.reconcile()
+    }
+
+    /// The phone's list arrived: this watch's downloads follow it, and its places are taken
+    /// where they're newer than this watch's.
+    private func applyLibrary(_ library: WatchLibrary) async {
+        player.log.acknowledge(library.acknowledged)
+        for (key, place) in library.places {
+            player.places.adopt(key, position: place.position, updatedAt: place.updatedAt)
+        }
+        await downloads.apply(library)
+        // Removed from the list while loaded: stop. Still there: its details (a transcript) may be new.
+        if let item = player.item {
+            if let current = downloads.items.first(where: { $0.key == item.key }) { player.refresh(current) } else { player.stop() }
+        }
+        transcripts.prune(keeping: Set(downloads.items.map(\.key)))
+        followTranscript()
+        prefetchTranscripts()
+    }
+
+    /// Watch mode's buttons, on this watch's player. A mark waits for the phone, as an
+    /// out-of-reach one does, at this watch's position.
+    private func performHere(_ command: WatchCommand) {
+        switch command {
+        case .togglePlay:
+            Task { await player.toggle() }
+        case .skipBackward:
+            Task { await player.skip(by: -player.skipBackward) }
+        case .skipForward:
+            Task { await player.skip(by: player.skipForward) }
+        case .mark:
+            guard let playing = player.nowPlaying else { return }
+            let mark = WatchQueuedMark(playing, at: .now)
+            WCSession.default.transferUserInfo(WatchMessages.userInfo(mark))
+            WKInterfaceDevice.current().play(.success)
+            confirmation = Confirmation(title: "Marked \(mark.position.watchClock)", detail: "Mine it later in Marks on your iPhone.")
+        case let .markLine(key, position):
+            guard let playing = player.nowPlaying, playing.key == key, let line = line(position) else { return }
+            let mark = WatchQueuedMark(line: line, of: playing, at: .now)
+            WCSession.default.transferUserInfo(WatchMessages.userInfo(mark))
+            WKInterfaceDevice.current().play(.success)
+            confirmation = Confirmation(title: "Marked \(mark.position.watchClock)", detail: "Mine it later in Marks on your iPhone.")
+        case let .replayLine(key, position):
+            guard player.item?.key == key, let line = line(position) else { return }
+            Task { await player.replay(from: line.start, to: line.end) }
+        case .endLookup:
+            resumeAfterLookupHere()
+        case let .seek(key, time):
+            guard player.item?.key == key else { return }
+            Task { await player.seek(to: time) }
+        case let .setRate(rate):
+            player.setRate(rate)
+        default:
+            break
+        }
+    }
+
+    /// The lookup paused this watch's player: it plays again (unless played or paused since).
+    private func resumeAfterLookupHere() {
+        guard resumesAfterLookup else { return }
+        resumesAfterLookup = false
+        if !player.isPlaying { Task { await player.resume() } }
+    }
+
+    private func line(_ position: Int) -> WatchTranscript.Line? {
+        transcript?.lines.first { $0.position == position }
+    }
+
+    @ObservationIgnored private var started = false
+
+    /// Once, from the app or a background wake-up (whichever comes first).
     func start() {
+        guard !started else { return }
+        started = true
+        downloads.requestAccess = { [weak self] in await self?.requestAccess() }
+        player.onChange = { [weak self] in
+            self?.coverForPlayer()
+            self?.updateComplication()
+        }
+        downloads.onCover = { [weak self] in self?.coverForPlayer() }
+        player.log.send = { [weak self] stretches in self?.sendListening(stretches) }
+        #if DEBUG
+        // Simulator checks: plays "<item>/<episode>" here once it's on the watch (SIMCTL_CHILD_KIKU_WATCH_PLAY).
+        if let key = ProcessInfo.processInfo.environment["KIKU_WATCH_PLAY"] {
+            Task { [weak self] in
+                for _ in 0..<30 {
+                    if let self, let item = downloads.items.first(where: { $0.key == key }), downloads.file(for: item) != nil {
+                        await playOnWatch(item)
+                        // KIKU_WATCH_PLAY_FOR=<seconds>: pauses after that long (listening goes to the phone).
+                        if let seconds = ProcessInfo.processInfo.environment["KIKU_WATCH_PLAY_FOR"].flatMap(Double.init) {
+                            try? await Task.sleep(for: .seconds(seconds))
+                            player.pause()
+                        }
+                        return
+                    }
+                    try? await Task.sleep(for: .seconds(1))
+                }
+            }
+        }
+        #endif
         if let saved = WatchStateStore.load() { apply(saved, save: false) }
         guard WCSession.isSupported() else { return }
         WCSession.default.delegate = self
@@ -66,6 +252,20 @@ final class WatchSession: NSObject, WCSessionDelegate {
     // MARK: Buttons
 
     func send(_ command: WatchCommand) {
+        if mode == .watch {
+            switch command {
+            case .togglePlay, .skipBackward, .skipForward, .mark, .markLine, .replayLine, .endLookup, .seek, .setRate:
+                return performHere(command)
+            case .lookUp:
+                // The phone looks it up (from its saved transcript); this watch pauses while you read.
+                if player.isPlaying {
+                    resumesAfterLookup = true
+                    player.pause()
+                }
+            default:
+                break
+            }
+        }
         let session = WCSession.default
         guard session.activationState == .activated, session.isReachable else {
             unreachable(command)
@@ -106,6 +306,20 @@ final class WatchSession: NSObject, WCSessionDelegate {
         send(.endLookup)
     }
 
+    /// A token that lasts, from the phone (nil when it's out of reach).
+    private func requestAccess() async -> WatchAccess? {
+        let session = WCSession.default
+        guard session.activationState == .activated, session.isReachable else { return nil }
+        let reply: WatchReply? = await withCheckedContinuation { continuation in
+            session.sendMessage(WatchMessages.message(WatchCommand.freshAccess)) { @Sendable message in
+                continuation.resume(returning: WatchMessages.reply(from: message))
+            } errorHandler: { @Sendable _ in
+                continuation.resume(returning: nil)
+            }
+        }
+        return reply?.access
+    }
+
     private func replied(_ reply: WatchReply?, to command: WatchCommand) {
         guard let reply else { return }
         apply(reply.state)
@@ -123,6 +337,7 @@ final class WatchSession: NSObject, WCSessionDelegate {
                 lookup?.result = result
             } else {
                 lookup = nil
+                if mode == .watch { resumeAfterLookupHere() }
                 failed(reply.message ?? "No dictionary entry")
             }
         case .addCard:
@@ -133,18 +348,24 @@ final class WatchSession: NSObject, WCSessionDelegate {
             } else {
                 failed(reply.message ?? "Couldn't add the card")
             }
-        case .transcriptPart:
-            guard let part = reply.transcriptPart, part.id == fetching?.id else {
-                fetching = nil
+        case let .transcriptPart(id, _):
+            guard let part = reply.transcriptPart else {
+                // The phone hasn't it (any more): not asked again this launch, unless it's playing.
+                if fetching?.id == id {
+                    fetching = nil
+                    if nowPlaying?.transcript != id { unavailable.insert(id) }
+                }
+                prefetchTranscripts()
                 return
             }
+            guard part.id == fetching?.id else { return }
             if let whole = fetching?.add(part) {
                 fetching = nil
                 received(whole)
             } else if let next = part.next {
                 send(.transcriptPart(id: part.id, from: next))
             }
-        case .togglePlay, .skipBackward, .skipForward, .replayLine, .endLookup:
+        case .togglePlay, .skipBackward, .skipForward, .replayLine, .endLookup, .freshAccess, .seek, .setRate:
             if let message = reply.message { show(message) }
         }
     }
@@ -167,8 +388,11 @@ final class WatchSession: NSObject, WCSessionDelegate {
             }
             mark = WatchQueuedMark(line: line, of: playing, at: .now)
         case .lookUp:
+            // No dictionary here: a tapped word does nothing (marking its line instead surprised;
+            // Mark Line is there for that).
             lookup = nil
-            return show("Your iPhone is out of reach")
+            if mode == .watch { resumeAfterLookupHere() }
+            return
         case .transcriptPart:
             // Asked again when the phone is back.
             fetching = nil
@@ -197,14 +421,17 @@ final class WatchSession: NSObject, WCSessionDelegate {
     // MARK: State
 
     private func apply(_ newState: WatchState, save: Bool = true) {
-        let changed = state?.nowPlaying?.key != newState.nowPlaying?.key
-            || state?.nowPlaying?.isPlaying != newState.nowPlaying?.isPlaying
-            || state?.nowPlaying?.chapter != newState.nowPlaying?.chapter
-            || state?.nowPlaying?.position != newState.nowPlaying?.position
+        if let playing = newState.nowPlaying {
+            // The phone's skip intervals, for this watch's player too.
+            player.skipBackward = playing.skipBackward
+            player.skipForward = playing.skipForward
+        }
         state = newState
-        if save { WatchStateStore.save(newState) }
-        // Only on real changes (play, pause, seek, another episode): the complication's budget is small.
-        if changed && save { WidgetCenter.shared.reloadTimelines(ofKind: Self.complicationKind) }
+        if let playing = newState.nowPlaying, let artwork = playing.artwork { downloads.keepCover(artwork, for: playing.itemId) }
+        if save {
+            WatchStateStore.save(newState)
+            updateComplication()
+        }
         followTranscript()
     }
 
@@ -223,31 +450,70 @@ final class WatchSession: NSObject, WCSessionDelegate {
     }
 
     private func received(_ transcript: WatchTranscript) {
-        try? transcripts.save(transcript)
+        try? transcripts.save(transcript, keeping: Set(downloads.items.map(\.key)))
         if nowPlaying?.transcript == transcript.id { self.transcript = transcript }
+        prefetchTranscripts()
+    }
+
+    /// Live Text without the phone (milestone 5): each item's transcript, fetched one at a time
+    /// while the phone is near, and kept as long as the item is here.
+    private func prefetchTranscripts() {
+        guard fetching == nil, WCSession.default.activationState == .activated, WCSession.default.isReachable,
+              let id = downloads.items.compactMap(\.transcript).first(where: { !unavailable.contains($0) && transcripts.load(id: $0) == nil })
+        else { return }
+        fetching = WatchTranscriptAssembly(id: id)
+        send(.transcriptPart(id: id, from: 0))
     }
 
     // MARK: WCSessionDelegate
 
     nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: (any Error)?) {
         let state = WatchMessages.state(from: session.receivedApplicationContext)
+        let library = WatchMessages.library(from: session.receivedApplicationContext)
         let reachable = session.isReachable
         Task { @MainActor in
             self.isReachable = reachable
             if let state { self.apply(state) }
+            if let library { await self.applyLibrary(library) } else { await self.downloads.reconcile() }
         }
     }
 
     nonisolated func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
-        guard let state = WatchMessages.state(from: applicationContext) else { return }
-        Task { @MainActor in self.apply(state) }
+        let state = WatchMessages.state(from: applicationContext)
+        let library = WatchMessages.library(from: applicationContext)
+        Task { @MainActor in
+            if let state { self.apply(state) }
+            if let library { await self.applyLibrary(library) }
+        }
+    }
+
+    /// The phone's list, sent as a complication transfer to wake Kiku here (the same list as
+    /// the context, which may arrive later).
+    nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
+        let library = WatchMessages.library(from: userInfo)
+        Task { @MainActor in
+            if let library { await self.applyLibrary(library) }
+        }
+    }
+
+    /// Send Now's file: moved out of the inbox before this returns (WatchConnectivity deletes it).
+    nonisolated func session(_ session: WCSession, didReceive file: WCSessionFile) {
+        guard let key = WatchMessages.fileKey(from: file.metadata) else { return }
+        let held = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        guard (try? FileManager.default.moveItem(at: file.fileURL, to: held)) != nil else { return }
+        Task { @MainActor in await self.downloads.received(file: held, key: key) }
     }
 
     nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
         let reachable = session.isReachable
         Task { @MainActor in
             self.isReachable = reachable
-            if reachable { self.followTranscript() }
+            guard reachable else { return }
+            self.followTranscript()
+            self.prefetchTranscripts()
+            self.player.log.flush()
+            // Waiting for the phone's token: it's near again.
+            await self.downloads.reconcile()
         }
     }
 
