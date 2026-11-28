@@ -11,9 +11,13 @@ The swift is a flat die-cut sticker: flat fills in one blue-slate family, a thre
 cartoon liberty: Pacific swifts have no crest), a big round head with a darker cap, a white rump
 band, a pale throat, a deep forked tail, tiny feet, dark eyes with a sparkle and pink blush. One
 white border goes round each icon's whole foreground, bird and prop together, so it reads on the
-app's gradient, on Dark's grey and in Tinted alike. Each app keeps its pose and prop: Yomu reads a
-book in glasses, Miru watches a screen star-eyed, Kiku listens with its eyes closed, Hiku looks
-through a magnifying glass.
+app's gradient and on Dark's grey. Each app keeps its pose and prop: Yomu reads a book in glasses,
+Miru watches a screen star-eyed, Kiku listens with its eyes closed, Hiku looks through a magnifying
+glass.
+
+Tinted and Clear use only the mono layer's luminance, so there the bird is dark slate and its prop
+solid white with bolder lines, on a mid-grey border: the prop is the brightest shape, and the four
+icons read apart at a glance on a tinted Home Screen.
 """
 import re
 import sys
@@ -22,15 +26,17 @@ from pathlib import Path
 ICONS = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).parent / "icons"
 
 # Default and Dark use the same bird (the white border carries it on Dark's grey). Tinted and Clear
-# keep only luminance, so the mono bird is light-bodied and its prop lines lighter.
-PALETTES = {
-    "default": dict(body="#7F899C", cap="#6A7488", dark="#454E62", wing_edge="#9AA6BC"),
-    "mono": dict(body="#DDE1E8", cap="#C6CCD6", dark="#9BA4B4", wing_edge="#E9ECF1"),
-}
+# keep only luminance: the mono bird is dark, its patches and blush in mid-tones (white ones read as
+# spots), so the white prop stands out.
 PALE, BLUSH, EYE, BILL = "#F2F4F8", "#FF7C98", "#17181F", "#1B1D24"
-# Each app's prop ink: today's prop outlines (light), and lighter for mono.
-INK = {"Yomu": ("#0B4F45", "#5FE0A8"), "Miru": ("#4A1F63", "#C79AE8"),
-       "Kiku": ("#6B2410", "#FFAE5C"), "Hiku": ("#5E0F32", "#FF7597")}
+PALETTES = {
+    "default": dict(body="#7F899C", cap="#6A7488", dark="#454E62", wing_edge="#9AA6BC",
+                    throat=PALE, rump="#FFFFFF", blush=BLUSH, lens="#FFFFFF", border="#FFFFFF"),
+    "mono": dict(body="#6A7281", cap="#565E6D", dark="#3A404C", wing_edge="#7C8494",
+                 throat="#8A92A1", rump="#848C9B", blush="#7E8695", lens="#5A6271", border="#8C94A3"),
+}
+# Each app's prop ink in Default and Dark (mono's is white).
+INK = {"Yomu": "#0B4F45", "Miru": "#4A1F63", "Kiku": "#6B2410", "Hiku": "#5E0F32"}
 STAR = "M{x} {ya} Q{x1} {yb} {x2} {yc} Q{x1} {yd} {x} {ye} Q{x3} {yd} {x4} {yc} Q{x3} {yb} {x} {ya} Z"
 
 
@@ -72,21 +78,21 @@ def swift(uid, palette, eyes="open", mouth=False, extra=""):
 <circle r="24" fill="{p["body"]}"/>
 <g clip-path="url(#b{uid})">
 <path d="M-24 -24 L24 -24 L24 -15 Q2 -21 -24 -6 Z" fill="{p["cap"]}"/>
-<path d="M-26 0 Q-23 15 -8 25 L-14 30 L-32 10 Z" fill="#FFFFFF"/>
-<path d="M9 6 Q16 3.5 22 8 Q22.5 15 15.5 17 Q8.5 16.5 7.5 11 Q7.5 7.5 9 6 Z" fill="{PALE}"/>
+<path d="M-26 0 Q-23 15 -8 25 L-14 30 L-32 10 Z" fill="{p["rump"]}"/>
+<path d="M9 6 Q16 3.5 22 8 Q22.5 15 15.5 17 Q8.5 16.5 7.5 11 Q7.5 7.5 9 6 Z" fill="{p["throat"]}"/>
 </g>
 <path d="M-2 8 Q-12 18 -30 14 Q-38 10 -42 2 Q-26 8 -12 6 Z" fill="{p["dark"]}"/>
 {face}{bill(mouth)}
-<ellipse cx="-0.5" cy="2" rx="3.4" ry="2" fill="{BLUSH}"/><ellipse cx="13" cy="3.4" rx="3" ry="1.8" fill="{BLUSH}"/>
+<ellipse cx="-0.5" cy="2" rx="3.4" ry="2" fill="{p["blush"]}"/><ellipse cx="13" cy="3.4" rx="3" ry="1.8" fill="{p["blush"]}"/>
 {extra}'''
 
 
 def foreground(app, palette):
     """Bird and prop for one app, in the icon's 100 × 100 frame, before the border."""
-    ink = INK[app][1 if palette == "mono" else 0]
+    ink = INK[app] if palette == "default" else "#FFFFFF"
     uid = f"{app[0].lower()}{palette[0]}"
     if app == "Miru":
-        screen, lines = ("#E9DDF6", "#C7B0E4") if palette == "default" else ("#F4EEFB", "#DCCCEF")
+        screen, lines = ("#E9DDF6", "#C7B0E4") if palette == "default" else ("#A9B0BD", "#FFFFFF")
         tv = (f'<path d="M48.5 24 L36 9 M51.5 24 L66 7.5" stroke="{ink}" stroke-width="3" stroke-linecap="round"/>'
               f'<circle cx="36" cy="9" r="3" fill="#FFFFFF" stroke="{ink}" stroke-width="2"/><circle cx="66" cy="7.5" r="3" fill="#FFFFFF" stroke="{ink}" stroke-width="2"/>'
               f'<rect x="14" y="25" width="72" height="58" rx="14" fill="#FFFFFF" stroke="{ink}" stroke-width="3"/>'
@@ -94,7 +100,7 @@ def foreground(app, palette):
               f'<path d="M27 40 L37 40 M27 46 L33 46" stroke="{lines}" stroke-width="3" stroke-linecap="round"/>')
         return tv + f'<g transform="translate(57 64) rotate(-8) scale(0.86)">{swift(uid, palette, "stars", True)}</g>'
     if app == "Yomu":
-        lines = "#8FC9B8" if palette == "default" else "#BDE8DA"
+        lines = "#8FC9B8" if palette == "default" else "#8A92A2"
         glasses = (f'<circle cx="3.2" cy="-7" r="5.8" fill="#FFFFFF" fill-opacity="0.25" stroke="{ink}" stroke-width="2.3"/>'
                    f'<circle cx="14.8" cy="-7" r="5.8" fill="#FFFFFF" fill-opacity="0.25" stroke="{ink}" stroke-width="2.3"/>'
                    f'<path d="M-2.6 -7.6 L-10 -9.8" stroke="{ink}" stroke-width="1.8" stroke-linecap="round"/>'
@@ -106,7 +112,7 @@ def foreground(app, palette):
                           for y in (72, 76.5, 81) for a, b, c in ((18, 31, 45), (55, 69, 82))))
         return bird + book
     if app == "Kiku":
-        pads = "#FFC27A" if palette == "default" else "#FFE1BC"
+        pads = "#FFC27A" if palette == "default" else "#FFFFFF"
         bird = f'<g transform="translate(52 58) scale(0.92)">{swift(uid, palette, "closed", False)}</g>'
         phones = (f'<path d="M24 41 Q24 8 52 8 Q80 8 80 41" fill="none" stroke="{ink}" stroke-width="4.5" stroke-linecap="round"/>'
                   f'<rect x="17" y="32" width="15" height="25" rx="7.5" fill="#FFFFFF" stroke="{ink}" stroke-width="3"/>'
@@ -116,23 +122,28 @@ def foreground(app, palette):
     if app == "Hiku":
         # The right eye is behind the lens, seen big through it.
         lens = (f'<path d="M23 3 L33 13" stroke="{ink}" stroke-width="5" stroke-linecap="round"/>'
-                f'<circle cx="16" cy="-6" r="11" fill="#FFFFFF" stroke="{ink}" stroke-width="3"/>'
+                f'<circle cx="16" cy="-6" r="11" fill="{PALETTES[palette]["lens"]}" stroke="{ink}" stroke-width="3"/>'
                 f'<ellipse cx="16" cy="-6" rx="5" ry="6" fill="{EYE}"/><circle cx="17.8" cy="-8.4" r="1.8" fill="#FFFFFF"/>'
                 f'<circle cx="14.2" cy="-3.2" r="0.8" fill="#FFFFFF"/>')
         return f'<g transform="translate(46 54) rotate(-4) scale(0.98)">{swift(uid, palette, "left-only", False, lens)}</g>'
     raise ValueError(app)
 
 
-def sticker(svg):
-    """The die-cut border: every shape again in white with a wider stroke, drawn first."""
+def bolder(svg):
+    """Mono's white prop lines, half as thick again."""
+    return re.sub(r'stroke="#FFFFFF" stroke-width="([0-9.]+)"', lambda m: f'stroke="#FFFFFF" stroke-width="{float(m.group(1)) * 1.5:g}"', svg)
+
+
+def sticker(svg, border="#FFFFFF"):
+    """The die-cut border: every shape again in the border colour with a wider stroke, drawn first."""
     def white(tag):
-        tag = re.sub(r'fill="(?!none)[^"]*"', 'fill="#FFFFFF"', tag)
+        tag = re.sub(r'fill="(?!none)[^"]*"', f'fill="{border}"', tag)
         tag = re.sub(r'fill-opacity="[^"]*"', '', tag)
         if 'stroke="' in tag:
-            tag = re.sub(r'stroke="[^"]*"', 'stroke="#FFFFFF"', tag)
+            tag = re.sub(r'stroke="[^"]*"', f'stroke="{border}"', tag)
             tag = re.sub(r'stroke-width="([0-9.]+)"', lambda m: f'stroke-width="{float(m.group(1)) + 6:g}"', tag)
         else:
-            tag = tag.replace("/>", ' stroke="#FFFFFF" stroke-width="6" stroke-linejoin="round"/>', 1)
+            tag = tag.replace("/>", f' stroke="{border}" stroke-width="6" stroke-linejoin="round"/>', 1)
         return tag
     copy = re.sub(r'<(path|circle|ellipse|rect)\b[^>]*/>', lambda m: white(m.group(0)), svg)
     copy = re.sub(r'id="b(\w+)"', r'id="w\1"', copy).replace('url(#b', 'url(#w')
@@ -153,6 +164,7 @@ if __name__ == "__main__":
         default = sticker(foreground(app, "default"))
         (ICONS / app / f"{app}-foreground.svg").write_text(svg(default))
         (ICONS / app / f"{app}-foreground-dark.svg").write_text(svg(default))
-        (ICONS / app / f"{app}-foreground-mono.svg").write_text(svg(sticker(foreground(app, "mono"))))
+        mono = sticker(bolder(foreground(app, "mono")), border=PALETTES["mono"]["border"])
+        (ICONS / app / f"{app}-foreground-mono.svg").write_text(svg(mono))
         (ICONS / app / f"{app}-icon.svg").write_text(svg(background(app) + default))
         print(app, "written")
