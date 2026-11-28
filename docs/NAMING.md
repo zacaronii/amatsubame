@@ -29,24 +29,26 @@ Short, Apple-style names: two-syllable everyday verbs that say what you do in th
 
 ## Mascot and icons
 
-A round, cute Pacific swift, drawn true to life: greyer head fading to a blackish body, a long near-black scythe wing laid along its side with a lighter front edge, a broad white rump band, a pale throat that wraps up around a small black bill (the bill has a pale edge so it shows on any background), three faint belly scallops, a deep forked tail, dark eyes with a sparkle, and pink blush. Each app keeps its gradient and one prop.
+A round, cute Pacific swift as a **flat die-cut sticker** (since 2026-11-27): flat fills in one blue-slate family, no gradients on the bird or its props, and one white border round each icon's whole foreground, bird and prop together, so it reads on the app's gradient, on Dark's grey and in Tinted alike. True to the bird: a big round head with a darker cap, a long dark wing laid along its side, a white rump band, a pale throat round a small black bill (with a pale edge so it shows on any background), a deep forked tail, dark eyes with a sparkle and pink blush. Two cartoon liberties for character: **a three-feather tuft** (real Pacific swifts have no crest) and **tiny feet** (swifts are *Apus*, "footless", and barely use theirs). It replaced a gradient swift whose wing crossed its face, whose tail floated behind a separate rump strip and whose belly scallops read as a second mouth.
 
-| App | Icon | Background gradient (150°) | Prop outline (light) | Prop outline (dark) |
+| App | Icon (the bird's personality) | Background gradient (150°) | Prop ink (Default and Dark) | Prop ink (mono) |
 | --- | --- | --- | --- | --- |
-| Yomu | Swift over an open book | `#D4F27A` → `#3FC98F` → `#0A8FA0` | `#0B4F45` | `#5FE0A8` |
-| Miru | Swift in front of a white screen frame | `#D99BEF` → `#AA5CC3` → `#0098D6` | white frame | white frame |
-| Kiku | Swift with eyes closed, headphones on both sides of its head | `#FFE27A` → `#F79A3E` → `#E2513A` | `#6B2410` | `#FFAE5C` |
-| Hiku | Swift in profile, looking through a magnifying glass | `#FF9CC0` → `#EE4F6B` → `#9E1F5E` | `#5E0F32` | `#FF7597` |
+| Yomu | Reading in round glasses, over an open book | `#D4F27A` → `#3FC98F` → `#0A8FA0` | `#0B4F45` | `#5FE0A8` |
+| Miru | Star-eyed and chirping, watching in front of a TV screen | `#D99BEF` → `#AA5CC3` → `#0098D6` | `#4A1F63` | `#C79AE8` |
+| Kiku | Eyes closed, listening in headphones | `#FFE27A` → `#F79A3E` → `#E2513A` | `#6B2410` | `#FFAE5C` |
+| Hiku | Looking through a magnifying glass, its eye big in the lens | `#FF9CC0` → `#EE4F6B` → `#9E1F5E` | `#5E0F32` | `#FF7597` |
 
-Files are in `Design/icons/<App>/`, all on a 100 × 100 viewBox:
+**The brand swift** (`Design/mascot/`: the README banner, the site's logo and social image) is the same sticker bird dozing mid-flight: swifts eat, drink and even sleep on the wing, as the name's story says. Wings out in a glide, eyes closed, a nose bubble (鼻ちょうちん, manga's sign for sleep) at its bill, a nightcap slipping off its tuft, and a thought cloud: it dreams 「もう一話だけ…」 ("just one more episode…"). The phrase is an outline from M PLUS Rounded 1c ExtraBold (SIL Open Font License), so it looks the same everywhere. Files: `swift.svg` (+ `swift-1024.png`) with the cloud, for the banner, the site's hero and `site/public/social.png` (`site/scripts/social-image.mjs`; the README banner is a copy); `swift-small.svg` (+ `-1024.png`) without it, for the site's header logo and favicon, where the phrase couldn't be read. One file serves light and dark: the white border carries it on both.
+
+Files are in `Design/icons/<App>/`, all on a 100 × 100 viewBox. `Design/make_swift_icons.py` writes the foregrounds and the flattened icon (the bird and props are drawn there, not by hand); the backgrounds are kept as they are:
 
 - `<App>-background.svg`: the gradient (unchanged from the lyrebird icons).
 - `<App>-background-dark.svg`: Dark mode's background: a dark grey gradient (`#3A3A40` → `#101012`) with a soft glow of the app's middle color rising from the bottom.
-- `<App>-foreground.svg` (+ `-1024.png`): the bird and prop on transparency, for Default.
-- `<App>-foreground-dark.svg` (+ `-1024.png`): the same, with lighter greys, a faint white rim around the body, wing and tail, and brighter prop outlines. Without it the black tail, wing and lower body vanish on a dark background. Use it for Dark only.
-- `<App>-foreground-mono.svg` (+ `-1024.png`): a light-bodied swift for Tinted and Clear, where iOS turns everything into one color and the dark bird faded.
+- `<App>-foreground.svg` (+ `-1024.png`): the bird and prop with their white border, on transparency, for Default.
+- `<App>-foreground-dark.svg` (+ `-1024.png`): for Dark. The same as Default: the white border carries the bird on the dark background (the gradient swift needed lighter greys and a rim here).
+- `<App>-foreground-mono.svg` (+ `-1024.png`): a light-bodied swift with lighter prop ink for Tinted and Clear, where iOS keeps only luminance.
 - `<App>-icon.svg` / `<App>-icon-1024.png`: the flattened Default icon for the asset catalog.
-- `previews/<App>-<mode>.png`: an approximation of Default, Dark, Clear light and dark, and Tinted light and dark, to compare against Icon Composer's real rendering.
+- `previews/<App>-<mode>.png`: Icon Composer's own rendering (`ictool`, iOS, 512 px) of Default, Dark, Clear light and dark, and Tinted light and dark.
 
 ## How it was applied
 
