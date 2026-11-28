@@ -5,7 +5,7 @@ private library or servers.
 
 | File | Shows | Content and licence |
 | --- | --- | --- |
-| `banner.png`, `*-icon.png` | the swift and the app icons | Amatsubame's own artwork (GPL-3.0, like the repository) |
+| `banner.png`, `*-icon.png` | the swift and the app icons | Amatsubame's own artwork (GPL-3.0, like the repository); the banner's 「もう一話だけ…」 is drawn from the outlines of [M PLUS Rounded 1c](https://fonts.google.com/specimen/M+PLUS+Rounded+1c) ExtraBold (SIL Open Font License 1.1) |
 | `yomu.gif` | Yomu: a tap on a speech bubble, and the lookup | *Pepper&Carrot* episode 1 in Japanese by David Revoy, [peppercarrot.com](https://www.peppercarrot.com), CC BY 4.0 |
 | `miru.gif` | Miru: a tap on a word of the line, and the lookup | *Sintel* (2010) © Blender Foundation, [durian.blender.org](https://durian.blender.org), CC BY 3.0; Japanese subtitles from [download.blender.org/durian/subs/](https://download.blender.org/durian/subs/) |
 | `kiku.gif` | Kiku: the transcript following the audio, and a tap on a word | 夏目漱石『坊っちゃん』, the [LibriVox recording](https://librivox.org/botchan-by-soseki-natsume-2/) read by ekzemplaro (public domain); the transcript is Kaku's own output (anime-whisper) for that clip, unedited |

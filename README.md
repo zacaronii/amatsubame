@@ -75,4 +75,5 @@ the [MIT License](Server/kaku/LICENSE). Third-party components and their license
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 Amatsubame stands on the work of many people: see [docs/ACKNOWLEDGEMENTS.md](docs/ACKNOWLEDGEMENTS.md).
-The GIFs show licence-clean content: [credits](docs/media/CREDITS.md).
+The GIFs show licence-clean content: [credits](docs/media/CREDITS.md). The demo servers' books, manga,
+audiobooks and films are credited in [CREDITS.md](CREDITS.md).
