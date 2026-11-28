@@ -2,7 +2,7 @@
 
     python3 Design/make_icons.py Design/icons
 
-The swift icons are drawn by hand, so the SVGs in `Design/icons/<App>/` are the source (viewBox
+The SVGs in `Design/icons/<App>/` are the source (`make_swift_icons.py` writes the swift layers; viewBox
 0 0 100 100): `-background`, `-background-dark`, `-foreground`, `-foreground-dark`,
 `-foreground-mono` and `-icon`
 (the flattened Default icon). This renders the 1024 px PNGs next to them; the `-icon` PNG is
