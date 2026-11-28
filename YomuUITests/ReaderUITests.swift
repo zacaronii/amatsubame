@@ -484,10 +484,19 @@ final class ReaderUITests: XCTestCase {
                dialogue.allElementsBoundByIndex.filter({ $0.exists && $0.isHittable }).count >= 2 { break }
         }
         sleep(2)
-        // The bubble's second line ("…これで / 出来上がり" on the first such page): its first word.
-        let bubbles = dialogue.allElementsBoundByIndex.filter { $0.exists && $0.isHittable }
-        let bubble = try XCTUnwrap(bubbles.first { $0.label.contains("出来上が") } ?? bubbles.first, "a bubble with dialogue")
-        bubble.coordinate(withNormalizedOffset: CGVector(dx: 0.03, dy: 0.75)).tap()
+        // The bubble's second line ("…これで / 出来上がり" on the first such page): its first word,
+        // after zooming in (a pinch, then down to the bubble) so it reads at phone width.
+        func bubble() throws -> XCUIElement {
+            let bubbles = dialogue.allElementsBoundByIndex.filter { $0.exists && $0.isHittable }
+            return try XCTUnwrap(bubbles.first { $0.label.contains("出来上が") } ?? bubbles.first, "a bubble with dialogue")
+        }
+        reader.pinch(withScale: 2.5, velocity: 3)
+        sleep(1)
+        for _ in 0..<4 where (try? bubble())?.label.contains("出来上が") != true {
+            reader.swipeDown(velocity: .slow); sleep(1)
+        }
+        sleep(1)
+        try bubble().coordinate(withNormalizedOffset: CGVector(dx: 0.03, dy: 0.75)).tap()
         let results = app.webViews.firstMatch.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Jitendex'")).firstMatch
         XCTAssertTrue(results.waitForExistence(timeout: 20), "dictionary results")
         sleep(4)

@@ -3,12 +3,15 @@
 # a screenshot about every half second (the video misses the lookup popup's web view). Cut the GIF
 # from them with scripts/readme-gif.py.
 #
-#   scripts/record-readme-gif.sh <Yomu|Miru> <simulator id> <output folder>
+#   scripts/record-readme-gif.sh <Yomu|Miru|Kiku|Hiku> <simulator id> <output folder>
 #
 # Servers, keys and passwords come from the environment at run time, never from this file:
 #   Yomu: README_KAVITA_URL, README_KAVITA_KEY (a demo Kavita user's API key),
 #         README_OCR_MODELS (a folder with compiled/, docs/yomu.md), README_DICTIONARY_ZIPS
 #   Miru: README_JELLYFIN_URL, README_JELLYFIN_USER, README_JELLYFIN_PASSWORD, README_DICTIONARY_ZIPS
+#   Kiku: README_DICTIONARY_ZIPS (in memory, with docs/media/capture/kiku)
+#   Hiku: nothing (Aozora Bunko in Safari, the dictionaries already in the simulator's shared setup);
+#         README_HIKU_TAP_AT=x,y (points) where 無 is, when the screen isn't an iPhone 17 Pro
 # Optional: README_DERIVED_DATA (default build.noindex/readme-gif).
 set -u
 app=${1:?app}; sim=${2:?simulator id}; out=${3:?output folder}
@@ -41,6 +44,12 @@ Miru)
   grep -E "Jellyfin|Dictionary" "$log" | tail -2
   xcrun simctl terminate "$sim" com.amatsubame.miru
   only=MiruUITests/ReadmeCaptureUITests/testReadmeCapture ;;
+Kiku)
+  export TEST_RUNNER_UITEST_CAPTURE_FOLDER="$PWD/docs/media/capture/kiku" TEST_RUNNER_UITEST_DICTIONARY_ZIPS=${README_DICTIONARY_ZIPS:?}
+  only=KikuUITests/ReadmeCaptureUITests/testReadmeCapture ;;
+Hiku)
+  [[ -n ${README_HIKU_TAP_AT:-} ]] && export TEST_RUNNER_UITEST_CAPTURE_AT=$README_HIKU_TAP_AT
+  only=HikuUITests/ExtensionLookupUITests/testReadmeCapture ;;
 *) echo "No README capture set up for $app" >&2; exit 1 ;;
 esac
 
