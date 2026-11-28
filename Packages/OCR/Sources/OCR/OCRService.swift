@@ -68,13 +68,17 @@ public actor OCRService {
         return try await task.value
     }
 
-    /// The page with each block's lines of lettering measured where they're missing.
+    /// The page with each block's lines of lettering measured where they're missing (and its
+    /// orientation checked again, as a fresh read would: `TextLines.orientedLayout`).
     static func measuringLines(_ page: OCRPage, in image: CGImage) -> OCRPage {
         var page = page
         page.blocks = page.blocks.map { block in
             guard block.measured != TextLines.version else { return block }
             var block = block
-            block.place(TextLines.layout(of: block.box, in: image, vertical: block.vertical, text: block.text))
+            let (vertical, text, layout) = TextLines.orientedLayout(of: block.box, in: image, read: block.text, guess: block.vertical)
+            block.vertical = vertical
+            block.text = text
+            block.place(layout)
             return block
         }
         return page
