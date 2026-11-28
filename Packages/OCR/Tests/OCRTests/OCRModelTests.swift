@@ -70,6 +70,44 @@ struct OCRModelTests {
         #expect(texts.contains { $0.contains("そんなこと") })
     }
 
+    /// Japanese lettered across, two short lines to a bubble (Pepper&Carrot): read as horizontal,
+    /// though the bubble isn't twice as wide as it's tall, so a tap at the start of a line gets
+    /// that line's first character. Guessed vertical, `うん．．．カンペキ` was one column and a tap
+    /// on カ landed on a character of the first line.
+    @Test func readsTwoLineHorizontalBubblesAcross() async throws {
+        let url = try #require(Bundle.module.url(forResource: "pepper-carrot-e01p02", withExtension: "jpg", subdirectory: "Fixtures"))
+        let source = try #require(CGImageSourceCreateWithURL(url as CFURL, nil))
+        let image = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        let (page, _) = try await Self.pipeline().recognize(page: image)
+        let bubbles = page.blocks.filter { $0.kind == .bubbleText }
+        #expect(bubbles.count == 2)
+        #expect(bubbles.allSatisfy { !$0.vertical }, "\(bubbles.map { ($0.text, $0.vertical) })")
+        let perfect = try #require(bubbles.first { $0.text.contains("カンペキ") })
+        let lines = try #require(perfect.lines?.map(\.cgRect))
+        #expect(lines.count == 2, "\(lines)")
+        // Just inside the start of the second line.
+        let second = try #require(lines.last)
+        let point = CGPoint(x: second.minX + second.width * 0.04, y: second.midY)
+        let unit = CGRect(x: 0, y: 0, width: 1, height: 1)
+        let index = TextLayout.characterIndex(of: point, in: unit, cells: perfect.characterRects(boxSize: CGSize(width: 1, height: 1)))
+        #expect(Array(perfect.text)[index] == "カ", "\(perfect.text) at \(index)")
+    }
+
+    /// The case most like a two-line horizontal bubble, the other way round: short vertical
+    /// bubbles of two and three columns (a 4-koma, CC BY-SA 4.0). They stay vertical.
+    @Test func keepsShortVerticalBubblesVertical() async throws {
+        let url = try #require(Bundle.module.url(forResource: "biwasshi-yonkoma-panels", withExtension: "jpg", subdirectory: "Fixtures"))
+        let source = try #require(CGImageSourceCreateWithURL(url as CFURL, nil))
+        let image = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        let (page, _) = try await Self.pipeline().recognize(page: image)
+        let bubbles = page.blocks.filter { $0.kind == .bubbleText }
+        print("BLOCKS", page.blocks.map { ($0.text, $0.vertical, $0.kind, $0.lines?.count ?? 0) })
+        let two = try #require(bubbles.first { $0.text.contains("ビワッシーやん") }, "\(bubbles.map(\.text))")
+        let three = try #require(bubbles.first { $0.text.contains("パクリ") }, "\(bubbles.map(\.text))")
+        #expect(two.vertical)
+        #expect(three.vertical)
+    }
+
     @Test func detectsAndReadsSpeechBubblesInReadingOrder() async throws {
         let (page, timings) = try await Self.pipeline().recognize(page: SyntheticPage.twoBubbles())
         print("Detected \(page.blocks.map(\.text)) — detection \(timings.detection), recognition \(timings.recognition)")

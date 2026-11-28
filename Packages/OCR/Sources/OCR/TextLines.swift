@@ -7,7 +7,7 @@ import Foundation
 /// over the box is wrong whenever the columns differ in length or there's furigana.
 public enum TextLines {
     /// Raised when the measuring changes, so pages measured by an older one are measured again.
-    public static let version = 2
+    public static let version = 3
 
     /// The block's picture as ink, addressed across the lines (`a`: x for vertical text) and
     /// along them (`l`).
@@ -313,6 +313,23 @@ public enum TextLines {
         /// Whether every character was found in the lettering (the places can be drawn on the
         /// page), or the places are a best guess (good enough to aim a tap by).
         public var exact = false
+    }
+
+    /// A block's orientation, text and layout. `TextOrientation` guesses from the box's shape and
+    /// the script, and guesses vertical for a block of a few short lines, which is right for most
+    /// manga but wrong for Japanese lettered across (a western-style comic's two-line bubble).
+    /// So a block guessed vertical that isn't clearly tall is measured both ways: it's horizontal
+    /// only when its rows fit the text glyph for glyph and its columns don't. Anything less clear
+    /// keeps the guess.
+    public static func orientedLayout(of box: NormalizedRect, in image: CGImage, read: String, guess: Bool)
+        -> (vertical: Bool, text: String, layout: Layout) {
+        let text = RecognizedText.droppingStrayOpener(read, vertical: guess)
+        let layout = layout(of: box, in: image, vertical: guess, text: text)
+        let pixels = box.pixels(in: CGSize(width: image.width, height: image.height))
+        guard guess, !layout.exact, pixels.height < pixels.width * 2 else { return (guess, text, layout) }
+        let acrossText = RecognizedText.droppingStrayOpener(read, vertical: false)
+        let across = Self.layout(of: box, in: image, vertical: false, text: acrossText)
+        return across.exact ? (false, acrossText, across) : (guess, text, layout)
     }
 
     public static func layout(of box: NormalizedRect, in image: CGImage, vertical: Bool, text: String) -> Layout {
