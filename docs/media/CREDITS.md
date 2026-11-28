@@ -14,18 +14,25 @@ private library or servers.
 Dictionary entries in every GIF are [Jitendex](https://jitendex.org) (CC BY-SA 4.0).
 
 ## Recording them again
-Each GIF comes from a capture UI test, skipped unless `TEST_RUNNER_UITEST_CAPTURE=1`:
+Each GIF is a quick tour from a capture UI test, skipped unless `TEST_RUNNER_UITEST_CAPTURE=1`:
 `YomuUITests/ReaderUITests.testReadmeCapture`, `MiruUITests/ReadmeCaptureUITests`,
 `HikuUITests/ExtensionLookupUITests.testReadmeCapture`, and `KikuUITests/ReadmeCaptureUITests` with
 `TEST_RUNNER_UITEST_CAPTURE_FOLDER` set to `docs/media/capture/kiku` (`clip.m4a`, the first 2:30 of the
 recording above, and `transcript.json`, Kaku's transcript of it: both only for the capture, not in any
-app). Record the simulator around the test with
-`xcrun simctl io <device> recordVideo --codec=h264 out.mp4` (status bar set with `simctl status_bar
-… override --time 9:41`), then make a 320 px GIF in two passes with a palette:
+app). They run against the demo servers Setup offers.
 
-    ffmpeg -ss <start> -i out.mp4 -t <seconds> -vf "fps=12,scale=320:-2:flags=lanczos" -fps_mode cfr part.mp4
-    ffmpeg -i part.mp4 -filter_complex "split[x][y];[x]palettegen=stats_mode=diff[p];[y][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle" out.gif
+1. `scripts/record-readme-gif.sh <App> <simulator id> <folder>` builds the app, signs it in where it
+   needs to (DevSetup), and runs the test while recording the simulator (`simctl io recordVideo`, status
+   bar at 9:41) and taking a screenshot about every half second. Server addresses, keys and passwords
+   come from `README_*` environment variables (listed at the top of the script), never from the repo.
+   Yomu is recorded on an iPad simulator, the others on an iPhone; Miru and Kiku play muted.
+2. `scripts/readme-gif.py dump <raw.mp4> <frames> <width>` decodes every recorded frame with its time
+   (600 px wide for iPhone, 760 for iPad), and `strip` tiles every Nth frame to pick the steps.
+3. `scripts/readme-gif.py build <frames> <out.gif> 10 <first>-<last>@<cap> … hold:9999@3` samples the
+   chosen frame ranges at 10 fps with their real timing (stills cut to `<cap>` seconds) and ends on a
+   held frame: copy the screenshot showing the popup into the frames folder as `f9999.png`, scaled to
+   the same size and saved as RGB (`ffmpeg -i shot.png -vf "scale=600:-2,format=rgb24" f9999.png`).
 
-The simulator records only frames that change, so cut with `-ss` before `-i` and render each part at a
-constant rate (`-fps_mode cfr`) before joining parts with the concat demuxer. Miru and Kiku play
-muted (`UITEST_MUTE`, Debug builds only).
+The simulator's recorder writes a frame only when it notices a change, so cutting the video by time
+(`-ss`, `fps`) lands on the wrong frames, and it can miss a web view (the lookup popup) entirely: hence
+the decoded frames and the screenshots.

@@ -1,7 +1,7 @@
 import XCTest
 
-/// The README's GIF (`UITEST_CAPTURE=1`, recorded with `simctl io recordVideo`): Sintel on the demo
-/// Jellyfin (Blender Foundation, CC BY 3.0, with Blender's own Japanese subtitles), a tap on a word
+/// The README's GIF (`UITEST_CAPTURE=1`, recorded with `simctl io recordVideo`): a quick tour from
+/// the Watch home to Sintel on the demo Jellyfin (Blender Foundation, CC BY 3.0, with Blender's own Japanese subtitles), a tap on a word
 /// of a line, and the popup held for a moment. Needs Miru signed in to that server (`DevSetup`,
 /// docs/shared.md); plays muted.
 final class ReadmeCaptureUITests: XCTestCase {
@@ -13,15 +13,11 @@ final class ReadmeCaptureUITests: XCTestCase {
         // Just before "多くの罪なき人の血で汚れている" (1:51.8).
         app.launchEnvironment["UITEST_PLAYER_START"] = "109"
         app.launch()
-        let search = app.buttons["watch.search"].firstMatch
-        XCTAssertTrue(search.waitForExistence(timeout: 20), "signed in to Jellyfin")
-        search.tap()
-        let field = app.searchFields.firstMatch
-        XCTAssertTrue(field.waitForExistence(timeout: 5))
-        field.typeText("Sintel")
-        let result = app.descendants(matching: .any)["search.result"].firstMatch
-        XCTAssertTrue(result.waitForExistence(timeout: 15), "Sintel found")
-        result.tap()
+        // A quick tour: Sintel's poster on the Watch home's shelf, its page, Play, a tap on a word.
+        let poster = app.descendants(matching: .any)["home.series.Sintel"].firstMatch
+        XCTAssertTrue(poster.waitForExistence(timeout: 30), "signed in to Jellyfin, Sintel on the home")
+        sleep(2)
+        poster.tap()
         let play = app.descendants(matching: .any)["series.play"].firstMatch
         XCTAssertTrue(play.waitForExistence(timeout: 15), "its page")
         play.tap()
