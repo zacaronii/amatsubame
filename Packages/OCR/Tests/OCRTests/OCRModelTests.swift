@@ -101,7 +101,6 @@ struct OCRModelTests {
         let image = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
         let (page, _) = try await Self.pipeline().recognize(page: image)
         let bubbles = page.blocks.filter { $0.kind == .bubbleText }
-        print("BLOCKS", page.blocks.map { ($0.text, $0.vertical, $0.kind, $0.lines?.count ?? 0) })
         let two = try #require(bubbles.first { $0.text.contains("ビワッシーやん") }, "\(bubbles.map(\.text))")
         let three = try #require(bubbles.first { $0.text.contains("パクリ") }, "\(bubbles.map(\.text))")
         #expect(two.vertical)
