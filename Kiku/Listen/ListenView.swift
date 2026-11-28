@@ -12,6 +12,8 @@ enum ListenRoute: Hashable {
     case newEpisodes
     /// Up Next, to reorder and clear.
     case upNext
+    /// Shows and episodes by title (the search button, as in Yomu's Library and Miru's Watch).
+    case search
 }
 
 /// What a Listen route opens (also in the Mac's library rows).
@@ -26,6 +28,7 @@ struct ListenDestination: View {
         case .book(let id): BookView(itemId: id)
         case .newEpisodes: AllNewEpisodesView()
         case .upNext: UpNextView()
+        case .search: ListenSearchView()
         }
     }
 }
@@ -49,7 +52,6 @@ struct ListenView: View {
     @Environment(KikuEnvironment.self) private var environment
     @Environment(\.scenePhase) private var scenePhase
     @State private var today: TodaySummary?
-    @State private var query = ""
     @State private var path: [ListenRoute] = []
     /// The account the library on screen was loaded for.
     @State private var shownAccount: String?
@@ -88,14 +90,21 @@ struct ListenView: View {
                         connectAudiobookshelf
                         ScrollView { connectAudiobookshelf }
                     }
-                } else if !query.isEmpty {
-                    SearchResults(query: query)
                 } else {
                     home
                 }
             }
             .navigationTitle("Listen")
-            .searchable(text: $query, prompt: "Shows and episodes")
+            .toolbar {
+                if environment.common.serverAccounts[.audiobookshelf] != nil {
+                    ToolbarItem(placement: .primaryAction) {
+                        SplitLink(value: ListenRoute.search) {
+                            Label("Search", systemImage: "magnifyingglass")
+                        }
+                        .accessibilityIdentifier("listen.search")
+                    }
+                }
+            }
         } destination: { route in
             ListenDestination(route: route)
         } empty: {
@@ -104,12 +113,10 @@ struct ListenView: View {
         }
         .onChange(of: reset) {
             path = []
-            query = ""
         }
         .onChange(of: environment.requestedLibrary, initial: true) { _, library in
             guard let library else { return }
             environment.requestedLibrary = nil
-            query = ""
             path = [.only(library)]
         }
         .task(id: account) {
@@ -308,6 +315,30 @@ private struct ContinueCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("listen.continue")
+    }
+}
+
+/// Search from Listen's search button: its field is active on opening.
+private struct ListenSearchView: View {
+    @State private var query = ""
+    @State private var searching = false
+    @State private var opened = false
+
+    var body: some View {
+        Group {
+            if query.isEmpty {
+                ContentUnavailableView("Search", systemImage: "magnifyingglass",
+                                       description: Text("Shows, books and episodes by title."))
+            } else {
+                SearchResults(query: query)
+            }
+        }
+        .searchable(text: $query, isPresented: $searching, prompt: "Shows and episodes")
+        .onAppear {
+            if !opened { searching = true }
+            opened = true
+        }
+        .navigationTitle("Search")
     }
 }
 
