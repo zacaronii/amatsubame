@@ -1,4 +1,5 @@
-// Draws the 1200×630 link preview (public/social.png): the swift, the name, and the four app icons.
+// Draws the 1200×630 link preview (public/social.png): the brand swift dreaming 「もう一話だけ…」, the
+// name, and the four app icons. docs/media/banner.png (the README's banner) is a copy of it.
 // Run from site/: `node scripts/social-image.mjs`. Uses the icons in ../Design.
 import sharp from 'sharp';
 import { readFile } from 'node:fs/promises';
@@ -16,9 +17,9 @@ const background = Buffer.from(`
 		</linearGradient>
 	</defs>
 	<rect width="${width}" height="${height}" fill="url(#sky)"/>
-	<text x="560" y="250" font-family="Hiragino Sans, Helvetica Neue, sans-serif" font-size="80" font-weight="700" fill="#1f2547">Amatsubame</text>
-	<text x="562" y="312" font-family="Hiragino Sans, Helvetica Neue, sans-serif" font-size="38" fill="#3d4596">Japanese immersion apps</text>
-	<text x="562" y="360" font-family="Hiragino Sans, Helvetica Neue, sans-serif" font-size="30" fill="#5b63a8">for your own media servers</text>
+	<text x="600" y="250" font-family="Hiragino Sans, Helvetica Neue, sans-serif" font-size="80" font-weight="700" fill="#1f2547">Amatsubame</text>
+	<text x="602" y="312" font-family="Hiragino Sans, Helvetica Neue, sans-serif" font-size="38" fill="#3d4596">Japanese immersion apps</text>
+	<text x="602" y="360" font-family="Hiragino Sans, Helvetica Neue, sans-serif" font-size="30" fill="#5b63a8">for your own media servers</text>
 </svg>`);
 
 /** An app icon as a rounded square (the iOS corner), `size` px wide. */
@@ -32,10 +33,12 @@ async function icon(name, size) {
 		.toBuffer();
 }
 
+// The brand swift is wide (its thought cloud): fit it into the left half.
 const swift = await sharp(await readFile(new URL('mascot/swift.svg', design)), { density: 300 })
-	.resize(500, 500)
+	.resize(560, 420, { fit: 'inside' })
 	.png()
 	.toBuffer();
+const swiftHeight = (await sharp(swift).metadata()).height;
 
 const iconSize = 112;
 const gap = 28;
@@ -43,8 +46,8 @@ const icons = await Promise.all(['Yomu', 'Miru', 'Kiku', 'Hiku'].map((name) => i
 
 await sharp(background)
 	.composite([
-		{ input: swift, left: 40, top: 70 },
-		...icons.map((input, index) => ({ input, left: 562 + index * (iconSize + gap), top: 420 })),
+		{ input: swift, left: 20, top: Math.round((height - swiftHeight) / 2) - 20 },
+		...icons.map((input, index) => ({ input, left: 602 + index * (iconSize + gap), top: 420 })),
 	])
 	.png()
 	.toFile(new URL('../public/social.png', import.meta.url).pathname);

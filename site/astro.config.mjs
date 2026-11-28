@@ -8,7 +8,8 @@ export default defineConfig({
 		starlight({
 			title: 'Amatsubame',
 			description: 'Japanese immersion apps for your own Kavita, Jellyfin and Audiobookshelf servers.',
-			logo: { light: './src/assets/swift.svg', dark: './src/assets/swift-dark.svg', alt: '' },
+			// The small swift (no thought cloud): the brand bird's phrase is unreadable at header size.
+			logo: { src: './src/assets/swift-small.svg', alt: '' },
 			favicon: '/favicon.svg',
 			head: [
 				// The link preview: the swift and the four apps (site/scripts/social-image.mjs).
