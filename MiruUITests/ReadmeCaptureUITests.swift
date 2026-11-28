@@ -1,7 +1,7 @@
 import XCTest
 
-/// The README's GIF (`UITEST_CAPTURE=1`, recorded with `simctl io recordVideo`): a quick tour from
-/// the Watch home to Sintel on the demo Jellyfin (Blender Foundation, CC BY 3.0, with Blender's own Japanese subtitles), a tap on a word
+/// The README's screenshots (`UITEST_CAPTURE=1`, `scripts/readme-screenshots.sh`): the Watch home
+/// with the demo Jellyfin's films, then Sintel playing on the demo Jellyfin (Blender Foundation, CC BY 3.0, with Blender's own Japanese subtitles), a tap on a word
 /// of a line, and the popup held for a moment. Needs Miru signed in to that server (`DevSetup`,
 /// docs/shared.md); plays muted.
 final class ReadmeCaptureUITests: XCTestCase {
@@ -16,7 +16,7 @@ final class ReadmeCaptureUITests: XCTestCase {
         // A quick tour: Sintel's poster on the Watch home's shelf, its page, Play, a tap on a word.
         let poster = app.descendants(matching: .any)["home.series.Sintel"].firstMatch
         XCTAssertTrue(poster.waitForExistence(timeout: 30), "signed in to Jellyfin, Sintel on the home")
-        sleep(2)
+        readmeScreenshot("readme-1-home", settle: 4)
         poster.tap()
         let play = app.descendants(matching: .any)["series.play"].firstMatch
         XCTAssertTrue(play.waitForExistence(timeout: 15), "its page")
@@ -29,6 +29,6 @@ final class ReadmeCaptureUITests: XCTestCase {
         line.coordinate(withNormalizedOffset: CGVector(dx: 10.5 / 15, dy: 0.5)).tap()
         let gloss = app.webViews.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Jitendex'")).firstMatch
         XCTAssertTrue(gloss.waitForExistence(timeout: 30), "dictionary results")
-        sleep(4)
+        readmeScreenshot("readme-2-lookup")
     }
 }

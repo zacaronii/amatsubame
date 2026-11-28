@@ -6,33 +6,38 @@ private library or servers.
 | File | Shows | Content and licence |
 | --- | --- | --- |
 | `banner.png`, `*-icon.png` | the swift and the app icons | Amatsubame's own artwork (GPL-3.0, like the repository); the banner's 「もう一話だけ…」 is drawn from the outlines of [M PLUS Rounded 1c](https://fonts.google.com/specimen/M+PLUS+Rounded+1c) ExtraBold (SIL Open Font License 1.1) |
-| `yomu.gif` | Yomu: a tap on a speech bubble, and the lookup | *Pepper&Carrot* episode 1 in Japanese by David Revoy, [peppercarrot.com](https://www.peppercarrot.com), CC BY 4.0 |
-| `miru.gif` | Miru: a tap on a word of the line, and the lookup | *Sintel* (2010) © Blender Foundation, [durian.blender.org](https://durian.blender.org), CC BY 3.0; Japanese subtitles from [download.blender.org/durian/subs/](https://download.blender.org/durian/subs/) |
-| `kiku.gif` | Kiku: the transcript following the audio, and a tap on a word | 夏目漱石『坊っちゃん』, the [LibriVox recording](https://librivox.org/botchan-by-soseki-natsume-2/) read by ekzemplaro (public domain); the transcript is Kaku's own output (anime-whisper) for that clip, unedited |
-| `hiku.gif` | Hiku: a tap on a word in Safari, and the lookup | 夏目漱石『坊っちゃん』on [Aozora Bunko](https://www.aozora.gr.jp/cards/000148/files/752_14964.html) (public domain) |
+| `yomu-1-home.png` | Yomu's Library on the demo Kavita | the demo servers' books and manga: [CREDITS.md](../../CREDITS.md) (Aozora Bunko, public domain; *Pepper&Carrot*, CC BY 4.0) |
+| `yomu-2-lookup.png` | Yomu: a speech bubble zoomed in, and the lookup of 出来上がり | *Pepper&Carrot* episode 1 in Japanese by David Revoy, [peppercarrot.com](https://www.peppercarrot.com), CC BY 4.0 |
+| `miru-1-home.png` | Miru's Watch home on the demo Jellyfin | *Sintel* and *Tears of Steel* © Blender Foundation, CC BY 3.0; 時を超えた迷信 (Terra X), CC BY 4.0: [CREDITS.md](../../CREDITS.md) |
+| `miru-player.gif` | Miru: the player with its line list, a tap on 汚れる, and the lookup | *Sintel* (2010) © Blender Foundation, [durian.blender.org](https://durian.blender.org), CC BY 3.0; Japanese subtitles from [download.blender.org/durian/subs/](https://download.blender.org/durian/subs/) |
+| `kiku-1-home.png` | Kiku's Listen home on the demo Audiobookshelf | LibriVox recordings (public domain): [CREDITS.md](../../CREDITS.md) |
+| `kiku-player.gif` | Kiku: the transcript following the audio, a tap on 小学校, and the lookup | 夏目漱石『坊っちゃん』, the [LibriVox recording](https://librivox.org/botchan-by-soseki-natsume-2/) read by ekzemplaro (public domain); the transcript is Kaku's own output (anime-whisper) for that clip, unedited |
+| `hiku-1-home.png` | Hiku's screen in the app | Amatsubame's own |
+| `hiku-2-lookup.png` | Hiku: the lookup of 無鉄砲 in Safari | 夏目漱石『坊っちゃん』on [Aozora Bunko](https://www.aozora.gr.jp/cards/000148/files/752_14964.html) (public domain) |
 
-Dictionary entries in every GIF are [Jitendex](https://jitendex.org) (CC BY-SA 4.0).
+Dictionary entries in every lookup are [Jitendex](https://jitendex.org) (CC BY-SA 4.0).
 
-## Recording them again
-Each GIF is a quick tour from a capture UI test, skipped unless `TEST_RUNNER_UITEST_CAPTURE=1`:
-`YomuUITests/ReaderUITests.testReadmeCapture`, `MiruUITests/ReadmeCaptureUITests`,
-`HikuUITests/ExtensionLookupUITests.testReadmeCapture`, and `KikuUITests/ReadmeCaptureUITests` with
-`TEST_RUNNER_UITEST_CAPTURE_FOLDER` set to `docs/media/capture/kiku` (`clip.m4a`, the first 2:30 of the
-recording above, and `transcript.json`, Kaku's transcript of it: both only for the capture, not in any
-app). They run against the demo servers Setup offers.
+## Taking them again
+Each app's capture UI test (skipped unless `TEST_RUNNER_UITEST_CAPTURE=1`) attaches two full-screen
+screenshots, `readme-1-home` and `readme-2-lookup`: `YomuUITests/ReaderUITests.testReadmeCapture`,
+`MiruUITests/ReadmeCaptureUITests`, `KikuUITests/ReadmeCaptureUITests` (`testReadmeHome`, and
+`testReadmeCapture` in memory with `docs/media/capture/kiku`: `clip.m4a`, the first 2:30 of the recording
+above, and `transcript.json`, Kaku's transcript of it, both only for the capture) and
+`HikuUITests/ExtensionLookupUITests.testReadmeCapture`. They run against the demo servers Setup offers.
 
-1. `scripts/record-readme-gif.sh <App> <simulator id> <folder>` builds the app, signs it in where it
-   needs to (DevSetup), and runs the test while recording the simulator (`simctl io recordVideo`, status
-   bar at 9:41) and taking a screenshot about every half second. Server addresses, keys and passwords
-   come from `README_*` environment variables (listed at the top of the script), never from the repo.
-   Yomu is recorded on an iPad simulator, the others on an iPhone; Miru and Kiku play muted.
-2. `scripts/readme-gif.py dump <raw.mp4> <frames> <width>` decodes every recorded frame with its time
-   (600 px wide for iPhone, 760 for iPad), and `strip` tiles every Nth frame to pick the steps.
-3. `scripts/readme-gif.py build <frames> <out.gif> 10 <first>-<last>@<cap> … hold:9999@3` samples the
-   chosen frame ranges at 10 fps with their real timing (stills cut to `<cap>` seconds) and ends on a
-   held frame: copy the screenshot showing the popup into the frames folder as `f9999.png`, scaled to
-   the same size and saved as RGB (`ffmpeg -i shot.png -vf "scale=600:-2,format=rgb24" f9999.png`).
+1. `scripts/readme-screenshots.sh <simulator id> <folder> [apps]` builds each app, signs Miru and Kiku in
+   (DevSetup), switches the simulator to dark mode with the status bar at 9:41, runs the tests and
+   exports the screenshots as `<app>-1-home.png` and `<app>-2-lookup.png`. Server addresses, keys and
+   passwords come from `README_*` environment variables (listed at the top of the script), never from
+   the repo. One iPhone for all (an iPhone 17 Pro Max for these).
+2. For Miru and Kiku the script also records the player (`<app>-raw.mp4`, and a screenshot about every
+   half second). Cut their GIFs with `scripts/readme-gif.py`: `dump <raw.mp4> <frames> 600` decodes every
+   recorded frame with its time, `strip` tiles every Nth to pick the steps, and
+   `build <frames> <out.gif> 10 --band <frames>/<a playing frame>.png:<height> <first>-<last>@<cap> … hold:<frame>@3`
+   samples about a second of the player, the tap and the popup at their real timing, then holds the
+   popup. `--band` lays the top band (status bar and Dynamic Island) of one clean frame over every
+   frame, so it stays perfectly still: the island pulses while media plays.
 
 The simulator's recorder writes a frame only when it notices a change, so cutting the video by time
-(`-ss`, `fps`) lands on the wrong frames, and it can miss a web view (the lookup popup) entirely: hence
-the decoded frames and the screenshots.
+(`-ss`, `fps`) lands on the wrong frames, and it can miss a web view (the popup) until something else
+changes: hence the decoded frames, and a screenshot to hold when the popup never made it into the video.

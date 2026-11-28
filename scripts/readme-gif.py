@@ -9,9 +9,12 @@ missed is held from one of the screenshots `scripts/record-readme-gif.sh` takes 
 
   scripts/readme-gif.py dump  <raw.mp4> <dir> [width]   every frame as <dir>/f0001.png…, times in times.txt
   scripts/readme-gif.py strip <dir> <first> <last> <step> <out.png>   every <step>th frame, to pick steps
-  scripts/readme-gif.py build <dir> <out.gif> <fps> <spec>…
+  scripts/readme-gif.py build <dir> <out.gif> <fps> [--band <clean.png>:<height>] <spec>…
       spec: <first>-<last>@<cap> (frames in that range, stills cut to <cap> seconds)
             or hold:<frame>@<seconds> (e.g. a screenshot saved as <dir>/f9999.png, in RGB)
+      --band: the top <height> pixels of every frame are replaced with those of <clean.png> (a
+            screenshot with the status bar override, scaled to the frames' width), so the status bar
+            and the Dynamic Island stay perfectly still (the island pulses while media plays).
 """
 import os
 import re
@@ -44,6 +47,10 @@ def strip(folder, first, last, step, out):
 
 
 def build(folder, out, fps, specs):
+    band = None
+    if specs and specs[0] == "--band":
+        path, height = specs[1].rsplit(":", 1)
+        band, specs = (path, int(height)), specs[2:]
     t = times(folder)
     timeline, clock = [], 0.0          # (frame number, start on the GIF's clock)
     for spec in specs:
@@ -63,9 +70,16 @@ def build(folder, out, fps, specs):
         now = k / fps
         frame = [n for n, start in timeline if start <= now + 1e-9][-1]
         os.symlink(os.path.abspath(os.path.join(folder, f"f{frame:04d}.png")), os.path.join(seq, f"{k + 1:05d}.png"))
-    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-framerate", str(fps), "-i", os.path.join(seq, "%05d.png"),
-                    "-vf", "format=rgb24,split[x][y];[x]palettegen=max_colors=128:stats_mode=diff[p];"
-                           "[y][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle", out], check=True)
+    width = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=width", "-of", "csv=p=0",
+                            os.path.join(folder, f"f{timeline[0][0]:04d}.png")], capture_output=True, text=True).stdout.strip()
+    inputs = ["-framerate", str(fps), "-i", os.path.join(seq, "%05d.png")]
+    chain = "[0]format=rgb24[v]"
+    if band:
+        inputs += ["-i", band[0]]
+        chain = f"[1]scale={width}:-2,crop={width}:{band[1]}:0:0,format=rgb24[b];[0]format=rgb24[f];[f][b]overlay=0:0[v]"
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", *inputs, "-filter_complex",
+                    chain + ";[v]split[x][y];[x]palettegen=max_colors=128:stats_mode=diff[p];"
+                            "[y][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle", out], check=True)
     shutil.rmtree(seq)
     print(f"{out}: {count} frames, {clock:.2f} s, {os.path.getsize(out) / 1e6:.2f} MB")
 

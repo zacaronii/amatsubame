@@ -24,14 +24,12 @@
 **Kaku** (書く, to write down) is the optional transcription server behind Kiku's transcripts:
 [`Server/kaku`](Server/kaku). No servers of your own? Setup offers demo servers to try the apps with.
 
-<p align="center">
-  <img src="docs/media/yomu.gif" width="300" alt="Yomu: tapping a speech bubble in Pepper&amp;Carrot opens the dictionary popup">
-  <img src="docs/media/miru.gif" width="300" alt="Miru: tapping a word in Sintel's Japanese subtitles opens the dictionary popup">
-</p>
-<p align="center">
-  <img src="docs/media/kiku.gif" width="300" alt="Kiku: the transcript of 坊っちゃん follows the audiobook, and tapping 小学校 opens the dictionary popup">
-  <img src="docs/media/hiku.gif" width="300" alt="Hiku: tapping 無鉄砲 on Aozora Bunko in Safari opens the dictionary popup">
-</p>
+| | | |
+| --- | --- | --- |
+| **Yomu** | <img src="docs/media/yomu-1-home.png" width="200" alt="Yomu's Library with the demo server's manga and books"> | <img src="docs/media/yomu-2-lookup.png" width="200" alt="Yomu: 出来上がり looked up in a speech bubble of Pepper&amp;Carrot"> |
+| **Miru** | <img src="docs/media/miru-1-home.png" width="200" alt="Miru's Watch home with the demo server's films"> | <img src="docs/media/miru-player.gif" width="200" alt="Miru: Sintel playing with its Japanese subtitles, and 汚れる looked up in the line"> |
+| **Kiku** | <img src="docs/media/kiku-1-home.png" width="200" alt="Kiku's Listen home with the demo server's audiobooks"> | <img src="docs/media/kiku-player.gif" width="200" alt="Kiku: 坊っちゃん playing with its transcript following, and 小学校 looked up"> |
+| **Hiku** | <img src="docs/media/hiku-1-home.png" width="200" alt="Hiku's screen in the app"> | <img src="docs/media/hiku-2-lookup.png" width="200" alt="Hiku: 無鉄砲 looked up on Aozora Bunko in Safari"> |
 
 ## Get started
 
@@ -75,5 +73,5 @@ the [MIT License](Server/kaku/LICENSE). Third-party components and their license
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 Amatsubame stands on the work of many people: see [docs/ACKNOWLEDGEMENTS.md](docs/ACKNOWLEDGEMENTS.md).
-The GIFs show licence-clean content: [credits](docs/media/CREDITS.md). The demo servers' books, manga,
+The screenshots and GIFs show licence-clean content: [credits](docs/media/CREDITS.md). The demo servers' books, manga,
 audiobooks and films are credited in [CREDITS.md](CREDITS.md).

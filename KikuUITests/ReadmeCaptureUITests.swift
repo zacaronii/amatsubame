@@ -1,6 +1,6 @@
 import XCTest
 
-/// The README's GIF (`UITEST_CAPTURE=1`, recorded with `simctl io recordVideo`): the LibriVox
+/// The README's screenshots (`UITEST_CAPTURE=1`, `scripts/readme-screenshots.sh`). The lookup: the LibriVox
 /// recording of 坊っちゃん (public domain, read by ekzemplaro) with Kaku's own transcript of it
 /// (docs/media/capture/kiku), the transcript following the audio, and a tap on a word. In memory and
 /// muted; needs `UITEST_CAPTURE_FOLDER` (that folder) and `UITEST_DICTIONARY_ZIPS`.
@@ -23,6 +23,18 @@ final class ReadmeCaptureUITests: XCTestCase {
         line.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: 14, dy: 14)).tap()
         let gloss = app.webViews.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Jitendex'")).firstMatch
         XCTAssertTrue(gloss.waitForExistence(timeout: 60), "dictionary results")
-        sleep(4)
+        readmeScreenshot("readme-2-lookup")
+    }
+
+    /// The home: Listen with the demo Audiobookshelf's audiobooks. Needs Kiku signed in to it
+    /// (`DevSetup`, docs/shared.md).
+    func testReadmeHome() throws {
+        guard ProcessInfo.processInfo.environment["UITEST_CAPTURE"] != nil else { throw XCTSkip("Set UITEST_CAPTURE=1 to record.") }
+        let app = XCUIApplication()
+        app.launchEnvironment["UITEST_MUTE"] = "1"
+        app.launch()
+        let book = app.descendants(matching: .any)["listen.recentBook"].firstMatch
+        XCTAssertTrue(book.waitForExistence(timeout: 30), "signed in to Audiobookshelf, its books on Listen")
+        readmeScreenshot("readme-1-home", settle: 5)
     }
 }
