@@ -84,11 +84,12 @@ final class ExtensionLookupUITests: XCTestCase {
         attach(safari.screenshot(), "after mine")
     }
 
-    /// The README's GIF (`UITEST_CAPTURE=1`, recorded with `simctl io recordVideo`): 坊っちゃん on
-    /// Aozora Bunko (public domain) in Safari, a tap on 無鉄砲, and the popup held for a moment.
+    /// The README's screenshots (`UITEST_CAPTURE=1`, `scripts/readme-screenshots.sh`): Hiku's own
+    /// screen, then 坊っちゃん on Aozora Bunko (public domain) in Safari with the popup open on 無鉄砲.
     func testReadmeCapture() throws {
         guard ProcessInfo.processInfo.environment["UITEST_CAPTURE"] != nil else { throw XCTSkip("Set UITEST_CAPTURE=1 to record.") }
         XCUIApplication().launch()
+        readmeScreenshot("readme-1-home", settle: 3)
         enableExtension()
         let safari = XCUIApplication(bundleIdentifier: "com.apple.mobilesafari")
         safari.terminate()
@@ -107,9 +108,8 @@ final class ExtensionLookupUITests: XCTestCase {
         safari.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: at[0], dy: at[1])).tap()
         let gloss = safari.webViews.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] 'reckless'")).firstMatch
         let found = gloss.waitForExistence(timeout: 180)
-        attach(safari.screenshot(), "capture")
         XCTAssertTrue(found, "the popup shows 無鉄砲")
-        sleep(4)
+        readmeScreenshot("readme-2-lookup")
     }
 
     /// Only turns the extension on, for a simulator set up for hands-on testing

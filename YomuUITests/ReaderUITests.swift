@@ -469,12 +469,15 @@ final class ReaderUITests: XCTestCase {
         XCTAssertTrue(playPause.waitForNonExistence(timeout: 5))
     }
 
-    /// The README's GIF (`UITEST_CAPTURE=1`, recorded with `simctl io recordVideo`): a page with
-    /// dialogue, a tap on a bubble, and the popup's results held for a moment.
+    /// The README's screenshots (`UITEST_CAPTURE=1`, `scripts/readme-screenshots.sh`): the Library
+    /// with the demo server's books and manga, then Pepper&Carrot's page with dialogue, zoomed in on a
+    /// bubble, with the popup open on 出来上がり.
     func testReadmeCapture() throws {
         guard ProcessInfo.processInfo.environment["UITEST_CAPTURE"] != nil else { throw XCTSkip("Set UITEST_CAPTURE=1 to record.") }
         try enableOCR()
         app.launch()
+        XCTAssertTrue(app.buttons[library].firstMatch.waitForExistence(timeout: 30), "the Library")
+        readmeScreenshot("readme-1-home", settle: 5)
         openReader()
         let dialogue = app.descendants(matching: .any).matching(identifier: "ocr.block")
             .matching(NSPredicate(format: "label MATCHES %@", ".*[ぁ-んァ-ヶ一-龠]{6,}.*"))
@@ -484,13 +487,31 @@ final class ReaderUITests: XCTestCase {
                dialogue.allElementsBoundByIndex.filter({ $0.exists && $0.isHittable }).count >= 2 { break }
         }
         sleep(2)
-        // The bubble's second line ("…これで / 出来上がり" on the first such page): its first word.
-        let bubbles = dialogue.allElementsBoundByIndex.filter { $0.exists && $0.isHittable }
-        let bubble = try XCTUnwrap(bubbles.first { $0.label.contains("出来上が") } ?? bubbles.first, "a bubble with dialogue")
-        bubble.coordinate(withNormalizedOffset: CGVector(dx: 0.03, dy: 0.75)).tap()
+        // The bubble's second line ("…これで / 出来上がり" on the first such page): its first word,
+        // after zooming in (a pinch, then down to the bubble) so it reads at phone width.
+        func bubble() throws -> XCUIElement {
+            let bubbles = dialogue.allElementsBoundByIndex.filter { $0.exists && $0.isHittable }
+            return try XCTUnwrap(bubbles.first { $0.label.contains("出来上が") } ?? bubbles.first, "a bubble with dialogue")
+        }
+        reader.pinch(withScale: 2.5, velocity: 3)
+        sleep(1)
+        for _ in 0..<4 where (try? bubble())?.label.contains("出来上が") != true {
+            reader.swipeDown(velocity: .slow); sleep(1)
+        }
+        sleep(1)
+        // Pan the page up so its art starts under the status bar (no band of black above the
+        // page or its white margin): the bubble, near the top of its panel, about 50 points down.
+        let top = try bubble().frame.minY
+        if top > 60 {
+            let from = reader.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
+            from.press(forDuration: 0.1, thenDragTo: from.withOffset(CGVector(dx: 0, dy: -(top - 50))),
+                       withVelocity: .slow, thenHoldForDuration: 0.5)
+            sleep(1)
+        }
+        try bubble().coordinate(withNormalizedOffset: CGVector(dx: 0.03, dy: 0.75)).tap()
         let results = app.webViews.firstMatch.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Jitendex'")).firstMatch
         XCTAssertTrue(results.waitForExistence(timeout: 20), "dictionary results")
-        sleep(4)
+        readmeScreenshot("readme-2-lookup")
     }
 
     private func enableOCR() throws {
