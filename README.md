@@ -24,7 +24,7 @@
 **Kaku** (書く, to write down) is the optional transcription server behind Kiku's transcripts:
 [`Server/kaku`](Server/kaku). No servers of your own? Setup offers demo servers to try the apps with.
 
-| | | |
+| App | Home | In use |
 | --- | --- | --- |
 | **Yomu** | <img src="docs/media/yomu-1-home.png" width="200" alt="Yomu's Library with the demo server's manga and books"> | <img src="docs/media/yomu-2-lookup.png" width="200" alt="Yomu: 出来上がり looked up in a speech bubble of Pepper&amp;Carrot"> |
 | **Miru** | <img src="docs/media/miru-1-home.png" width="200" alt="Miru's Watch home with the demo server's films"> | <img src="docs/media/miru-player.gif" width="200" alt="Miru: Sintel playing with its Japanese subtitles, and 汚れる looked up in the line"> |
